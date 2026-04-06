@@ -1,0 +1,6 @@
+from .EditorialController import EditorialController
+from .MapController import MapController
+from .ChatbotController import ChatbotController
+from .KioskController import KioskController
+from .VideoController import VideoController
+from .UserController import UserController

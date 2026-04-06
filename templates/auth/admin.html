@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Admin Dashboard</h1>
+    <p>Welcome, {{ current_user.username }}!</p>
+    <!-- Admin-specific content goes here -->
+
+    {% if bag().any() %}
+    <div class="mb-4 rounded border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
+        <ul class="list-disc list-inside">
+            {% for message in bag().messages() %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+      <form action="{{ route('users.store', {}, False) }}" method="post">
+          {{ csrf_field | safe }}
+        <input type="text" name="email" placeholder="Email" required>
+        <input type="text" name="username" placeholder="Username" required>
+        <button type="submit">Create User</button>
+     </form>
+
+     <table class="user-management">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.username }}</td>
+                <td>
+                    <form action="{{ route('users.destroy', {'id': user.id}, False) }}" method="post" style="display:inline;">
+                        {{ csrf_field | safe }}
+                        <input type="hidden" name="__method" value="DELETE">
+                        <button type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+     </table>
+{% endblock %}

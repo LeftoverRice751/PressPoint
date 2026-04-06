@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Kiosk{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="/assets/css/app.css" />
+{% endblock %}
+
+{% block content %}
+<div id="kiosk-config" class="hidden" data-pusher-key="{{ pusher_key }}" data-pusher-cluster="{{ pusher_cluster }}"></div>
+<div id="kiosk-stage">
+  <div id="kiosk-title">Campus display</div>
+  <div id="kiosk-loading" aria-live="polite" aria-atomic="true">
+    <div class="kiosk-spinner" aria-hidden="true"></div>
+    <div class="kiosk-loading-title">Loading video</div>
+    <div class="kiosk-loading-subtitle">Fetching metadata...</div>
+  </div>
+  <div id="kiosk-video-wrap">
+    <video id="kiosk-video" playsinline autoplay preload="metadata"></video>
+  </div>
+  <p id="kiosk-status">Waiting for editorial to start a video…</p>
+</div>
+{% endblock %}
+
+{% block js %}
+  <script src="/assets/js/app.js" defer></script>
+{% endblock %}
