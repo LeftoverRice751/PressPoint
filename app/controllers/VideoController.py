@@ -3,6 +3,8 @@ from masonite.request import Request
 from masonite.filesystem import Storage
 from masonite.utils.location import base_path
 from app.models.Video import Video
+from app.models.Events import Events
+from app.models.Locations import Locations
 from masonite.response import Response
 from masonite.views import View
 import os
@@ -20,7 +22,14 @@ class VideoController(Controller):
     
     def show(self, views: View):
         videos = Video.all()
-        return views.render("gears/dashboard.html", {"videos": videos})
+        events = Events.all()
+        locations = Locations.all()
+
+        return views.render("gears/dashboard.html", {
+            "videos": videos,
+            "events": events,
+            "locations": locations,
+        })
 
     def upload(self, request: Request, storage: Storage, response: Response):
         

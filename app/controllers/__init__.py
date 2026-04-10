@@ -4,3 +4,4 @@ from .ChatbotController import ChatbotController
 from .KioskController import KioskController
 from .VideoController import VideoController
 from .UserController import UserController
+from .EventController import EventController

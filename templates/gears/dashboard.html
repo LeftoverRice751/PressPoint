@@ -88,6 +88,67 @@
     font-size: 0.95rem;
     line-height: 1;
   }
+
+  .event-form-container {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .event-form-container::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 14rem;
+    height: 14rem;
+    background: radial-gradient(circle, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0) 70%);
+    pointer-events: none;
+  }
+
+  .event-form-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .event-list-item {
+    transition: background-color 0.15s ease, transform 0.15s ease;
+  }
+
+  .event-list-item:hover {
+    background: #f8fafc;
+    transform: translateY(-1px);
+  }
+
+  .kiosk-lock-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 11rem;
+    justify-content: center;
+    border: 0;
+    border-radius: 9999px;
+    padding: 0.9rem 1.15rem;
+    background: linear-gradient(135deg, #dc2626 0%, #0f172a 100%);
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    box-shadow: 0 10px 18px rgba(220, 38, 38, 0.22);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  }
+
+  .kiosk-lock-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 22px rgba(220, 38, 38, 0.3);
+  }
+
+  .kiosk-lock-btn:active {
+    transform: translateY(0);
+  }
+
+  .kiosk-lock-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
 </style>
 {% endblock %}
 
@@ -113,6 +174,97 @@
 
       <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Save to library</button>
     </form>
+  </div>
+
+  <div class="event-form-container bg-white border border-gray-200 rounded-lg p-6 mb-10 shadow-sm">
+    <div class="relative z-10">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-lg font-medium">Create event</h2>
+          <p class="text-sm text-gray-600 mt-1">Use this separate form to save events through the event controller.</p>
+        </div>
+      </div>
+
+      <form action="{{ route('events.store', {}, False) }}" method="POST" class="space-y-4">
+        {{ csrf_field | safe }}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="event_title" class="block text-sm font-medium text-gray-700 mb-1">Event title</label>
+            <input type="text" name="title" id="event_title" class="w-full border rounded px-3 py-2" placeholder="e.g. Foundation Day" required>
+          </div>
+
+          <div>
+            <label for="event_date" class="block text-sm font-medium text-gray-700 mb-1">Event date and time</label>
+            <input type="datetime-local" name="event_date" id="event_date" class="w-full border rounded px-3 py-2" required>
+          </div>
+
+          <div class="md:col-span-2">
+            <label for="event_description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea name="description" id="event_description" rows="4" class="w-full border rounded px-3 py-2" placeholder="Add a short description of the event" required></textarea>
+          </div>
+
+          <div>
+            <label for="location_id" class="block text-sm font-medium text-gray-700 mb-1">Location</label>
+            <select name="location_id" id="location_id" class="w-full border rounded px-3 py-2">
+              <option value="">No location</option>
+              {% for location in locations %}
+              <option value="{{ location.id }}">{{ location.name }}</option>
+              {% else %}
+              <option value="" disabled>No locations available</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-800">Save event</button>
+        </div>
+      </form>
+
+      <div class="mt-8">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Saved events</h3>
+        <ul class="divide-y border rounded-lg bg-white overflow-hidden">
+          {% for event in events %}
+          <li class="event-list-item flex flex-wrap items-center gap-3 p-4 bg-white">
+            <div class="flex-1 min-w-[200px]">
+              <div class="font-medium text-gray-900">{{ event.title }}</div>
+              <div class="text-xs text-gray-500 truncate">{{ event.description }}</div>
+            </div>
+            <div class="text-sm text-gray-700">
+              {{ event.event_date }}
+            </div>
+            <div class="text-xs uppercase tracking-wide text-gray-500">
+              Location ID: {{ event.location_id if event.location_id else 'None' }}
+            </div>
+          </li>
+          {% else %}
+          <li class="p-6 text-gray-500 text-sm">No events yet. Create one using the form above.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded-lg p-6 mb-10 shadow-sm">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <h2 class="text-lg font-medium">Kiosk controls</h2>
+        <p class="text-sm text-gray-600 mt-1">Use these actions to lock or unlock the kiosk overlay on the welcome screen.</p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <button type="button" class="kiosk-lock-btn" data-kiosk-action="lock" data-kiosk-url="{{ route('kiosk.lock', {}, False) }}" data-kiosk-label="Lock kiosk">
+          <span class="play-kiosk-icon" aria-hidden="true">🔒</span>
+          Lock kiosk
+        </button>
+
+        <button type="button" class="delete-video-btn" data-kiosk-action="unlock" data-kiosk-url="{{ route('kiosk.unlock', {}, False) }}" data-kiosk-label="Unlock kiosk">
+          <span class="play-kiosk-icon" aria-hidden="true">🔓</span>
+          Unlock kiosk
+        </button>
+      </div>
+    </div>
   </div>
 
   <div>
@@ -158,6 +310,14 @@
   var tokenMeta = document.querySelector('meta[name="csrf-token"]');
   var token = tokenMeta ? tokenMeta.getAttribute('content') : '';
 
+  function postKioskAction(action) {
+    return fetch(action, {
+      method: 'POST',
+      headers: { 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    }).then(function (r) { return r.json(); });
+  }
+
   function postPlay(src, title) {
     var fd = new FormData();
     fd.append('__token', token);
@@ -184,6 +344,34 @@
         })
         .catch(function () { alert('Could not reach server.'); })
         .then(function () { btn.disabled = false; });
+    });
+  });
+
+  document.querySelectorAll('[data-kiosk-action]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var action = btn.getAttribute('data-kiosk-action');
+      var url = btn.getAttribute('data-kiosk-url');
+      if (!action) {
+        alert('Could not determine the kiosk action.');
+        return;
+      }
+
+      if (!url) {
+        alert('Could not determine the kiosk endpoint.');
+        return;
+      }
+
+      btn.disabled = true;
+      postKioskAction(url)
+        .then(function () {
+          alert(action === 'lock' ? 'Kiosk lock event sent.' : 'Kiosk unlock event sent.');
+        })
+        .catch(function () {
+          alert('Could not reach server.');
+        })
+        .then(function () {
+          btn.disabled = false;
+        });
     });
   });
 
