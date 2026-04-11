@@ -1,421 +1,376 @@
 {% extends "base.html" %}
-{% block title %}Editorial — Videos{% endblock %}
+{% block title %}GEARS CMS{% endblock %}
 
 {% block head %}
-<style>
-  .video-row {
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-  }
-
-  .video-row:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-    border-color: #cbd5e1;
-  }
-
-  .play-kiosk-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    min-width: 11rem;
-    justify-content: center;
-    border: 0;
-    border-radius: 9999px;
-    padding: 0.9rem 1.15rem;
-    background: linear-gradient(135deg, #2563eb 0%, #0f172a 100%);
-    color: #fff;
-    font-size: 0.875rem;
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    box-shadow: 0 10px 18px rgba(37, 99, 235, 0.22);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
-  }
-
-  .play-kiosk-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 14px 22px rgba(37, 99, 235, 0.3);
-  }
-
-  .play-kiosk-btn:active {
-    transform: translateY(0);
-  }
-
-  .play-kiosk-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-
-  .delete-video-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 9.5rem;
-    justify-content: center;
-    border: 1px solid #fecaca;
-    border-radius: 9999px;
-    padding: 0.9rem 1.15rem;
-    background: #fff1f2;
-    color: #be123c;
-    font-size: 0.875rem;
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    box-shadow: 0 10px 18px rgba(244, 63, 94, 0.12);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
-  }
-
-  .delete-video-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 14px 22px rgba(244, 63, 94, 0.18);
-  }
-
-  .delete-video-btn:active {
-    transform: translateY(0);
-  }
-
-  .delete-video-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-
-  .play-kiosk-icon {
-    width: 2rem;
-    height: 2rem;
-    border-radius: 9999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.16);
-    font-size: 0.95rem;
-    line-height: 1;
-  }
-
-  .event-form-container {
-    position: relative;
-    overflow: hidden;
-  }
-
-  .event-form-container::before {
-    content: '';
-    position: absolute;
-    inset: 0 auto auto 0;
-    width: 14rem;
-    height: 14rem;
-    background: radial-gradient(circle, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0) 70%);
-    pointer-events: none;
-  }
-
-  .event-form-grid {
-    display: grid;
-    gap: 1rem;
-  }
-
-  .event-list-item {
-    transition: background-color 0.15s ease, transform 0.15s ease;
-  }
-
-  .event-list-item:hover {
-    background: #f8fafc;
-    transform: translateY(-1px);
-  }
-
-  .kiosk-lock-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    min-width: 11rem;
-    justify-content: center;
-    border: 0;
-    border-radius: 9999px;
-    padding: 0.9rem 1.15rem;
-    background: linear-gradient(135deg, #dc2626 0%, #0f172a 100%);
-    color: #fff;
-    font-size: 0.875rem;
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    box-shadow: 0 10px 18px rgba(220, 38, 38, 0.22);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
-  }
-
-  .kiosk-lock-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 14px 22px rgba(220, 38, 38, 0.3);
-  }
-
-  .kiosk-lock-btn:active {
-    transform: translateY(0);
-  }
-
-  .kiosk-lock-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-</style>
+<link rel="stylesheet" href="/assets/css/gears-dashboard.css" />
 {% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto py-10 px-4">
-  <h1 class="text-2xl font-semibold text-gray-800 mb-6">Campus news video</h1>
-
-  <div class="video-upload-container bg-white border border-gray-200 rounded-lg p-6 mb-10 shadow-sm">
-    <h2 class="text-lg font-medium mb-4">Upload</h2>
-
-    <form action="{{ route('video.upload', {}, False) }}" method="POST" enctype="multipart/form-data">
-      {{ csrf_field | safe }}
-
-      <div class="mb-4">
-        <label for="title" class="block text-sm font-medium text-gray-700 mb-1">Video title</label>
-        <input type="text" name="title" id="title" class="w-full border rounded px-3 py-2" placeholder="e.g. Foundation Day" required>
-      </div>
-
-      <div class="mb-4">
-        <label for="video" class="block text-sm font-medium text-gray-700 mb-1">MP4 file</label>
-        <input type="file" name="video" id="video" accept="video/mp4" required class="w-full">
-      </div>
-
-      <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Save to library</button>
-    </form>
-  </div>
-
-  <div class="event-form-container bg-white border border-gray-200 rounded-lg p-6 mb-10 shadow-sm">
-    <div class="relative z-10">
-      <div class="flex items-start justify-between gap-4 mb-4">
-        <div>
-          <h2 class="text-lg font-medium">Create event</h2>
-          <p class="text-sm text-gray-600 mt-1">Use this separate form to save events through the event controller.</p>
-        </div>
-      </div>
-
-      <form action="{{ route('events.store', {}, False) }}" method="POST" class="space-y-4">
-        {{ csrf_field | safe }}
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label for="event_title" class="block text-sm font-medium text-gray-700 mb-1">Event title</label>
-            <input type="text" name="title" id="event_title" class="w-full border rounded px-3 py-2" placeholder="e.g. Foundation Day" required>
-          </div>
-
-          <div>
-            <label for="event_date" class="block text-sm font-medium text-gray-700 mb-1">Event date and time</label>
-            <input type="datetime-local" name="event_date" id="event_date" class="w-full border rounded px-3 py-2" required>
-          </div>
-
-          <div class="md:col-span-2">
-            <label for="event_description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea name="description" id="event_description" rows="4" class="w-full border rounded px-3 py-2" placeholder="Add a short description of the event" required></textarea>
-          </div>
-
-          <div>
-            <label for="location_id" class="block text-sm font-medium text-gray-700 mb-1">Location</label>
-            <select name="location_id" id="location_id" class="w-full border rounded px-3 py-2">
-              <option value="">No location</option>
-              {% for location in locations %}
-              <option value="{{ location.id }}">{{ location.name }}</option>
-              {% else %}
-              <option value="" disabled>No locations available</option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
-
-        <div class="pt-2">
-          <button type="submit" class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-800">Save event</button>
-        </div>
-      </form>
-
-      <div class="mt-8">
-        <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Saved events</h3>
-        <ul class="divide-y border rounded-lg bg-white overflow-hidden">
-          {% for event in events %}
-          <li class="event-list-item flex flex-wrap items-center gap-3 p-4 bg-white">
-            <div class="flex-1 min-w-[200px]">
-              <div class="font-medium text-gray-900">{{ event.title }}</div>
-              <div class="text-xs text-gray-500 truncate">{{ event.description }}</div>
-            </div>
-            <div class="text-sm text-gray-700">
-              {{ event.event_date }}
-            </div>
-            <div class="text-xs uppercase tracking-wide text-gray-500">
-              Location ID: {{ event.location_id if event.location_id else 'None' }}
-            </div>
-          </li>
-          {% else %}
-          <li class="p-6 text-gray-500 text-sm">No events yet. Create one using the form above.</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
-  </div>
-
-  <div class="bg-white border border-gray-200 rounded-lg p-6 mb-10 shadow-sm">
-    <div class="flex items-start justify-between gap-4 flex-wrap">
+<div
+  class="gears-dashboard"
+  data-dashboard-shell
+  data-default-page="dashboard"
+  data-video-push-url="{{ route('video.push', {}, False) }}"
+>
+  <aside class="gears-sidebar">
+    <div class="gears-sidebar__brand">
+      <div class="gears-sidebar__mark" aria-hidden="true">G</div>
       <div>
-        <h2 class="text-lg font-medium">Kiosk controls</h2>
-        <p class="text-sm text-gray-600 mt-1">Use these actions to lock or unlock the kiosk overlay on the welcome screen.</p>
-      </div>
-
-      <div class="flex flex-wrap gap-3">
-        <button type="button" class="kiosk-lock-btn" data-kiosk-action="lock" data-kiosk-url="{{ route('kiosk.lock', {}, False) }}" data-kiosk-label="Lock kiosk">
-          <span class="play-kiosk-icon" aria-hidden="true">🔒</span>
-          Lock kiosk
-        </button>
-
-        <button type="button" class="delete-video-btn" data-kiosk-action="unlock" data-kiosk-url="{{ route('kiosk.unlock', {}, False) }}" data-kiosk-label="Unlock kiosk">
-          <span class="play-kiosk-icon" aria-hidden="true">🔓</span>
-          Unlock kiosk
-        </button>
+        <div class="gears-sidebar__eyebrow">The Gears Publication</div>
+        <div class="gears-sidebar__title">GEARS CMS</div>
       </div>
     </div>
-  </div>
 
-  <div>
-    <h2 class="text-lg font-medium mb-3">Push to kiosk</h2>
-    <p class="text-sm text-gray-600 mb-4">Click <strong>Play on kiosk</strong> to broadcast to the welcome page (requires Pusher in <code>.env</code>).</p>
+    <nav class="dashboard-nav" aria-label="Dashboard navigation">
+      <div class="dashboard-nav__group-label">CONTENT</div>
+      <button type="button" class="dashboard-nav__link is-active" data-page-link="dashboard">
+        <span class="dashboard-nav__icon" aria-hidden="true">▣</span>
+        <span>Dashboard</span>
+      </button>
+      <button type="button" class="dashboard-nav__link" data-page-link="articles">
+        <span class="dashboard-nav__icon" aria-hidden="true">▤</span>
+        <span>Articles</span>
+      </button>
+      <button type="button" class="dashboard-nav__link" data-page-link="locations">
+        <span class="dashboard-nav__icon" aria-hidden="true">⌖</span>
+        <span>Locations</span>
+      </button>
 
-    <ul class="divide-y border rounded-lg bg-white overflow-hidden">
-      {% for video in videos %}
-      <li class="video-row flex flex-wrap items-center gap-3 p-4 bg-white">
-        <div class="flex-1 min-w-[200px]">
-          <div class="font-medium text-gray-900">{{ video.title }}</div>
-          <div class="text-xs text-gray-500 truncate">{{ video.file_path }}</div>
+      <div class="dashboard-nav__group-label dashboard-nav__group-label--tools">SYSTEM TOOLS</div>
+      <button type="button" class="dashboard-nav__link" data-page-link="video-manager">
+        <span class="dashboard-nav__icon" aria-hidden="true">▣</span>
+        <span>Video Manager</span>
+      </button>
+      <button type="button" class="dashboard-nav__link" data-page-link="kiosk-lock">
+        <span class="dashboard-nav__icon" aria-hidden="true">⟐</span>
+        <span>Kiosk Lock</span>
+      </button>
+    </nav>
+
+    <div class="gears-sidebar__footer">
+      <div class="live-status-card">
+        <span class="live-status-card__dot" aria-hidden="true"></span>
+        <div>
+          <div class="live-status-card__title">LIVE UPDATES ON</div>
+          <div class="live-status-card__text">Changes appear on kiosk instantly</div>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <button type="button"
-            class="play-kiosk-btn"
-            data-src="/storage/{{ video.file_path | replace('\\', '/') }}"
-            data-title="{{ video.title | e }}">
-            <span class="play-kiosk-icon" aria-hidden="true">▶</span>
-            Play on kiosk
+      </div>
+    </div>
+  </aside>
+
+  <main class="gears-main">
+    <header class="gears-hero">
+      <div>
+        <p class="gears-hero__eyebrow">Dashboard</p>
+        <h1 class="gears-hero__title">Real-time overview of your kiosk content</h1>
+        <p class="gears-hero__subtitle">Manage articles, campus locations, kiosk playback, and remote lockdown from one place.</p>
+      </div>
+      <div class="gears-hero__chip">GEARS CMS</div>
+    </header>
+
+    <section class="gears-page is-visible" data-page-panel="dashboard">
+      <div class="stats-grid">
+        <article class="stat-card stat-card--blue">
+          <div class="stat-card__label">Total Articles</div>
+          <div class="stat-card__value">{{ total_articles or 0 }}</div>
+        </article>
+
+        <article class="stat-card stat-card--orange">
+          <div class="stat-card__label">Published Articles</div>
+          <div class="stat-card__value">{{ published_articles or 0 }}</div>
+        </article>
+
+        <article class="stat-card stat-card--green">
+          <div class="stat-card__label">Locations</div>
+          <div class="stat-card__value">{{ location_count or 0 }}</div>
+        </article>
+      </div>
+
+      <div class="dashboard-grid">
+        <article class="dashboard-panel" data-section-count="{{ article_groups|length }}">
+          <div class="panel-header">
+            <div>
+              <p class="panel-header__eyebrow">Content Snapshot</p>
+              <h2 class="panel-header__title">Articles by Category</h2>
+            </div>
+          </div>
+
+          <div class="empty-state" data-empty-state>
+            <div class="empty-state__title">No data available</div>
+            <p class="empty-state__text">Publish articles and assign categories to populate this overview.</p>
+          </div>
+
+          <div class="category-list" data-section-content>
+            {% for group in article_groups %}
+            <div class="category-row">
+              <div class="category-row__header">
+                <div>
+                  <div class="category-row__name">{{ group['name'] }}</div>
+                  <div class="category-row__meta">{{ group['count'] }} articles</div>
+                </div>
+                <div class="category-row__badge">{{ group['count'] }}</div>
+              </div>
+
+              <div class="progress-track" aria-hidden="true">
+                <span class="progress-fill" data-progress-bar data-progress="{{ group['percent'] }}"></span>
+              </div>
+
+              <div class="mini-list">
+                {% for article in group['items'] %}
+                <div class="mini-list__item">
+                  <span class="mini-list__title">{{ article.title }}</span>
+                  <span class="mini-list__detail">{{ article.status if article.status else 'draft' }}</span>
+                </div>
+                {% else %}
+                <div class="mini-list__item mini-list__item--muted">No articles in this category.</div>
+                {% endfor %}
+              </div>
+            </div>
+            {% else %}
+            <div class="category-row category-row--empty">No data available.</div>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="dashboard-panel" data-section-count="{{ recent_articles|length }}">
+          <div class="panel-header">
+            <div>
+              <p class="panel-header__eyebrow">Latest Publishing</p>
+              <h2 class="panel-header__title">Recent Articles</h2>
+            </div>
+          </div>
+
+          <div class="empty-state" data-empty-state>
+            <div class="empty-state__title">No data available</div>
+            <p class="empty-state__text">Recent articles will appear here as soon as you publish content.</p>
+          </div>
+
+          <div class="recent-list" data-section-content>
+            {% for article in recent_articles %}
+            <article class="recent-item">
+              <div class="recent-item__topline">
+                <div class="recent-item__title">{{ article.title }}</div>
+                <span class="status-pill {{ 'status-pill--published' if (article.status or '')|lower == 'published' else 'status-pill--draft' }}">
+                  {{ article.status if article.status else 'draft' }}
+                </span>
+              </div>
+
+              <div class="recent-item__meta">
+                <span>Category: {{ category_lookup.get(article.category_id, 'Uncategorized') if category_lookup else 'Uncategorized' }}</span>
+                <span>Published: {{ article.published_at if article.published_at else 'Not set' }}</span>
+              </div>
+
+              <p class="recent-item__excerpt">{{ article.content[:160] if article.content else 'No summary available.' }}</p>
+            </article>
+            {% else %}
+            <div class="empty-state empty-state--embedded">No data available.</div>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="gears-page" data-page-panel="articles" hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">Articles</h2>
+        </div>
+        <p class="section-head__subtitle">All posts in the CMS, ready for editorial review.</p>
+      </div>
+
+      <div class="page-card" data-section-count="{{ posts|length }}">
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No data available</div>
+          <p class="empty-state__text">Create or publish articles to populate this section.</p>
+        </div>
+
+        <div class="article-grid" data-section-content>
+          {% for article in posts %}
+          <article class="article-card">
+            <div class="article-card__header">
+              <div class="article-card__title">{{ article.title }}</div>
+              <span class="status-pill {{ 'status-pill--published' if (article.status or '')|lower == 'published' else 'status-pill--draft' }}">
+                {{ article.status if article.status else 'draft' }}
+              </span>
+            </div>
+            <div class="article-card__meta">
+              <span>Category: {{ category_lookup.get(article.category_id, 'Uncategorized') if category_lookup else 'Uncategorized' }}</span>
+              <span>Author: {{ article.author_id if article.author_id else 'Unassigned' }}</span>
+            </div>
+            <p class="article-card__text">{{ article.content[:220] if article.content else 'No summary available.' }}</p>
+          </article>
+          {% else %}
+          <div class="empty-state empty-state--embedded">No data available.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="gears-page" data-page-panel="locations" hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">Locations</h2>
+        </div>
+        <p class="section-head__subtitle">Manage campus buildings, offices, and service points.</p>
+      </div>
+
+      <div class="page-card" data-section-count="{{ locations|length }}">
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No data available</div>
+          <p class="empty-state__text">Add locations to start building wayfinding and routing flows.</p>
+        </div>
+
+        <div class="location-grid" data-section-content>
+          {% for location in locations %}
+          <article class="location-card">
+            <div class="location-card__header">
+              <div>
+                <div class="location-card__name">{{ location.name }}</div>
+                <div class="location-card__type">{{ location.type if location.type else 'Location' }}</div>
+              </div>
+              <span class="status-pill status-pill--neutral">{{ 'Route' if location.is_routable else 'Static' }}</span>
+            </div>
+            <div class="location-card__meta">Latitude: {{ location.latitude }} | Longitude: {{ location.longitude }}</div>
+          </article>
+          {% else %}
+          <div class="empty-state empty-state--embedded">No data available.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="gears-page" data-page-panel="video-manager" hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">System Tools</p>
+          <h2 class="section-head__title">Video Manager</h2>
+        </div>
+        <p class="section-head__subtitle">Upload, preview, and push public service videos to the kiosk.</p>
+      </div>
+
+      <div class="video-manager-grid">
+        <article class="page-card video-upload-card">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Library</p>
+              <h3 class="panel-header__title">Upload Video</h3>
+            </div>
+          </div>
+
+          <form action="{{ route('video.upload', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack">
+            {{ csrf_field | safe }}
+            <label class="field">
+              <span class="field__label">Video title</span>
+              <input type="text" name="title" class="field__input" placeholder="e.g. Foundation Day" required>
+            </label>
+
+            <label class="field">
+              <span class="field__label">MP4 file</span>
+              <input type="file" name="video" accept="video/mp4" class="field__input field__input--file" required>
+            </label>
+
+            <button type="submit" class="primary-button">Save to library</button>
+          </form>
+        </article>
+
+        <article class="page-card video-preview-card">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Preview</p>
+              <h3 class="panel-header__title">Video Player Area</h3>
+            </div>
+          </div>
+
+          <div class="video-preview" data-section-count="{{ videos|length }}">
+            <div class="empty-state" data-empty-state>
+              <div class="empty-state__title">No data available</div>
+              <p class="empty-state__text">Upload a video to preview it here.</p>
+            </div>
+
+            <div class="video-preview__viewport" data-section-content>
+              <video class="video-preview__player" data-video-preview-player controls playsinline preload="metadata"></video>
+              <div class="video-preview__placeholder" data-video-preview-placeholder>Select a video to preview it here.</div>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="page-card video-library-card" data-section-count="{{ videos|length }}">
+        <div class="panel-header panel-header--compact">
+          <div>
+            <p class="panel-header__eyebrow">Library</p>
+            <h3 class="panel-header__title">Video Library</h3>
+          </div>
+          <p class="panel-header__subtitle">Choose a video to preview or broadcast to the kiosk.</p>
+        </div>
+
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No data available</div>
+          <p class="empty-state__text">Upload your first video to populate the library.</p>
+        </div>
+
+        <div class="video-library" data-section-content>
+          {% for video in videos %}
+          <article class="video-card" data-video-card data-video-src="/storage/{{ video.file_path | replace('\\', '/') }}" data-video-title="{{ video.title | e }}">
+            <button type="button" class="video-card__body" data-video-preview-trigger>
+              <span class="video-card__thumb" aria-hidden="true">▶</span>
+              <span class="video-card__copy">
+                <span class="video-card__title">{{ video.title }}</span>
+                <span class="video-card__meta">{{ video.file_path }}</span>
+              </span>
+            </button>
+
+            <div class="video-card__actions">
+              <button type="button" class="secondary-button" data-video-push-trigger data-src="/storage/{{ video.file_path | replace('\\', '/') }}" data-title="{{ video.title | e }}">
+                Play on kiosk
+              </button>
+              <button type="button" class="ghost-button" data-video-delete-trigger data-video-id="{{ video.id }}" data-video-title="{{ video.title | e }}">
+                Delete
+              </button>
+            </div>
+          </article>
+          {% else %}
+          <div class="empty-state empty-state--embedded">No data available.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="gears-page" data-page-panel="kiosk-lock" hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">System Tools</p>
+          <h2 class="section-head__title">Kiosk Lock</h2>
+        </div>
+        <p class="section-head__subtitle">Freeze or release the kiosk screen from this dashboard.</p>
+      </div>
+
+      <div class="page-card kiosk-card">
+        <div class="kiosk-card__status">
+          <span class="live-status-card__dot live-status-card__dot--inline" aria-hidden="true"></span>
+          <div>
+            <div class="kiosk-card__status-label">Remote Control Ready</div>
+            <div class="kiosk-card__status-text">Lock and unlock events are broadcast instantly to the kiosk overlay.</div>
+          </div>
+        </div>
+
+        <div class="kiosk-toggle-grid">
+          <button type="button" class="toggle-button toggle-button--lock" data-kiosk-action="lock" data-kiosk-url="{{ route('kiosk.lock', {}, False) }}">
+            Lock Kiosk
           </button>
 
-          <button type="button"
-            class="delete-video-btn"
-            data-video-id="{{ video.id }}"
-            data-video-title="{{ video.title | e }}">
-            <span class="play-kiosk-icon" aria-hidden="true">✕</span>
-            Delete video
+          <button type="button" class="toggle-button toggle-button--unlock" data-kiosk-action="unlock" data-kiosk-url="{{ route('kiosk.unlock', {}, False) }}">
+            Unlock Kiosk
           </button>
         </div>
-      </li>
-      {% else %}
-      <li class="p-6 text-gray-500 text-sm">No videos yet. Upload one above.</li>
-      {% endfor %}
-    </ul>
-  </div>
+      </div>
+    </section>
+  </main>
 </div>
 {% endblock %}
 
 {% block js %}
-<script>
-(function () {
-  var tokenMeta = document.querySelector('meta[name="csrf-token"]');
-  var token = tokenMeta ? tokenMeta.getAttribute('content') : '';
-
-  function postKioskAction(action) {
-    return fetch(action, {
-      method: 'POST',
-      headers: { 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' },
-      credentials: 'same-origin'
-    }).then(function (r) { return r.json(); });
-  }
-
-  function postPlay(src, title) {
-    var fd = new FormData();
-    fd.append('__token', token);
-    fd.append('src', src);
-    fd.append('title', title || '');
-    return fetch('{{ route("video.push", {}, False) }}', {
-      method: 'POST',
-      headers: { 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' },
-      body: fd,
-      credentials: 'same-origin',
-    }).then(function (r) { return r.json(); });
-  }
-
-  document.querySelectorAll('.play-kiosk-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var src = btn.getAttribute('data-src');
-      var title = btn.getAttribute('data-title');
-      btn.disabled = true;
-      postPlay(src, title)
-        .then(function (res) {
-          if (res && res.broadcast === false) {
-            alert('Saved trigger, but broadcast is off — set Pusher keys in .env or check the server log.');
-          }
-        })
-        .catch(function () { alert('Could not reach server.'); })
-        .then(function () { btn.disabled = false; });
-    });
-  });
-
-  document.querySelectorAll('[data-kiosk-action]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var action = btn.getAttribute('data-kiosk-action');
-      var url = btn.getAttribute('data-kiosk-url');
-      if (!action) {
-        alert('Could not determine the kiosk action.');
-        return;
-      }
-
-      if (!url) {
-        alert('Could not determine the kiosk endpoint.');
-        return;
-      }
-
-      btn.disabled = true;
-      postKioskAction(url)
-        .then(function () {
-          alert(action === 'lock' ? 'Kiosk lock event sent.' : 'Kiosk unlock event sent.');
-        })
-        .catch(function () {
-          alert('Could not reach server.');
-        })
-        .then(function () {
-          btn.disabled = false;
-        });
-    });
-  });
-
-  document.querySelectorAll('.delete-video-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var videoId = btn.getAttribute('data-video-id');
-      var videoTitle = btn.getAttribute('data-video-title') || 'this video';
-
-      if (!videoId) {
-        alert('Could not find the video id.');
-        return;
-      }
-
-      if (!window.confirm('Delete ' + videoTitle + '? This cannot be undone.')) {
-        return;
-      }
-
-      btn.disabled = true;
-      fetch('/videos/dashboard/' + encodeURIComponent(videoId), {
-        method: 'DELETE',
-        headers: {
-          'X-CSRF-TOKEN': token,
-          'X-Requested-With': 'XMLHttpRequest',
-          'Content-Type': 'application/json'
-        },
-        credentials: 'same-origin'
-      })
-        .then(function (r) {
-          if (!r.ok) {
-            throw new Error('Delete failed');
-          }
-          return r.text();
-        })
-        .then(function () {
-          window.location.reload();
-        })
-        .catch(function () {
-          alert('Could not delete the video.');
-        })
-        .then(function () {
-          btn.disabled = false;
-        });
-    });
-  });
-})();
-</script>
+<script src="/assets/js/gears-dashboard.js" defer></script>
 {% endblock %}

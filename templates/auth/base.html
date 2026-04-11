@@ -7,10 +7,43 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Login{% endblock %} · Presspoint</title>
     <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/auth-shell.css">
     {% block head %}{% endblock %}
 </head>
-<body>
-    {% block content %}{% endblock %}
+<body class="auth-body">
+    <div class="auth-shell {% block auth_shell_class %}{% endblock %}">
+        {% block auth_rail %}
+        <aside class="auth-rail">
+            <div class="auth-brand">
+                <div class="auth-brand__mark" aria-hidden="true">G</div>
+                <div>
+                    <div class="auth-brand__eyebrow">The Gears Publication</div>
+                    <div class="auth-brand__title">GEARS CMS</div>
+                </div>
+            </div>
+
+            <div class="auth-rail__copy">
+                <div class="auth-rail__eyebrow">Secure access</div>
+                <h1 class="auth-rail__title">Editorial tools with kiosk-grade control.</h1>
+                <p class="auth-rail__text">Sign in, reset credentials, and manage admin access from a focused control surface that matches the dashboard language.</p>
+            </div>
+
+            <div class="auth-rail__footer">
+                <div class="auth-live-pill">
+                    <span class="auth-live-pill__dot" aria-hidden="true"></span>
+                    <span>Live updates on</span>
+                </div>
+                <p class="auth-rail__fineprint">Auth changes are kept visually aligned with the GEARS CMS dashboard.</p>
+            </div>
+        </aside>
+        {% endblock %}
+
+        <main class="auth-main">
+            <div class="auth-main__glow auth-main__glow--one" aria-hidden="true"></div>
+            <div class="auth-main__glow auth-main__glow--two" aria-hidden="true"></div>
+            {% block content %}{% endblock %}
+        </main>
+    </div>
     {% block js %}{% endblock %}
 </body>
 </html>

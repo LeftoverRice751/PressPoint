@@ -1,174 +1,54 @@
 {% extends 'auth/base.html' %}
 
+{% block auth_shell_class %}auth-shell--centered{% endblock %}
+
+{% block auth_rail %}{% endblock %}
+
 {% block title %}Verify OTP{% endblock %}
 
-{% block head %}
-{% raw %}
-<style>
-    .otp-grid {
-        display: grid;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-        gap: 0.5rem;
-    }
-
-    .otp-digit {
-        width: 100%;
-        height: 3.5rem;
-        border: 1px solid #d1d5db;
-        border-radius: 0.75rem;
-        text-align: center;
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #111827;
-        background: #fff;
-        outline: none;
-    }
-
-    .otp-digit:focus {
-        border-color: #374151;
-        box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.12);
-    }
-
-    @media (max-width: 480px) {
-        .otp-grid {
-            gap: 0.35rem;
-        }
-
-        .otp-digit {
-            height: 3rem;
-            font-size: 1.25rem;
-        }
-    }
-</style>
-{% endraw %}
-{% endblock %}
-
 {% block content %}
-<div class="flex flex-col h-screen bg-gray-100">
-    <div class="grid place-items-center mx-2 my-20 sm:my-auto">
-        <div class="w-11/12 p-12 sm:w-8/12 md:w-6/12 lg:w-5/12 2xl:w-4/12 px-6 py-10 sm:px-10 sm:py-6 bg-white rounded-lg shadow-md lg:shadow-lg">
-            <h2 class="text-center font-semibold text-3xl lg:text-4xl text-gray-800">
-                Verify OTP
-            </h2>
-
-            <p class="mt-4 text-center text-sm text-gray-600">
-                Enter the code sent to your email address{% if email %} ({{ email }}){% endif %}.
-            </p>
-
-            {% if bag().any() %}
-            <div class="mt-4 bg-yellow-100 text-yellow-900 px-4 py-2 rounded">
-                <ul class="list-disc list-inside text-sm">
-                    {% for message in bag().messages() %}
-                    <li>{{ message }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-
-            <form class="mt-10" method="POST" action="{{ route('auth.forgot-password.otp.store') }}">
-                {{ csrf_field | safe }}
-
-                <label for="otp" class="block text-xs font-semibold text-gray-600 uppercase">OTP Code</label>
-                <input type="hidden" id="otp" name="otp" value="" />
-
-                <div class="otp-grid mt-2">
-                    <input id="otp-1" name="otp1" class="otp-digit" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="OTP digit 1" required />
-                    <input id="otp-2" name="otp2" class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 2" required />
-                    <input id="otp-3" name="otp3" class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 3" required />
-                    <input id="otp-4" name="otp4" class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 4" required />
-                    <input id="otp-5" name="otp5" class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 5" required />
-                    <input id="otp-6" name="otp6" class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 6" required />
-                </div>
-
-                <button type="submit"
-                    class="w-full py-3 mt-10 bg-gray-800 rounded-sm font-medium text-white uppercase focus:outline-none hover:bg-gray-700 hover:shadow-none">
-                    Verify Code
-                </button>
-
-                <div class="w-full mt-8 sm:mb-4 text-sm text-center">
-                    <a href="{{ route('auth.forgot-password') }}" class="underline">
-                        Use a different email
-                    </a>
-                </div>
-            </form>
-        </div>
+<section class="auth-panel auth-panel--narrow">
+    <div class="auth-panel__header">
+        <div class="auth-panel__eyebrow">Account recovery</div>
+        <h2 class="auth-panel__title">Verify OTP</h2>
+        <p class="auth-panel__subtitle">Enter the code sent to your email address{% if email %} ({{ email }}){% endif %}.</p>
     </div>
-</div>
+
+    {% if bag().any() %}
+    <div class="auth-alert">
+        <ul class="auth-alert__list">
+            {% for message in bag().messages() %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <form class="auth-form" method="POST" action="{{ route('auth.forgot-password.otp.store') }}">
+        {{ csrf_field | safe }}
+
+        <label class="auth-form__group" for="otp">
+            <span class="auth-form__label">OTP Code</span>
+            <input type="hidden" id="otp" name="otp" value="" />
+            <div class="otp-grid">
+                <input id="otp-1" name="otp1" class="otp-digit" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="OTP digit 1" required />
+                <input id="otp-2" name="otp2" class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 2" required />
+                <input id="otp-3" name="otp3" class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 3" required />
+                <input id="otp-4" name="otp4" class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 4" required />
+                <input id="otp-5" name="otp5" class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 5" required />
+                <input id="otp-6" name="otp6" class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 6" required />
+            </div>
+        </label>
+
+        <button type="submit" class="auth-form__button">Verify Code</button>
+
+        <div class="auth-form__footer">
+            <a href="{{ route('auth.forgot-password') }}" class="auth-form__link">Use a different email</a>
+        </div>
+    </form>
+</section>
 {% endblock %}
 
 {% block js %}
-<script>
-(function () {
-    const hiddenOtp = document.getElementById('otp');
-    const inputs = Array.from(document.querySelectorAll('.otp-digit'));
-    const form = hiddenOtp ? hiddenOtp.form : null;
-
-    function syncOtp() {
-        hiddenOtp.value = inputs.map(function (input) {
-            return (input.value || '').trim();
-        }).join('');
-    }
-
-    function focusNext(currentIndex) {
-        if (inputs[currentIndex + 1]) {
-            inputs[currentIndex + 1].focus();
-        }
-    }
-
-    function focusPrevious(currentIndex) {
-        if (inputs[currentIndex - 1]) {
-            inputs[currentIndex - 1].focus();
-        }
-    }
-
-    inputs.forEach(function (input, index) {
-        input.addEventListener('input', function () {
-            input.value = (input.value || '').replace(/\D/g, '').slice(0, 1);
-            syncOtp();
-
-            if (input.value) {
-                focusNext(index);
-            }
-        });
-
-        input.addEventListener('keydown', function (event) {
-            if (event.key === 'Backspace' && !input.value) {
-                focusPrevious(index);
-            }
-        });
-
-        input.addEventListener('paste', function (event) {
-            event.preventDefault();
-            const pasted = (event.clipboardData || window.clipboardData).getData('text') || '';
-            const digits = pasted.replace(/\D/g, '').slice(0, inputs.length).split('');
-
-            digits.forEach(function (digit, digitIndex) {
-                if (inputs[digitIndex]) {
-                    inputs[digitIndex].value = digit;
-                }
-            });
-
-            syncOtp();
-
-            const nextEmpty = inputs.find(function (field) {
-                return !field.value;
-            });
-
-            if (nextEmpty) {
-                nextEmpty.focus();
-            }
-        });
-    });
-
-    if (form) {
-        form.addEventListener('submit', function () {
-            syncOtp();
-        });
-    }
-
-    if (inputs[0]) {
-        inputs[0].focus();
-    }
-})();
-</script>
+<script src="/assets/js/auth-otp-code.js" defer></script>
 {% endblock %}

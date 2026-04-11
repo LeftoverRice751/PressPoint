@@ -4,38 +4,33 @@
 {% block head %}
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css" />
+  <link rel="stylesheet" href="/assets/css/welcome-screen.css" />
+  <link rel="stylesheet" href="/assets/css/welcome-lock.css" />
 {% endblock %}
 
 {% block content %}
 <div id="kiosk-config" class="hidden" data-pusher-key="{{ pusher_key }}" data-pusher-cluster="{{ pusher_cluster }}"></div>
 <div id="kiosk-stage">
-  <div id="kiosk-title">Campus display</div>
+  <section class="welcome-screen" aria-label="Kiosk home menu">
+    <img class="welcome-screen__logo" src="/storage/gears.png?v=20260411" alt="The Gears logo">
+    <h1 class="welcome-screen__title">Welcome to The Gears Dashboard</h1>
+    <div class="welcome-screen__actions">
+      <button type="button" class="welcome-screen__button" data-kiosk-action="campus-map">Campus Map</button>
+      <button type="button" class="welcome-screen__button welcome-screen__button--secondary" data-kiosk-action="virtual-tour">Virtual Tour</button>
+    </div>
+  </section>
+
   <div id="kiosk-loading" aria-live="polite" aria-atomic="true">
     <div class="kiosk-spinner" aria-hidden="true"></div>
     <div class="kiosk-loading-title">Loading video</div>
     <div class="kiosk-loading-subtitle">Fetching metadata...</div>
   </div>
-  <div id="kiosk-video-wrap">
-    <video id="kiosk-video" playsinline autoplay preload="metadata"></video>
+  <div id="kiosk-video-overlay" aria-hidden="true">
+    <div id="kiosk-video-wrap">
+      <video id="kiosk-video" playsinline autoplay preload="metadata"></video>
+    </div>
   </div>
-  <p id="kiosk-status">Waiting for editorial to start a video…</p>
 </div>
-
-<style>
-  #lock-overlay {
-    display: none;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(0,0,0,0.8);
-    z-index: 9999;
-    color: white;
-    text-align: center;
-    padding-top: 20%;
-    font-family: sans-serif;
-    touch-action: none;
-  }
-</style>
 
 <div id="lock-overlay">
   <h1>TERMINAL LOCKED</h1>
@@ -45,29 +40,5 @@
 
 {% block js %}
   <script src="/assets/js/app.js" defer></script>
-  <script>
-    (function () {
-      var configEl = document.getElementById('kiosk-config');
-      var overlay = document.getElementById('lock-overlay');
-      var pusherKey = configEl ? (configEl.getAttribute('data-pusher-key') || '').trim() : '';
-      var cluster = configEl ? (configEl.getAttribute('data-pusher-cluster') || 'mt1') : 'mt1';
-
-      if (!overlay || !pusherKey || typeof Pusher === 'undefined') {
-        return;
-      }
-
-      var pusher = new Pusher(pusherKey, { cluster: cluster });
-      var channel = pusher.subscribe('kiosk-channel');
-
-      channel.bind('app.events.LockKioskEvent', function (data) {
-        if (data && data.status === 'lock') {
-          overlay.style.display = 'block';
-          console.log('Kiosk Locked');
-        } else {
-          overlay.style.display = 'none';
-          console.log('Kiosk Unlocked');
-        }
-      });
-    })();
-  </script>
+  <script src="/assets/js/welcome-lock.js" defer></script>
 {% endblock %}

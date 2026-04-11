@@ -27,6 +27,7 @@ function initKiosk() {
 	}
 
 	const loading = document.getElementById('kiosk-loading');
+	const overlay = document.getElementById('kiosk-video-overlay');
 	const wrap = document.getElementById('kiosk-video-wrap');
 	const video = document.getElementById('kiosk-video');
 	const statusEl = document.getElementById('kiosk-status');
@@ -35,11 +36,27 @@ function initKiosk() {
 	const idleStatus = 'Waiting for editorial to start a video…';
 
 	function showStatus(text) {
-		statusEl.textContent = text;
+		if (statusEl) {
+			statusEl.textContent = text;
+		}
 	}
 
 	function hideLoading() {
 		loading.classList.remove('is-visible');
+	}
+
+	function hideOverlay() {
+		if (overlay) {
+			overlay.classList.remove('is-visible');
+			overlay.setAttribute('aria-hidden', 'true');
+		}
+	}
+
+	function showOverlay() {
+		if (overlay) {
+			overlay.classList.add('is-visible');
+			overlay.setAttribute('aria-hidden', 'false');
+		}
 	}
 
 	function showLoading(text) {
@@ -60,6 +77,7 @@ function initKiosk() {
 		video.onloadedmetadata = null;
 		video.onerror = null;
 		wrap.classList.remove('is-visible');
+		hideOverlay();
 		hideLoading();
 		stage.classList.remove('is-loading', 'is-playing');
 		stage.classList.add('is-idle');
@@ -72,9 +90,9 @@ function initKiosk() {
 		}
 
 		closeLoadingState();
-		wrap.classList.remove('is-visible');
 		stage.classList.remove('is-idle');
 		stage.classList.add('is-loading');
+		showOverlay();
 		showLoading('Loading metadata...');
 		showStatus('Loading video metadata...');
 
@@ -127,11 +145,14 @@ function initKiosk() {
 
 	stage.classList.add('is-idle');
 
-	stage.addEventListener('click', function () {
-		if ((wrap.classList.contains('is-visible') || stage.classList.contains('is-loading')) && video.src) {
-			closeVideo();
-		}
-	});
+	if (overlay) {
+		overlay.addEventListener('click', function (event) {
+			if ((wrap.classList.contains('is-visible') || stage.classList.contains('is-loading')) && video.src) {
+				event.preventDefault();
+				closeVideo();
+			}
+		});
+	}
 
 	video.addEventListener('ended', closeVideo);
 

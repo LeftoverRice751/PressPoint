@@ -1,13 +1,20 @@
-{% extends "base.html" %}
+{% extends 'auth/base.html' %}
+
+{% block auth_shell_class %}auth-shell--centered{% endblock %}
+
+{% block auth_rail %}{% endblock %}
 
 {% block content %}
-    <h1>Admin Dashboard</h1>
-    <p>Welcome, {{ current_user.username }}!</p>
-    <!-- Admin-specific content goes here -->
+<section class="auth-panel auth-panel--wide">
+    <div class="auth-panel__header">
+        <div class="auth-panel__eyebrow">System Access</div>
+        <h2 class="auth-panel__title">Admin Dashboard</h2>
+        <p class="auth-panel__subtitle">Welcome, {{ current_user.username }}. Manage users from the same GEARS visual system.</p>
+    </div>
 
     {% if bag().any() %}
-    <div class="mb-4 rounded border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
-        <ul class="list-disc list-inside">
+    <div class="auth-alert">
+        <ul class="auth-alert__list">
             {% for message in bag().messages() %}
             <li>{{ message }}</li>
             {% endfor %}
@@ -15,33 +22,49 @@
     </div>
     {% endif %}
 
-      <form action="{{ route('users.store', {}, False) }}" method="post">
-          {{ csrf_field | safe }}
-        <input type="text" name="email" placeholder="Email" required>
-        <input type="text" name="username" placeholder="Username" required>
-        <button type="submit">Create User</button>
-     </form>
+    <div class="auth-card-grid">
+        <form class="auth-form" action="{{ route('users.store', {}, False) }}" method="post">
+            {{ csrf_field | safe }}
 
-     <table class="user-management">
-        <thead>
-            <tr>
-                <th>Username</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for user in users %}
-            <tr>
-                <td>{{ user.username }}</td>
-                <td>
-                    <form action="{{ route('users.destroy', {'id': user.id}, False) }}" method="post" style="display:inline;">
-                        {{ csrf_field | safe }}
-                        <input type="hidden" name="__method" value="DELETE">
-                        <button type="submit">Delete</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-     </table>
+            <div class="auth-form__split">
+                <label class="auth-form__group" for="email">
+                    <span class="auth-form__label">Email</span>
+                    <input type="text" name="email" id="email" placeholder="Email" class="auth-form__input" required>
+                </label>
+
+                <label class="auth-form__group" for="username">
+                    <span class="auth-form__label">Username</span>
+                    <input type="text" name="username" id="username" placeholder="Username" class="auth-form__input" required>
+                </label>
+            </div>
+
+            <button type="submit" class="auth-form__button">Create User</button>
+        </form>
+
+        <table class="auth-table user-management">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.username }}</td>
+                    <td>
+                        <div class="auth-table__actions">
+                            <form action="{{ route('users.destroy', {'id': user.id}, False) }}" method="post" class="inline-form">
+                                {{ csrf_field | safe }}
+                                <input type="hidden" name="__method" value="DELETE">
+                                <button type="submit" class="auth-mini-button auth-mini-button--danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
 {% endblock %}
