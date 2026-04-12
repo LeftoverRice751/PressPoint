@@ -73,12 +73,36 @@
     });
   }
 
-  function setPreview(videoSrc, title) {
+  function sanitizeVideoSrc(src) {
+    if (!src) {
+      return '';
+    }
+
+    try {
+      var parsed = new URL(src, window.location.href);
+
+      if (parsed.origin !== window.location.origin) {
+        return '';
+      }
+
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return '';
+      }
+
+      return parsed.href;
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function setPreview(videoSrc) {
     if (!previewPlayer) {
       return;
     }
 
-    if (!videoSrc) {
+    var safeVideoSrc = sanitizeVideoSrc(videoSrc);
+
+    if (!safeVideoSrc) {
       previewPlayer.removeAttribute('src');
       previewPlayer.load();
       previewPlayer.hidden = true;
@@ -92,16 +116,14 @@
     }
 
     previewPlayer.hidden = false;
-    previewPlayer.src = videoSrc;
+    previewPlayer.src = safeVideoSrc;
     previewPlayer.load();
 
     if (previewPlaceholder) {
       previewPlaceholder.hidden = true;
     }
 
-    if (title) {
-      previewPlayer.setAttribute('aria-label', title);
-    }
+    previewPlayer.setAttribute('aria-label', 'Video preview player');
   }
 
   function switchPage(pageName) {
@@ -140,7 +162,7 @@
     if (previewTrigger && dashboardRoot.contains(previewTrigger)) {
       var previewCard = previewTrigger.closest('[data-video-card]');
       if (previewCard) {
-        setPreview(previewCard.getAttribute('data-video-src'), previewCard.getAttribute('data-video-title'));
+        setPreview(previewCard.getAttribute('data-video-src'));
       }
       return;
     }
@@ -237,8 +259,8 @@
 
   var firstVideoCard = dashboardRoot.querySelector('[data-video-card]');
   if (firstVideoCard && previewPlayer) {
-    setPreview(firstVideoCard.getAttribute('data-video-src'), firstVideoCard.getAttribute('data-video-title'));
+    setPreview(firstVideoCard.getAttribute('data-video-src'));
   } else if (previewPlayer) {
-    setPreview('', '');
+    setPreview('');
   }
 })();
