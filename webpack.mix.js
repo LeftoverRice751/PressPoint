@@ -10,6 +10,7 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/auth-change-password.js', 'storage/compiled/js')
   .js('resources/js/auth-otp-code.js', 'storage/compiled/js')
   .js('resources/js/gears-dashboard.js', 'storage/compiled/js')
+  .js('resources/js/welcome-screen.js', 'storage/compiled/js')
   .js('resources/js/welcome-lock.js', 'storage/compiled/js')
   .postCss('resources/css/app.css', 'storage/compiled/css', [
     //

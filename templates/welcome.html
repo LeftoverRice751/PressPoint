@@ -1,44 +1,79 @@
-{% extends "base.html" %}
-{% block title %}Kiosk{% endblock %}
-
-{% block head %}
-  <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-  <link rel="stylesheet" href="/assets/css/app.css" />
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Kiosk</title>
   <link rel="stylesheet" href="/assets/css/welcome-screen.css" />
-  <link rel="stylesheet" href="/assets/css/welcome-lock.css" />
-{% endblock %}
+</head>
+<body>
+  <div class="kiosk-shell">
+    <main class="kiosk-app" aria-label="Kiosk terminal">
+      <section class="hero" aria-label="Brand mark">
+        <img class="hero__logo" src="/storage/gears.png?v=20260411" alt="Gears logo" />
+      </section>
 
-{% block content %}
-<div id="kiosk-config" class="hidden" data-pusher-key="{{ pusher_key }}" data-pusher-cluster="{{ pusher_cluster }}"></div>
-<div id="kiosk-stage">
-  <section class="welcome-screen" aria-label="Kiosk home menu">
-    <img class="welcome-screen__logo" src="/storage/gears.png?v=20260411" alt="The Gears logo">
-    <h1 class="welcome-screen__title">Welcome to The Gears Dashboard</h1>
-    <div class="welcome-screen__actions">
-      <button type="button" class="welcome-screen__button" data-kiosk-action="campus-map">Campus Map</button>
-      <button type="button" class="welcome-screen__button welcome-screen__button--secondary" data-kiosk-action="virtual-tour">Virtual Tour</button>
-    </div>
-  </section>
+      <section class="feature-grid" aria-label="Kiosk actions">
+        <button class="feature-card" type="button" data-card="Latest News" data-target="/kiosk/latest-news">
+          <span class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M5 6h14"></path>
+              <path d="M5 10h14"></path>
+              <path d="M5 14h9"></path>
+              <path d="M5 18h6"></path>
+            </svg>
+          </span>
+          <span class="feature-card__label">Latest News</span>
+          <span class="feature-card__hint">Read recent updates</span>
+        </button>
 
-  <div id="kiosk-loading" aria-live="polite" aria-atomic="true">
-    <div class="kiosk-spinner" aria-hidden="true"></div>
-    <div class="kiosk-loading-title">Loading video</div>
-    <div class="kiosk-loading-subtitle">Fetching metadata...</div>
+        <button class="feature-card" type="button" data-card="Campus Map" data-target="/kiosk/campus-map">
+          <span class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M9 5 3 7.8v11.2l6-2.8 6 2.8 6-2.8V5l-6 2.8L9 5Z"></path>
+              <path d="M9 7.8v11.2"></path>
+              <path d="M15 8.6v11"></path>
+            </svg>
+          </span>
+          <span class="feature-card__label">Campus Map</span>
+          <span class="feature-card__hint">Find every location</span>
+        </button>
+
+        <button class="feature-card" type="button" data-card="AI Assistant" data-target="/kiosk/ai-assistant">
+          <span class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M8 11.5a4 4 0 1 1 8 0"></path>
+              <path d="M6.5 18.5a6.8 6.8 0 0 1 11 0"></path>
+              <path d="M12 5.5v2"></path>
+              <path d="M16.3 7.2 15.1 8.4"></path>
+              <path d="M7.7 7.2 8.9 8.4"></path>
+            </svg>
+          </span>
+          <span class="feature-card__label">AI Assistant</span>
+          <span class="feature-card__hint">Ask for help</span>
+        </button>
+
+        <button class="feature-card" type="button" data-card="Virtual Tour" data-target="/kiosk/virtual-tour">
+          <span class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M7 5.5 17.5 12 7 18.5V5.5Z"></path>
+            </svg>
+          </span>
+          <span class="feature-card__label">Virtual Tour</span>
+          <span class="feature-card__hint">Preview the campus</span>
+        </button>
+      </section>
+
+      <section class="news-ticker" aria-label="Flash updates">
+        <div class="news-ticker__label">FLASH UPDATES</div>
+        <div class="news-ticker__viewport">
+          <div class="news-ticker__track" id="ticker-track"></div>
+        </div>
+      </section>
+    </main>
+
   </div>
-  <div id="kiosk-video-overlay" aria-hidden="true">
-    <div id="kiosk-video-wrap">
-      <video id="kiosk-video" playsinline autoplay preload="metadata"></video>
-    </div>
-  </div>
-</div>
 
-<div id="lock-overlay">
-  <h1>TERMINAL LOCKED</h1>
-  <p>Please wait for the administrator to unlock this station.</p>
-</div>
-{% endblock %}
-
-{% block js %}
-  <script src="/assets/js/app.js" defer></script>
-  <script src="/assets/js/welcome-lock.js" defer></script>
-{% endblock %}
+  <script src="/assets/js/welcome-screen.js" defer></script>
+</body>
+</html>

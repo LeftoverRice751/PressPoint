@@ -4,6 +4,7 @@
     "/storage/compiled/js/auth-change-password.js": "/storage/compiled/js/auth-change-password.js",
     "/storage/compiled/js/auth-otp-code.js": "/storage/compiled/js/auth-otp-code.js",
     "/storage/compiled/js/gears-dashboard.js": "/storage/compiled/js/gears-dashboard.js",
+    "/storage/compiled/js/welcome-screen.js": "/storage/compiled/js/welcome-screen.js",
     "/storage/compiled/js/welcome-lock.js": "/storage/compiled/js/welcome-lock.js",
     "/storage/compiled/css/auth-change-password.css": "/storage/compiled/css/auth-change-password.css",
     "/storage/compiled/css/auth-login.css": "/storage/compiled/css/auth-login.css",
