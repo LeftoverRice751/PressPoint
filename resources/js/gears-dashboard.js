@@ -14,7 +14,9 @@
   var progressBars = Array.prototype.slice.call(dashboardRoot.querySelectorAll('[data-progress-bar]'));
   var previewPlayer = dashboardRoot.querySelector('[data-video-preview-player]');
   var previewPlaceholder = dashboardRoot.querySelector('[data-video-preview-placeholder]');
+  var articleModal = dashboardRoot.querySelector('[data-article-modal]');
   var defaultPage = dashboardRoot.getAttribute('data-default-page') || 'dashboard';
+  var openArticleModalOnLoad = dashboardRoot.getAttribute('data-open-article-modal') === 'true';
 
   function postKioskAction(action) {
     return fetch(action, {
@@ -126,6 +128,34 @@
     previewPlayer.setAttribute('aria-label', 'Video preview player');
   }
 
+  function openArticleModal() {
+    if (!articleModal) {
+      return;
+    }
+
+    if (typeof articleModal.showModal === 'function') {
+      articleModal.showModal();
+      return;
+    }
+
+    articleModal.hidden = false;
+    articleModal.classList.add('is-open');
+  }
+
+  function closeArticleModal() {
+    if (!articleModal) {
+      return;
+    }
+
+    if (typeof articleModal.close === 'function') {
+      articleModal.close();
+      return;
+    }
+
+    articleModal.hidden = true;
+    articleModal.classList.remove('is-open');
+  }
+
   function switchPage(pageName) {
     var targetPage = pageName || defaultPage;
 
@@ -155,6 +185,20 @@
     if (navButton && dashboardRoot.contains(navButton)) {
       event.preventDefault();
       switchPage(navButton.getAttribute('data-page-link'));
+      return;
+    }
+
+    var articleModalTrigger = event.target.closest('[data-article-modal-open]');
+    if (articleModalTrigger && dashboardRoot.contains(articleModalTrigger)) {
+      event.preventDefault();
+      openArticleModal();
+      return;
+    }
+
+    var articleModalClose = event.target.closest('[data-article-modal-close]');
+    if (articleModalClose && dashboardRoot.contains(articleModalClose)) {
+      event.preventDefault();
+      closeArticleModal();
       return;
     }
 
@@ -256,6 +300,18 @@
   syncProgressBars();
   syncEmptyStates();
   switchPage(defaultPage);
+
+  if (articleModal) {
+    articleModal.addEventListener('click', function (event) {
+      if (event.target === articleModal) {
+        closeArticleModal();
+      }
+    });
+  }
+
+  if (openArticleModalOnLoad) {
+    openArticleModal();
+  }
 
   var firstVideoCard = dashboardRoot.querySelector('[data-video-card]');
   if (firstVideoCard && previewPlayer) {

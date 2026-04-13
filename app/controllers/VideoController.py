@@ -26,6 +26,7 @@ class VideoController(Controller):
         categories = sorted(list(Categories.all() or []), key=lambda item: getattr(item, "id", 0))
         videos = sorted(list(Video.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
         locations = sorted(list(Locations.all() or []), key=lambda item: getattr(item, "id", 0))
+        location_lookup = {getattr(location, "id", None): getattr(location, "name", "") for location in locations}
 
         published_articles = [
             post for post in posts if (getattr(post, "status", "") or "").lower() == "published"
@@ -69,6 +70,7 @@ class VideoController(Controller):
             "recent_articles": recent_articles,
             "article_groups": category_rows,
             "category_lookup": category_lookup,
+            "location_lookup": location_lookup,
             "total_articles": len(posts),
             "published_articles": len(published_articles),
             "location_count": len(locations),

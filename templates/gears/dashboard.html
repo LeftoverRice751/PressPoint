@@ -11,6 +11,7 @@
   data-dashboard-shell
   data-default-page="dashboard"
   data-video-push-url="{{ route('video.push', {}, False) }}"
+  data-open-article-modal="{{ 'true' if bag().any() else 'false' }}"
 >
   <aside class="gears-sidebar">
     <div class="gears-sidebar__brand">
@@ -176,8 +177,20 @@
           <p class="section-head__eyebrow">Content</p>
           <h2 class="section-head__title">Articles</h2>
         </div>
-        <p class="section-head__subtitle">All posts in the CMS, ready for editorial review.</p>
+        <div class="section-head__actions">
+          <button type="button" class="primary-button" data-article-modal-open>Add Articles</button>
+        </div>
       </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
 
       <div class="page-card" data-section-count="{{ posts|length }}">
         <div class="empty-state" data-empty-state>
@@ -194,17 +207,64 @@
                 {{ article.status if article.status else 'draft' }}
               </span>
             </div>
-            <div class="article-card__meta">
-              <span>Category: {{ category_lookup.get(article.category_id, 'Uncategorized') if category_lookup else 'Uncategorized' }}</span>
-              <span>Author: {{ article.author_id if article.author_id else 'Unassigned' }}</span>
+            <div class="article-card__meta article-card__meta--stacked">
+              <span>Event date: {{ article.event_date.strftime('%m-%d-%Y') if article.event_date else 'Not set' }}</span>
+              <span>Location: {{ location_lookup.get(article.location_id, 'Unassigned') if location_lookup else 'Unassigned' }}</span>
             </div>
-            <p class="article-card__text">{{ article.content[:220] if article.content else 'No summary available.' }}</p>
+            <p class="article-card__summary">{{ article.description if article.description else article.content[:220] if article.content else 'No summary available.' }}</p>
           </article>
           {% else %}
           <div class="empty-state empty-state--embedded">No data available.</div>
           {% endfor %}
         </div>
       </div>
+    </section>
+
+    <dialog class="article-modal" data-article-modal>
+      <div class="article-modal__panel">
+        <div class="article-modal__header">
+          <div>
+            <h3 class="article-modal__title">Add Article</h3>
+            <p class="article-modal__subtitle">Create an article with a title, description, event date, and location.</p>
+          </div>
+          <button type="button" class="article-modal__close" data-article-modal-close>Close</button>
+        </div>
+
+        <form action="{{ route('articles.store', {}, False) }}" method="POST" class="form-stack">
+          {{ csrf_field | safe }}
+
+          <label class="field" for="article-title">
+            <span class="field__label">Title</span>
+            <input type="text" name="title" id="article-title" class="field__input" placeholder="Article title" required>
+          </label>
+
+          <label class="field" for="article-description">
+            <span class="field__label">Description</span>
+            <textarea name="description" id="article-description" class="field__input field__textarea" placeholder="Article description" required></textarea>
+          </label>
+
+          <label class="field" for="article-event-date">
+            <span class="field__label">Event date</span>
+            <input type="date" name="event_date" id="article-event-date" class="field__input" required>
+          </label>
+
+          <label class="field" for="article-location-id">
+            <span class="field__label">Location</span>
+            <select name="location_id" id="article-location-id" class="field__input field__input--select" required>
+              <option value="">Choose a location</option>
+              {% for location in locations %}
+              <option value="{{ location.id }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <div class="article-modal__footer">
+            <button type="button" class="ghost-button" data-article-modal-close>Cancel</button>
+            <button type="submit" class="primary-button">Save Article</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
     </section>
 
     <section class="gears-page" data-page-panel="locations" hidden>
