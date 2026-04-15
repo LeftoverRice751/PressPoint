@@ -3,6 +3,7 @@ from masonite.request import Request
 from masonite.filesystem import Storage
 from masonite.utils.location import base_path
 from app.models.Categories import Categories
+from app.models.News import News
 from app.models.Posts import Posts
 from app.models.Video import Video
 from app.models.Locations import Locations
@@ -23,6 +24,7 @@ class VideoController(Controller):
     
     def show(self, views: View):
         posts = sorted(list(Posts.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
+        news_items = sorted(list(News.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
         categories = sorted(list(Categories.all() or []), key=lambda item: getattr(item, "id", 0))
         videos = sorted(list(Video.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
         locations = sorted(list(Locations.all() or []), key=lambda item: getattr(item, "id", 0))
@@ -66,6 +68,7 @@ class VideoController(Controller):
             "posts": posts,
             "categories": categories,
             "videos": videos,
+            "news_items": news_items,
             "locations": locations,
             "recent_articles": recent_articles,
             "article_groups": category_rows,
@@ -74,6 +77,7 @@ class VideoController(Controller):
             "total_articles": len(posts),
             "published_articles": len(published_articles),
             "location_count": len(locations),
+            "news_count": len(news_items),
         })
 
     def upload(self, request: Request, storage: Storage, response: Response):

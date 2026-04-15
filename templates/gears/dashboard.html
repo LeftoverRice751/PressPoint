@@ -3,6 +3,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="/assets/css/gears-dashboard.css" />
+<link rel="stylesheet" href="/assets/css/news-dashboard.css" />
 {% endblock %}
 
 {% block content %}
@@ -12,6 +13,7 @@
   data-default-page="dashboard"
   data-video-push-url="{{ route('video.push', {}, False) }}"
   data-open-article-modal="{{ 'true' if bag().any() else 'false' }}"
+  data-open-news-modal="false"
 >
   <aside class="gears-sidebar">
     <div class="gears-sidebar__brand">
@@ -30,7 +32,11 @@
       </button>
       <button type="button" class="dashboard-nav__link" data-page-link="articles">
         <span class="dashboard-nav__icon" aria-hidden="true">▤</span>
-        <span>Articles</span>
+        <span>Events</span>
+      </button>
+      <button type="button" class="dashboard-nav__link" data-page-link="news">
+        <span class="dashboard-nav__icon" aria-hidden="true">◫</span>
+        <span>News</span>
       </button>
       <button type="button" class="dashboard-nav__link" data-page-link="locations">
         <span class="dashboard-nav__icon" aria-hidden="true">⌖</span>
@@ -64,7 +70,7 @@
       <div>
         <p class="gears-hero__eyebrow">Dashboard</p>
         <h1 class="gears-hero__title">Real-time overview of your kiosk content</h1>
-        <p class="gears-hero__subtitle">Manage articles, campus locations, kiosk playback, and remote lockdown from one place.</p>
+        <p class="gears-hero__subtitle">Manage events, news, campus locations, kiosk playback, and remote lockdown from one place.</p>
       </div>
       <div class="gears-hero__chip">GEARS CMS</div>
     </header>
@@ -175,10 +181,10 @@
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
-          <h2 class="section-head__title">Articles</h2>
+          <h2 class="section-head__title">Events</h2>
         </div>
         <div class="section-head__actions">
-          <button type="button" class="primary-button" data-article-modal-open>Add Articles</button>
+          <button type="button" class="primary-button" data-article-modal-open>Add Events</button>
         </div>
       </div>
 
@@ -216,6 +222,77 @@
           {% else %}
           <div class="empty-state empty-state--embedded">No data available.</div>
           {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="gears-page" data-page-panel="news" hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">News</h2>
+        </div>
+        <div class="section-head__actions">
+          <button type="button" class="primary-button" data-news-modal-open>Add News</button>
+        </div>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="page-card" data-section-count="{{ news_items|length }}">
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No data available</div>
+          <p class="empty-state__text">Publish news articles to fill this dashboard and the kiosk reading page.</p>
+        </div>
+
+        <div class="news-table-wrap" data-section-content>
+          <table class="news-table">
+            <thead>
+              <tr>
+                <th>Headline</th>
+                <th>Source</th>
+                <th>Location</th>
+                <th>Published</th>
+                <th>Image</th>
+                <th>Summary</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for news in news_items %}
+              <tr>
+                <td>
+                  <div class="news-table__headline">{{ news.title }}</div>
+                  <div class="news-table__excerpt">{{ news.description[:120] if news.description else 'No summary available.' }}</div>
+                </td>
+                <td>{{ news.source if news.source else 'Unspecified' }}</td>
+                <td>{{ news.location if news.location else 'Unspecified' }}</td>
+                <td>{{ news.published_at.strftime('%b %d, %Y %I:%M %p') if news.published_at else 'Not set' }}</td>
+                <td>
+                  {% if news.image %}
+                  <img class="news-table__thumb" src="/storage/{{ news.image | replace('\\', '/') }}" alt="{{ news.title | e }}">
+                  {% else %}
+                  <span class="news-table__pill">No image</span>
+                  {% endif %}
+                </td>
+                <td>{{ news.description[:160] if news.description else 'No summary available.' }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="6">
+                  <div class="empty-state empty-state--embedded">No data available.</div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -261,6 +338,57 @@
           <div class="article-modal__footer">
             <button type="button" class="ghost-button" data-article-modal-close>Cancel</button>
             <button type="submit" class="primary-button">Save Article</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog class="article-modal news-modal" data-news-modal>
+      <div class="article-modal__panel">
+        <div class="article-modal__header">
+          <div>
+            <h3 class="article-modal__title">Add News</h3>
+            <p class="article-modal__subtitle">Create a news article with a title, image, source, location, and published date.</p>
+          </div>
+          <button type="button" class="article-modal__close" data-news-modal-close>Close</button>
+        </div>
+
+        <form action="{{ route('news.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack">
+          {{ csrf_field | safe }}
+
+          <label class="field" for="news-title">
+            <span class="field__label">Title</span>
+            <input type="text" name="title" id="news-title" class="field__input" placeholder="News headline" required>
+          </label>
+
+          <label class="field" for="news-description">
+            <span class="field__label">Description</span>
+            <textarea name="description" id="news-description" class="field__input field__textarea" placeholder="News article summary" required></textarea>
+          </label>
+
+          <label class="field" for="news-image">
+            <span class="field__label">Image</span>
+            <input type="file" name="image" id="news-image" class="field__input field__input--file" accept="image/*">
+          </label>
+
+          <label class="field" for="news-published-at">
+            <span class="field__label">Published at</span>
+            <input type="datetime-local" name="published_at" id="news-published-at" class="field__input">
+          </label>
+
+          <label class="field" for="news-source">
+            <span class="field__label">Source</span>
+            <input type="text" name="source" id="news-source" class="field__input" placeholder="Campus affairs, editorial, or outlet name">
+          </label>
+
+          <label class="field" for="news-location">
+            <span class="field__label">Location</span>
+            <input type="text" name="location" id="news-location" class="field__input" placeholder="Building, department, or city">
+          </label>
+
+          <div class="article-modal__footer">
+            <button type="button" class="ghost-button" data-news-modal-close>Cancel</button>
+            <button type="submit" class="primary-button">Save News</button>
           </div>
         </form>
       </div>
@@ -433,4 +561,5 @@
 
 {% block js %}
 <script src="/assets/js/gears-dashboard.js" defer></script>
+<script src="/assets/js/news-dashboard.js" defer></script>
 {% endblock %}

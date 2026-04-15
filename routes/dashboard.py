@@ -8,4 +8,6 @@ ROUTES = [
     Route.post("/videos/dashboard", "VideoController@upload").name("video.upload"),
     Route.delete("/videos/dashboard/@id", "VideoController@destroy").name("video.destroy").middleware("auth"),
     Route.post("/events/dashboard", "EventController@store").name("events.store").middleware("auth"),
+    Route.post("/events/dashboard/archive", "EventController@extract_from_pdf").name("events.archive").middleware("auth"),
+    Route.post("/news/dashboard", "NewsController@store").name("news.store").middleware("auth"),
 ]

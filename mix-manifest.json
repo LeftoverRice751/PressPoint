@@ -4,6 +4,7 @@
     "/storage/compiled/js/auth-change-password.js": "/storage/compiled/js/auth-change-password.js",
     "/storage/compiled/js/auth-otp-code.js": "/storage/compiled/js/auth-otp-code.js",
     "/storage/compiled/js/gears-dashboard.js": "/storage/compiled/js/gears-dashboard.js",
+    "/storage/compiled/js/news-dashboard.js": "/storage/compiled/js/news-dashboard.js",
     "/storage/compiled/js/welcome-screen.js": "/storage/compiled/js/welcome-screen.js",
     "/storage/compiled/js/welcome-lock.js": "/storage/compiled/js/welcome-lock.js",
     "/storage/compiled/css/auth-change-password.css": "/storage/compiled/css/auth-change-password.css",
@@ -12,6 +13,8 @@
     "/storage/compiled/css/welcome-screen.css": "/storage/compiled/css/welcome-screen.css",
     "/storage/compiled/css/app.css": "/storage/compiled/css/app.css",
     "/storage/compiled/css/welcome-lock.css": "/storage/compiled/css/welcome-lock.css",
+    "/storage/compiled/css/kiosk-news.css": "/storage/compiled/css/kiosk-news.css",
+    "/storage/compiled/css/news-dashboard.css": "/storage/compiled/css/news-dashboard.css",
     "/storage/compiled/css/gears-dashboard.css": "/storage/compiled/css/gears-dashboard.css",
     "/storage/compiled/css/auth-admin.css": "/storage/compiled/css/auth-admin.css",
     "/storage/compiled/css/auth-otp-code.css": "/storage/compiled/css/auth-otp-code.css"

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Latest News</title>
+  <link rel="stylesheet" href="/assets/css/kiosk-news.css" />
+</head>
+<body>
+  <div class="news-shell">
+    <header class="news-topbar">
+      <div class="news-topbar__brand">
+        <p class="news-topbar__eyebrow">The Gears Publication</p>
+        <h1 class="news-topbar__title">Latest News</h1>
+      </div>
+      <a class="news-topbar__back" href="/kiosk">Back to kiosk</a>
+    </header>
+
+    {% if featured_news %}
+    <section class="hero-grid" aria-label="Featured news">
+      <article class="featured-article">
+        <div class="featured-article__media">
+          {% if featured_news.image %}
+          <img class="featured-article__image" src="/storage/{{ featured_news.image | replace('\\', '/') }}" alt="{{ featured_news.title | e }}">
+          {% else %}
+          <div class="featured-article__image featured-article__image--fallback" aria-hidden="true"></div>
+          {% endif %}
+          <div class="featured-article__shade" aria-hidden="true"></div>
+          <div class="featured-article__badge">Featured</div>
+        </div>
+        <div class="featured-article__content">
+          <div class="featured-article__meta">
+            <span>{{ featured_news.source if featured_news.source else 'Editorial Desk' }}</span>
+            <span>{{ featured_news.location if featured_news.location else 'Campus' }}</span>
+            <span>{{ featured_news.published_at.strftime('%b %d, %Y %I:%M %p') if featured_news.published_at else 'Recent' }}</span>
+          </div>
+          <h2 class="featured-article__title">{{ featured_news.title }}</h2>
+          <p class="featured-article__description">{{ featured_news.description }}</p>
+        </div>
+      </article>
+
+      <aside class="story-meta-card" aria-label="Story metadata">
+        <p class="story-meta-card__eyebrow">Reading Guide</p>
+        <div class="story-meta-card__item">
+          <div class="story-meta-card__label">Source</div>
+          <div class="story-meta-card__value">{{ featured_news.source if featured_news.source else 'Editorial Desk' }}</div>
+        </div>
+        <div class="story-meta-card__item">
+          <div class="story-meta-card__label">Location</div>
+          <div class="story-meta-card__value">{{ featured_news.location if featured_news.location else 'Campus' }}</div>
+        </div>
+        <div class="story-meta-card__item">
+          <div class="story-meta-card__label">Published</div>
+          <div class="story-meta-card__value">{{ featured_news.published_at.strftime('%A, %B %d, %Y at %I:%M %p') if featured_news.published_at else 'Recent publication' }}</div>
+        </div>
+      </aside>
+    </section>
+    {% endif %}
+
+    <section class="news-panel" aria-label="News archive">
+      <div class="panel-head">
+        <div>
+          <p class="panel-head__eyebrow">Archive</p>
+          <h2 class="panel-head__title">Recent News Articles</h2>
+        </div>
+      </div>
+
+      {% if news_items %}
+      <div class="news-grid">
+        {% for news in news_items %}
+        <article class="news-card">
+          <div class="news-card__image-wrap">
+            {% if news.image %}
+            <img class="news-card__image" src="/storage/{{ news.image | replace('\\', '/') }}" alt="{{ news.title | e }}">
+            {% else %}
+            <div class="news-card__image news-card__image--fallback" aria-hidden="true"></div>
+            {% endif %}
+            <div class="news-card__shade" aria-hidden="true"></div>
+          </div>
+          <div class="news-card__body">
+            <div class="news-card__pill">{{ news.source if news.source else 'Campus News' }}</div>
+            <h3 class="news-card__headline">{{ news.title }}</h3>
+            <div class="news-card__meta">
+              <span>{{ news.location if news.location else 'Campus' }}</span>
+              <span>{{ news.published_at.strftime('%b %d, %Y %I:%M %p') if news.published_at else 'Recent' }}</span>
+            </div>
+            <p class="news-card__copy">{{ news.description }}</p>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="empty-state__title">No news published yet</div>
+        <p class="empty-state__text">News you upload from the dashboard will appear here as readable, image-led story cards.</p>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+</body>
+</html>

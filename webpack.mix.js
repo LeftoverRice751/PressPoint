@@ -10,6 +10,7 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/auth-change-password.js', 'storage/compiled/js')
   .js('resources/js/auth-otp-code.js', 'storage/compiled/js')
   .js('resources/js/gears-dashboard.js', 'storage/compiled/js')
+  .js('resources/js/news-dashboard.js', 'storage/compiled/js')
   .js('resources/js/welcome-screen.js', 'storage/compiled/js')
   .js('resources/js/welcome-lock.js', 'storage/compiled/js')
   .postCss('resources/css/app.css', 'storage/compiled/css', [
@@ -34,6 +35,12 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
     //
   ])
   .postCss('resources/css/gears-dashboard.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/news-dashboard.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/kiosk-news.css', 'storage/compiled/css', [
     //
   ])
   .postCss('resources/css/welcome-lock.css', 'storage/compiled/css', [

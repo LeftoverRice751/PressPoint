@@ -35,6 +35,14 @@ function initKiosk() {
 	const cluster = (cfg && cfg.dataset.pusherCluster) || 'mt1';
 	const idleStatus = 'Waiting for editorial to start a video…';
 
+	function showStage() {
+		stage.hidden = false;
+	}
+
+	function hideStage() {
+		stage.hidden = true;
+	}
+
 	function showStatus(text) {
 		if (statusEl) {
 			statusEl.textContent = text;
@@ -79,6 +87,7 @@ function initKiosk() {
 		wrap.classList.remove('is-visible');
 		hideOverlay();
 		hideLoading();
+		hideStage();
 		stage.classList.remove('is-loading', 'is-playing');
 		stage.classList.add('is-idle');
 		showStatus(idleStatus);
@@ -143,6 +152,7 @@ function initKiosk() {
 		return;
 	}
 
+	hideStage();
 	stage.classList.add('is-idle');
 
 	if (overlay) {
@@ -177,6 +187,7 @@ function initKiosk() {
 					: '/storage/' + String(raw).replace(/^\/+/, '');
 			}
 
+			showStage();
 			playSrc(built, data && data.title);
 		});
 	}).catch(function () {
