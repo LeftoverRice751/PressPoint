@@ -118,6 +118,41 @@
       font-family: sans-serif;
       touch-action: none;
     }
+
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.55rem;
+      padding-top: 0.25rem;
+      text-align: center;
+    }
+
+    .hero__logo {
+      width: min(28vw, 12rem);
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.35));
+    }
+
+    .hero__title {
+      margin: 0;
+      color: #111111;
+      font-size: clamp(2.15rem, 5.6vw, 4.85rem);
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+
+    .hero__subtitle {
+      margin: 0;
+      max-width: 30rem;
+      color: #111111;
+      font-size: clamp(0.9rem, 1.45vw, 1.1rem);
+      line-height: 1.5;
+      letter-spacing: 0.03em;
+    }
   </style>
 </head>
 <body>
@@ -125,6 +160,8 @@
     <main class="kiosk-app" aria-label="Kiosk terminal">
       <section class="hero" aria-label="Brand mark">
         <img class="hero__logo" src="/storage/gears.png?v=20260411" alt="Gears logo" />
+        <h1 class="hero__title">PRESSPOINT</h1>
+        <p class="hero__subtitle">The Gears Publication's Official Kiosk</p>
       </section>
 
       <section class="feature-grid" aria-label="Kiosk actions">

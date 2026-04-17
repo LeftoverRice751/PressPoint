@@ -15,6 +15,12 @@ from masonite.configuration.Configuration import Configuration
 from masonite.configuration import config
 
 from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware
+from masonite.middleware import ThrottleRequestsMiddleware
+
+
+HTTP_MIDDLEWARE = [
+    ThrottleRequestsMiddleware,
+]
 
 
 class Kernel:
