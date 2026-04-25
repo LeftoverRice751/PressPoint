@@ -27,7 +27,6 @@ class KioskController(Controller):
                 broadcast_sent = True
             except Exception:
                 pass
-
         return response.json({"ok": True, "status": "lock", "broadcast": broadcast_sent})
     
     def unlock(self, response: Response):

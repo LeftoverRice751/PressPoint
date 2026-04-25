@@ -15,6 +15,11 @@
   var previewPlayer = dashboardRoot.querySelector('[data-video-preview-player]');
   var previewPlaceholder = dashboardRoot.querySelector('[data-video-preview-placeholder]');
   var articleModal = dashboardRoot.querySelector('[data-article-modal]');
+  var archivesModal = dashboardRoot.querySelector('[data-archives-modal]');
+  var uploadStatus = dashboardRoot.parentNode.querySelector('[data-upload-status]');
+  var uploadStatusLabel = uploadStatus ? uploadStatus.querySelector('[data-upload-status-label]') : null;
+  var uploadStatusFilename = uploadStatus ? uploadStatus.querySelector('[data-upload-status-filename]') : null;
+  var uploadStatusProgress = uploadStatus ? uploadStatus.querySelector('[data-upload-status-progress]') : null;
   var defaultPage = dashboardRoot.getAttribute('data-default-page') || 'dashboard';
   var openArticleModalOnLoad = dashboardRoot.getAttribute('data-open-article-modal') === 'true';
 
@@ -156,6 +161,155 @@
     articleModal.classList.remove('is-open');
   }
 
+  function openArchivesModal() {
+    if (!archivesModal) {
+      return;
+    }
+
+    if (typeof archivesModal.showModal === 'function') {
+      archivesModal.showModal();
+      return;
+    }
+
+    archivesModal.hidden = false;
+    archivesModal.classList.add('is-open');
+  }
+
+  function closeArchivesModal() {
+    if (!archivesModal) {
+      return;
+    }
+
+    if (typeof archivesModal.close === 'function') {
+      archivesModal.close();
+      return;
+    }
+
+    archivesModal.hidden = true;
+    archivesModal.classList.remove('is-open');
+  }
+
+  function showUploadStatus(label, filename) {
+    if (!uploadStatus) {
+      return;
+    }
+
+    if (uploadStatusLabel) {
+      uploadStatusLabel.textContent = label || 'Uploading';
+    }
+
+    if (uploadStatusFilename) {
+      uploadStatusFilename.textContent = filename || '';
+    }
+
+    if (uploadStatusProgress) {
+      uploadStatusProgress.style.width = '0%';
+    }
+
+    uploadStatus.hidden = false;
+    uploadStatus.classList.add('is-visible');
+  }
+
+  function updateUploadStatus(progress) {
+    if (!uploadStatusProgress) {
+      return;
+    }
+
+    uploadStatusProgress.style.width = Math.max(0, Math.min(100, progress)) + '%';
+  }
+
+  function hideUploadStatus() {
+    if (!uploadStatus) {
+      return;
+    }
+
+    uploadStatus.classList.remove('is-visible');
+    uploadStatus.hidden = true;
+  }
+
+  function getUploadLabel(form) {
+    return form.getAttribute('data-upload-label') || 'Uploading';
+  }
+
+  function getSelectedFilename(form) {
+    var fileInput = form.querySelector('input[type="file"]');
+
+    if (!fileInput || !fileInput.files || !fileInput.files.length) {
+      return '';
+    }
+
+    return fileInput.files[0].name;
+  }
+
+  function submitUploadForm(form) {
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    var xhr = new XMLHttpRequest();
+    var formData = new FormData(form);
+    var submitButton = form.querySelector('button[type="submit"]');
+    var uploadLabel = getUploadLabel(form);
+    var uploadFilename = getSelectedFilename(form);
+
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
+
+    showUploadStatus(uploadLabel, uploadFilename);
+
+    xhr.open((form.getAttribute('method') || 'POST').toUpperCase(), form.getAttribute('action') || window.location.href, true);
+    xhr.setRequestHeader('X-CSRF-TOKEN', token);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+    xhr.upload.addEventListener('progress', function (event) {
+      if (!event.lengthComputable) {
+        return;
+      }
+
+      updateUploadStatus(Math.round((event.loaded / event.total) * 100));
+    });
+
+    xhr.addEventListener('load', function () {
+      var response = null;
+
+      try {
+        response = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch (error) {
+        response = null;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300 && response && response.ok) {
+        updateUploadStatus(100);
+        window.location.reload();
+        return;
+      }
+
+      hideUploadStatus();
+
+      if (response && response.error) {
+        alert(response.error);
+        return;
+      }
+
+      alert('Upload failed. Please try again.');
+    });
+
+    xhr.addEventListener('error', function () {
+      hideUploadStatus();
+      alert('Upload failed. Please try again.');
+    });
+
+    xhr.addEventListener('loadend', function () {
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
+    });
+
+    xhr.send(formData);
+  }
+
   function switchPage(pageName) {
     var targetPage = pageName || defaultPage;
 
@@ -199,6 +353,20 @@
     if (articleModalClose && dashboardRoot.contains(articleModalClose)) {
       event.preventDefault();
       closeArticleModal();
+      return;
+    }
+
+    var archivesModalTrigger = event.target.closest('[data-archives-modal-open]');
+    if (archivesModalTrigger && dashboardRoot.contains(archivesModalTrigger)) {
+      event.preventDefault();
+      openArchivesModal();
+      return;
+    }
+
+    var archivesModalClose = event.target.closest('[data-archives-modal-close]');
+    if (archivesModalClose && dashboardRoot.contains(archivesModalClose)) {
+      event.preventDefault();
+      closeArchivesModal();
       return;
     }
 
@@ -297,6 +465,17 @@
     }
   });
 
+  dashboardRoot.addEventListener('submit', function (event) {
+    var uploadForm = event.target.closest('[data-upload-form]');
+
+    if (!uploadForm || !dashboardRoot.contains(uploadForm)) {
+      return;
+    }
+
+    event.preventDefault();
+    submitUploadForm(uploadForm);
+  });
+
   syncProgressBars();
   syncEmptyStates();
   switchPage(defaultPage);
@@ -305,6 +484,14 @@
     articleModal.addEventListener('click', function (event) {
       if (event.target === articleModal) {
         closeArticleModal();
+      }
+    });
+  }
+
+  if (archivesModal) {
+    archivesModal.addEventListener('click', function (event) {
+      if (event.target === archivesModal) {
+        closeArchivesModal();
       }
     });
   }

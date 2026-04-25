@@ -3,6 +3,7 @@ from masonite.request import Request
 from masonite.filesystem import Storage
 from masonite.utils.location import base_path
 from app.models.Categories import Categories
+from app.models.Archives import Archives
 from app.models.News import News
 from app.models.Posts import Posts
 from app.models.Video import Video
@@ -27,6 +28,10 @@ class VideoController(Controller):
         news_items = sorted(list(News.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
         categories = sorted(list(Categories.all() or []), key=lambda item: getattr(item, "id", 0))
         videos = sorted(list(Video.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
+        try:
+            archives = sorted(list(Archives.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
+        except Exception:
+            archives = []
         locations = sorted(list(Locations.all() or []), key=lambda item: getattr(item, "id", 0))
         location_lookup = {getattr(location, "id", None): getattr(location, "name", "") for location in locations}
 
@@ -68,6 +73,7 @@ class VideoController(Controller):
             "posts": posts,
             "categories": categories,
             "videos": videos,
+            "archives": archives,
             "news_items": news_items,
             "locations": locations,
             "recent_articles": recent_articles,
@@ -77,6 +83,7 @@ class VideoController(Controller):
             "total_articles": len(posts),
             "published_articles": len(published_articles),
             "location_count": len(locations),
+            "archive_count": len(archives),
             "news_count": len(news_items),
         })
 
@@ -85,7 +92,7 @@ class VideoController(Controller):
         video_file = request.input("video")
         
         if not video_file:
-            return "No video file provided", 400
+            return response.json({"ok": False, "error": "No video file provided."}, status=400)
         
         path = storage.disk("public").put_file("videos", video_file)
         
@@ -94,7 +101,7 @@ class VideoController(Controller):
             file_path=path
         )
         
-        return response.redirect(name="gears.dashboard")
+        return response.json({"ok": True, "message": "Video uploaded successfully."})
 
     def destroy(self, request: Request, response: Response):
         video = Video.find(request.param("id"))

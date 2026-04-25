@@ -1,10 +1,10 @@
 from datetime import datetime
-
 from masonite.controllers import Controller
 from masonite.request import Request
 from masonite.response import Response
+from app.events import NewEvent
 from app.services.ArchiveServices import ArchiveServices
-from app.models.Events import Events
+from app.models.Events import new_events, Events
 from app.models.Locations import Locations
 
 
@@ -92,5 +92,7 @@ class EventController(Controller):
             location_id=None,
             is_archive=True,
         )
+        
+        NewEvent(new_events).fire()
 
         return response.json(extracted_data)
