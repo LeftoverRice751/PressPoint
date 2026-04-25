@@ -13,4 +13,6 @@ HASHING = {
 
 APP_URL = env("APP_URL", "http://localhost:8000/")
 
+TIMEZONE = env("APP_TIMEZONE", "Asia/Manila")
+
 MIX_BASE_URL = env("MIX_BASE_URL", None)

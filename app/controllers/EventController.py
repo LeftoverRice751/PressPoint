@@ -2,9 +2,9 @@ from datetime import datetime
 from masonite.controllers import Controller
 from masonite.request import Request
 from masonite.response import Response
-from app.events import NewEvent
+from app.events.NewEvent import NewEvent
 from app.services.ArchiveServices import ArchiveServices
-from app.models.Events import new_events, Events
+from app.models.Events import Events
 from app.models.Locations import Locations
 
 
@@ -45,13 +45,19 @@ class EventController(Controller):
 
             location_id = location.id
 
-        Events.create(
+        created_event = Events.create(
             title=title,
             description=description,
             event_date=event_date,
             location_id=location_id,
             is_archive=False,
         )
+
+        try:
+            NewEvent(created_event).fire()
+        except Exception:
+            # Event should still be saved even when realtime broadcasting is unavailable.
+            pass
 
         return response.redirect(name="gears.dashboard").with_success([
             "Event saved successfully.",
@@ -85,14 +91,18 @@ class EventController(Controller):
                 "The archive event date could not be parsed.",
             ])
 
-        Events.create(
+        created_event = Events.create(
             title=extracted_data["title"],
             description=extracted_data["description"],
             event_date=event_date,
             location_id=None,
             is_archive=True,
         )
-        
-        NewEvent(new_events).fire()
+
+        try:
+            NewEvent(created_event).fire()
+        except Exception:
+            # Event should still be saved even when realtime broadcasting is unavailable.
+            pass
 
         return response.json(extracted_data)

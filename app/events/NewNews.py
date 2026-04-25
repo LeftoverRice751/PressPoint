@@ -8,9 +8,9 @@ from masonite.configuration import config
 from masonite.events import Event
 
 
-class NewEvent(Event):
-    def __init__(self, event_item):
-        self.event_item = event_item
+class NewNews(Event):
+    def __init__(self, news_item):
+        self.news_item = news_item
 
     def _timezone_name(self):
         return config("application.timezone") or "Asia/Manila"
@@ -59,14 +59,15 @@ class NewEvent(Event):
         return ["flash-updates-channel"]
 
     def broadcast_with(self):
-        occurred_on = self._format_date(getattr(self.event_item, "event_date", None))
+        published_at = getattr(self.news_item, "published_at", None) or getattr(self.news_item, "created_at", None)
+        occurred_on = self._format_date(published_at)
         return {
-            "headline": self.event_item.title,
-            "copy": self.event_item.description,
-            "kind": "event",
+            "headline": self.news_item.title,
+            "copy": self.news_item.description,
+            "kind": "news",
             "occurred_on": occurred_on,
             "today_key": self._today_key(),
         }
 
     def broadcast_as(self):
-        return "app.events.NewEvent"
+        return "app.events.NewNews"

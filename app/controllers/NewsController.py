@@ -6,6 +6,7 @@ from masonite.request import Request
 from masonite.response import Response
 from masonite.views import View
 
+from app.events.NewNews import NewNews
 from app.models.News import News
 
 
@@ -61,7 +62,7 @@ class NewsController(Controller):
 
             image_path = storage.disk("public").put_file("news", image_file)
 
-        News.create(
+        created_news = News.create(
             title=title,
             description=description,
             image=image_path,
@@ -69,6 +70,12 @@ class NewsController(Controller):
             source=source or None,
             location=location or None,
         )
+
+        try:
+            NewNews(created_news).fire()
+        except Exception:
+            # News should still be saved even when realtime broadcasting is unavailable.
+            pass
 
         return response.redirect(name="gears.dashboard").with_success([
             "News saved successfully.",
