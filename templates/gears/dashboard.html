@@ -10,7 +10,7 @@
 <div
   class="gears-dashboard"
   data-dashboard-shell
-  data-default-page="dashboard"
+  data-default-page="{{ default_page if default_page else 'dashboard' }}"
   data-video-push-url="{{ route('video.push', {}, False) }}"
   data-open-article-modal="{{ 'true' if bag().any() else 'false' }}"
   data-open-news-modal="false"
@@ -37,6 +37,10 @@
       <button type="button" class="dashboard-nav__link" data-page-link="news">
         <span class="dashboard-nav__icon" aria-hidden="true">◫</span>
         <span>News</span>
+      </button>
+      <button type="button" class="dashboard-nav__link" data-page-link="archives">
+        <span class="dashboard-nav__icon" aria-hidden="true">◧</span>
+        <span>Archives</span>
       </button>
       <button type="button" class="dashboard-nav__link" data-page-link="locations">
         <span class="dashboard-nav__icon" aria-hidden="true">⌖</span>
@@ -395,6 +399,108 @@
     </dialog>
     </section>
 
+    <section class="gears-page" data-page-panel="archives" hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">Archives</h2>
+        </div>
+        <p class="section-head__subtitle">Upload a PDF archive and publish it by year.</p>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="archive-admin-grid">
+        <article class="page-card video-upload-card">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Archive Upload</p>
+              <h3 class="panel-header__title">Add PDF Archive</h3>
+            </div>
+          </div>
+
+          <form action="{{ route('archives.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack">
+            {{ csrf_field | safe }}
+
+            <label class="field" for="archive-name">
+              <span class="field__label">Archive title</span>
+              <input type="text" name="name" id="archive-name" class="field__input" placeholder="Archive Bulletin" required>
+            </label>
+
+            <label class="field" for="archive-type">
+              <span class="field__label">Type</span>
+              <select name="type" id="archive-type" class="field__input field__input--select archive-form__select" required>
+                <option value="">Choose archive type</option>
+                <option value="Tabloid">Tabloid</option>
+                <option value="Folio">Folio</option>
+              </select>
+            </label>
+
+            <label class="field" for="archive-year-published">
+              <span class="field__label">Year published</span>
+              <input type="number" name="year_published" id="archive-year-published" class="field__input archive-form__year" min="1900" max="2100" step="1" placeholder="2024" required>
+            </label>
+
+            <label class="field" for="archive-file">
+              <span class="field__label">PDF file</span>
+              <input type="file" name="file" id="archive-file" class="field__input field__input--file" accept="application/pdf" required>
+            </label>
+
+            <button type="submit" class="primary-button">Save archive</button>
+          </form>
+        </article>
+
+        <article class="page-card" data-section-count="{{ archives|length }}">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Library</p>
+              <h3 class="panel-header__title">Published archives</h3>
+            </div>
+            <p class="panel-header__subtitle">Grouped by year and ready for the kiosk carousel.</p>
+          </div>
+
+          <div class="empty-state archive-empty-state" data-empty-state>
+            <div class="empty-state__title">No data available</div>
+            <p class="empty-state__text">Upload PDF archives to populate the kiosk archive page.</p>
+          </div>
+
+          <div class="archive-admin-card-grid archive-admin-card-grid--scroll" data-section-content>
+            {% for archive in archives %}
+            <article class="archive-card">
+              {% if archive.cover_url %}
+              <img class="archive-card__cover" src="{{ archive.cover_url }}" alt="{{ archive.name | e }} cover">
+              {% else %}
+              <div class="archive-card__cover archive-card__cover--fallback" aria-hidden="true">
+                <span class="archive-card__cover-text">No cover generated</span>
+              </div>
+              {% endif %}
+
+              <div class="archive-card__body">
+                <div class="archive-card__title">{{ archive.name }}</div>
+                <div class="archive-card__meta">
+                  <span>{{ archive.type }}</span>
+                  <span>Year {{ archive.year if archive.year else 'Not set' }}</span>
+                </div>
+                <div class="archive-card__year">{{ archive.year if archive.year else 'Undated' }}</div>
+                <div class="archive-card__path">{{ archive.file_path }}</div>
+              </div>
+            </article>
+            {% else %}
+            <div class="empty-state empty-state--embedded">No data available.</div>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+    </section>
+
     <section class="gears-page" data-page-panel="locations" hidden>
       <div class="section-head">
         <div>
@@ -437,6 +543,16 @@
         </div>
         <p class="section-head__subtitle">Upload, preview, and push public service videos to the kiosk.</p>
       </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
 
       <div class="video-manager-grid">
         <article class="page-card video-upload-card">

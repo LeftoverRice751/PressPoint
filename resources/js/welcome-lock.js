@@ -22,8 +22,24 @@
   function initLockOverlay() {
     var configEl = document.getElementById('kiosk-config');
     var overlay = document.getElementById('lock-overlay');
+    var notice = document.getElementById('kiosk-notice');
     var pusherKey = configEl ? (configEl.getAttribute('data-pusher-key') || '').trim() : '';
     var cluster = configEl ? (configEl.getAttribute('data-pusher-cluster') || 'mt1') : 'mt1';
+
+    function showNotice(text, tone) {
+      if (!notice || !text) {
+        return;
+      }
+
+      notice.textContent = text;
+      notice.setAttribute('data-tone', tone || '');
+      notice.classList.add('is-visible');
+
+      window.clearTimeout(showNotice._timer);
+      showNotice._timer = window.setTimeout(function () {
+        notice.classList.remove('is-visible');
+      }, 3200);
+    }
 
     if (!overlay || !pusherKey) {
       return;
@@ -40,9 +56,11 @@
       channel.bind('app.events.LockKioskEvent', function (data) {
         if (data && data.status === 'lock') {
           overlay.style.display = 'block';
+          showNotice('Kiosk locked.', 'warning');
           console.log('Kiosk Locked');
         } else {
           overlay.style.display = 'none';
+          showNotice('Kiosk unlocked.', 'success');
           console.log('Kiosk Unlocked');
         }
       });

@@ -4,6 +4,8 @@ from masonite.routes import Route
 ROUTES = [
     Route.get("/", "WelcomeController@show"),
     Route.get("/kiosk", "WelcomeController@show").name("kiosk"),
+    Route.get("/kiosk/gears-archive", "ArchivesController@show").name("kiosk.gears-archive"),
+    Route.get("/kiosk/flash-updates", "WelcomeController@flash_updates").name("welcome.flash-updates"),
     Route.get("/kiosk/latest-news", "NewsController@show").name("kiosk.latest-news"),
     Route.get("/kiosk/campus-map", "WelcomeController@campus_map").name("kiosk.campus-map"),
     Route.get("/kiosk/ai-assistant", "WelcomeController@ai_assistant").name("kiosk.ai-assistant"),

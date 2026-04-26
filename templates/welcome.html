@@ -19,10 +19,6 @@
       display: none;
     }
 
-    #kiosk-stage.is-idle {
-      cursor: default;
-    }
-
     #kiosk-loading {
       position: absolute;
       inset: 0;
@@ -119,6 +115,43 @@
       touch-action: none;
     }
 
+    #kiosk-notice {
+      position: fixed;
+      left: 50%;
+      bottom: 1.25rem;
+      z-index: 10001;
+      max-width: min(92vw, 42rem);
+      transform: translateX(-50%) translateY(1rem);
+      opacity: 0;
+      pointer-events: none;
+      border-radius: 999px;
+      padding: 0.9rem 1.15rem;
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      font-size: 0.95rem;
+      line-height: 1.35;
+      letter-spacing: 0.01em;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.32);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    #kiosk-notice.is-visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    #kiosk-notice[data-tone="success"] {
+      background: rgba(21, 128, 61, 0.95);
+    }
+
+    #kiosk-notice[data-tone="warning"] {
+      background: rgba(180, 83, 9, 0.95);
+    }
+
+    #kiosk-notice[data-tone="danger"] {
+      background: rgba(153, 27, 27, 0.95);
+    }
+
     .hero {
       display: flex;
       flex-direction: column;
@@ -190,7 +223,7 @@
           <span class="feature-card__hint">Find every location</span>
         </button>
 
-        <button class="feature-card" type="button" data-card="AI Assistant" data-target="/kiosk/ai-assistant">
+        <button class="feature-card" type="button" data-card="Gears Archive" data-target="{{ route('kiosk.gears-archive') }}">
           <span class="feature-card__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">
               <path d="M8 11.5a4 4 0 1 1 8 0"></path>
@@ -200,8 +233,8 @@
               <path d="M7.7 7.2 8.9 8.4"></path>
             </svg>
           </span>
-          <span class="feature-card__label">AI Assistant</span>
-          <span class="feature-card__hint">Ask for help</span>
+          <span class="feature-card__label">Gears Archive</span>
+          <span class="feature-card__hint">Browse our archives</span>
         </button>
 
         <button class="feature-card" type="button" data-card="Virtual Tour" data-target="/kiosk/virtual-tour">
@@ -229,6 +262,7 @@
     id="kiosk-config"
     data-pusher-key="{{ pusher_key }}"
     data-pusher-cluster="{{ pusher_cluster }}"
+    data-flash-updates-url="{{ route('welcome.flash-updates') }}"
   ></div>
 
   <div id="kiosk-stage" hidden aria-live="polite">
@@ -247,6 +281,8 @@
   </div>
 
   <div id="lock-overlay" aria-hidden="true"></div>
+
+  <div id="kiosk-notice" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <script src="/assets/js/welcome-screen.js" defer></script>
   <script src="/assets/js/app.js" defer></script>

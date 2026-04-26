@@ -9,11 +9,12 @@ from app.events.PlayVideo import PlayVideo
 
 
 def _pusher_configured():
-    broadcasts = config("broadcast.broadcasts", {}) or {}
+    broadcasts = config("broadcast.broadcasts", {}) or config("broadcast.BROADCASTS", {}) or {}
+    pusher_settings = broadcasts.get("pusher") or {}
     return bool(
-        broadcasts.get("pusher.client")
-        and broadcasts.get("pusher.app_id")
-        and broadcasts.get("pusher.secret")
+        (pusher_settings.get("client") or pusher_settings.get("key"))
+        and pusher_settings.get("app_id")
+        and pusher_settings.get("secret")
     )
 
 

@@ -2,6 +2,8 @@ from masonite.controllers import Controller
 from masonite.request import Request
 from masonite.filesystem import Storage
 from masonite.utils.location import base_path
+from masonite.facades import Broadcast
+from masonite.configuration import config
 from app.models.Categories import Categories
 from app.models.News import News
 from app.models.Posts import Posts
@@ -10,6 +12,33 @@ from app.models.Locations import Locations
 from masonite.response import Response
 from masonite.views import View
 import os
+import traceback
+import random
+
+from app.services.ArchiveServices import ArchiveServices
+from app.models.Archives import Archives
+
+def _pusher_configured():
+    broadcasts = config("broadcast.broadcasts", {}) or config("broadcast.BROADCASTS", {}) or {}
+    pusher_settings = broadcasts.get("pusher") or {}
+    return bool(
+        (pusher_settings.get("client") or pusher_settings.get("key"))
+        and pusher_settings.get("app_id")
+        and pusher_settings.get("secret")
+    )
+
+
+def _broadcast_play_video(src, title):
+    payload = {"src": src, "title": title or ""}
+
+    if not _pusher_configured():
+        return False
+
+    try:
+        Broadcast.channel(["editorial"], "play-video", payload)
+        return True
+    except Exception:
+        return False
 
 
 class VideoController(Controller):
@@ -22,9 +51,15 @@ class VideoController(Controller):
         
         return  "File not Found", 404
     
-    def show(self, views: View):
+    def show(self, views: View, request: Request):
         posts = sorted(list(Posts.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
         news_items = sorted(list(News.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
+        archive_services = ArchiveServices()
+        archive_records = sorted(list(Archives.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
+        archive_entries = [archive_services.build_archive_entry(archive) for archive in archive_records]
+        archive_groups_map = archive_services.group_archives_by_year(archive_records)
+        archive_years = sorted(archive_groups_map.keys(), reverse=True)
+        selected_archive_year = random.choice(archive_years) if archive_years else None
         categories = sorted(list(Categories.all() or []), key=lambda item: getattr(item, "id", 0))
         videos = sorted(list(Video.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
         locations = sorted(list(Locations.all() or []), key=lambda item: getattr(item, "id", 0))
@@ -63,12 +98,17 @@ class VideoController(Controller):
             )
 
         recent_articles = posts[:5]
+        default_page = (request.input("page") or "dashboard").strip() or "dashboard"
 
         return views.render("gears/dashboard.html", {
             "posts": posts,
             "categories": categories,
             "videos": videos,
             "news_items": news_items,
+            "archives": archive_entries,
+            "archive_years": archive_years,
+            "archive_groups": archive_groups_map,
+            "selected_archive_year": selected_archive_year,
             "locations": locations,
             "recent_articles": recent_articles,
             "article_groups": category_rows,
@@ -78,23 +118,82 @@ class VideoController(Controller):
             "published_articles": len(published_articles),
             "location_count": len(locations),
             "news_count": len(news_items),
+            "default_page": default_page,
         })
 
     def upload(self, request: Request, storage: Storage, response: Response):
-        
+        title = (request.input("title") or "").strip()
         video_file = request.input("video")
-        
+
+        if isinstance(video_file, list):
+            video_file = video_file[0] if video_file else None
+
+        if video_file and not hasattr(video_file, "name") and hasattr(video_file, "filename"):
+            class _UploadedVideoAdapter:
+                def __init__(self, file_obj):
+                    self._file_obj = file_obj
+                    self.name = getattr(file_obj, "filename", "upload")
+
+                def extension(self):
+                    if hasattr(self._file_obj, "extension"):
+                        return self._file_obj.extension()
+                    filename = getattr(self._file_obj, "filename", "") or ""
+                    return os.path.splitext(filename)[1]
+
+                def get_content(self):
+                    if hasattr(self._file_obj, "get_content"):
+                        return self._file_obj.get_content()
+                    if hasattr(self._file_obj, "stream"):
+                        stream = self._file_obj.stream()
+                        return stream.read() if hasattr(stream, "read") else stream
+                    return getattr(self._file_obj, "content", b"")
+
+            video_file = _UploadedVideoAdapter(video_file)
+
+        if not title:
+            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors([
+                "Video title is required.",
+            ])
+
         if not video_file:
-            return "No video file provided", 400
-        
-        path = storage.disk("public").put_file("videos", video_file)
-        
-        Video.create(
-            title=request.input("title"),
-            file_path=path
-        )
-        
-        return response.redirect(name="gears.dashboard")
+            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors([
+                "No video file provided.",
+            ])
+
+        if not hasattr(video_file, "get_content") or not hasattr(video_file, "extension"):
+            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors([
+                "Please upload a valid video file.",
+            ])
+
+        allowed_extensions = {".mp4", ".mov", ".webm", ".m4v", ".ogg"}
+        file_extension = (video_file.extension() or "").lower()
+
+        if file_extension not in allowed_extensions:
+            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors([
+                "Please upload a valid video file.",
+            ])
+
+        try:
+            path = storage.disk("public").put_file("videos", video_file)
+
+            video = Video.create(
+                title=title,
+                file_path=path,
+            )
+
+            _broadcast_play_video(
+                "/storage/" + str(path).replace("\\", "/").lstrip("/"),
+                getattr(video, "title", None) or title,
+            )
+
+            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_success([
+                "Video saved successfully.",
+            ])
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors([
+                "Could not save the video. Please try again.",
+            ])
 
     def destroy(self, request: Request, response: Response):
         video = Video.find(request.param("id"))

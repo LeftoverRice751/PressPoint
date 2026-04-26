@@ -2,12 +2,12 @@
   "private": true,
   "scripts": {
     "dev": "npm run development",
-    "development": "mix",
-    "watch": "mix watch",
-    "watch-poll": "mix watch -- --watch-options-poll=1000",
-    "hot": "mix watch --hot",
+    "development": "node ./node_modules/laravel-mix/bin/cli.js",
+    "watch": "node ./node_modules/laravel-mix/bin/cli.js watch",
+    "watch-poll": "node ./node_modules/laravel-mix/bin/cli.js watch -- --watch-options-poll=1000",
+    "hot": "node ./node_modules/laravel-mix/bin/cli.js watch --hot",
     "prod": "npm run production",
-    "production": "mix --production"
+    "production": "node ./node_modules/laravel-mix/bin/cli.js --production"
   },
   "devDependencies": {
     "axios": "^1.15.0",

@@ -1,12 +1,39 @@
 from datetime import datetime
+import os
+import traceback
 
 from masonite.controllers import Controller
+from masonite.configuration import config
 from masonite.filesystem import Storage
+from masonite.facades import Broadcast
 from masonite.request import Request
 from masonite.response import Response
 from masonite.views import View
 
+from app.events.NewNews import NewNews
 from app.models.News import News
+
+
+def _pusher_configured():
+    broadcasts = config("broadcast.broadcasts", {}) or config("broadcast.BROADCASTS", {}) or {}
+    pusher_settings = broadcasts.get("pusher") or {}
+    return bool(
+        (pusher_settings.get("client") or pusher_settings.get("key"))
+        and pusher_settings.get("app_id")
+        and pusher_settings.get("secret")
+    )
+
+
+def _build_flash_payload(news_item):
+    reference_at = getattr(news_item, "published_at", None) or getattr(news_item, "created_at", None)
+    return {
+        "headline": getattr(news_item, "title", None) or "News update",
+        "date": reference_at.strftime("%b %d, %Y") if hasattr(reference_at, "strftime") else "",
+        "copy": getattr(news_item, "description", None) or "",
+        "kind": "news",
+        "occured_on": reference_at.date().isoformat() if hasattr(reference_at, "date") else "",
+        "today_key": datetime.now().date().isoformat(),
+    }
 
 
 class NewsController(Controller):
@@ -29,6 +56,34 @@ class NewsController(Controller):
         location = (request.input("location") or "").strip()
         published_at_value = (request.input("published_at") or "").strip()
         image_file = request.input("image")
+
+        if isinstance(image_file, list):
+            image_file = image_file[0] if image_file else None
+
+        if image_file and not hasattr(image_file, "name") and hasattr(image_file, "filename"):
+            class _UploadedImageAdapter:
+                def __init__(self, file_obj):
+                    self._file_obj = file_obj
+                    self.name = getattr(file_obj, "filename", "upload")
+
+                def extension(self):
+                    if hasattr(self._file_obj, "extension"):
+                        return self._file_obj.extension()
+
+                    filename = getattr(self._file_obj, "filename", "") or ""
+                    return os.path.splitext(filename)[1]
+
+                def get_content(self):
+                    if hasattr(self._file_obj, "get_content"):
+                        return self._file_obj.get_content()
+
+                    if hasattr(self._file_obj, "stream"):
+                        stream = self._file_obj.stream()
+                        return stream.read() if hasattr(stream, "read") else stream
+
+                    return getattr(self._file_obj, "content", b"")
+
+            image_file = _UploadedImageAdapter(image_file)
 
         if not title or not description:
             return response.back().with_errors([
@@ -59,17 +114,34 @@ class NewsController(Controller):
                     "Please upload a valid image file.",
                 ])
 
-            image_path = storage.disk("public").put_file("news", image_file)
+        try:
+            if image_file:
+                image_path = storage.disk("public").put_file("news", image_file)
 
-        News.create(
-            title=title,
-            description=description,
-            image=image_path,
-            published_at=published_at,
-            source=source or None,
-            location=location or None,
-        )
+            news_item = News.create(
+                title=title,
+                description=description,
+                image=image_path,
+                published_at=published_at,
+                source=source or None,
+                location=location or None,
+            )
 
-        return response.redirect(name="gears.dashboard").with_success([
-            "News saved successfully.",
-        ])
+            if _pusher_configured():
+                try:
+                    Broadcast.channel(
+                        ["flash-updates-channel"],
+                        "new-news",
+                        _build_flash_payload(news_item),
+                    )
+                except Exception:
+                    pass
+
+            return response.redirect(name="gears.dashboard").with_success([
+                "News saved successfully.",
+            ])
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return response.back().with_errors([
+                "Could not save the news item. Please try again.",
+            ])

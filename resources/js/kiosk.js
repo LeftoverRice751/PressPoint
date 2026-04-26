@@ -31,6 +31,7 @@ function initKiosk() {
 	const wrap = document.getElementById('kiosk-video-wrap');
 	const video = document.getElementById('kiosk-video');
 	const statusEl = document.getElementById('kiosk-status');
+	const noticeEl = document.getElementById('kiosk-notice');
 	const pusherKey = (cfg && cfg.dataset.pusherKey) || '';
 	const cluster = (cfg && cfg.dataset.pusherCluster) || 'mt1';
 	const idleStatus = 'Waiting for editorial to start a video…';
@@ -47,6 +48,21 @@ function initKiosk() {
 		if (statusEl) {
 			statusEl.textContent = text;
 		}
+	}
+
+	function showNotice(text, tone) {
+		if (!noticeEl || !text) {
+			return;
+		}
+
+		noticeEl.textContent = text;
+		noticeEl.setAttribute('data-tone', tone || '');
+		noticeEl.classList.add('is-visible');
+
+		window.clearTimeout(showNotice._timer);
+		showNotice._timer = window.setTimeout(function () {
+			noticeEl.classList.remove('is-visible');
+		}, 3200);
 	}
 
 	function hideLoading() {
@@ -93,6 +109,18 @@ function initKiosk() {
 		showStatus(idleStatus);
 	}
 
+	function normalizeVideoSrc(raw) {
+		if (!raw) {
+			return '';
+		}
+
+		if (raw.indexOf('http://') === 0 || raw.indexOf('https://') === 0) {
+			return raw;
+		}
+
+		return raw.indexOf('/storage/') === 0 ? raw : '/storage/' + String(raw).replace(/^\/+/, '');
+	}
+
 	function playSrc(src, title) {
 		if (!src) {
 			return;
@@ -104,6 +132,7 @@ function initKiosk() {
 		showOverlay();
 		showLoading('Loading metadata...');
 		showStatus('Loading video metadata...');
+		showNotice(title ? ('Now playing: ' + title) : 'Video playback triggered', 'success');
 
 		video.pause();
 		video.src = src;
@@ -136,6 +165,7 @@ function initKiosk() {
 			stage.classList.remove('is-loading');
 			stage.classList.add('is-idle');
 			showStatus('Unable to load the requested video.');
+			showNotice('Unable to load the requested video.', 'danger');
 		};
 
 		video.load();
@@ -180,12 +210,7 @@ function initKiosk() {
 				return;
 			}
 
-			let built = raw;
-			if (!raw.startsWith('http')) {
-				built = raw.startsWith('/storage/')
-					? raw
-					: '/storage/' + String(raw).replace(/^\/+/, '');
-			}
+			const built = normalizeVideoSrc(raw);
 
 			showStage();
 			playSrc(built, data && data.title);

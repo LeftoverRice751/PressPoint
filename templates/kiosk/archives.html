@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Gears: Archives</title>
+  <link rel="stylesheet" href="/assets/css/kiosk-archives.css" />
+</head>
+<body>
+  <div
+    class="archive-shell"
+    data-archive-shell
+    data-selected-year="{{ selected_year if selected_year else '' }}"
+  >
+    <header class="archive-header">
+      <div class="archive-header__brand">
+        <span class="archive-header__eyebrow">Digital Archives</span>
+        <h1 class="archive-header__title">Gears: Archives</h1>
+      </div>
+
+      <div class="archive-header__meta">
+        <div class="archive-header__meta-label">Selected Portfolio</div>
+        <div class="archive-header__meta-value" data-archive-year-label>{{ selected_year if selected_year else '—' }}</div>
+      </div>
+    </header>
+
+    <main class="archive-stage">
+      <div class="archive-carousel-shell perspective-1000">
+        <button type="button" class="archive-nav archive-nav--prev" data-archive-prev aria-label="Previous archive">
+          <span aria-hidden="true">‹</span>
+        </button>
+
+        <div class="archive-track" data-archive-track>
+          {% if archives %}
+            {% for archive in archives %}
+            <button
+              type="button"
+              class="archive-card"
+              data-archive-card
+              data-index="{{ loop.index0 }}"
+              data-year="{{ archive.year if archive.year else '' }}"
+              data-title="{{ archive.name | e }}"
+              data-type="{{ archive.type | e }}"
+              data-file-url="/storage/{{ archive.file_path | replace('\\', '/') }}"
+            >
+              <span class="archive-card__shadow" aria-hidden="true"></span>
+              <span class="archive-card__cover-wrap">
+                {% if archive.cover_url %}
+                <img class="archive-card__cover" src="{{ archive.cover_url }}" alt="{{ archive.name | e }} cover" />
+                {% else %}
+                <span class="archive-card__fallback" aria-hidden="true">
+                  <span class="archive-card__fallback-line"></span>
+                  <span class="archive-card__fallback-title">{{ archive.name }}</span>
+                  <span class="archive-card__fallback-subtitle">{{ archive.type }}</span>
+                </span>
+                {% endif %}
+              </span>
+            </button>
+            {% endfor %}
+          {% else %}
+            <div class="archive-empty-state">
+              <div class="archive-empty-state__title">No archives uploaded yet</div>
+              <p class="archive-empty-state__text">Upload PDF archives from the editor dashboard to populate this view.</p>
+            </div>
+          {% endif %}
+        </div>
+
+        <button type="button" class="archive-nav archive-nav--next" data-archive-next aria-label="Next archive">
+          <span aria-hidden="true">›</span>
+        </button>
+      </div>
+
+      <section class="archive-details" aria-live="polite">
+        <div class="archive-details__eyebrow">Archive Bulletin</div>
+        <h2 class="archive-details__title" data-archive-title>—</h2>
+        <div class="archive-details__subtext" data-archive-type>—</div>
+        <div class="archive-details__year" data-archive-published>—</div>
+      </section>
+
+      <nav class="archive-years" aria-label="Archive years">
+        {% if archive_years %}
+          {% for year in archive_years %}
+          <button type="button" class="archive-year-button" data-archive-year-button data-year="{{ year }}">
+            {{ year }}
+          </button>
+          {% endfor %}
+        {% else %}
+          <span class="archive-years__empty">No years available</span>
+        {% endif %}
+      </nav>
+
+      <a class="archive-back-link" href="{{ route('kiosk') }}">Back to kiosk</a>
+    </main>
+  </div>
+
+  <script src="/assets/js/kiosk-archives.js" defer></script>
+</body>
+</html>
