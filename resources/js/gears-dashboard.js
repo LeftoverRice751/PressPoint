@@ -52,6 +52,18 @@
     });
   }
 
+  function deleteArchive(archiveId) {
+    return fetch('/archives/dashboard/' + encodeURIComponent(archiveId), {
+      method: 'DELETE',
+      headers: {
+        'X-CSRF-TOKEN': token,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/json'
+      },
+      credentials: 'same-origin'
+    });
+  }
+
   function syncEmptyStates() {
     emptyContainers.forEach(function (container) {
       var count = parseInt(container.getAttribute('data-section-count') || '0', 10) || 0;

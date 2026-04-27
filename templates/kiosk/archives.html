@@ -14,7 +14,6 @@
   >
     <header class="archive-header">
       <div class="archive-header__brand">
-        <span class="archive-header__eyebrow">Digital Archives</span>
         <h1 class="archive-header__title">Gears: Archives</h1>
       </div>
 
@@ -26,10 +25,6 @@
 
     <main class="archive-stage">
       <div class="archive-carousel-shell perspective-1000">
-        <button type="button" class="archive-nav archive-nav--prev" data-archive-prev aria-label="Previous archive">
-          <span aria-hidden="true">‹</span>
-        </button>
-
         <div class="archive-track" data-archive-track>
           {% if archives %}
             {% for archive in archives %}
@@ -41,19 +36,37 @@
               data-year="{{ archive.year if archive.year else '' }}"
               data-title="{{ archive.name | e }}"
               data-type="{{ archive.type | e }}"
-              data-file-url="/storage/{{ archive.file_path | replace('\\', '/') }}"
+              data-cover-url="{{ archive.cover_url }}"
+              data-page-two-url="{{ archive.page_two_url }}"
+              data-file-url="{{ archive.pdf_url }}"
             >
               <span class="archive-card__shadow" aria-hidden="true"></span>
-              <span class="archive-card__cover-wrap">
-                {% if archive.cover_url %}
-                <img class="archive-card__cover" src="{{ archive.cover_url }}" alt="{{ archive.name | e }} cover" />
-                {% else %}
-                <span class="archive-card__fallback" aria-hidden="true">
-                  <span class="archive-card__fallback-line"></span>
-                  <span class="archive-card__fallback-title">{{ archive.name }}</span>
-                  <span class="archive-card__fallback-subtitle">{{ archive.type }}</span>
+              <span class="archive-card__stage">
+                <span class="archive-card__face archive-card__face--front">
+                  <span class="archive-card__cover-wrap">
+                    {% if archive.cover_url %}
+                    <img class="archive-card__cover" loading="lazy" decoding="async" src="{{ archive.cover_url }}" alt="{{ archive.name | e }} cover" />
+                    {% else %}
+                    <span class="archive-card__fallback" aria-hidden="true">
+                      <span class="archive-card__fallback-line"></span>
+                      <span class="archive-card__fallback-title">{{ archive.name }}</span>
+                      <span class="archive-card__fallback-subtitle">{{ archive.type }}</span>
+                    </span>
+                    {% endif %}
+                  </span>
                 </span>
-                {% endif %}
+                <span class="archive-card__face archive-card__face--back">
+                  <span class="archive-card__cover-wrap archive-card__cover-wrap--back">
+                    <iframe
+                      class="archive-card__page-view"
+                      data-archive-page-two
+                      data-page-two-src="{{ archive.page_two_url }}"
+                      title="{{ archive.name | e }} page 2"
+                      loading="lazy"
+                      aria-label="{{ archive.name | e }} page 2"
+                    ></iframe>
+                  </span>
+                </span>
               </span>
             </button>
             {% endfor %}
@@ -65,9 +78,6 @@
           {% endif %}
         </div>
 
-        <button type="button" class="archive-nav archive-nav--next" data-archive-next aria-label="Next archive">
-          <span aria-hidden="true">›</span>
-        </button>
       </div>
 
       <section class="archive-details" aria-live="polite">

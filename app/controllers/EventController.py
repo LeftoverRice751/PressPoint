@@ -3,6 +3,8 @@ from datetime import datetime
 from masonite.controllers import Controller
 from masonite.request import Request
 from masonite.response import Response
+
+from app.events.NewEvent import NewEvent
 from app.services.ArchiveServices import ArchiveServices
 from app.models.Events import Events
 from app.models.Locations import Locations
@@ -45,13 +47,18 @@ class EventController(Controller):
 
             location_id = location.id
 
-        Events.create(
+        created_event = Events.create(
             title=title,
             description=description,
             event_date=event_date,
             location_id=location_id,
             is_archive=False,
         )
+
+        try:
+            NewEvent(created_event).fire()
+        except Exception:
+            pass
 
         return response.redirect(name="gears.dashboard").with_success([
             "Event saved successfully.",

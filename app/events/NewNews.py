@@ -66,11 +66,12 @@ class NewNews(Event):
             "headline": self.news_item.title,
             "copy": self.news_item.description,
             "kind": "news",
+            "date": occured_on,
             "occured_on": occured_on,
             "today_key": self._today_key(),
         }
         
     def broadcast_as(self):
-        return "new-news"
+        return "app.events.NewNews"
     
     

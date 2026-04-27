@@ -22,35 +22,44 @@ class WelcomeController(Controller):
         age = now - created_at
         return timedelta(0) <= age <= timedelta(days=1)
 
+    def _format_date(self, value):
+        return value.strftime("%b %d, %Y") if hasattr(value, "strftime") else ""
+
+    def _append_flash_article(self, flash_articles, item, headline, reference_at, kind):
+        if not self._is_recent(reference_at):
+            return
+
+        flash_articles.append(
+            {
+                "headline": headline,
+                "date": self._format_date(reference_at),
+                "copy": getattr(item, "description", None) or "",
+                "kind": kind,
+                "_created_at": reference_at,
+            }
+        )
+
     def _build_flash_articles(self):
         flash_articles = []
 
         for news_item in list(News.all() or []):
             reference_at = getattr(news_item, "published_at", None) or getattr(news_item, "created_at", None)
-            if not self._is_recent(reference_at):
-                continue
-
-            flash_articles.append(
-                {
-                    "headline": getattr(news_item, "title", None) or "News update",
-                    "date": reference_at.strftime("%b %d, %Y") if hasattr(reference_at, "strftime") else "",
-                    "copy": getattr(news_item, "description", None) or "",
-                    "_created_at": reference_at,
-                }
+            self._append_flash_article(
+                flash_articles,
+                news_item,
+                getattr(news_item, "title", None) or "News update",
+                reference_at,
+                "news",
             )
 
         for event_item in list(Events.all() or []):
-            created_at = getattr(event_item, "created_at", None)
-            if not self._is_recent(created_at):
-                continue
-
-            flash_articles.append(
-                {
-                    "headline": getattr(event_item, "title", None) or "Event update",
-                    "date": created_at.strftime("%b %d, %Y") if hasattr(created_at, "strftime") else "",
-                    "copy": getattr(event_item, "description", None) or "",
-                    "_created_at": created_at,
-                }
+            reference_at = getattr(event_item, "event_date", None) or getattr(event_item, "created_at", None)
+            self._append_flash_article(
+                flash_articles,
+                event_item,
+                getattr(event_item, "title", None) or "Event update",
+                reference_at,
+                "event",
             )
 
         flash_articles.sort(key=lambda item: item["_created_at"], reverse=True)
@@ -59,6 +68,7 @@ class WelcomeController(Controller):
                 "headline": item["headline"],
                 "date": item["date"],
                 "copy": item["copy"],
+                "kind": item["kind"],
             }
             for item in flash_articles
         ]

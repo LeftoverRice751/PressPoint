@@ -8,13 +8,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const track = root.querySelector('[data-archive-track]');
   const cards = Array.from(root.querySelectorAll('[data-archive-card]'));
   const yearButtons = Array.from(root.querySelectorAll('[data-archive-year-button]'));
-  const prevButton = root.querySelector('[data-archive-prev]');
-  const nextButton = root.querySelector('[data-archive-next]');
   const titleEl = root.querySelector('[data-archive-title]');
   const typeEl = root.querySelector('[data-archive-type]');
   const yearEl = root.querySelector('[data-archive-published]');
   const headerYearEl = root.querySelector('[data-archive-year-label]');
   const selectedYearValue = parseInt((root.getAttribute('data-selected-year') || '').trim(), 10);
+  const swipeThreshold = 48;
+  const swipeLockDuration = 360;
 
   let currentYear = Number.isFinite(selectedYearValue)
     ? selectedYearValue
@@ -23,6 +23,60 @@ document.addEventListener('DOMContentLoaded', () => {
       : null);
 
   let currentIndex = 0;
+  let activeFlipIndex = null;
+  let swipeState = null;
+  let interactionLockedUntil = 0;
+  let unlockTimer = null;
+  let suppressClicksUntil = 0;
+  let flipTimer = null;
+
+  function isInteractionLocked() {
+    return Date.now() < interactionLockedUntil;
+  }
+
+  function lockInteraction(duration = swipeLockDuration) {
+    interactionLockedUntil = Date.now() + duration;
+
+    if (unlockTimer) {
+      window.clearTimeout(unlockTimer);
+    }
+
+    unlockTimer = window.setTimeout(() => {
+      interactionLockedUntil = 0;
+      unlockTimer = null;
+    }, duration);
+  }
+
+  function suppressNextClicks(duration = swipeLockDuration) {
+    suppressClicksUntil = Date.now() + duration;
+  }
+
+  function shouldIgnoreTap() {
+    return Date.now() < suppressClicksUntil;
+  }
+
+  function clearFlipTimer() {
+    if (flipTimer) {
+      window.clearTimeout(flipTimer);
+      flipTimer = null;
+    }
+  }
+
+  function loadPageTwoFrame(card) {
+    if (!card) {
+      return;
+    }
+
+    const pageTwoFrame = card.querySelector('[data-archive-page-two]');
+    if (!pageTwoFrame || pageTwoFrame.getAttribute('src')) {
+      return;
+    }
+
+    const pageTwoSrc = (pageTwoFrame.dataset.pageTwoSrc || '').trim();
+    if (pageTwoSrc) {
+      pageTwoFrame.setAttribute('src', pageTwoSrc);
+    }
+  }
 
   function getVisibleCards() {
     if (!Number.isFinite(currentYear)) {
@@ -45,12 +99,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function setCardState(card, offset, isActive) {
+  function setCardState(card, offset, isActive, swipeOffset, swipeProgress) {
     const absoluteOffset = Math.abs(offset);
     const hidden = absoluteOffset > 2;
-    const xOffset = offset * 210;
-    const scale = isActive ? 1 : absoluteOffset === 1 ? 0.78 : 0.62;
-    const rotation = offset * -18;
+    const xOffset = offset * 210 + swipeOffset;
+    const scale = isActive ? 1.08 : absoluteOffset === 1 ? 0.78 : 0.62;
+    const rotation = isActive ? swipeOffset / 22 : offset * -18 + swipeOffset / 28;
     const opacity = hidden ? 0 : isActive ? 1 : 0.68;
 
     card.style.opacity = String(opacity);
@@ -58,6 +112,23 @@ document.addEventListener('DOMContentLoaded', () => {
     card.style.transform = `translate(-50%, -50%) translateX(${xOffset}px) scale(${scale}) rotateY(${rotation}deg)`;
     card.setAttribute('aria-hidden', String(hidden));
     card.classList.toggle('is-active', isActive);
+    card.classList.toggle('is-focused', isActive);
+    card.classList.toggle('is-flipped', isActive && activeFlipIndex === parseInt(card.dataset.index || '', 10));
+    card.style.setProperty('--archive-swipe-progress', String(swipeProgress));
+  }
+
+  function queueFlip(activeCardIndex) {
+    clearFlipTimer();
+
+    if (!Number.isFinite(activeCardIndex)) {
+      return;
+    }
+
+    flipTimer = window.setTimeout(() => {
+      activeFlipIndex = activeCardIndex;
+      render();
+      flipTimer = null;
+    }, swipeLockDuration);
   }
 
   function updateDetails(activeCard) {
@@ -92,6 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function render() {
     const visibleCards = getVisibleCards();
+    const swipeOffset = swipeState ? swipeState.dragX : 0;
+    const swipeProgress = swipeState ? Math.min(1, Math.abs(swipeOffset) / 220) : 0;
 
     if (!visibleCards.length) {
       cards.forEach((card) => {
@@ -99,6 +172,8 @@ document.addEventListener('DOMContentLoaded', () => {
         card.style.transform = 'translate(-50%, -50%) scale(0.55)';
         card.setAttribute('aria-hidden', 'true');
         card.classList.remove('is-active');
+        card.classList.remove('is-focused');
+        card.classList.remove('is-flipped');
       });
       setYearButtonState();
       updateDetails(null);
@@ -118,18 +193,25 @@ document.addEventListener('DOMContentLoaded', () => {
         card.style.transform = 'translate(-50%, -50%) scale(0.55)';
         card.setAttribute('aria-hidden', 'true');
         card.classList.remove('is-active');
+        card.classList.remove('is-focused');
+        card.classList.remove('is-flipped');
         return;
       }
 
-      setCardState(card, visibleIndex - currentIndex, visibleIndex === currentIndex);
+      setCardState(card, visibleIndex - currentIndex, visibleIndex === currentIndex, swipeOffset, swipeProgress);
     });
 
     setYearButtonState();
     updateDetails(activeCard);
+    if (activeCard && activeFlipIndex === parseInt(activeCard.dataset.index || '', 10)) {
+      loadPageTwoFrame(activeCard);
+    }
   }
 
   function selectYear(year, shouldRandomizeIndex = true) {
     currentYear = year;
+    activeFlipIndex = null;
+    clearFlipTimer();
     const visibleCards = getVisibleCards();
 
     if (shouldRandomizeIndex && visibleCards.length) {
@@ -141,19 +223,34 @@ document.addEventListener('DOMContentLoaded', () => {
     render();
   }
 
-  function move(direction) {
+  function move(direction, options = {}) {
     const visibleCards = getVisibleCards();
 
-    if (!visibleCards.length) {
+    if (isInteractionLocked() || !visibleCards.length) {
       return;
+    }
+
+    activeFlipIndex = null;
+    clearFlipTimer();
+    if (options.source === 'swipe') {
+      lockInteraction();
+      suppressNextClicks();
     }
 
     currentIndex = (currentIndex + direction + visibleCards.length) % visibleCards.length;
     render();
+
+    if (options.source === 'swipe') {
+      return;
+    }
   }
 
   yearButtons.forEach((button) => {
     button.addEventListener('click', () => {
+      if (shouldIgnoreTap() || isInteractionLocked()) {
+        return;
+      }
+
       const year = parseInt(button.dataset.year || '', 10);
       if (!Number.isFinite(year)) {
         return;
@@ -163,16 +260,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  if (prevButton) {
-    prevButton.addEventListener('click', () => move(-1));
-  }
-
-  if (nextButton) {
-    nextButton.addEventListener('click', () => move(1));
-  }
-
   cards.forEach((card) => {
     card.addEventListener('click', () => {
+      if (shouldIgnoreTap() || isInteractionLocked()) {
+        return;
+      }
+
       const visibleCards = getVisibleCards();
       const visibleIndex = visibleCards.indexOf(card);
 
@@ -180,10 +273,96 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      clearFlipTimer();
       currentIndex = visibleIndex;
+      activeFlipIndex = null;
       render();
+
+      const hasPageTwo = (card.dataset.fileUrl || '').trim();
+      if (hasPageTwo) {
+        queueFlip(visibleIndex);
+      }
     });
   });
+
+  if (track) {
+    track.style.touchAction = 'none';
+
+    track.addEventListener('pointerdown', (event) => {
+      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') {
+        return;
+      }
+
+      if (isInteractionLocked()) {
+        return;
+      }
+
+      swipeState = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        dragX: 0,
+      };
+
+      if (track.setPointerCapture) {
+        try {
+          track.setPointerCapture(event.pointerId);
+        } catch (error) {
+          // Ignore pointer capture failures on unsupported touch stacks.
+        }
+      }
+    });
+
+    track.addEventListener('pointermove', (event) => {
+      if (!swipeState || event.pointerId !== swipeState.pointerId) {
+        return;
+      }
+
+      const deltaX = event.clientX - swipeState.startX;
+      const deltaY = event.clientY - swipeState.startY;
+
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        event.preventDefault();
+        swipeState.dragX = deltaX;
+        render();
+      }
+    }, { passive: false });
+
+    function finishSwipe(event) {
+      if (!swipeState || event.pointerId !== swipeState.pointerId) {
+        return;
+      }
+
+      const deltaX = event.clientX - swipeState.startX;
+      const deltaY = event.clientY - swipeState.startY;
+      const wasHorizontalSwipe = Math.abs(deltaX) >= swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY);
+      const pointerId = swipeState.pointerId;
+      const swipeDirection = deltaX < 0 ? 1 : -1;
+
+      swipeState = null;
+
+      if (track.releasePointerCapture) {
+        try {
+          track.releasePointerCapture(pointerId);
+        } catch (error) {
+          // Ignore release failures when the pointer capture is already gone.
+        }
+      }
+
+      if (!wasHorizontalSwipe || isInteractionLocked()) {
+        render();
+        return;
+      }
+
+      move(swipeDirection, { source: 'swipe' });
+    }
+
+    track.addEventListener('pointerup', finishSwipe);
+    track.addEventListener('pointercancel', () => {
+      swipeState = null;
+      render();
+    });
+  }
 
   if (!Number.isFinite(currentYear) && yearButtons.length) {
     const fallbackYear = parseInt(yearButtons[0].dataset.year || '', 10);

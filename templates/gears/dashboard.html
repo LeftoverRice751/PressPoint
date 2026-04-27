@@ -491,6 +491,11 @@
                 </div>
                 <div class="archive-card__year">{{ archive.year if archive.year else 'Undated' }}</div>
                 <div class="archive-card__path">{{ archive.file_path }}</div>
+                <form action="{{ route('archives.destroy', {'id': archive.id}, False) }}" method="post" class="inline-form">
+                  {{ csrf_field | safe }}
+                  <input type="hidden" name="__method" value="DELETE">
+                  <button type="submit" class="ghost-button">Delete</button>
+                </form>
               </div>
             </article>
             {% else %}

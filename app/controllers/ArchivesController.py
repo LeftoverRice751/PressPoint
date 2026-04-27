@@ -1,5 +1,6 @@
 from datetime import date, datetime
 import random
+import os
 import traceback
 
 from masonite.controllers import Controller
@@ -70,7 +71,7 @@ class ArchivesController(Controller):
             )
 
             archive_services = ArchiveServices()
-            archive_services.build_cover_preview(file_path)
+            archive_services.prewarm_archive_previews(file_path)
 
             return response.redirect(name="gears.dashboard", query_params={"page": "archives"}).with_success([
                 "Archive saved successfully.",
@@ -79,4 +80,49 @@ class ArchivesController(Controller):
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return response.back().with_errors([
                 "Could not save the archive. Please try again.",
+            ])
+            
+    def destroy(self, request: Request, storage: Storage, response: Response):
+        archive_id_value = str(request.param("id") or "").strip()
+
+        if not archive_id_value or not archive_id_value.isdigit():
+            return response.back().with_errors([
+                "Please choose a valid archive to delete.",
+            ])
+
+        archive = Archives.find(int(archive_id_value))
+        if not archive:
+            return response.back().with_errors([
+                "Please choose a valid archive to delete.",
+            ])
+
+        try:
+            archive_services = ArchiveServices()
+            archive_entry = archive_services.build_archive_entry(archive)
+
+            file_path = archive_entry.get("file_path")
+            cover_path = archive_entry.get("cover_path")
+            legacy_page_two_path = archive_services._preview_relative_path(file_path, 1) if file_path else ""
+
+            def delete_if_exists(relative_path):
+                if not relative_path:
+                    return
+
+                full_path = archive_services._storage_public_path(relative_path)
+                if os.path.exists(full_path):
+                    storage.disk("public").delete(relative_path)
+
+            delete_if_exists(file_path)
+            delete_if_exists(cover_path)
+            delete_if_exists(legacy_page_two_path)
+
+            archive.delete()
+
+            return response.redirect(name="gears.dashboard", query_params={"page": "archives"}).with_success([
+                "Archive deleted successfully.",
+            ])
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return response.back().with_errors([
+                "Could not delete the archive. Please try again.",
             ])

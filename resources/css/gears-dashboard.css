@@ -573,6 +573,10 @@ body {
     gap: 1rem;
 }
 
+.inline-form {
+    display: inline;
+}
+
 .field {
     display: grid;
     gap: 0.45rem;

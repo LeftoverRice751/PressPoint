@@ -118,7 +118,7 @@ class NewsController(Controller):
             if image_file:
                 image_path = storage.disk("public").put_file("news", image_file)
 
-            news_item = News.create(
+            created_news = News.create(
                 title=title,
                 description=description,
                 image=image_path,
@@ -127,15 +127,10 @@ class NewsController(Controller):
                 location=location or None,
             )
 
-            if _pusher_configured():
-                try:
-                    Broadcast.channel(
-                        ["flash-updates-channel"],
-                        "new-news",
-                        _build_flash_payload(news_item),
-                    )
-                except Exception:
-                    pass
+            try:
+                NewNews(created_news).fire()
+            except Exception:
+                pass
 
             return response.redirect(name="gears.dashboard").with_success([
                 "News saved successfully.",
