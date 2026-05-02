@@ -3,7 +3,7 @@ from masonite.utils.location import base_path
 
 
 DISKS = {
-    "default": "local",
+    "default": "public",
     "local": {"driver": "file", "path": "storage/framework/views"},
     "public": {"driver": "file", "path": "storage/framework/public"},
     "s3": {

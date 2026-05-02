@@ -7,9 +7,9 @@ ROUTES = [
     Route.get("/kiosk/gears-archive", "ArchivesController@show").name("kiosk.gears-archive"),
     Route.get("/kiosk/flash-updates", "WelcomeController@flash_updates").name("welcome.flash-updates"),
     Route.get("/kiosk/latest-news", "NewsController@show").name("kiosk.latest-news"),
-    Route.get("/kiosk/campus-map", "WelcomeController@campus_map").name("kiosk.campus-map"),
+    Route.get("/kiosk/campus-map", "MapController@show").name("kiosk.campus-map"),
     Route.get("/kiosk/ai-assistant", "WelcomeController@ai_assistant").name("kiosk.ai-assistant"),
     Route.get("/kiosk/virtual-tour", "WelcomeController@virtual_tour").name("kiosk.virtual-tour"),
-    Route.post("/trigger-video", "EditorialController@play_video").name("video.push"),
+    Route.post("/trigger-video", "EditorialController@play_video").name("video.push").middleware("auth"),
     Route.get("/storage/@path:any", "VideoController@serve_storage"),
 ]

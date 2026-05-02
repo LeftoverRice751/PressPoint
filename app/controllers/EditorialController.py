@@ -4,6 +4,8 @@ from masonite.response import Response
 from masonite.views import View
 from masonite.facades import Broadcast
 from masonite.configuration import config
+import posixpath
+from urllib.parse import urlparse
 
 from app.events.PlayVideo import PlayVideo
 
@@ -17,15 +19,29 @@ def _pusher_configured():
         and pusher_settings.get("secret")
     )
 
+def _sanitize_video_src(value):
+    src = (value or "").strip()
+    if not src:
+        return ""
+
+    parsed = urlparse(src)
+    if parsed.scheme or parsed.netloc:
+        return ""
+
+    normalized = posixpath.normpath(src.replace("\\", "/"))
+    if not normalized.startswith("/storage/"):
+        return ""
+
+    return normalized
 
 class EditorialController(Controller):
     def show(self, view: View):
         return view.render("welcome")
 
     def play_video(self, request: Request, response: Response):
-        src = (request.input("src") or "").strip()
+        src = _sanitize_video_src(request.input("src"))
         if not src:
-            return response.json({"ok": False, "error": "src is required"}, status=422)
+            return response.json({"ok": False, "error": "src must be a local /storage path"}, status=422)
 
         data = {"src": src, "title": (request.input("title") or "").strip()}
         event = PlayVideo(data)

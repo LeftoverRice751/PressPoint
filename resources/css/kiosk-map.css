@@ -1,0 +1,96 @@
+.campus-map-page {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(560px, 980px);
+    gap: 2rem;
+    align-items: start;
+    padding: 2rem;
+    background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.campus-map-page__copy {
+    padding-top: 0.5rem;
+}
+
+.campus-map-page__title {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.04em;
+}
+
+.campus-map-page__subtitle {
+    margin: 0.75rem 0 0;
+    max-width: 30rem;
+    color: #475569;
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+.campus-map-page__stage {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.campus-map-page__map {
+    width: min(100%, 980px);
+    height: 700px;
+    border: 0 !important;
+    outline: 0;
+    box-shadow: none !important;
+    background: transparent;
+    border-radius: 1.5rem;
+    overflow: hidden;
+}
+
+.campus-map-page__map.leaflet-container {
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+.campus-map-page__map .leaflet-pane,
+.campus-map-page__map .leaflet-top,
+.campus-map-page__map .leaflet-bottom {
+    z-index: 1;
+}
+
+.campus-map-label {
+    border: 0;
+    background: rgba(15, 23, 42, 0.92);
+    color: #ffffff;
+    border-radius: 9999px;
+    padding: 0.3rem 0.65rem;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.campus-map-label--start {
+    background: rgba(29, 78, 216, 0.96);
+    box-shadow: 0 12px 24px rgba(29, 78, 216, 0.28);
+}
+
+.campus-map-label.leaflet-tooltip-top:before,
+.campus-map-label--start.leaflet-tooltip-top:before {
+    border-top-color: rgba(15, 23, 42, 0.92);
+}
+
+.campus-map-label--start.leaflet-tooltip-top:before {
+    border-top-color: rgba(29, 78, 216, 0.96);
+}
+
+@media (max-width: 1024px) {
+    .campus-map-page {
+        grid-template-columns: 1fr;
+    }
+
+    .campus-map-page__stage {
+        justify-content: stretch;
+    }
+
+    .campus-map-page__map {
+        width: 100%;
+    }
+}

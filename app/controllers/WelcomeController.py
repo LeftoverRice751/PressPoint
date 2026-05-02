@@ -100,9 +100,6 @@ class WelcomeController(Controller):
     def latest_news(self, view: View):
         return self.coming_soon(view, "Latest News")
 
-    def campus_map(self, view: View):
-        return self.coming_soon(view, "Campus Map")
-
     def ai_assistant(self, view: View):
         return self.coming_soon(view, "AI Assistant")
 

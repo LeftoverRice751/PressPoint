@@ -37,15 +37,49 @@ def _build_flash_payload(news_item):
 
 
 class NewsController(Controller):
+    def _group_news_slots(self, news_items):
+        sorted_items = sorted(
+            list(news_items or []),
+            key=lambda item: (
+                -int(getattr(item, "priority", 0) or 0),
+                -int(getattr(item, "id", 0) or 0),
+            ),
+        )
+
+        main_news = next(
+            (item for item in sorted_items if (getattr(item, "layout_type", "") or "").lower() == "main"),
+            sorted_items[0] if sorted_items else None,
+        )
+
+        secondary_news = [
+            item for item in sorted_items
+            if item is not main_news and (getattr(item, "layout_type", "secondary") or "secondary").lower() == "secondary"
+        ][:4]
+
+        widget_news = [
+            item for item in sorted_items
+            if item is not main_news and (getattr(item, "layout_type", "") or "").lower() == "widget"
+        ][:2]
+
+        return {
+            "main_news": main_news,
+            "secondary_news": secondary_news,
+            "widget_news": widget_news,
+        }
+
     def show(self, view: View):
         news_items = sorted(list(News.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
+        news_slots = self._group_news_slots(news_items)
 
         return view.render(
             "kiosk/news",
             {
                 "news_items": news_items,
-                "featured_news": news_items[0] if news_items else None,
-                "recent_news": news_items[1:6] if len(news_items) > 1 else [],
+                "featured_news": news_slots["main_news"],
+                "recent_news": news_slots["secondary_news"],
+                "main_news": news_slots["main_news"],
+                "secondary_news": news_slots["secondary_news"],
+                "widget_news": news_slots["widget_news"],
             },
         )
 
@@ -54,7 +88,9 @@ class NewsController(Controller):
         description = (request.input("description") or "").strip()
         source = (request.input("source") or "").strip()
         location = (request.input("location") or "").strip()
+        layout_type = (request.input("layout_type") or "secondary").strip().lower() or "secondary"
         published_at_value = (request.input("published_at") or "").strip()
+        priority_value = request.input("priority")
         image_file = request.input("image")
 
         if isinstance(image_file, list):
@@ -88,6 +124,13 @@ class NewsController(Controller):
         if not title or not description:
             return response.back().with_errors([
                 "Title and description are required.",
+            ])
+
+        try:
+            priority = int(priority_value or 0)
+        except (TypeError, ValueError):
+            return response.back().with_errors([
+                "Priority must be a valid number.",
             ])
 
         published_at = None
@@ -125,6 +168,8 @@ class NewsController(Controller):
                 published_at=published_at,
                 source=source or None,
                 location=location or None,
+                layout_type=layout_type,
+                priority=priority,
             )
 
             try:

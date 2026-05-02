@@ -12,8 +12,8 @@ class CreateLocationsTable(Migration):
             table.increments("id")
             table.string("name")
             table.string("type")
-            table.decimal("latitude", 10, 8)
-            table.decimal("longitude", 10, 8)
+            table.decimal("latitude", 12, 2)
+            table.decimal("longitude", 12, 2)
             table.boolean("is_routable").default(True)
             table.timestamps()
 

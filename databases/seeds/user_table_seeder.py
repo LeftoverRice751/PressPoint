@@ -12,6 +12,7 @@ class UserTableSeeder(Seeder):
             {
                 "username": "Joe",
                 "password": Hash.make("secret"),
-                "role": "admin",
+                "email": "joe@example.com",
+                "role": "admin"
             }
         )

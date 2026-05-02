@@ -16,6 +16,8 @@ class CreateNewsTable(Migration):
             table.datetime("published_at").nullable()
             table.string("source").nullable()
             table.string("location").nullable()
+            table.string("layout_type").default("secondary")
+            table.integer("priority").default(0)
             table.timestamps()
 
     def down(self):

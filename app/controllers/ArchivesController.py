@@ -2,13 +2,11 @@ from datetime import date, datetime
 import random
 import os
 import traceback
-
 from masonite.controllers import Controller
 from masonite.filesystem import Storage
 from masonite.request import Request
 from masonite.response import Response
 from masonite.views import View
-
 from app.models.Archives import Archives
 from app.services.ArchiveServices import ArchiveServices
 

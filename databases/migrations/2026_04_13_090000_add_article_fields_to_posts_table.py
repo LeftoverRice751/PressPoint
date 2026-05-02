@@ -13,6 +13,9 @@ class AddArticleFieldsToPostsTable(Migration):
 
     def down(self):
         with self.schema.table("posts") as table:
+            table.drop_foreign("posts_location_id_foreign")
+
+        with self.schema.table("posts") as table:
             table.drop_column("location_id")
             table.drop_column("event_date")
             table.drop_column("description")

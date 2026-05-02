@@ -42,10 +42,48 @@ def _broadcast_play_video(src, title):
 
 
 class VideoController(Controller):
+    def _group_news_slots(self, news_items):
+        sorted_items = sorted(
+            list(news_items or []),
+            key=lambda item: (
+                -int(getattr(item, "priority", 0) or 0),
+                -int(getattr(item, "id", 0) or 0),
+            ),
+        )
+
+        main_news = next(
+            (item for item in sorted_items if (getattr(item, "layout_type", "") or "").lower() == "main"),
+            sorted_items[0] if sorted_items else None,
+        )
+
+        secondary_news = [
+            item for item in sorted_items
+            if item is not main_news and (getattr(item, "layout_type", "secondary") or "secondary").lower() == "secondary"
+        ][:4]
+
+        widget_news = [
+            item for item in sorted_items
+            if item is not main_news and (getattr(item, "layout_type", "") or "").lower() == "widget"
+        ][:2]
+
+        return {
+            "main_news": main_news,
+            "secondary_news": secondary_news,
+            "widget_news": widget_news,
+        }
+
     def serve_storage(self, response: Response, path):
-        path = str(path).replace("\\", "/")
-        full_path = base_path(os.path.join("storage/framework/public", path))
-        
+        requested_path = str(path or "").replace("\\", "/").lstrip("/")
+        public_storage_root = os.path.realpath(base_path("storage/framework/public"))
+        full_path = os.path.realpath(os.path.join(public_storage_root, requested_path))
+
+        if (
+            not requested_path
+            or not (full_path == public_storage_root or full_path.startswith(public_storage_root + os.sep))
+            or not os.path.isfile(full_path)
+        ):
+            return "File not Found", 404
+
         if os.path.exists(full_path):
             return response.download(os.path.basename(full_path), full_path, force=False)
         
@@ -54,6 +92,7 @@ class VideoController(Controller):
     def show(self, views: View, request: Request):
         posts = sorted(list(Posts.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
         news_items = sorted(list(News.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
+        news_slots = self._group_news_slots(news_items)
         archive_services = ArchiveServices()
         archive_records = sorted(list(Archives.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
         archive_entries = [archive_services.build_archive_entry(archive) for archive in archive_records]
@@ -105,6 +144,9 @@ class VideoController(Controller):
             "categories": categories,
             "videos": videos,
             "news_items": news_items,
+            "main_news": news_slots["main_news"],
+            "secondary_news": news_slots["secondary_news"],
+            "widget_news": news_slots["widget_news"],
             "archives": archive_entries,
             "archive_years": archive_years,
             "archive_groups": archive_groups_map,

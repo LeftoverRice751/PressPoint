@@ -17,7 +17,7 @@
 >
   <aside class="gears-sidebar">
     <div class="gears-sidebar__brand">
-      <div class="gears-sidebar__mark" aria-hidden="true">G</div>
+      <div class="gears-sidebar__mark" aria-hidden="true"><img src="gears.png" alt=""></div>
       <div>
         <div class="gears-sidebar__eyebrow">The Gears Publication</div>
         <div class="gears-sidebar__title">GEARS CMS</div>
@@ -236,9 +236,7 @@
           <p class="section-head__eyebrow">Content</p>
           <h2 class="section-head__title">News</h2>
         </div>
-        <div class="section-head__actions">
-          <button type="button" class="primary-button" data-news-modal-open>Add News</button>
-        </div>
+        <p class="section-head__subtitle">Arrange kiosk stories into the main headline, secondary slot, and text widgets before publishing.</p>
       </div>
 
       {% if bag().any() %}
@@ -251,52 +249,194 @@
       </div>
       {% endif %}
 
-      <div class="page-card" data-section-count="{{ news_items|length }}">
-        <div class="empty-state" data-empty-state>
-          <div class="empty-state__title">No data available</div>
-          <p class="empty-state__text">Publish news articles to fill this dashboard and the kiosk reading page.</p>
+      <div class="news-layout-editor">
+        <article class="news-preview-panel page-card">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Visual Layout Editor</p>
+              <h3 class="panel-header__title">Newspaper kiosk preview</h3>
+            </div>
+            <p class="panel-header__subtitle">Empty areas map directly to kiosk slots.</p>
+          </div>
+
+          <div class="news-preview">
+            <div class="news-preview__masthead">
+              <span class="news-preview__brand">THE GEARS PUBLICATION</span>
+              <h4 class="news-preview__headline">LATEST NEWS</h4>
+            </div>
+
+            <div class="news-preview__slot news-preview__slot--main">
+              <span class="news-preview__slot-label">Main Headline Slot</span>
+              {% set main_news = main_news if main_news else (news_items[0] if news_items else None) %}
+              {% if main_news %}
+              <div class="news-preview__article">
+                <div class="news-preview__image-wrap">
+                  {% if main_news.image %}
+                  <img class="news-preview__image" src="/storage/{{ main_news.image | replace('\\', '/') }}" alt="{{ main_news.title | e }}">
+                  {% else %}
+                  <div class="news-preview__image news-preview__image--fallback" aria-hidden="true"></div>
+                  {% endif %}
+                </div>
+                <div class="news-preview__article-body">
+                  <h4 class="news-preview__article-title">{{ main_news.title }}</h4>
+                  <p class="news-preview__article-copy">{{ main_news.description[:220] if main_news.description else 'No summary available.' }}</p>
+                </div>
+              </div>
+              {% else %}
+              <div class="news-slot-empty">Main Headline Slot</div>
+              {% endif %}
+            </div>
+
+            <div class="news-preview__slot news-preview__slot--secondary">
+              <span class="news-preview__slot-label">Secondary Slot</span>
+              <div class="news-preview__secondary-grid">
+                {% for news in (secondary_news if secondary_news else news_items[1:5]) %}
+                <article class="news-preview-card">
+                  {% if news.image %}
+                  <img class="news-preview-card__thumb" src="/storage/{{ news.image | replace('\\', '/') }}" alt="{{ news.title | e }}">
+                  {% else %}
+                  <div class="news-preview-card__thumb news-preview-card__thumb--fallback" aria-hidden="true"></div>
+                  {% endif %}
+                  <div class="news-preview-card__title">{{ news.title }}</div>
+                </article>
+                {% else %}
+                <div class="news-slot-empty news-slot-empty--secondary">Secondary Slot</div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="news-preview__widgets">
+              <div class="news-preview__slot news-preview__slot--widget">
+                <span class="news-preview__slot-label">Weather Widget</span>
+                {% if widget_news and widget_news|length > 0 %}
+                <div class="news-preview-card news-preview-card--widget">
+                  <div class="news-preview-card__title">{{ widget_news[0].title }}</div>
+                  <div class="news-preview-card__meta">{{ widget_news[0].description[:120] if widget_news[0].description else 'No summary available.' }}</div>
+                </div>
+                {% else %}
+                <div class="news-slot-empty news-slot-empty--widget">Weather Widget</div>
+                {% endif %}
+              </div>
+              <div class="news-preview__slot news-preview__slot--widget">
+                <span class="news-preview__slot-label">Community Projects</span>
+                {% if widget_news and widget_news|length > 1 %}
+                <div class="news-preview-card news-preview-card--widget">
+                  <div class="news-preview-card__title">{{ widget_news[1].title }}</div>
+                  <div class="news-preview-card__meta">{{ widget_news[1].description[:120] if widget_news[1].description else 'No summary available.' }}</div>
+                </div>
+                {% else %}
+                <div class="news-slot-empty news-slot-empty--widget">Community Projects</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <aside class="news-editor-sidebar page-card">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Slot Editor</p>
+              <h3 class="panel-header__title">Manage story slots</h3>
+            </div>
+            <p class="panel-header__subtitle">Control the kiosk layout with title, image, slot, and priority.</p>
+          </div>
+
+          <form action="{{ route('news.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="slot-form">
+            {{ csrf_field | safe }}
+
+            <label class="field" for="news-title">
+              <span class="field__label">Title</span>
+              <input type="text" name="title" id="news-title" class="field__input" placeholder="Headline title" required>
+            </label>
+
+            <label class="field" for="news-description">
+              <span class="field__label">Rich Text Editor</span>
+              <textarea name="description" id="news-description" class="field__input field__textarea" placeholder="Story summary" required></textarea>
+            </label>
+
+            <div class="slot-upload">
+              <span class="field__label">Image Upload</span>
+              <label class="slot-upload__dropzone" for="news-image">
+                <span class="slot-upload__title">Drag and drop image upload</span>
+                <span class="slot-upload__copy">PNG, JPG, GIF, or WEBP</span>
+                <input type="file" name="image" id="news-image" class="slot-upload__input" accept="image/*">
+              </label>
+            </div>
+
+            <label class="field" for="news-layout-type">
+              <span class="field__label">Slot Assignment</span>
+              <select name="layout_type" id="news-layout-type" class="field__input field__input--select">
+                <option value="main">Main Headline Slot</option>
+                <option value="secondary">Secondary Slot</option>
+                <option value="widget">Widget Slot</option>
+              </select>
+            </label>
+
+            <label class="field" for="news-priority">
+              <span class="field__label">Priority</span>
+              <input type="number" name="priority" id="news-priority" class="field__input" min="0" step="1" value="0">
+            </label>
+
+            <label class="field" for="news-published-at">
+              <span class="field__label">Published at</span>
+              <input type="datetime-local" name="published_at" id="news-published-at" class="field__input">
+            </label>
+
+            <label class="field" for="news-source">
+              <span class="field__label">Source</span>
+              <input type="text" name="source" id="news-source" class="field__input" placeholder="Editorial Desk">
+            </label>
+
+            <label class="field" for="news-location">
+              <span class="field__label">Location</span>
+              <input type="text" name="location" id="news-location" class="field__input" placeholder="Campus">
+            </label>
+
+            <div class="slot-form__actions">
+              <button type="button" class="ghost-button" data-news-modal-open>Open full editor</button>
+              <button type="submit" class="primary-button">Save & Publish</button>
+            </div>
+          </form>
+        </aside>
+      </div>
+
+      <div class="news-table-wrap news-table-wrap--compact" data-section-count="{{ news_items|length }}">
+        <div class="panel-header panel-header--compact news-table__header">
+          <div>
+            <p class="panel-header__eyebrow">Slot Registry</p>
+            <h3 class="panel-header__title">Published stories</h3>
+          </div>
+          <button type="button" class="primary-button" data-news-modal-open>Add News</button>
         </div>
 
-        <div class="news-table-wrap" data-section-content>
-          <table class="news-table">
-            <thead>
-              <tr>
-                <th>Headline</th>
-                <th>Source</th>
-                <th>Location</th>
-                <th>Published</th>
-                <th>Image</th>
-                <th>Summary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for news in news_items %}
-              <tr>
-                <td>
-                  <div class="news-table__headline">{{ news.title }}</div>
-                  <div class="news-table__excerpt">{{ news.description[:120] if news.description else 'No summary available.' }}</div>
-                </td>
-                <td>{{ news.source if news.source else 'Unspecified' }}</td>
-                <td>{{ news.location if news.location else 'Unspecified' }}</td>
-                <td>{{ news.published_at.strftime('%b %d, %Y %I:%M %p') if news.published_at else 'Not set' }}</td>
-                <td>
-                  {% if news.image %}
-                  <img class="news-table__thumb" src="/storage/{{ news.image | replace('\\', '/') }}" alt="{{ news.title | e }}">
-                  {% else %}
-                  <span class="news-table__pill">No image</span>
-                  {% endif %}
-                </td>
-                <td>{{ news.description[:160] if news.description else 'No summary available.' }}</td>
-              </tr>
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No data available</div>
+          <p class="empty-state__text">Publish news articles to populate the kiosk slots and the preview registry.</p>
+        </div>
+
+        <div class="news-table__slots" data-section-content>
+          {% for news in news_items %}
+          <article class="news-slot-row">
+            <div class="news-slot-row__slot">{{ news.layout_type if news.layout_type else 'secondary' }}</div>
+            <div class="news-slot-row__body">
+              <div class="news-slot-row__title">{{ news.title }}</div>
+              <div class="news-slot-row__meta">
+                <span>{{ news.source if news.source else 'Unspecified' }}</span>
+                <span>{{ news.location if news.location else 'Unspecified' }}</span>
+                <span>Priority {{ news.priority if news.priority is not none else 0 }}</span>
+              </div>
+            </div>
+            <div class="news-slot-row__media">
+              {% if news.image %}
+              <img class="news-slot-row__thumb" src="/storage/{{ news.image | replace('\\', '/') }}" alt="{{ news.title | e }}">
               {% else %}
-              <tr>
-                <td colspan="6">
-                  <div class="empty-state empty-state--embedded">No data available.</div>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+              <div class="news-slot-row__thumb news-slot-row__thumb--fallback" aria-hidden="true">No image</div>
+              {% endif %}
+            </div>
+          </article>
+          {% else %}
+          <div class="empty-state empty-state--embedded">No data available.</div>
+          {% endfor %}
         </div>
       </div>
     </section>

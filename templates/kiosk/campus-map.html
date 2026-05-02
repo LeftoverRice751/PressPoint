@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Campus Map - Masonite 4{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="/assets/css/kiosk-map.css" />
+{% endblock %}
+
+{% block content %}
+<div class="campus-map-page">
+  <div class="campus-map-page__copy">
+    <h1 class="campus-map-page__title">Campus Map</h1>
+    <p class="campus-map-page__subtitle">Select points on the map to measure latitude and longitude.</p>
+  </div>
+
+  <div class="campus-map-page__stage">
+    <div id="campus-map" class="campus-map-page__map"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block js %}
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="/assets/js/kiosk-map.js"></script>
+{% endblock %}

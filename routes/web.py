@@ -2,6 +2,7 @@ from routes.auth import ROUTES as AUTH_ROUTES
 from routes.articles import ROUTES as ARTICLE_ROUTES
 from routes.dashboard import ROUTES as DASHBOARD_ROUTES
 from routes.public import ROUTES as PUBLIC_ROUTES
+from routes.map import ROUTES as MAP_ROUTES
 
 
-ROUTES = PUBLIC_ROUTES + DASHBOARD_ROUTES + ARTICLE_ROUTES + AUTH_ROUTES
+ROUTES = PUBLIC_ROUTES + DASHBOARD_ROUTES + ARTICLE_ROUTES + AUTH_ROUTES + MAP_ROUTES
