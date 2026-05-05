@@ -1,52 +1,197 @@
-.campus-map-page {
-    min-height: 100vh;
-    display: grid;
-    grid-template-columns: minmax(220px, 1fr) minmax(560px, 980px);
-    gap: 2rem;
-    align-items: start;
-    padding: 2rem;
-    background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+@import url("https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap");
+
+/*
+ * Campus map kiosk — wayfinding terminal aesthetic.
+ *
+ * Target: 768x1024 portrait. Edge-to-edge map. Big touch targets
+ * (≥56px, mostly 64–88px). Palette is strict white / orange / black.
+ *
+ *   .campus-map-page              flex column, 100vh
+ *     .map-header                 fixed ~96px header bar
+ *     .campus-map-page__stage     flex:1; map + every overlay
+ *     .keyboard                   0 collapsed, 280 expanded
+ *     .map-back                   88px orange stripe — primary CTA out
+ *
+ * Pins encode category by shape/fill (see .kiosk-pin--<cat> below). The
+ * category-chip swatches use the same shapes so the chip strip doubles
+ * as a legend.
+ */
+
+:root {
+    --paper:        #ffffff;
+    --paper-soft:   #fbf9f6;
+    --ink:          #0a0a0a;
+    --ink-soft:     #2a2a2a;
+    --ink-mute:     #5a5a5a;
+    --rule:         #e6e3dc;
+    --orange:       #ff5b13;
+    --orange-deep:  #d63f00;
+    --orange-tint:  #fff1e6;
+
+    --shadow-1: 0 6px 20px rgba(10, 10, 10, 0.08);
+    --shadow-2: 0 18px 48px rgba(10, 10, 10, 0.18);
+    --shadow-3: 0 30px 70px rgba(10, 10, 10, 0.26);
+
+    --display-font: "Archivo Black", "Archivo", sans-serif;
+    --body-font:    "Archivo", "Trebuchet MS", sans-serif;
+    --mono-font:    "JetBrains Mono", "Menlo", monospace;
 }
 
-.campus-map-page__copy {
-    padding-top: 0.5rem;
-}
+* { box-sizing: border-box; }
 
-.campus-map-page__title {
+html, body {
     margin: 0;
-    font-size: clamp(2rem, 4vw, 3.5rem);
-    font-weight: 800;
-    color: #0f172a;
-    letter-spacing: -0.04em;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body-font);
 }
 
-.campus-map-page__subtitle {
-    margin: 0.75rem 0 0;
-    max-width: 30rem;
-    color: #475569;
-    font-size: 1rem;
-    line-height: 1.6;
+.campus-map-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body-font);
+    overflow: hidden;
+    /* faint dot grid — reads as transit-blueprint chrome under the chrome */
+    background-image:
+        radial-gradient(circle at 0 0, rgba(10, 10, 10, 0.045) 1px, transparent 1.4px);
+    background-size: 14px 14px;
 }
+
+/* ── Header ──────────────────────────────────────────────────────── */
+
+.map-header {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 1.2rem;
+    padding: 0.85rem 1.25rem 0.85rem;
+    background: var(--paper);
+    border-bottom: 4px solid var(--ink);
+    position: relative;
+    z-index: 60;
+}
+
+/* Slim orange tick rule under the black bar — wayfinding-poster vibe. */
+.map-header::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0;
+    bottom: -8px;
+    height: 4px;
+    background: var(--orange);
+}
+
+.map-header__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.map-header__brand-mark {
+    width: 52px;
+    height: 52px;
+    display: block;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 4px 8px rgba(10, 10, 10, 0.18));
+}
+
+.map-header__brand-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+}
+
+.map-header__brand-eyebrow {
+    font-family: var(--display-font);
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    color: var(--ink);
+}
+
+.map-header__brand-line {
+    margin-top: 0.22rem;
+    font-family: var(--mono-font);
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+}
+
+.map-header__title {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    justify-self: center;
+}
+
+.map-header__title-prefix {
+    font-family: var(--display-font);
+    font-size: 1.8rem;
+    line-height: 1;
+    color: var(--orange);
+}
+
+.map-header__title-text {
+    margin: 0;
+    font-family: var(--display-font);
+    font-size: 2.4rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 0.95;
+    color: var(--ink);
+}
+
+.map-header__hint {
+    font-family: var(--mono-font);
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    text-align: right;
+    line-height: 1.55;
+}
+
+.map-header__hint-key {
+    display: inline-block;
+    padding: 0.14rem 0.5rem 0.16rem;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--display-font);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    margin: 0 0.1rem;
+    transform: translateY(-1px);
+}
+
+/* ── Stage (full-bleed map + overlays) ──────────────────────────── */
 
 .campus-map-page__stage {
-    display: flex;
-    justify-content: flex-end;
-}
-
-.campus-map-page__map {
-    width: min(100%, 980px);
-    height: 700px;
-    border: 0 !important;
-    outline: 0;
-    box-shadow: none !important;
-    background: transparent;
-    border-radius: 1.5rem;
+    flex: 1 1 auto;
+    position: relative;
+    background: var(--paper-soft);
     overflow: hidden;
 }
 
-.campus-map-page__map.leaflet-container {
-    border: 0 !important;
-    box-shadow: none !important;
+.campus-map-page__map {
+    position: absolute;
+    inset: 0;
+    background: var(--paper-soft);
+}
+
+/* Soft inset frame so the chrome reads against the map. */
+.campus-map-page__stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 90px rgba(10, 10, 10, 0.08);
+    z-index: 5;
 }
 
 .campus-map-page__map .leaflet-pane,
@@ -55,42 +200,884 @@
     z-index: 1;
 }
 
+/* Tame Leaflet attribution into the palette. */
+.campus-map-page__map .leaflet-control-attribution {
+    background: rgba(255, 255, 255, 0.85);
+    color: var(--ink-mute);
+    font-family: var(--mono-font);
+    font-size: 0.6rem;
+    padding: 0.1rem 0.5rem;
+    border-top: 2px solid var(--ink);
+    border-left: 2px solid var(--ink);
+}
+
+.campus-map-page__map .leaflet-control-attribution a {
+    color: var(--orange-deep);
+    text-decoration: none;
+}
+
+/* ── Building tooltip labels ────────────────────────────────────── */
+
 .campus-map-label {
     border: 0;
-    background: rgba(15, 23, 42, 0.92);
-    color: #ffffff;
-    border-radius: 9999px;
-    padding: 0.3rem 0.65rem;
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.01em;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 0;
+    padding: 0.32rem 0.62rem 0.34rem;
+    box-shadow: 0 8px 18px rgba(10, 10, 10, 0.22);
+    font-family: var(--display-font);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
+
+.campus-map-label::before { display: none; }
 
 .campus-map-label--start {
-    background: rgba(29, 78, 216, 0.96);
-    box-shadow: 0 12px 24px rgba(29, 78, 216, 0.28);
+    background: var(--orange);
+    color: var(--ink);
 }
 
-.campus-map-label.leaflet-tooltip-top:before,
-.campus-map-label--start.leaflet-tooltip-top:before {
-    border-top-color: rgba(15, 23, 42, 0.92);
+/* ── "You are here" pulsing marker ──────────────────────────────── */
+
+.kiosk-here-marker { background: transparent; border: 0; }
+
+.kiosk-here {
+    position: relative;
+    width: 0; height: 0;
+    pointer-events: none;
 }
 
-.campus-map-label--start.leaflet-tooltip-top:before {
-    border-top-color: rgba(29, 78, 216, 0.96);
+.kiosk-here__core {
+    position: absolute;
+    left: -12px; top: -12px;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--orange);
+    border: 3px solid var(--paper);
+    box-shadow: 0 0 0 2px var(--ink), 0 8px 16px rgba(214, 63, 0, 0.5);
 }
 
-@media (max-width: 1024px) {
-    .campus-map-page {
-        grid-template-columns: 1fr;
-    }
+.kiosk-here__pulse {
+    position: absolute;
+    left: -20px; top: -20px;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 91, 19, 0.4);
+    animation: kiosk-here-pulse 1.6s ease-out infinite;
+}
 
-    .campus-map-page__stage {
-        justify-content: stretch;
-    }
+.kiosk-here__pulse--delay { animation-delay: 0.8s; }
 
-    .campus-map-page__map {
-        width: 100%;
-    }
+@keyframes kiosk-here-pulse {
+    0%   { transform: scale(0.55); opacity: 0.9; }
+    80%  { opacity: 0.05; }
+    100% { transform: scale(2.6);  opacity: 0;   }
+}
+
+.kiosk-here__label {
+    position: absolute;
+    left: 50%; bottom: 22px;
+    transform: translateX(-50%);
+    background: var(--orange);
+    color: var(--ink);
+    font-family: var(--display-font);
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.65rem 0.32rem;
+    white-space: nowrap;
+    box-shadow: 0 8px 16px rgba(214, 63, 0, 0.4);
+}
+
+/* ── Pins (semantic by category) ────────────────────────────────── */
+
+.kiosk-pin-marker { background: transparent; border: 0; }
+
+.kiosk-pin {
+    position: relative;
+    width: 0; height: 0;
+    pointer-events: none;
+}
+
+.kiosk-pin__dot {
+    position: absolute;
+    left: -16px; top: -16px;
+    width: 32px; height: 32px;
+    background: var(--ink);
+    border: 3px solid var(--paper);
+    box-shadow: 0 0 0 2px var(--ink), 0 6px 14px rgba(10, 10, 10, 0.22);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.kiosk-pin__dot:active,
+.kiosk-pin--selected .kiosk-pin__dot {
+    transform: scale(1.18);
+}
+
+/* Departments — solid orange disc. */
+.kiosk-pin--departments .kiosk-pin__dot {
+    background: var(--orange);
+    border-radius: 50%;
+}
+
+/* Offices — solid black disc. */
+.kiosk-pin--offices .kiosk-pin__dot {
+    background: var(--ink);
+    border-radius: 50%;
+}
+
+/* Buildings — white square with orange ring. */
+.kiosk-pin--buildings .kiosk-pin__dot {
+    background: var(--paper);
+    box-shadow: inset 0 0 0 5px var(--orange), 0 0 0 2px var(--ink), 0 6px 14px rgba(10, 10, 10, 0.22);
+    border-radius: 4px;
+}
+
+/* Entrances — orange diamond. */
+.kiosk-pin--entrances .kiosk-pin__dot {
+    background: var(--orange);
+    border-radius: 4px;
+    transform: rotate(45deg);
+}
+.kiosk-pin--entrances .kiosk-pin__dot:active,
+.kiosk-pin--entrances.kiosk-pin--selected .kiosk-pin__dot {
+    transform: rotate(45deg) scale(1.18);
+}
+
+/* Places — black disc with orange center dot. */
+.kiosk-pin--places .kiosk-pin__dot {
+    background: var(--ink);
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 4px var(--ink), inset 0 0 0 8px var(--orange), 0 0 0 2px var(--ink), 0 6px 14px rgba(10, 10, 10, 0.22);
+}
+
+/* ── Zoom controls ──────────────────────────────────────────────── */
+
+.map-zoom {
+    position: absolute;
+    right: 1rem;
+    top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 35;
+}
+
+.map-zoom__btn {
+    width: 72px;
+    height: 72px;
+    border: 3px solid var(--ink);
+    border-radius: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--display-font);
+    font-size: 2.2rem;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 6px 6px 0 var(--ink);
+    transition: transform 0.06s ease, box-shadow 0.06s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.map-zoom__btn:active {
+    transform: translate(3px, 3px);
+    box-shadow: 3px 3px 0 var(--ink);
+    background: var(--orange);
+    color: var(--ink);
+}
+
+/* ── Category chips (filter + legend in one) ────────────────────── */
+
+.category-chips {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 96px;          /* sit above the 88px search bar with 8px gap */
+    display: flex;
+    gap: 0.6rem;
+    overflow-x: auto;
+    padding: 0.55rem 1rem 0.6rem;
+    z-index: 45;
+    scrollbar-width: none;
+    /* fade the leaflet through; no card. */
+    background: linear-gradient(
+        to top,
+        rgba(255, 255, 255, 0.86) 35%,
+        rgba(255, 255, 255, 0)
+    );
+}
+
+.category-chips::-webkit-scrollbar { display: none; }
+
+.category-chip {
+    flex: 0 0 auto;
+    min-height: 64px;
+    padding: 0 1.15rem;
+    border: 3px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--display-font);
+    font-size: 0.86rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    box-shadow: 4px 4px 0 var(--ink);
+    transition: transform 0.06s ease, box-shadow 0.06s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.category-chip:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--ink);
+}
+
+.category-chip__swatch {
+    width: 18px;
+    height: 18px;
+    background: var(--ink);
+    border: 2px solid var(--ink);
+    flex-shrink: 0;
+}
+
+/* Swatch shapes match the pin shapes. */
+.category-chip[data-cat="all"] .category-chip__swatch {
+    background: var(--orange);
+    border-color: var(--ink);
+    border-radius: 0;
+}
+.category-chip[data-cat="departments"] .category-chip__swatch {
+    background: var(--orange);
+    border-radius: 50%;
+}
+.category-chip[data-cat="offices"] .category-chip__swatch {
+    background: var(--ink);
+    border-radius: 50%;
+}
+.category-chip[data-cat="buildings"] .category-chip__swatch {
+    background: var(--paper);
+    box-shadow: inset 0 0 0 4px var(--orange);
+    border-radius: 3px;
+}
+.category-chip[data-cat="entrances"] .category-chip__swatch {
+    background: var(--orange);
+    border-radius: 2px;
+    transform: rotate(45deg);
+}
+.category-chip[data-cat="places"] .category-chip__swatch {
+    background: var(--ink);
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 5px var(--ink), inset 0 0 0 9px var(--orange);
+}
+
+.category-chip--active {
+    background: var(--ink);
+    color: var(--paper);
+}
+
+.category-chip[data-cat="all"].category-chip--active {
+    background: var(--orange);
+    color: var(--ink);
+}
+
+.category-chip--active .category-chip__swatch {
+    border-color: var(--paper);
+}
+
+.category-chip--active[data-cat="all"] .category-chip__swatch,
+.category-chip--active[data-cat="entrances"] .category-chip__swatch {
+    border-color: var(--ink);
+}
+
+/* ── Suggestions overlay ────────────────────────────────────────── */
+
+.suggestions {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    right: 1rem;
+    max-height: 64%;
+    overflow: hidden;
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+    z-index: 30;
+    color: var(--ink);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.suggestions--hidden {
+    opacity: 0;
+    transform: translateY(-8px);
+    pointer-events: none;
+}
+
+.suggestions__head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 1rem 0.7rem;
+    background: var(--ink);
+    color: var(--paper);
+    border-bottom: 3px solid var(--ink);
+}
+
+.suggestions__head-label {
+    font-family: var(--display-font);
+    font-size: 0.78rem;
+    letter-spacing: 0.2em;
+}
+
+.suggestions__head-hint {
+    font-family: var(--mono-font);
+    font-size: 0.62rem;
+    letter-spacing: 0.16em;
+    color: var(--orange);
+    text-transform: uppercase;
+}
+
+.suggestions__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+}
+
+.suggestions__item {
+    display: flex;
+    align-items: center;
+    gap: 0.95rem;
+    min-height: 72px;
+    padding: 0.85rem 1.1rem;
+    border-bottom: 1px solid var(--rule);
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.suggestions__item:last-child { border-bottom: 0; }
+
+.suggestions__item:active {
+    background: var(--orange-tint);
+}
+
+.suggestions__item-swatch {
+    width: 18px;
+    height: 18px;
+    background: var(--ink);
+    border: 2px solid var(--ink);
+    flex-shrink: 0;
+}
+
+/* Mirror the chip swatch shapes for visual consistency. */
+.suggestions__item[data-cat="departments"] .suggestions__item-swatch {
+    background: var(--orange);
+    border-radius: 50%;
+}
+.suggestions__item[data-cat="offices"] .suggestions__item-swatch {
+    background: var(--ink);
+    border-radius: 50%;
+}
+.suggestions__item[data-cat="buildings"] .suggestions__item-swatch {
+    background: var(--paper);
+    box-shadow: inset 0 0 0 4px var(--orange);
+    border-radius: 3px;
+}
+.suggestions__item[data-cat="entrances"] .suggestions__item-swatch {
+    background: var(--orange);
+    border-radius: 2px;
+    transform: rotate(45deg);
+}
+.suggestions__item[data-cat="places"] .suggestions__item-swatch {
+    background: var(--ink);
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 5px var(--ink), inset 0 0 0 9px var(--orange);
+}
+
+.suggestions__item-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.suggestions__item-name {
+    font-family: var(--display-font);
+    font-size: 1rem;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    text-transform: uppercase;
+}
+
+.suggestions__item-type {
+    font-family: var(--mono-font);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    color: var(--ink-mute);
+    margin-top: 0.22rem;
+    text-transform: uppercase;
+}
+
+.suggestions__item-arrow {
+    margin-left: auto;
+    font-family: var(--display-font);
+    font-size: 1.5rem;
+    color: var(--orange);
+    flex-shrink: 0;
+}
+
+.suggestions__empty {
+    padding: 1.4rem 1.25rem;
+    color: var(--ink-mute);
+    text-align: center;
+    font-family: var(--mono-font);
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* ── Building detail pane (left strip; QR view inline) ──────────── */
+
+.building-pane {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 360px;
+    background: var(--paper);
+    border-right: 4px solid var(--ink);
+    box-shadow: 28px 0 60px rgba(10, 10, 10, 0.28);
+    padding: 1.6rem 1.5rem 1.5rem;
+    z-index: 40;
+    transition: transform 0.32s cubic-bezier(.25, .8, .35, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Orange ribbon along the top. */
+.building-pane::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 6px;
+    background: var(--orange);
+}
+
+.building-pane--hidden {
+    transform: translateX(-110%);
+}
+
+.building-pane__close {
+    position: absolute;
+    top: 0.85rem;
+    right: 0.85rem;
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    width: 52px;
+    height: 52px;
+    font-family: var(--display-font);
+    font-size: 1.6rem;
+    line-height: 1;
+    color: var(--ink);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+.building-pane__close:active {
+    background: var(--orange);
+    color: var(--ink);
+}
+
+.building-pane__view {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding-top: 1.1rem;
+    min-height: 0;
+}
+
+.building-pane__view--hidden { display: none; }
+
+.building-pane__type {
+    font-family: var(--mono-font);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    color: var(--orange-deep);
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.building-pane__name {
+    margin: 0.55rem 0 1.4rem;
+    font-family: var(--display-font);
+    font-size: 1.85rem;
+    letter-spacing: 0.01em;
+    line-height: 1.05;
+    color: var(--ink);
+    text-transform: uppercase;
+}
+
+.building-pane__coords {
+    margin: 0 0 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.9rem;
+    border-top: 2px solid var(--ink);
+    border-bottom: 2px solid var(--ink);
+    padding: 0.85rem 0;
+}
+
+.building-pane__coords > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.32rem;
+    min-width: 0;
+}
+
+.building-pane__coords dt {
+    font-family: var(--display-font);
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    color: var(--ink-mute);
+    font-weight: 700;
+}
+
+.building-pane__coords dd {
+    margin: 0;
+    font-family: var(--mono-font);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Action stack — Show Route + Close (same size, secondary is outlined). */
+.building-pane__actions {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding-top: 1rem;
+}
+
+.building-pane__action {
+    width: 100%;
+    padding: 1.15rem 1.2rem;
+    border: 3px solid var(--ink);
+    background: var(--orange);
+    color: var(--ink);
+    font-family: var(--display-font);
+    font-size: 1.15rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    box-shadow: 6px 6px 0 var(--ink);
+    transition: transform 0.06s ease, box-shadow 0.06s ease, background 0.12s ease;
+}
+
+.building-pane__action:active {
+    transform: translate(3px, 3px);
+    box-shadow: 3px 3px 0 var(--ink);
+}
+
+/* Same size; muted (paper) so Show Route is unmistakably primary. */
+.building-pane__action--secondary {
+    background: var(--paper);
+    color: var(--ink);
+    box-shadow: 4px 4px 0 var(--ink);
+}
+
+.building-pane__action--secondary:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--ink);
+    background: var(--paper-soft);
+}
+
+.building-pane__action-arrow {
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+/* In the QR view the secondary CTA sits under the help strip with margin. */
+#building-pane-qr .building-pane__action--secondary {
+    margin-top: 0.85rem;
+}
+
+/* ── QR view (inline within the pane) ───────────────────────────── */
+
+.building-pane__qr-eyebrow {
+    font-family: var(--mono-font);
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: var(--orange-deep);
+    text-transform: uppercase;
+}
+
+.building-pane__qr-title {
+    margin: 0.55rem 0 0.55rem;
+    font-family: var(--display-font);
+    font-size: 1.55rem;
+    letter-spacing: 0.01em;
+    line-height: 1.08;
+    color: var(--ink);
+    text-transform: uppercase;
+}
+
+.building-pane__qr-subtitle {
+    margin: 0 0 1.1rem;
+    color: var(--ink-soft);
+    font-size: 0.95rem;
+    line-height: 1.45;
+}
+
+.building-pane__qr-canvas {
+    align-self: center;
+    margin: 0.4rem 0 1.1rem;
+    background: var(--paper);
+    padding: 0.85rem;
+    border: 4px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--orange);
+}
+
+.building-pane__qr-canvas img,
+.building-pane__qr-canvas canvas { display: block; }
+
+.building-pane__qr-help {
+    margin: auto 0 0;
+    padding: 0.95rem 1rem;
+    background: var(--paper-soft);
+    border: 2px dashed var(--ink);
+    font-family: var(--mono-font);
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    color: var(--ink);
+    text-transform: uppercase;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+}
+
+.building-pane__qr-pulse {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--orange);
+    box-shadow: 0 0 0 2px var(--ink);
+    animation: qr-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes qr-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(0.85); }
+    50%      { opacity: 1;    transform: scale(1.18); }
+}
+
+/* ── Search bar (full-bleed black band) ─────────────────────────── */
+
+.search-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.95rem;
+    padding: 0.85rem 1.25rem;
+    background: var(--ink);
+    border-top: 4px solid var(--orange);
+    z-index: 50;
+    min-height: 88px;
+}
+
+.search-bar__icon {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    color: var(--orange);
+    display: grid;
+    place-items: center;
+}
+
+.search-bar__icon svg { width: 100%; height: 100%; }
+
+.search-bar__input {
+    flex: 1;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--paper);
+    font-family: var(--display-font);
+    font-size: 1.15rem;
+    letter-spacing: 0.05em;
+    cursor: text;
+    caret-color: var(--orange);
+    min-width: 0;
+}
+
+.search-bar__input::placeholder {
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 0.06em;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+}
+
+.search-bar__clear {
+    background: var(--orange);
+    border: 0;
+    width: 56px;
+    height: 56px;
+    font-family: var(--display-font);
+    font-size: 1.6rem;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.search-bar__clear:active { background: var(--orange-deep); }
+.search-bar__clear--hidden { display: none; }
+
+/* While the building pane is open, the bottom dock (chips + search bar)
+   gets out of the way so the pane's action stack is reachable and the
+   user has a single, linear focus. Restored when the pane closes. */
+.campus-map-page--pane-open .search-bar,
+.campus-map-page--pane-open .category-chips {
+    opacity: 0;
+    transform: translateY(110%);
+    pointer-events: none;
+}
+
+.search-bar,
+.category-chips {
+    transition: opacity 0.22s ease, transform 0.28s cubic-bezier(.25, .8, .35, 1);
+}
+
+/* ── On-screen keyboard ─────────────────────────────────────────── */
+
+.keyboard {
+    flex: 0 0 0;
+    overflow: hidden;
+    background: var(--ink);
+    transition: flex-basis 0.25s ease;
+}
+
+.keyboard:not(.keyboard--collapsed) {
+    flex: 0 0 280px;
+}
+
+.keyboard__rows {
+    height: 280px;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.keyboard__row {
+    flex: 1;
+    display: flex;
+    gap: 0.4rem;
+}
+
+.keyboard__key {
+    flex: 1;
+    border: 2px solid rgba(255, 255, 255, 0.06);
+    background: var(--ink-soft);
+    color: var(--paper);
+    font-family: var(--display-font);
+    font-size: 1.25rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.05s ease, transform 0.05s ease, color 0.05s ease;
+}
+
+.keyboard__key:active {
+    background: var(--orange);
+    color: var(--ink);
+    transform: translateY(1px);
+}
+
+.keyboard__key--wide  { flex: 2; }
+.keyboard__key--space { flex: 6; }
+.keyboard__key--done  {
+    background: var(--orange);
+    color: var(--ink);
+    border-color: var(--orange);
+}
+.keyboard__key--done:active {
+    background: var(--orange-deep);
+    color: var(--ink);
+}
+
+/* ── Bottom back stripe (always visible, primary CTA out) ───────── */
+
+.map-back {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0 1.5rem;
+    height: 88px;
+    background: var(--orange);
+    color: var(--ink);
+    text-decoration: none;
+    border-top: 4px solid var(--ink);
+    position: relative;
+    transition: background 0.15s ease;
+}
+
+.map-back:active { background: var(--orange-deep); }
+
+/* Caution-tape stripe just above the orange — wayfinding-poster vibe. */
+.map-back::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0;
+    top: -10px;
+    height: 6px;
+    background-image: repeating-linear-gradient(
+        135deg,
+        var(--ink) 0 6px,
+        transparent 6px 12px
+    );
+}
+
+.map-back__arrow {
+    font-family: var(--display-font);
+    font-size: 2.6rem;
+    line-height: 1;
+    color: var(--ink);
+}
+
+.map-back__label {
+    font-family: var(--display-font);
+    font-size: 1.55rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink);
+}
+
+.map-back__hint {
+    font-family: var(--mono-font);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    color: var(--ink);
+    text-transform: uppercase;
+    text-align: right;
+    opacity: 0.78;
 }

@@ -1,26 +1,164 @@
 {% extends "base.html" %}
 
-{% block title %}Campus Map - Masonite 4{% endblock %}
+{% block title %}Campus Map - PressPoint{% endblock %}
 
 {% block head %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <link rel="stylesheet" href="/assets/css/kiosk-map.css" />
 {% endblock %}
 
 {% block content %}
-<div class="campus-map-page">
-  <div class="campus-map-page__copy">
-    <h1 class="campus-map-page__title">Campus Map</h1>
-    <p class="campus-map-page__subtitle">Select points on the map to measure latitude and longitude.</p>
+{#
+  Campus map kiosk — wayfinding terminal layout for 768x1024 portrait.
+
+      .map-header                 brand bar + title (no back button here)
+      .campus-map-page__stage     full-bleed map + every overlay
+        - leaflet map
+        - zoom controls (top-right, large)
+        - suggestions panel (top, while typing)
+        - building pane (left strip; QR view lives inline here)
+        - category rail (above the search bar; doubles as legend)
+        - search bar (full-bleed black band at the bottom of the stage)
+      .keyboard                   slides up; map shrinks above it
+      .map-back                   bottom orange stripe — primary CTA out
+#}
+<div class="campus-map-page" id="campus-map-page">
+  <header class="map-header">
+    <div class="map-header__brand">
+      <img class="map-header__brand-mark" src="/gears.png" alt="" aria-hidden="true" />
+      <span class="map-header__brand-text">
+        <span class="map-header__brand-eyebrow">PRESSPOINT</span>
+        <span class="map-header__brand-line">WAYFINDING TERMINAL</span>
+      </span>
+    </div>
+    <div class="map-header__title">
+      <span class="map-header__title-prefix" aria-hidden="true">→</span>
+      <h1 class="map-header__title-text">CAMPUS MAP</h1>
+    </div>
+    <div class="map-header__hint" aria-hidden="true">
+      <span class="map-header__hint-key">TAP</span>
+      a building, or use<br>
+      <span class="map-header__hint-key">SEARCH</span>
+      below
+    </div>
+  </header>
+
+  <main class="campus-map-page__stage" id="campus-map-stage">
+    <div id="campus-map" class="campus-map-page__map"></div>
+
+    <!-- Zoom controls — 72px touch targets, top-right edge of the map. -->
+    <div class="map-zoom" aria-hidden="false">
+      <button type="button" class="map-zoom__btn" id="zoom-in" aria-label="Zoom in">+</button>
+      <button type="button" class="map-zoom__btn" id="zoom-out" aria-label="Zoom out">−</button>
+    </div>
+
+    <!-- Suggestions overlay — shown while typing or filtering by category. -->
+    <div id="suggestions" class="suggestions suggestions--hidden">
+      <div class="suggestions__head">
+        <span class="suggestions__head-label">RESULTS</span>
+        <span class="suggestions__head-hint">TAP TO OPEN</span>
+      </div>
+      <ul id="suggestions-list" class="suggestions__list"></ul>
+    </div>
+
+    <!-- Building detail pane — full-height left strip. QR view lives inline. -->
+    <aside id="building-pane" class="building-pane building-pane--hidden" aria-hidden="true">
+      <button type="button" class="building-pane__close" id="building-pane-close" aria-label="Close">
+        <span aria-hidden="true">×</span>
+      </button>
+
+      <!-- View 1: building info + Show Route action. -->
+      <div id="building-pane-info" class="building-pane__view">
+        <span class="building-pane__type" id="building-pane-type"></span>
+        <h2 class="building-pane__name" id="building-pane-name"></h2>
+        <dl class="building-pane__coords">
+          <div>
+            <dt>LATITUDE</dt>
+            <dd id="building-pane-lat">—</dd>
+          </div>
+          <div>
+            <dt>LONGITUDE</dt>
+            <dd id="building-pane-lng">—</dd>
+          </div>
+        </dl>
+        <div class="building-pane__actions">
+          <button type="button" class="building-pane__action" id="show-route">
+            <span class="building-pane__action-arrow" aria-hidden="true">→</span>
+            <span class="building-pane__action-label">SHOW ROUTE</span>
+          </button>
+          <button type="button"
+                  class="building-pane__action building-pane__action--secondary"
+                  data-pane-close>
+            <span class="building-pane__action-arrow" aria-hidden="true">×</span>
+            <span class="building-pane__action-label">CLOSE</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- View 2: QR handoff. Inline in the pane, never modal. -->
+      <div id="building-pane-qr" class="building-pane__view building-pane__view--hidden">
+        <span class="building-pane__qr-eyebrow">TAKE IT WITH YOU</span>
+        <h3 class="building-pane__qr-title">Scan to continue<br>on your phone</h3>
+        <p class="building-pane__qr-subtitle">
+          Open your camera. Point it at the code. The route follows you on the way there.
+        </p>
+        <div id="qr-canvas" class="building-pane__qr-canvas"></div>
+        <p class="building-pane__qr-help">
+          <span class="building-pane__qr-pulse" aria-hidden="true"></span>
+          LINK VALID FOR 30 MIN
+        </p>
+        <button type="button"
+                class="building-pane__action building-pane__action--secondary"
+                data-pane-close>
+          <span class="building-pane__action-arrow" aria-hidden="true">×</span>
+          <span class="building-pane__action-label">DONE</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Category rail — also serves as the legend (swatches match pins). -->
+    <div class="category-chips" id="category-chips" aria-label="Filter by category"></div>
+
+    <!-- Search bar — full-bleed black band at the bottom of the stage. -->
+    <div class="search-bar">
+      <span class="search-bar__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m20 20-3.5-3.5"></path>
+        </svg>
+      </span>
+      <input type="text"
+             id="search-input"
+             class="search-bar__input"
+             placeholder="TAP TO SEARCH A BUILDING OR OFFICE"
+             autocomplete="off"
+             readonly />
+      <button type="button"
+              id="search-clear"
+              class="search-bar__clear search-bar__clear--hidden"
+              aria-label="Clear search">×</button>
+    </div>
+  </main>
+
+  <!-- On-screen keyboard. height:0 collapsed; height:280 expanded. -->
+  <div id="keyboard" class="keyboard keyboard--collapsed" aria-hidden="true">
+    <div class="keyboard__rows"></div>
   </div>
 
-  <div class="campus-map-page__stage">
-    <div id="campus-map" class="campus-map-page__map"></div>
-  </div>
+  <!-- Bottom CTA. Always visible, even with the keyboard open. -->
+  <a href="{{ route('kiosk') }}" class="map-back" aria-label="Back to home">
+    <span class="map-back__arrow" aria-hidden="true">←</span>
+    <span class="map-back__label">BACK TO HOME</span>
+    <span class="map-back__hint">RETURN TO WELCOME</span>
+  </a>
 </div>
 {% endblock %}
 
 {% block js %}
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="/assets/js/kiosk-map.js"></script>
 {% endblock %}

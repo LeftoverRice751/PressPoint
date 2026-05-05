@@ -14,7 +14,7 @@ from masonite.routes import Route
 from masonite.configuration.Configuration import Configuration
 from masonite.configuration import config
 
-from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware
+from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware
 from masonite.middleware import ThrottleRequestsMiddleware
 
 
@@ -30,6 +30,7 @@ class Kernel:
     route_middleware = {
         "web": [SessionMiddleware, LoadUserMiddleware, VerifyCsrfToken],
         "auth": [AuthenticationMiddleware],
+        "admin": [AdminMiddleware],
     }
 
     def __init__(self, app):

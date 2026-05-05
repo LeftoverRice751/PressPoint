@@ -18,5 +18,8 @@
     "webpack": "5.60.0",
     "webpack-cli": "4.10.0",
     "webpack-dev-server": "4.7.3"
+  },
+  "dependencies": {
+    "marzipano": "^0.10.2"
   }
 }

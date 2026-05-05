@@ -14,9 +14,9 @@
   var progressBars = Array.prototype.slice.call(dashboardRoot.querySelectorAll('[data-progress-bar]'));
   var previewPlayer = dashboardRoot.querySelector('[data-video-preview-player]');
   var previewPlaceholder = dashboardRoot.querySelector('[data-video-preview-placeholder]');
-  var articleModal = dashboardRoot.querySelector('[data-article-modal]');
+  var eventsModal = dashboardRoot.querySelector('[data-events-modal]');
   var defaultPage = dashboardRoot.getAttribute('data-default-page') || 'dashboard';
-  var openArticleModalOnLoad = dashboardRoot.getAttribute('data-open-article-modal') === 'true';
+  var openEventsModalOnLoad = dashboardRoot.getAttribute('data-open-events-modal') === 'true';
 
   function postKioskAction(action) {
     return fetch(action, {
@@ -140,32 +140,32 @@
     previewPlayer.setAttribute('aria-label', 'Video preview player');
   }
 
-  function openArticleModal() {
-    if (!articleModal) {
+  function openEventsModal() {
+    if (!eventsModal) {
       return;
     }
 
-    if (typeof articleModal.showModal === 'function') {
-      articleModal.showModal();
+    if (typeof eventsModal.showModal === 'function') {
+      eventsModal.showModal();
       return;
     }
 
-    articleModal.hidden = false;
-    articleModal.classList.add('is-open');
+    eventsModal.hidden = false;
+    eventsModal.classList.add('is-open');
   }
 
-  function closeArticleModal() {
-    if (!articleModal) {
+  function closeEventsModal() {
+    if (!eventsModal) {
       return;
     }
 
-    if (typeof articleModal.close === 'function') {
-      articleModal.close();
+    if (typeof eventsModal.close === 'function') {
+      eventsModal.close();
       return;
     }
 
-    articleModal.hidden = true;
-    articleModal.classList.remove('is-open');
+    eventsModal.hidden = true;
+    eventsModal.classList.remove('is-open');
   }
 
   function switchPage(pageName) {
@@ -200,17 +200,17 @@
       return;
     }
 
-    var articleModalTrigger = event.target.closest('[data-article-modal-open]');
-    if (articleModalTrigger && dashboardRoot.contains(articleModalTrigger)) {
+    var eventsModalTrigger = event.target.closest('[data-events-modal-open]');
+    if (eventsModalTrigger && dashboardRoot.contains(eventsModalTrigger)) {
       event.preventDefault();
-      openArticleModal();
+      openEventsModal();
       return;
     }
 
-    var articleModalClose = event.target.closest('[data-article-modal-close]');
-    if (articleModalClose && dashboardRoot.contains(articleModalClose)) {
+    var eventsModalClose = event.target.closest('[data-events-modal-close]');
+    if (eventsModalClose && dashboardRoot.contains(eventsModalClose)) {
       event.preventDefault();
-      closeArticleModal();
+      closeEventsModal();
       return;
     }
 
@@ -313,16 +313,16 @@
   syncEmptyStates();
   switchPage(defaultPage);
 
-  if (articleModal) {
-    articleModal.addEventListener('click', function (event) {
-      if (event.target === articleModal) {
-        closeArticleModal();
+  if (eventsModal) {
+    eventsModal.addEventListener('click', function (event) {
+      if (event.target === eventsModal) {
+        closeEventsModal();
       }
     });
   }
 
-  if (openArticleModalOnLoad) {
-    openArticleModal();
+  if (openEventsModalOnLoad) {
+    openEventsModal();
   }
 
   var firstVideoCard = dashboardRoot.querySelector('[data-video-card]');

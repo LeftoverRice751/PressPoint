@@ -12,7 +12,7 @@
   data-dashboard-shell
   data-default-page="{{ default_page if default_page else 'dashboard' }}"
   data-video-push-url="{{ route('video.push', {}, False) }}"
-  data-open-article-modal="{{ 'true' if bag().any() else 'false' }}"
+  data-open-events-modal="{{ 'true' if bag().any() and (default_page or 'dashboard') == 'events' else 'false' }}"
   data-open-news-modal="false"
 >
   <aside class="gears-sidebar">
@@ -30,7 +30,7 @@
         <span class="dashboard-nav__icon" aria-hidden="true">▣</span>
         <span>Dashboard</span>
       </button>
-      <button type="button" class="dashboard-nav__link" data-page-link="articles">
+      <button type="button" class="dashboard-nav__link" data-page-link="events">
         <span class="dashboard-nav__icon" aria-hidden="true">▤</span>
         <span>Events</span>
       </button>
@@ -181,14 +181,14 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="articles" hidden>
+    <section class="gears-page" data-page-panel="events" hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
           <h2 class="section-head__title">Events</h2>
         </div>
         <div class="section-head__actions">
-          <button type="button" class="primary-button" data-article-modal-open>Add Events</button>
+          <button type="button" class="primary-button" data-events-modal-open>Add Events</button>
         </div>
       </div>
 
@@ -441,37 +441,37 @@
       </div>
     </section>
 
-    <dialog class="article-modal" data-article-modal>
+    <dialog class="article-modal" data-events-modal>
       <div class="article-modal__panel">
         <div class="article-modal__header">
           <div>
-            <h3 class="article-modal__title">Add Article</h3>
-            <p class="article-modal__subtitle">Create an article with a title, description, event date, and location.</p>
+            <h3 class="article-modal__title">Add Event</h3>
+            <p class="article-modal__subtitle">Create an event with a title, description, date, and location.</p>
           </div>
-          <button type="button" class="article-modal__close" data-article-modal-close>Close</button>
+          <button type="button" class="article-modal__close" data-events-modal-close>Close</button>
         </div>
 
-        <form action="{{ route('articles.store', {}, False) }}" method="POST" class="form-stack">
+        <form action="{{ route('events.store', {}, False) }}" method="POST" class="form-stack">
           {{ csrf_field | safe }}
 
-          <label class="field" for="article-title">
+          <label class="field" for="event-title">
             <span class="field__label">Title</span>
-            <input type="text" name="title" id="article-title" class="field__input" placeholder="Article title" required>
+            <input type="text" name="title" id="event-title" class="field__input" placeholder="Event title" required>
           </label>
 
-          <label class="field" for="article-description">
+          <label class="field" for="event-description">
             <span class="field__label">Description</span>
-            <textarea name="description" id="article-description" class="field__input field__textarea" placeholder="Article description" required></textarea>
+            <textarea name="description" id="event-description" class="field__input field__textarea" placeholder="Event description" required></textarea>
           </label>
 
-          <label class="field" for="article-event-date">
+          <label class="field" for="event-event-date">
             <span class="field__label">Event date</span>
-            <input type="date" name="event_date" id="article-event-date" class="field__input" required>
+            <input type="date" name="event_date" id="event-event-date" class="field__input" required>
           </label>
 
-          <label class="field" for="article-location-id">
+          <label class="field" for="event-location-id">
             <span class="field__label">Location</span>
-            <select name="location_id" id="article-location-id" class="field__input field__input--select" required>
+            <select name="location_id" id="event-location-id" class="field__input field__input--select" required>
               <option value="">Choose a location</option>
               {% for location in locations %}
               <option value="{{ location.id }}">{{ location.name }}</option>
@@ -480,8 +480,8 @@
           </label>
 
           <div class="article-modal__footer">
-            <button type="button" class="ghost-button" data-article-modal-close>Cancel</button>
-            <button type="submit" class="primary-button">Save Article</button>
+            <button type="button" class="ghost-button" data-events-modal-close>Cancel</button>
+            <button type="submit" class="primary-button">Save Event</button>
           </div>
         </form>
       </div>

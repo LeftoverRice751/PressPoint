@@ -12,30 +12,31 @@ class LoginController(Controller):
         return view.render("auth.login")
 
     def _sync_admin_user(self, admin_record, password: str):
+        """Mirror the AdminGears row into a `users` row so the rest of the
+        framework (request.user(), guards, redirects) can treat it like
+        any other authenticated user.
+
+        We assign attributes directly instead of `User.create({...})`
+        because `role` is intentionally NOT in `User.__fillable__` —
+        keeping it out of fillable prevents mass-assignment elsewhere
+        in the app. Direct assignment here is safe: we only reach this
+        method after `Hash.check` has already verified the admin_gears
+        password.
+        """
         username = (getattr(admin_record, "admin_username", "") or "").strip()
         if not username:
             return None
 
         role = (getattr(admin_record, "role", "") or "admin").strip().lower() or "admin"
         email = f"{username}@presspoint.local"
-        user = User.where("username", username).first()
 
-        if user:
-            user.username = username
-            user.email = getattr(user, "email", None) or email
-            user.password = Hash.make(password)
-            user.role = role
-            user.save()
-            return user
-
-        return User.create(
-            {
-                "username": username,
-                "email": email,
-                "password": Hash.make(password),
-                "role": role,
-            }
-        )
+        user = User.where("username", username).first() or User()
+        user.username = username
+        user.email = getattr(user, "email", None) or email
+        user.password = Hash.make(password)
+        user.role = role
+        user.save()
+        return user
 
     def store(self, request: Request, response: Response):
         username = (request.input("username") or "").strip()

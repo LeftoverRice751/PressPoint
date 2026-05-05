@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Your Route — PressPoint{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="/assets/css/mobile-route.css" />
+{% endblock %}
+
+{% block content %}
+{#
+  This page is what the phone lands on after scanning the QR code on
+  the kiosk. It uses the same campus-map.png as the kiosk so the
+  coordinates already match — no real GPS, just a snapshot of the
+  route the kiosk drew.
+
+  `expired` comes from the controller: it's True when the token is
+  unknown, already finished, or past expires_at.
+#}
+<div class="mobile-route" data-token="{{ token }}" data-expired="{{ 'true' if expired else 'false' }}">
+  <header class="mobile-route__header">
+    <h1 class="mobile-route__title">Your Route</h1>
+    <p class="mobile-route__subtitle" id="mobile-route-subtitle">Loading your destination…</p>
+  </header>
+
+  <div id="mobile-route-map" class="mobile-route__map"></div>
+
+  <button type="button"
+          id="mobile-route-finish"
+          class="mobile-route__finish"
+          disabled>
+    Finish Route
+  </button>
+
+  <div id="mobile-route-expired" class="mobile-route__notice mobile-route__notice--hidden">
+    This route has expired. Head back to the kiosk to start a new one.
+  </div>
+
+  <div id="mobile-route-modal" class="mobile-route__modal mobile-route__modal--hidden" role="dialog" aria-modal="true">
+    <div class="mobile-route__modal-card">
+      <div class="mobile-route__modal-emoji">🎉</div>
+      <h2 class="mobile-route__modal-title">Congrats Kapiyu!</h2>
+      <p class="mobile-route__modal-body">You've arrived!</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block js %}
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="/assets/js/mobile-route.js"></script>
+{% endblock %}

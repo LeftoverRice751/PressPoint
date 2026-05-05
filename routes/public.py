@@ -5,6 +5,7 @@ ROUTES = [
     Route.get("/", "WelcomeController@show"),
     Route.get("/kiosk", "WelcomeController@show").name("kiosk"),
     Route.get("/kiosk/gears-archive", "ArchivesController@show").name("kiosk.gears-archive"),
+    Route.get("/kiosk/archives/@id/pages/@page", "ArchivesController@page").name("kiosk.archive-page"),
     Route.get("/kiosk/flash-updates", "WelcomeController@flash_updates").name("welcome.flash-updates"),
     Route.get("/kiosk/latest-news", "NewsController@show").name("kiosk.latest-news"),
     Route.get("/kiosk/campus-map", "MapController@show").name("kiosk.campus-map"),

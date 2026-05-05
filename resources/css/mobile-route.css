@@ -1,0 +1,135 @@
+/*
+ * Mobile route page — phone viewport.
+ *
+ * Layout:
+ *   header (title)
+ *   map        <- flex-grow, takes everything left
+ *   finish button (sticky bottom)
+ *
+ * The expired notice and the success modal are overlays sitting on top.
+ */
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    height: 100%;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.mobile-route {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+}
+
+.mobile-route__header {
+    padding: 1rem 1.25rem 0.5rem;
+    flex: 0 0 auto;
+}
+
+.mobile-route__title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.mobile-route__subtitle {
+    margin: 0.25rem 0 0;
+    font-size: 0.9rem;
+    color: #94a3b8;
+}
+
+.mobile-route__map {
+    flex: 1 1 auto;
+    margin: 0.75rem 1rem;
+    border-radius: 1rem;
+    overflow: hidden;
+    background: #1e293b;
+}
+
+/* Leaflet defaults to a white background on the container; force the
+   dark theme so the campus map image sits cleanly inside our card. */
+.mobile-route__map.leaflet-container {
+    background: #1e293b;
+}
+
+.mobile-route__finish {
+    flex: 0 0 auto;
+    margin: 0 1rem 1.25rem;
+    padding: 1rem;
+    border: 0;
+    border-radius: 1rem;
+    background: #2563eb;
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.05s ease;
+}
+
+.mobile-route__finish:disabled {
+    opacity: 0.4;
+    cursor: progress;
+}
+
+.mobile-route__finish:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.mobile-route__notice {
+    margin: 1rem;
+    padding: 1.25rem;
+    border-radius: 1rem;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fecaca;
+    text-align: center;
+    font-size: 0.95rem;
+}
+
+.mobile-route__notice--hidden { display: none; }
+
+.mobile-route__modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    z-index: 1000;
+}
+
+.mobile-route__modal--hidden { display: none; }
+
+.mobile-route__modal-card {
+    background: #1e293b;
+    border-radius: 1.5rem;
+    padding: 2rem;
+    text-align: center;
+    max-width: 22rem;
+    width: 100%;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.mobile-route__modal-emoji {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+}
+
+.mobile-route__modal-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: white;
+}
+
+.mobile-route__modal-body {
+    margin: 0.5rem 0 0;
+    color: #cbd5e1;
+}

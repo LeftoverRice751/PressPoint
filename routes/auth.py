@@ -10,9 +10,9 @@ ROUTES = [
     Route.post("/forgot-password/otp", "auth.PasswordResetController@verify_otp").name("auth.forgot-password.otp.store"),
     Route.get("/logout", "auth.LoginController@logout").name("auth.logout"),
     Route.get("/home", "auth.HomeController@show").name("auth.home").middleware("auth"),
-    Route.get("/users", "UserController@view").name("users.view").middleware("auth"),
-    Route.post("/users", "UserController@store").name("users.store").middleware("auth"),
-    Route.delete("/users/@id", "UserController@destroy").name("users.destroy").middleware("auth"),
+    Route.get("/users", "UserController@view").name("users.view").middleware("auth", "admin"),
+    Route.post("/users", "UserController@store").name("users.store").middleware("auth", "admin"),
+    Route.delete("/users/@id", "UserController@destroy").name("users.destroy").middleware("auth", "admin"),
     Route.post("/change-password/@token", "auth.PasswordResetController@store_changed_password").name("auth.change-password.store"),
     Route.get("/change-password/@token", "auth.PasswordResetController@change_password").name("auth.change-password"),
 ]

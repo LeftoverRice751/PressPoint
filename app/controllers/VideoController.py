@@ -16,6 +16,7 @@ import traceback
 import random
 
 from app.services.ArchiveServices import ArchiveServices
+from app.services.StorageRouter import absolute_path, is_safe_path
 from app.models.Archives import Archives
 
 def _pusher_configured():
@@ -73,21 +74,21 @@ class VideoController(Controller):
         }
 
     def serve_storage(self, response: Response, path):
+        # /storage/<path> serves files from either the GearsNAS volume
+        # (anything under Archives/ or Videos/) or the project's local
+        # public folder (everything else). The router maps which one;
+        # the safety check confirms the resolved file is still inside
+        # an allowed root, blocking ../ traversal.
         requested_path = str(path or "").replace("\\", "/").lstrip("/")
-        public_storage_root = os.path.realpath(base_path("storage/framework/public"))
-        full_path = os.path.realpath(os.path.join(public_storage_root, requested_path))
 
-        if (
-            not requested_path
-            or not (full_path == public_storage_root or full_path.startswith(public_storage_root + os.sep))
-            or not os.path.isfile(full_path)
-        ):
+        if not requested_path or not is_safe_path(requested_path):
             return "File not Found", 404
 
-        if os.path.exists(full_path):
-            return response.download(os.path.basename(full_path), full_path, force=False)
-        
-        return  "File not Found", 404
+        full_path = absolute_path(requested_path)
+        if not os.path.isfile(full_path):
+            return "File not Found", 404
+
+        return response.download(os.path.basename(full_path), full_path, force=False)
     
     def show(self, views: View, request: Request):
         posts = sorted(list(Posts.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
@@ -216,7 +217,9 @@ class VideoController(Controller):
             ])
 
         try:
-            path = storage.disk("public").put_file("videos", video_file)
+            # Videos live on GearsNAS/Videos so editors can drop files
+            # via SMB and the kiosk plays them without an extra copy.
+            path = storage.disk("gearsnas").put_file("Videos", video_file)
 
             video = Video.create(
                 title=title,
@@ -244,10 +247,10 @@ class VideoController(Controller):
             return response.back().with_errors(["Video not found."])
 
         file_path = getattr(video, "file_path", "") or ""
-        full_path = base_path(os.path.join("storage/framework/public", file_path))
-
-        if os.path.exists(full_path):
-            os.remove(full_path)
+        if file_path and is_safe_path(file_path):
+            full_path = absolute_path(file_path)
+            if os.path.exists(full_path):
+                os.remove(full_path)
 
         video.delete()
 

@@ -104,4 +104,4 @@ class WelcomeController(Controller):
         return self.coming_soon(view, "AI Assistant")
 
     def virtual_tour(self, view: View):
-        return self.coming_soon(view, "Virtual Tour")
+        return view.render("kiosk/kiosk-tour")

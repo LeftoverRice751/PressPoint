@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Virtual Tour</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="target-densitydpi=device-dpi, width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, minimal-ui">
+  <style> @-ms-viewport { width: device-width; } </style>
+  <link rel="stylesheet" href="/pano/vendor/reset.min.css">
+  <link rel="stylesheet" href="/assets/css/kiosk-tour.css">
+</head>
+<body class="tour-page">
+  <div id="tour-overlay" class="tour-overlay" aria-hidden="false">
+    <div class="tour-shell" role="dialog" aria-label="Virtual tour menu">
+      <div class="tour-app">
+        <section class="hero" aria-label="Presspoint kiosk">
+          <img class="hero__logo" src="/gears.png?v=20260411" alt="Gears logo">
+          <h1 class="hero__title">PRESSPOINT</h1>
+          <p class="hero__subtitle">The Gears Publication's Official Kiosk</p>
+        </section>
+
+        <section class="tour-actions" aria-label="Virtual tour actions">
+          <button class="tour-action tour-action--primary" type="button" id="tour-start">Start</button>
+          <button class="tour-action tour-action--ghost" type="button" id="tour-exit">Exit</button>
+        </section>
+
+        <p class="tour-helper">Tap Start to begin the campus walkthrough.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tour-viewport" aria-hidden="true">
+    <div class="tour-frame">
+      <div id="pano" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <script src="/pano/vendor/screenfull.min.js" defer></script>
+  <script src="/pano/vendor/bowser.min.js" defer></script>
+  <script src="/pano/vendor/marzipano.js" defer></script>
+  <script src="/assets/js/data.js" defer></script>
+  <script src="/assets/js/kiosk-tour.js" defer></script>
+</body>
+</html>
