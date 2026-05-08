@@ -140,6 +140,26 @@ class VideoController(Controller):
         recent_articles = posts[:5]
         default_page = (request.input("page") or "dashboard").strip() or "dashboard"
 
+        from app.models.TourScenes import TourScenes
+        from app.services.TourScenesCatalog import TourScenesCatalog
+
+        tour_catalog = TourScenesCatalog.all_scenes()
+        tour_mappings = {
+            (getattr(row, "scene_id", "") or ""): row
+            for row in (TourScenes.all() or [])
+        }
+        tour_scene_rows = []
+        for entry in tour_catalog:
+            mapping = tour_mappings.get(entry["scene_id"])
+            tour_scene_rows.append(
+                {
+                    "scene_id": entry["scene_id"],
+                    "scene_name": entry["name"],
+                    "location_id": getattr(mapping, "location_id", None) if mapping else None,
+                    "display_name": (getattr(mapping, "display_name", None) if mapping else "") or "",
+                }
+            )
+
         return views.render("gears/dashboard.html", {
             "posts": posts,
             "categories": categories,
@@ -162,6 +182,7 @@ class VideoController(Controller):
             "location_count": len(locations),
             "news_count": len(news_items),
             "default_page": default_page,
+            "tour_scene_rows": tour_scene_rows,
         })
 
     def upload(self, request: Request, storage: Storage, response: Response):

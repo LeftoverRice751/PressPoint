@@ -105,3 +105,9 @@ class WelcomeController(Controller):
 
     def virtual_tour(self, view: View):
         return view.render("kiosk/kiosk-tour")
+
+    def about_lspu(self, view: View):
+        return self.coming_soon(view, "About LSPU")
+
+    def org_chart(self, view: View):
+        return self.coming_soon(view, "LSPU Organizational Chart")

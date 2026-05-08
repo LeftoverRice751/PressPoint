@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const track = root.querySelector('[data-archive-track]');
   const cards = Array.from(root.querySelectorAll('[data-archive-card]'));
   const yearButtons = Array.from(root.querySelectorAll('[data-archive-year-button]'));
+  const categoryButtons = Array.from(root.querySelectorAll('[data-archive-category-button]'));
   const titleEl = root.querySelector('[data-archive-title]');
   const typeEl = root.querySelector('[data-archive-type]');
   const yearEl = root.querySelector('[data-archive-published]');
@@ -22,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ? parseInt(yearButtons[Math.floor(Math.random() * yearButtons.length)].dataset.year || '', 10)
       : null);
 
+  let currentCategory = 'all';
   let currentIndex = 0;
   let activeFlipIndex = null;
   let swipeState = null;
@@ -78,25 +80,66 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function matchesCategory(card, category) {
+    if (category === 'all') {
+      return true;
+    }
+    const isTabloid = (card.dataset.isTabloid || '').trim() === '1';
+    if (category === 'tabloid') {
+      return isTabloid;
+    }
+    if (category === 'folio') {
+      return !isTabloid;
+    }
+    return true;
+  }
+
+  function getCategoryCards(category = currentCategory) {
+    return cards.filter((card) => matchesCategory(card, category));
+  }
+
   function getVisibleCards() {
     if (!Number.isFinite(currentYear)) {
       return [];
     }
 
-    return cards.filter((card) => parseInt(card.dataset.year || '', 10) === currentYear);
+    return cards.filter((card) =>
+      parseInt(card.dataset.year || '', 10) === currentYear &&
+      matchesCategory(card, currentCategory)
+    );
   }
 
   function setYearButtonState() {
+    const categoryCards = getCategoryCards();
+    const availableYears = new Set(
+      categoryCards
+        .map((card) => parseInt(card.dataset.year || '', 10))
+        .filter((value) => Number.isFinite(value))
+    );
+
     yearButtons.forEach((button) => {
       const buttonYear = parseInt(button.dataset.year || '', 10);
       const isActive = Number.isFinite(currentYear) && buttonYear === currentYear;
+      const isAvailable = availableYears.has(buttonYear);
       button.classList.toggle('is-active', isActive);
       button.setAttribute('aria-pressed', String(isActive));
+      button.disabled = !isAvailable;
     });
 
     if (headerYearEl) {
       headerYearEl.textContent = Number.isFinite(currentYear) ? String(currentYear) : '—';
     }
+  }
+
+  function setCategoryButtonState() {
+    categoryButtons.forEach((button) => {
+      const category = (button.dataset.category || 'all').toLowerCase();
+      const isActive = category === currentCategory;
+      const hasAny = category === 'all' || cards.some((card) => matchesCategory(card, category));
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-pressed', String(isActive));
+      button.disabled = !hasAny;
+    });
   }
 
   function setCardState(card, offset, isActive, swipeOffset, swipeProgress) {
@@ -176,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
         card.classList.remove('is-flipped');
       });
       setYearButtonState();
+      setCategoryButtonState();
       updateDetails(null);
       return;
     }
@@ -202,10 +246,42 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     setYearButtonState();
+    setCategoryButtonState();
     updateDetails(activeCard);
     if (activeCard && activeFlipIndex === parseInt(activeCard.dataset.index || '', 10)) {
       loadPageTwoFrame(activeCard);
     }
+  }
+
+  function selectCategory(category) {
+    const normalized = (category || 'all').toLowerCase();
+    if (normalized === currentCategory) {
+      return;
+    }
+
+    currentCategory = normalized;
+    activeFlipIndex = null;
+    clearFlipTimer();
+
+    const categoryCards = getCategoryCards();
+    const availableYears = Array.from(
+      new Set(
+        categoryCards
+          .map((card) => parseInt(card.dataset.year || '', 10))
+          .filter((value) => Number.isFinite(value))
+      )
+    ).sort((a, b) => b - a);
+
+    if (!availableYears.includes(currentYear) && availableYears.length) {
+      currentYear = availableYears[0];
+    }
+
+    const visibleCards = getVisibleCards();
+    currentIndex = visibleCards.length
+      ? Math.floor(Math.random() * visibleCards.length)
+      : 0;
+
+    render();
   }
 
   function selectYear(year, shouldRandomizeIndex = true) {
@@ -247,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   yearButtons.forEach((button) => {
     button.addEventListener('click', () => {
-      if (shouldIgnoreTap() || isInteractionLocked()) {
+      if (shouldIgnoreTap() || isInteractionLocked() || button.disabled) {
         return;
       }
 
@@ -257,6 +333,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       selectYear(year, true);
+    });
+  });
+
+  categoryButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      if (shouldIgnoreTap() || isInteractionLocked() || button.disabled) {
+        return;
+      }
+
+      const category = (button.dataset.category || 'all').toLowerCase();
+      selectCategory(category);
     });
   });
 

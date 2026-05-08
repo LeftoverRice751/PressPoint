@@ -100,6 +100,23 @@
         <div class="archive-details__year" data-archive-published>—</div>
       </section>
 
+      <nav class="archive-categories" aria-label="Archive categories" data-archive-categories>
+        <span class="archive-categories__rule" aria-hidden="true"></span>
+        <button type="button" class="archive-category-button" data-archive-category-button data-category="all">
+          <span class="archive-category-button__dot" aria-hidden="true"></span>
+          <span class="archive-category-button__label">All</span>
+        </button>
+        <button type="button" class="archive-category-button" data-archive-category-button data-category="folio">
+          <span class="archive-category-button__dot" aria-hidden="true"></span>
+          <span class="archive-category-button__label">Folios</span>
+        </button>
+        <button type="button" class="archive-category-button" data-archive-category-button data-category="tabloid">
+          <span class="archive-category-button__dot" aria-hidden="true"></span>
+          <span class="archive-category-button__label">Tabloids</span>
+        </button>
+        <span class="archive-categories__rule" aria-hidden="true"></span>
+      </nav>
+
       <nav class="archive-years" aria-label="Archive years">
         {% if archive_years %}
           {% for year in archive_years %}

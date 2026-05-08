@@ -6,6 +6,7 @@
 <meta name="viewport" content="target-densitydpi=device-dpi, width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, minimal-ui" />
 <style> @-ms-viewport { width: device-width; } </style>
 <link rel="stylesheet" href="/pano/vendor/reset.min.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
 <link rel="stylesheet" href="/assets/css/kiosk-tour.css">
 </head>
 <body class="multiple-scenes tour-page">
@@ -259,21 +260,7 @@
     <img class="icon" src="/pano/img/minus.png">
   </a>
 
-  <a href="/kiosk" class="map-back tour-back" aria-label="Exit to welcome">
-    <span class="map-back__arrow" aria-hidden="true">←</span>
-    <span class="map-back__label">Exit</span>
-    <span class="map-back__hint">Return to Welcome</span>
-  </a>
 
-  <script src="/pano/vendor/screenfull.min.js" defer></script>
-  <script src="/pano/vendor/bowser.min.js" defer></script>
-  <script src="/pano/vendor/marzipano.js" defer></script>
-  <script src="/assets/js/data.js" defer></script>
-  <script src="/assets/js/kiosk-tour.js" defer></script>
-
-</body>
-</html>
-    
       <a href="javascript:void(0)" class="scene" data-id="21-23">
         <li class="text">23</li>
       </a>
@@ -411,12 +398,86 @@
   <img class="icon" src="/pano/img/minus.png">
 </a>
 
+<!--
+  Find-a-building dock — only shown after the tour starts (body.tour-ready).
+  Mirrors the /kiosk/campus-map layout exactly:
+    - Suggestions sit above the search bar
+    - Search bar lives at the bottom, full-bleed black band
+    - Keyboard "drops up" from below the search bar via flex-basis 0 → 280px
+  The whole stack is column-flex, anchored to bottom: 0, so the search
+  bar rides up as the keyboard grows.
+-->
+<div id="tour-search-dock" class="tour-search-dock">
+  <div id="tour-suggestions" class="tour-suggestions tour-suggestions--hidden">
+    <div class="tour-suggestions__head">
+      <span class="tour-suggestions__head-label">RESULTS</span>
+      <span class="tour-suggestions__head-hint">TAP TO ROUTE</span>
+    </div>
+    <ul id="tour-suggestions-list" class="tour-suggestions__list"></ul>
+  </div>
+
+  <div id="tour-search" class="tour-search-bar" aria-label="Find a building">
+    <span class="tour-search-bar__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-3.5-3.5"></path>
+      </svg>
+    </span>
+    <input type="text"
+           id="tour-search-input"
+           class="tour-search-bar__input"
+           placeholder="TAP TO SEARCH A BUILDING"
+           autocomplete="off"
+           readonly />
+    <button type="button"
+            id="tour-search-clear"
+            class="tour-search-bar__clear tour-search-bar__clear--hidden"
+            aria-label="Clear search">×</button>
+  </div>
+
+  <a href="{{ route('kiosk') }}" class="tour-back" aria-label="Back to home">
+    <span class="tour-back__arrow" aria-hidden="true">←</span>
+    <span class="tour-back__label">BACK TO HOME</span>
+  </a>
+
+  <div id="tour-keyboard" class="tour-keyboard tour-keyboard--collapsed" aria-hidden="true">
+    <div class="tour-keyboard__rows"></div>
+  </div>
+</div>
+
+<!-- Route overlay — slides up over the panorama when a building is picked. -->
+<div class="tour-route tour-route--hidden" id="tour-route" aria-hidden="true">
+  <div class="tour-route__panel">
+    <header class="tour-route__head">
+      <div class="tour-route__head-text">
+        <span class="tour-route__eyebrow" id="tour-route-type">BUILDING</span>
+        <h2 class="tour-route__name" id="tour-route-name">—</h2>
+      </div>
+      <button type="button" class="tour-route__close" id="tour-route-close" aria-label="Close">×</button>
+    </header>
+
+    <div class="tour-route__map" id="tour-route-map"></div>
+
+    <footer class="tour-route__actions">
+      <button type="button" class="tour-route__action tour-route__action--primary" id="tour-route-visit" hidden>
+        <span class="tour-route__action-arrow" aria-hidden="true">↻</span>
+        <span class="tour-route__action-label">VISIT THIS PANORAMA</span>
+      </button>
+      <button type="button" class="tour-route__action tour-route__action--ghost" id="tour-route-dismiss">
+        <span class="tour-route__action-label">CLOSE</span>
+      </button>
+    </footer>
+    <p class="tour-route__hint" id="tour-route-hint" hidden>No virtual tour yet for this building — the route is still drawn on the map.</p>
+  </div>
+</div>
+
 <script src="/pano/vendor/screenfull.min.js" ></script>
 <script src="/pano/vendor/bowser.min.js" ></script>
 <script src="/pano/vendor/marzipano.js" ></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script src="/assets/js/data.js"></script>
-<script src="/assets/js/kiosk-map.js"></script>
+<script src="/assets/js/kiosk-tour.js"></script>
 
 </body>
 </html>

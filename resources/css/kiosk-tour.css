@@ -303,31 +303,43 @@ body.fullscreen-enabled.mobile #autorotateToggle {
   margin-left: 220px;
 }
 
+#sceneList {
+  width: 280px;
+  left: -280px;
+  padding-top: 48px;
+}
+
+#sceneList.enabled {
+  margin-left: 280px;
+}
+
 #sceneList .scene {
   display: block;
   width: 100%;
-  height: 48px;
+  height: 72px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .mobile #sceneList .scene {
-  height: 56px;
+  height: 84px;
 }
 
 #sceneList .scene .text {
   width: 100%;
   height: 100%;
-  padding: 0 18px;
-  line-height: 48px;
-  font-size: 1.1rem;
-  font-weight: 600;
+  padding: 0 22px;
+  line-height: 72px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .mobile #sceneList .scene .text {
-  line-height: 56px;
-  font-size: 1.2rem;
+  line-height: 84px;
+  font-size: 1.7rem;
 }
 
 .no-touch #sceneList .scene:hover {
@@ -1078,4 +1090,431 @@ body.view-control-buttons .viewControlButton {
   text-transform: uppercase;
   text-align: right;
   opacity: 0.78;
+}
+
+/* ── Find-a-building dock (mirrors /kiosk/campus-map) ──────────────
+   The whole stack lives in a fixed-bottom column-flex dock. Inside,
+   children stack: suggestions → search bar → keyboard. The keyboard
+   uses the same flex-basis 0 → 280px expansion the campus map uses,
+   so the search bar lifts when the keyboard opens. Hidden until the
+   user has tapped Start (body.tour-ready).
+*/
+
+.tour-search-dock {
+  display: none;
+}
+
+body.tour-ready .tour-search-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Archivo', sans-serif;
+}
+
+.tour-search-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.95rem;
+  padding: 0.85rem 1.25rem;
+  min-height: 88px;
+  background: #0a0a0a;
+  border-top: 4px solid #ff5b13;
+}
+
+.tour-search-bar__icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  color: #ff5b13;
+  display: grid;
+  place-items: center;
+}
+
+.tour-search-bar__icon svg { width: 100%; height: 100%; }
+
+.tour-search-bar__input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #fafafa;
+  font-family: 'Archivo Black', 'Archivo', sans-serif;
+  font-size: 1.15rem;
+  letter-spacing: 0.05em;
+  cursor: text;
+  caret-color: #ff5b13;
+  min-width: 0;
+}
+
+.tour-search-bar__input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tour-search-bar__clear {
+  background: #ff5b13;
+  border: 0;
+  width: 56px;
+  height: 56px;
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 1.6rem;
+  color: #0a0a0a;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.tour-search-bar__clear:active { background: #d94900; }
+.tour-search-bar__clear--hidden { display: none; }
+
+.tour-suggestions {
+  flex: 0 1 auto;
+  max-height: 50vh;
+  overflow: auto;
+  background: #ffffff;
+  box-shadow: 0 -28px 56px rgba(0, 0, 0, 0.28);
+}
+
+.tour-suggestions--hidden { display: none; }
+
+.tour-suggestions__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 22px;
+  background: #0a0a0a;
+  color: #ff5b13;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.tour-suggestions__head-hint {
+  color: rgba(255, 91, 19, 0.7);
+}
+
+.tour-suggestions__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tour-suggestions__item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 22px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  color: #0a0a0a;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tour-suggestions__item:last-child { border-bottom: 0; }
+
+.tour-suggestions__item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tour-suggestions__item-tag {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 91, 19, 0.12);
+  color: #ff5b13;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.tour-suggestions__item-tag--unavailable {
+  background: rgba(0, 0, 0, 0.08);
+  color: #4b5563;
+}
+
+.tour-suggestions__empty {
+  padding: 22px;
+  color: #4b5563;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+/* ── Back-to-home stripe (1:1 copy of .map-back from kiosk-map) ─ */
+
+.tour-back {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0 1.5rem;
+  height: 88px;
+  background: #ff5b13;
+  color: #0a0a0a;
+  text-decoration: none;
+  border-top: 4px solid #0a0a0a;
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+.tour-back:active { background: #d94900; }
+
+.tour-back::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  top: -10px;
+  height: 6px;
+  background-image: repeating-linear-gradient(
+    135deg,
+    #0a0a0a 0 6px,
+    transparent 6px 12px
+  );
+}
+
+.tour-back__arrow {
+  font-family: 'Archivo Black', 'Archivo', sans-serif;
+  font-size: 2.6rem;
+  line-height: 1;
+  color: #0a0a0a;
+}
+
+.tour-back__label {
+  font-family: 'Archivo Black', 'Archivo', sans-serif;
+  font-size: 1.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #0a0a0a;
+}
+
+/* ── On-screen keyboard ─────────────────────────────────────────
+   Same flex-basis trick the campus map uses: 0 → 280px. As it
+   expands, the search bar above it (and any visible suggestions)
+   slide up with it because the dock is column-flex.
+*/
+
+.tour-keyboard {
+  flex: 0 0 0;
+  overflow: hidden;
+  background: #0a0a0a;
+  transition: flex-basis 0.25s ease;
+}
+
+.tour-keyboard:not(.tour-keyboard--collapsed) {
+  flex: 0 0 280px;
+}
+
+.tour-keyboard__rows {
+  height: 280px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.tour-keyboard__row {
+  flex: 1;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.tour-keyboard__key {
+  flex: 1;
+  border: 2px solid rgba(255, 255, 255, 0.06);
+  background: #181818;
+  color: #fafafa;
+  font-family: 'Archivo Black', 'Archivo', sans-serif;
+  font-size: 1.25rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.05s ease, transform 0.05s ease, color 0.05s ease;
+}
+
+.tour-keyboard__key:active {
+  background: #ff5b13;
+  color: #0a0a0a;
+  transform: translateY(1px);
+}
+
+.tour-keyboard__key--wide  { flex: 2; }
+.tour-keyboard__key--space { flex: 6; }
+.tour-keyboard__key--done {
+  background: #ff5b13;
+  color: #0a0a0a;
+  border-color: #ff5b13;
+}
+
+.tour-keyboard__key--done:active {
+  background: #d94900;
+}
+
+/* ── Route overlay ──────────────────────────────────────────────── */
+
+.tour-route {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: end stretch;
+  background: rgba(8, 10, 14, 0.62);
+  backdrop-filter: blur(4px);
+  font-family: 'Archivo', sans-serif;
+}
+
+.tour-route--hidden {
+  display: none;
+}
+
+.tour-route__panel {
+  width: 100%;
+  max-height: 86vh;
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: tour-route-rise 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes tour-route-rise {
+  from { transform: translateY(40px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.tour-route__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 22px 24px 14px;
+  background: #0a0a0a;
+  color: #fafafa;
+}
+
+.tour-route__head-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tour-route__eyebrow {
+  color: #ff5b13;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.tour-route__name {
+  margin: 0;
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 1.5rem;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.tour-route__close {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 91, 19, 0.16);
+  color: #ff5b13;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tour-route__map {
+  flex: 1 1 auto;
+  min-height: 360px;
+  background: #0a0a0a;
+}
+
+.tour-route__hint {
+  margin: 0;
+  padding: 10px 24px;
+  background: rgba(255, 91, 19, 0.08);
+  color: #92340a;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.tour-route__actions {
+  display: flex;
+  gap: 10px;
+  padding: 16px 22px 20px;
+  background: #fafafa;
+}
+
+.tour-route__action {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 60px;
+  border: 0;
+  border-radius: 14px;
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 1rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tour-route__action--primary {
+  background: #ff5b13;
+  color: #fafafa;
+  box-shadow: 0 12px 26px rgba(255, 91, 19, 0.3);
+}
+
+.tour-route__action--ghost {
+  background: rgba(10, 10, 10, 0.06);
+  color: #0a0a0a;
+}
+
+.tour-route__action-arrow {
+  font-size: 1.2rem;
+}
+
+/* Polyline + marker styling for the overlay's Leaflet instance. */
+.tour-here {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: #ff5b13;
+  box-shadow: 0 0 0 6px rgba(255, 91, 19, 0.18), 0 0 0 14px rgba(255, 91, 19, 0.08);
+}
+
+.tour-pin {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: #0a0a0a;
+  box-shadow: 0 0 0 4px rgba(10, 10, 10, 0.18);
 }

@@ -132,6 +132,10 @@ function initTour() {
   var viewer = new Marzipano.Viewer(panoElement, viewerOpts);
 
   // Create scenes.
+  // Track everything needed by the search/route module appended below.
+  // We populate `window.__tourBridge` once scenes + switchScene exist so
+  // the bridge can wire up the search overlay without reaching into the
+  // initTour closure.
   var scenes = data.scenes.map(function(data) {
     var urlPrefix = "/pano/tiles";
     var source = Marzipano.ImageUrlSource.fromString(
@@ -496,6 +500,16 @@ function initTour() {
     if (scenes.length) {
       switchScene(scenes[0]);
     }
+    publishTourBridge();
+  }
+
+  function publishTourBridge() {
+    window.__tourBridge = {
+      scenes: scenes,
+      findSceneById: findSceneById,
+      switchScene: switchScene,
+    };
+    document.dispatchEvent(new CustomEvent('tour:ready'));
   }
 
   if (startButton) {
@@ -520,3 +534,404 @@ ensureTourDependencies()
   .catch(function() {
     setTourMessage('Virtual tour assets failed to load. Please reload or check the pano vendor files.');
   });
+
+/* ──────────────────────────────────────────────────────────────────
+ * Find-a-building search + route overlay (Phase 3).
+ *
+ * Lifecycle:
+ *   1. Fetch /api/locations and /api/tour-scenes in parallel.
+ *   2. Build a search index — routable locations + their tour scene_id
+ *      if one exists. Unmapped buildings stay searchable but are flagged
+ *      so the result row marks them as "no panorama".
+ *   3. Search input → suggestions list (debounced).
+ *   4. Selecting a result:
+ *        - If the building has a panorama and the tour bridge is ready,
+ *          switchScene to it.
+ *        - Open the route overlay; init Leaflet (once) with the campus
+ *          map image overlay and draw a polyline from the kiosk start
+ *          to the destination. Same look as the campus map.
+ * ────────────────────────────────────────────────────────────────── */
+(function() {
+  var SEARCH_RESULT_LIMIT = 8;
+  var SEARCH_DEBOUNCE_MS = 90;
+
+  var dom = {
+    search:        document.getElementById('tour-search'),
+    input:         document.getElementById('tour-search-input'),
+    clear:         document.getElementById('tour-search-clear'),
+    suggestions:   document.getElementById('tour-suggestions'),
+    suggestionsList: document.getElementById('tour-suggestions-list'),
+    keyboard:      document.getElementById('tour-keyboard'),
+    keyboardRows:  document.querySelector('.tour-keyboard__rows'),
+    routeOverlay:  document.getElementById('tour-route'),
+    routeName:     document.getElementById('tour-route-name'),
+    routeType:     document.getElementById('tour-route-type'),
+    routeMap:      document.getElementById('tour-route-map'),
+    routeClose:    document.getElementById('tour-route-close'),
+    routeDismiss:  document.getElementById('tour-route-dismiss'),
+    routeVisit:    document.getElementById('tour-route-visit'),
+    routeHint:     document.getElementById('tour-route-hint'),
+  };
+
+  if (!dom.input || !dom.routeOverlay) {
+    return;
+  }
+
+  var state = {
+    locations: [],
+    sceneByLocation: {}, // { location_id: scene_id }
+    kioskStart: null,    // [lat, lng]
+    map: null,
+    mapBounds: null,
+    activeRoute: null,
+    startMarker: null,
+    destMarker: null,
+    pendingSceneId: null,
+  };
+
+  /* ── helpers ──────────────────────────────────────────────────── */
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>'"]/g, function(ch) {
+      return { '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[ch] || ch;
+    });
+  }
+
+  function csrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) return meta.getAttribute('content');
+    var input = document.querySelector('input[name="__token"]');
+    return input ? input.value : '';
+  }
+
+  function debounce(fn, wait) {
+    var timer = null;
+    return function() {
+      var args = arguments;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(function() { fn.apply(null, args); }, wait);
+    };
+  }
+
+  /* ── data load ────────────────────────────────────────────────── */
+
+  Promise.all([
+    fetch('/api/locations').then(function(r) { return r.json(); }).catch(function() { return []; }),
+    fetch('/api/tour-scenes').then(function(r) { return r.json(); }).catch(function() { return []; }),
+  ]).then(function(results) {
+    var locations = Array.isArray(results[0]) ? results[0] : [];
+    var tourScenes = Array.isArray(results[1]) ? results[1] : [];
+
+    state.locations = locations;
+    locations.forEach(function(loc) {
+      if (loc.is_start) {
+        state.kioskStart = [Number(loc.latitude), Number(loc.longitude)];
+      }
+    });
+
+    tourScenes.forEach(function(row) {
+      if (row.location_id && row.scene_id) {
+        state.sceneByLocation[row.location_id] = row.scene_id;
+      }
+    });
+  });
+
+  /* ── search ───────────────────────────────────────────────────── */
+
+  function filterLocations(query) {
+    var q = String(query || '').trim().toLowerCase();
+    if (!q) return [];
+
+    var matches = state.locations.filter(function(loc) {
+      if (!loc.is_routable) return false;
+      var name = String(loc.name || '').toLowerCase();
+      var type = String(loc.type || '').toLowerCase();
+      return name.indexOf(q) !== -1 || type.indexOf(q) !== -1;
+    });
+
+    return matches.slice(0, SEARCH_RESULT_LIMIT);
+  }
+
+  function renderSuggestions(matches, query) {
+    if (!query) {
+      hideSuggestions();
+      return;
+    }
+
+    if (!matches.length) {
+      dom.suggestionsList.innerHTML =
+        '<li class="tour-suggestions__empty">No buildings match &ldquo;' + escapeHtml(query) + '&rdquo;</li>';
+      showSuggestions();
+      return;
+    }
+
+    var html = matches.map(function(loc) {
+      var hasScene = !!state.sceneByLocation[loc.id];
+      var tagClass = hasScene ? 'tour-suggestions__item-tag' : 'tour-suggestions__item-tag tour-suggestions__item-tag--unavailable';
+      var tagLabel = hasScene ? 'PANORAMA' : 'MAP ONLY';
+      return ''
+        + '<li class="tour-suggestions__item" data-location-id="' + loc.id + '">'
+        +   '<span class="tour-suggestions__item-name">' + escapeHtml(loc.name) + '</span>'
+        +   '<span class="' + tagClass + '">' + tagLabel + '</span>'
+        + '</li>';
+    }).join('');
+
+    dom.suggestionsList.innerHTML = html;
+    showSuggestions();
+  }
+
+  function showSuggestions() {
+    dom.suggestions.classList.remove('tour-suggestions--hidden');
+  }
+
+  function hideSuggestions() {
+    dom.suggestions.classList.add('tour-suggestions--hidden');
+  }
+
+  function setSearchValue(value) {
+    dom.input.value = value;
+    if (value) {
+      dom.clear.classList.remove('tour-search-bar__clear--hidden');
+    } else {
+      dom.clear.classList.add('tour-search-bar__clear--hidden');
+    }
+    renderSuggestions(filterLocations(value), value);
+  }
+
+  /* ── on-screen keyboard (drops up from the bottom) ────────────── */
+
+  var KEYBOARD_LAYOUT = [
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['z','x','c','v','b','n','m'],
+  ];
+
+  function buildKeyboard() {
+    if (!dom.keyboardRows) return;
+    var rows = KEYBOARD_LAYOUT.map(function(keys) {
+      var keyButtons = keys.map(function(key) {
+        return '<button class="tour-keyboard__key" data-key="' + key + '">' + key + '</button>';
+      }).join('');
+      return '<div class="tour-keyboard__row">' + keyButtons + '</div>';
+    }).join('');
+
+    var actionRow =
+      '<div class="tour-keyboard__row">' +
+        '<button class="tour-keyboard__key tour-keyboard__key--wide" data-key="backspace">⌫</button>' +
+        '<button class="tour-keyboard__key tour-keyboard__key--space" data-key="space">space</button>' +
+        '<button class="tour-keyboard__key tour-keyboard__key--wide" data-key="clear">clear</button>' +
+        '<button class="tour-keyboard__key tour-keyboard__key--wide tour-keyboard__key--done" data-key="done">done</button>' +
+      '</div>';
+
+    dom.keyboardRows.innerHTML = rows + actionRow;
+  }
+
+  function showKeyboard() {
+    if (!dom.keyboard) return;
+    if (!document.body.classList.contains('tour-ready')) return;
+    dom.keyboard.classList.remove('tour-keyboard--collapsed');
+    dom.keyboard.setAttribute('aria-hidden', 'false');
+  }
+
+  function hideKeyboard() {
+    if (!dom.keyboard) return;
+    dom.keyboard.classList.add('tour-keyboard--collapsed');
+    dom.keyboard.setAttribute('aria-hidden', 'true');
+  }
+
+  buildKeyboard();
+
+  if (dom.keyboard) {
+    dom.keyboard.addEventListener('click', function(event) {
+      var button = event.target.closest('.tour-keyboard__key');
+      if (!button) return;
+      var key = button.dataset.key;
+      var current = dom.input.value;
+
+      if (key === 'backspace') {
+        setSearchValue(current.slice(0, -1));
+      } else if (key === 'space') {
+        setSearchValue(current + ' ');
+      } else if (key === 'clear') {
+        setSearchValue('');
+      } else if (key === 'done') {
+        hideKeyboard();
+      } else {
+        setSearchValue(current + key);
+      }
+    });
+  }
+
+  // Tap the (readonly) input to bring up the on-screen keyboard. The
+  // OS keyboard never appears because the input has `readonly`.
+  dom.input.addEventListener('click', showKeyboard);
+  dom.input.addEventListener('focus', showKeyboard);
+
+  dom.clear.addEventListener('click', function() {
+    setSearchValue('');
+    showKeyboard();
+  });
+
+  dom.suggestionsList.addEventListener('click', function(event) {
+    var item = event.target.closest('.tour-suggestions__item');
+    if (!item) return;
+    var id = parseInt(item.dataset.locationId || '', 10);
+    if (!id) return;
+
+    var location = state.locations.find(function(loc) { return loc.id === id; });
+    if (!location) return;
+
+    selectLocation(location);
+  });
+
+  /* ── selection → route overlay ────────────────────────────────── */
+
+  function selectLocation(location) {
+    hideSuggestions();
+    hideKeyboard();
+    dom.input.blur();
+
+    var sceneId = state.sceneByLocation[location.id];
+    if (sceneId && window.__tourBridge) {
+      var scene = window.__tourBridge.findSceneById(sceneId);
+      if (scene) {
+        window.__tourBridge.switchScene(scene);
+      }
+    } else if (sceneId) {
+      // Tour not booted yet — remember and switch when it is.
+      state.pendingSceneId = sceneId;
+    }
+
+    openRouteOverlay(location);
+  }
+
+  document.addEventListener('tour:ready', function() {
+    if (!state.pendingSceneId || !window.__tourBridge) return;
+    var scene = window.__tourBridge.findSceneById(state.pendingSceneId);
+    if (scene) {
+      window.__tourBridge.switchScene(scene);
+    }
+    state.pendingSceneId = null;
+  });
+
+  /* ── Leaflet map (lazy init, one instance for the whole tour) ── */
+
+  function ensureMap() {
+    if (state.map) return Promise.resolve(state.map);
+    if (typeof L === 'undefined') {
+      // Leaflet is loaded in the template; if it's missing the route
+      // overlay will still appear but the polyline won't render.
+      return Promise.reject(new Error('Leaflet not available'));
+    }
+
+    var map = L.map(dom.routeMap, {
+      attributionControl: false,
+      zoomControl: true,
+      crs: L.CRS.Simple,
+      minZoom: -2,
+    });
+    state.map = map;
+
+    return new Promise(function(resolve, reject) {
+      var img = new Image();
+      img.onload = function() {
+        var bounds = [[0, 0], [img.height, img.width]];
+        state.mapBounds = bounds;
+        L.imageOverlay('/campus-map.png', bounds).addTo(map);
+        map.fitBounds(bounds);
+        map.setMaxBounds(bounds);
+        resolve(map);
+      };
+      img.onerror = function() { reject(new Error('campus-map.png failed to load')); };
+      img.src = '/campus-map.png';
+    });
+  }
+
+  function buildMarker(latlng, className) {
+    return L.marker(latlng, {
+      icon: L.divIcon({
+        className: 'tour-marker-' + className,
+        html: '<div class="' + className + '"></div>',
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      }),
+    });
+  }
+
+  function drawRouteOnMap(map, destinationLatLng) {
+    if (state.activeRoute) {
+      map.removeLayer(state.activeRoute);
+    }
+    if (state.destMarker) {
+      map.removeLayer(state.destMarker);
+    }
+    if (!state.startMarker && state.kioskStart) {
+      state.startMarker = buildMarker(state.kioskStart, 'tour-here').addTo(map);
+    }
+
+    if (!state.kioskStart) return;
+
+    state.activeRoute = L.polyline([state.kioskStart, destinationLatLng], {
+      color: '#ff5b13',
+      weight: 6,
+      opacity: 0.95,
+      dashArray: '12, 8',
+      lineCap: 'square',
+      lineJoin: 'miter',
+    }).addTo(map);
+
+    state.destMarker = buildMarker(destinationLatLng, 'tour-pin').addTo(map);
+
+    map.fitBounds([state.kioskStart, destinationLatLng], { padding: [60, 60] });
+  }
+
+  /* ── overlay open/close ───────────────────────────────────────── */
+
+  function openRouteOverlay(location) {
+    dom.routeName.textContent = location.name || 'Building';
+    dom.routeType.textContent = (location.type || 'Building').toUpperCase();
+
+    var hasScene = !!state.sceneByLocation[location.id];
+    dom.routeVisit.hidden = !hasScene;
+    dom.routeHint.hidden = hasScene;
+    dom.routeVisit.onclick = function() {
+      if (!hasScene || !window.__tourBridge) return;
+      var scene = window.__tourBridge.findSceneById(state.sceneByLocation[location.id]);
+      if (scene) {
+        window.__tourBridge.switchScene(scene);
+      }
+      closeRouteOverlay();
+    };
+
+    dom.routeOverlay.classList.remove('tour-route--hidden');
+    dom.routeOverlay.setAttribute('aria-hidden', 'false');
+
+    ensureMap().then(function(map) {
+      // Leaflet needs a redraw after its container becomes visible.
+      setTimeout(function() { map.invalidateSize(); }, 60);
+      var dest = [Number(location.latitude), Number(location.longitude)];
+      drawRouteOnMap(map, dest);
+
+      // Tell the server to mint a route session — same backend the
+      // campus map uses. We don't surface the QR here (the user is
+      // standing at the kiosk looking at the panorama), but creating
+      // the session keeps analytics consistent and lets us add a QR
+      // affordance later without backend changes.
+      fetch('/api/route-sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+        body: JSON.stringify({ destination_id: location.id }),
+      }).catch(function() { /* analytics-only, swallow errors */ });
+    }).catch(function(err) {
+      console.warn('[tour] route map init failed:', err);
+    });
+  }
+
+  function closeRouteOverlay() {
+    dom.routeOverlay.classList.add('tour-route--hidden');
+    dom.routeOverlay.setAttribute('aria-hidden', 'true');
+  }
+
+  dom.routeClose.addEventListener('click', closeRouteOverlay);
+  dom.routeDismiss.addEventListener('click', closeRouteOverlay);
+})();

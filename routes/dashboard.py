@@ -12,4 +12,5 @@ ROUTES = [
     Route.post("/events/dashboard", "EventController@store").name("events.store").middleware("auth"),
     Route.post("/events/dashboard/archive", "EventController@extract_from_pdf").name("events.archive").middleware("auth"),
     Route.post("/news/dashboard", "NewsController@store").name("news.store").middleware("auth"),
+    Route.post("/tour-scenes/dashboard", "TourController@store").name("tour-scenes.store").middleware("auth"),
 ]

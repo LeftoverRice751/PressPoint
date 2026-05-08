@@ -46,15 +46,19 @@
         <span class="dashboard-nav__icon" aria-hidden="true">⌖</span>
         <span>Locations</span>
       </button>
+      <button type="button" class="dashboard-nav__link" data-page-link="tour-mapping" id="nav-tour-mapping" role="tab" aria-controls="panel-tour-mapping" aria-selected="false" tabindex="-1">
+        <span class="dashboard-nav__icon" aria-hidden="true">◬</span>
+        <span>Tour Mapping</span>
+      </button>
 
       <div class="dashboard-nav__group-label dashboard-nav__group-label--tools">SYSTEM TOOLS</div>
       <button type="button" class="dashboard-nav__link" data-page-link="video-manager" id="nav-video-manager" role="tab" aria-controls="panel-video-manager" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">▣</span>
-        <span>Video Manager</span>
+        <span>Kiosk Videos</span>
       </button>
       <button type="button" class="dashboard-nav__link" data-page-link="kiosk-lock" id="nav-kiosk-lock" role="tab" aria-controls="panel-kiosk-lock" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">⟐</span>
-        <span>Kiosk Lock</span>
+        <span>Screen Control</span>
       </button>
     </nav>
 
@@ -74,12 +78,12 @@
       <div>
         <p class="gears-hero__eyebrow" data-hero-eyebrow>Dashboard</p>
         <h1 class="gears-hero__title" data-hero-title>Real-time overview of your kiosk content</h1>
-        <p class="gears-hero__subtitle" data-hero-subtitle>Manage events, news, campus locations, kiosk playback, and remote lockdown from one place.</p>
+        <p class="gears-hero__subtitle" data-hero-subtitle>Manage events, news, campus locations, kiosk videos, and screen control from one place.</p>
       </div>
       <div class="gears-hero__chip">GEARS CMS</div>
     </header>
 
-    <section class="gears-page is-visible" data-page-panel="dashboard" id="panel-dashboard" role="tabpanel" aria-labelledby="nav-dashboard" data-hero-eyebrow="Dashboard" data-hero-title="Real-time overview of your kiosk content" data-hero-subtitle="Manage events, news, campus locations, kiosk playback, and remote lockdown from one place.">
+    <section class="gears-page is-visible" data-page-panel="dashboard" id="panel-dashboard" role="tabpanel" aria-labelledby="nav-dashboard" data-hero-eyebrow="Dashboard" data-hero-title="Real-time overview of your kiosk content" data-hero-subtitle="Manage events, news, campus locations, kiosk videos, and screen control from one place.">
       <div class="stats-grid">
         <article class="stat-card stat-card--blue">
           <div class="stat-card__label">Total Articles</div>
@@ -230,13 +234,13 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="news" id="panel-news" role="tabpanel" aria-labelledby="nav-news" data-hero-eyebrow="Content" data-hero-title="News layout editor" data-hero-subtitle="Arrange the headline, secondary, and widget slots before publishing." hidden>
+    <section class="gears-page" data-page-panel="news" id="panel-news" role="tabpanel" aria-labelledby="nav-news" data-hero-eyebrow="Content" data-hero-title="Lay out the news page" data-hero-subtitle="Decide which story leads, which sit on the side, and which appear as sidebar facts on the kiosk." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
           <h2 class="section-head__title">News</h2>
         </div>
-        <p class="section-head__subtitle">Arrange kiosk stories into the main headline, secondary slot, and text widgets before publishing.</p>
+        <p class="section-head__subtitle">Pick a lead story, a few side stories, and the sidebar facts that the kiosk will show.</p>
       </div>
 
       {% if bag().any() %}
@@ -253,10 +257,10 @@
         <article class="news-preview-panel page-card">
           <div class="panel-header panel-header--compact">
             <div>
-              <p class="panel-header__eyebrow">Visual Layout Editor</p>
-              <h3 class="panel-header__title">Newspaper kiosk preview</h3>
+              <p class="panel-header__eyebrow">Kiosk preview</p>
+              <h3 class="panel-header__title">How the kiosk will look</h3>
             </div>
-            <p class="panel-header__subtitle">Empty areas map directly to kiosk slots.</p>
+            <p class="panel-header__subtitle">Empty boxes are spots the kiosk still needs you to fill.</p>
           </div>
 
           <div class="news-preview">
@@ -266,7 +270,7 @@
             </div>
 
             <div class="news-preview__slot news-preview__slot--main">
-              <span class="news-preview__slot-label">Main Headline Slot</span>
+              <span class="news-preview__slot-label">Lead story</span>
               {% set main_news = main_news if main_news else (news_items[0] if news_items else None) %}
               {% if main_news %}
               <div class="news-preview__article">
@@ -283,12 +287,12 @@
                 </div>
               </div>
               {% else %}
-              <div class="news-slot-empty">Main Headline Slot</div>
+              <div class="news-slot-empty">Pick the lead story</div>
               {% endif %}
             </div>
 
             <div class="news-preview__slot news-preview__slot--secondary">
-              <span class="news-preview__slot-label">Secondary Slot</span>
+              <span class="news-preview__slot-label">Side stories</span>
               <div class="news-preview__secondary-grid">
                 {% for news in (secondary_news if secondary_news else news_items[1:5]) %}
                 <article class="news-preview-card">
@@ -300,7 +304,7 @@
                   <div class="news-preview-card__title">{{ news.title }}</div>
                 </article>
                 {% else %}
-                <div class="news-slot-empty news-slot-empty--secondary">Secondary Slot</div>
+                <div class="news-slot-empty news-slot-empty--secondary">Add side stories</div>
                 {% endfor %}
               </div>
             </div>
@@ -335,10 +339,10 @@
         <aside class="news-editor-sidebar page-card">
           <div class="panel-header panel-header--compact">
             <div>
-              <p class="panel-header__eyebrow">Slot Editor</p>
-              <h3 class="panel-header__title">Manage story slots</h3>
+              <p class="panel-header__eyebrow">Add a story</p>
+              <h3 class="panel-header__title">New story for the kiosk</h3>
             </div>
-            <p class="panel-header__subtitle">Control the kiosk layout with title, image, slot, and priority.</p>
+            <p class="panel-header__subtitle">Fill in the story details and choose where it should appear.</p>
           </div>
 
           <form action="{{ route('news.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="slot-form">
@@ -350,30 +354,30 @@
             </label>
 
             <label class="field" for="news-description">
-              <span class="field__label">Rich Text Editor</span>
+              <span class="field__label">Story body</span>
               <textarea name="description" id="news-description" class="field__input field__textarea" placeholder="Story summary" required></textarea>
             </label>
 
             <div class="slot-upload">
-              <span class="field__label">Image Upload</span>
+              <span class="field__label">Cover image</span>
               <label class="slot-upload__dropzone" for="news-image">
-                <span class="slot-upload__title">Drag and drop image upload</span>
+                <span class="slot-upload__title">Drag an image here, or tap to choose</span>
                 <span class="slot-upload__copy">PNG, JPG, GIF, or WEBP</span>
                 <input type="file" name="image" id="news-image" class="slot-upload__input" accept="image/*">
               </label>
             </div>
 
             <label class="field" for="news-layout-type">
-              <span class="field__label">Slot Assignment</span>
+              <span class="field__label">Where it appears</span>
               <select name="layout_type" id="news-layout-type" class="field__input field__input--select">
-                <option value="main">Main Headline Slot</option>
-                <option value="secondary">Secondary Slot</option>
-                <option value="widget">Widget Slot</option>
+                <option value="main">Lead story</option>
+                <option value="secondary">Side story</option>
+                <option value="widget">Sidebar fact</option>
               </select>
             </label>
 
             <label class="field" for="news-priority">
-              <span class="field__label">Priority</span>
+              <span class="field__label">Order (lower shows first)</span>
               <input type="number" name="priority" id="news-priority" class="field__input" min="0" step="1" value="0">
             </label>
 
@@ -393,8 +397,8 @@
             </label>
 
             <div class="slot-form__actions">
-              <button type="button" class="ghost-button" data-news-modal-open>Open full editor</button>
-              <button type="submit" class="primary-button">Save & Publish</button>
+              <button type="button" class="ghost-button" data-news-modal-open>Open larger editor</button>
+              <button type="submit" class="primary-button">Save &amp; publish</button>
             </div>
           </form>
         </aside>
@@ -403,10 +407,10 @@
       <div class="news-table-wrap news-table-wrap--compact" data-section-count="{{ news_items|length }}">
         <div class="panel-header panel-header--compact news-table__header">
           <div>
-            <p class="panel-header__eyebrow">Slot Registry</p>
-            <h3 class="panel-header__title">Published stories</h3>
+            <p class="panel-header__eyebrow">All stories</p>
+            <h3 class="panel-header__title">Published on the kiosk</h3>
           </div>
-          <button type="button" class="primary-button" data-news-modal-open>Add News</button>
+          <button type="button" class="primary-button" data-news-modal-open>Add story</button>
         </div>
 
         <div class="empty-state" data-empty-state>
@@ -416,14 +420,15 @@
 
         <div class="news-table__slots" data-section-content>
           {% for news in news_items %}
+          {% set _slot_label = {'main': 'Lead', 'secondary': 'Side', 'widget': 'Sidebar fact'}.get(news.layout_type, 'Side') %}
           <article class="news-slot-row">
-            <div class="news-slot-row__slot">{{ news.layout_type if news.layout_type else 'secondary' }}</div>
+            <div class="news-slot-row__slot">{{ _slot_label }}</div>
             <div class="news-slot-row__body">
               <div class="news-slot-row__title">{{ news.title }}</div>
               <div class="news-slot-row__meta">
                 <span>{{ news.source if news.source else 'Unspecified' }}</span>
                 <span>{{ news.location if news.location else 'Unspecified' }}</span>
-                <span>Priority {{ news.priority if news.priority is not none else 0 }}</span>
+                <span>Order {{ news.priority if news.priority is not none else 0 }}</span>
               </div>
             </div>
             <div class="news-slot-row__media">
@@ -491,8 +496,8 @@
       <div class="article-modal__panel">
         <div class="article-modal__header">
           <div>
-            <h3 class="article-modal__title">Add News</h3>
-            <p class="article-modal__subtitle">Create a news article with a title, image, source, location, and published date.</p>
+            <h3 class="article-modal__title">Add a story</h3>
+            <p class="article-modal__subtitle">Fill in the title, summary, image, source, and date so the kiosk can show it.</p>
           </div>
           <button type="button" class="article-modal__close" data-news-modal-close>Close</button>
         </div>
@@ -501,17 +506,17 @@
           {{ csrf_field | safe }}
 
           <label class="field" for="news-title">
-            <span class="field__label">Title</span>
+            <span class="field__label">Headline</span>
             <input type="text" name="title" id="news-title" class="field__input" placeholder="News headline" required>
           </label>
 
           <label class="field" for="news-description">
-            <span class="field__label">Description</span>
+            <span class="field__label">Story body</span>
             <textarea name="description" id="news-description" class="field__input field__textarea" placeholder="News article summary" required></textarea>
           </label>
 
           <label class="field" for="news-image">
-            <span class="field__label">Image</span>
+            <span class="field__label">Cover image</span>
             <input type="file" name="image" id="news-image" class="field__input field__input--file" accept="image/*">
           </label>
 
@@ -532,7 +537,7 @@
 
           <div class="article-modal__footer">
             <button type="button" class="ghost-button" data-news-modal-close>Cancel</button>
-            <button type="submit" class="primary-button">Save News</button>
+            <button type="submit" class="primary-button">Save story</button>
           </div>
         </form>
       </div>
@@ -680,13 +685,78 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="video-manager" id="panel-video-manager" role="tabpanel" aria-labelledby="nav-video-manager" data-hero-eyebrow="System Tools" data-hero-title="Video manager" data-hero-subtitle="Upload, preview, and push videos to the kiosk screen." hidden>
+    <section class="gears-page" data-page-panel="tour-mapping" id="panel-tour-mapping" role="tabpanel" aria-labelledby="nav-tour-mapping" data-hero-eyebrow="Content" data-hero-title="Link panoramas to buildings" data-hero-subtitle="Tell the virtual tour which building each panorama represents so visitors can search and walk to it." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">Tour Mapping</h2>
+        </div>
+        <p class="section-head__subtitle">For every panorama in the virtual tour, choose the building it represents. Buildings without a panorama still appear in search but are marked as unavailable.</p>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="page-card tour-mapping-card" data-section-count="{{ tour_scene_rows|length }}">
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No tour scenes detected</div>
+          <p class="empty-state__text">The panorama catalog is generated from <code>resources/js/data.js</code>. Re-run the tour pipeline if this list looks wrong.</p>
+        </div>
+
+        <div class="tour-mapping-list" data-section-content>
+          {% for scene in tour_scene_rows %}
+          <form action="{{ route('tour-scenes.store', {}, False) }}" method="POST" class="tour-mapping-row">
+            {{ csrf_field | safe }}
+            <input type="hidden" name="scene_id" value="{{ scene.scene_id }}">
+
+            <div class="tour-mapping-row__id">
+              <span class="tour-mapping-row__scene-label">Scene</span>
+              <span class="tour-mapping-row__scene-id">{{ scene.scene_name or scene.scene_id }}</span>
+              <span class="tour-mapping-row__scene-raw">{{ scene.scene_id }}</span>
+            </div>
+
+            <label class="field tour-mapping-row__location">
+              <span class="field__label">Building</span>
+              <select name="location_id" class="field__input field__input--select">
+                <option value="">— Not mapped —</option>
+                {% for location in locations %}
+                <option value="{{ location.id }}" {% if scene.location_id == location.id %}selected{% endif %}>
+                  {{ location.name }}{% if location.type %} · {{ location.type }}{% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </label>
+
+            <label class="field tour-mapping-row__display">
+              <span class="field__label">Display name (optional)</span>
+              <input type="text" name="display_name" class="field__input" placeholder="Override the building name shown in tour" value="{{ scene.display_name }}">
+            </label>
+
+            <div class="tour-mapping-row__actions">
+              <button type="submit" class="primary-button">Save</button>
+            </div>
+          </form>
+          {% else %}
+          <div class="empty-state empty-state--embedded">No tour scenes detected.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="gears-page" data-page-panel="video-manager" id="panel-video-manager" role="tabpanel" aria-labelledby="nav-video-manager" data-hero-eyebrow="System Tools" data-hero-title="Videos for the kiosk" data-hero-subtitle="Upload a video, preview it, then show it on the kiosk screen." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">System Tools</p>
-          <h2 class="section-head__title">Video Manager</h2>
+          <h2 class="section-head__title">Kiosk Videos</h2>
         </div>
-        <p class="section-head__subtitle">Upload, preview, and push public service videos to the kiosk.</p>
+        <p class="section-head__subtitle">Upload a video, preview it, then show it on the kiosk.</p>
       </div>
 
       {% if bag().any() %}
@@ -703,15 +773,15 @@
         <article class="page-card video-upload-card">
           <div class="panel-header panel-header--compact">
             <div>
-              <p class="panel-header__eyebrow">Library</p>
-              <h3 class="panel-header__title">Upload Video</h3>
+              <p class="panel-header__eyebrow">Add a video</p>
+              <h3 class="panel-header__title">Upload a new video</h3>
             </div>
           </div>
 
           <form action="{{ route('video.upload', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack">
             {{ csrf_field | safe }}
             <label class="field">
-              <span class="field__label">Video title</span>
+              <span class="field__label">Video name</span>
               <input type="text" name="title" class="field__input" placeholder="e.g. Foundation Day" required>
             </label>
 
@@ -728,7 +798,7 @@
           <div class="panel-header panel-header--compact">
             <div>
               <p class="panel-header__eyebrow">Preview</p>
-              <h3 class="panel-header__title">Video Player Area</h3>
+              <h3 class="panel-header__title">Watch before sending</h3>
             </div>
           </div>
 
@@ -749,10 +819,10 @@
       <div class="page-card video-library-card" data-section-count="{{ videos|length }}">
         <div class="panel-header panel-header--compact">
           <div>
-            <p class="panel-header__eyebrow">Library</p>
-            <h3 class="panel-header__title">Video Library</h3>
+            <p class="panel-header__eyebrow">All videos</p>
+            <h3 class="panel-header__title">Saved videos</h3>
           </div>
-          <p class="panel-header__subtitle">Choose a video to preview or broadcast to the kiosk.</p>
+          <p class="panel-header__subtitle">Tap a video to preview, or send it straight to the kiosk.</p>
         </div>
 
         <div class="empty-state" data-empty-state>
@@ -773,7 +843,7 @@
 
             <div class="video-card__actions">
               <button type="button" class="secondary-button" data-video-push-trigger data-src="/storage/{{ video.file_path | replace('\\', '/') }}" data-title="{{ video.title | e }}">
-                Play on kiosk
+                Show on screen now
               </button>
               <button type="button" class="ghost-button" data-video-delete-trigger data-video-id="{{ video.id }}" data-video-title="{{ video.title | e }}">
                 Delete
@@ -787,31 +857,31 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="kiosk-lock" id="panel-kiosk-lock" role="tabpanel" aria-labelledby="nav-kiosk-lock" data-hero-eyebrow="System Tools" data-hero-title="Kiosk remote control" data-hero-subtitle="Lock or unlock the kiosk display instantly from the dashboard." hidden>
+    <section class="gears-page" data-page-panel="kiosk-lock" id="panel-kiosk-lock" role="tabpanel" aria-labelledby="nav-kiosk-lock" data-hero-eyebrow="System Tools" data-hero-title="Control the kiosk screen" data-hero-subtitle="Freeze the kiosk to pause it, or resume it to put it back in service." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">System Tools</p>
-          <h2 class="section-head__title">Kiosk Lock</h2>
+          <h2 class="section-head__title">Screen Control</h2>
         </div>
-        <p class="section-head__subtitle">Freeze or release the kiosk screen from this dashboard.</p>
+        <p class="section-head__subtitle">Freeze the kiosk screen, or resume it when you&rsquo;re ready.</p>
       </div>
 
       <div class="page-card kiosk-card">
         <div class="kiosk-card__status">
           <span class="live-status-card__dot live-status-card__dot--inline" aria-hidden="true"></span>
           <div>
-            <div class="kiosk-card__status-label">Remote Control Ready</div>
-            <div class="kiosk-card__status-text">Lock and unlock events are broadcast instantly to the kiosk overlay.</div>
+            <div class="kiosk-card__status-label">Connected to the kiosk</div>
+            <div class="kiosk-card__status-text">Freeze and resume happen instantly on the kiosk display.</div>
           </div>
         </div>
 
         <div class="kiosk-toggle-grid">
           <button type="button" class="toggle-button toggle-button--lock" data-kiosk-action="lock" data-kiosk-url="{{ route('kiosk.lock', {}, False) }}">
-            Lock Kiosk
+            Freeze screen
           </button>
 
           <button type="button" class="toggle-button toggle-button--unlock" data-kiosk-action="unlock" data-kiosk-url="{{ route('kiosk.unlock', {}, False) }}">
-            Unlock Kiosk
+            Resume screen
           </button>
         </div>
       </div>
