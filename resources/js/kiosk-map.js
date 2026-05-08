@@ -179,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasFilter = query || state.activeCategory !== 'all';
         if (!hasFilter) {
             dom.suggestions.classList.add('suggestions--hidden');
+            dom.page?.classList.remove('campus-map-page--suggestions-open');
             return;
         }
         if (results.length === 0) {
@@ -199,6 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `).join('');
         }
         dom.suggestions.classList.remove('suggestions--hidden');
+        dom.page?.classList.add('campus-map-page--suggestions-open');
     };
 
     const refreshSuggestions = () => {
@@ -414,6 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dom.pane.classList.remove('building-pane--hidden');
         dom.pane.setAttribute('aria-hidden', 'false');
+        dom.page.classList.remove('campus-map-page--suggestions-open');
 
         // Picking a building means search is done — clear the bottom dock
         // (chips + search bar) so the pane's action stack is reachable.

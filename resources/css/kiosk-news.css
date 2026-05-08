@@ -21,7 +21,7 @@ body.newspaper-bg {
     background:
         radial-gradient(circle at top, rgba(255, 255, 255, 0.88), rgba(230, 223, 211, 0.95)),
         linear-gradient(180deg, #ece6da 0%, #ddd3c6 100%);
-    padding: 24px 18px 32px;
+    padding: 24px 18px 124px;
     color: var(--paper-ink);
     font-family: "Georgia", "Times New Roman", serif;
 }
@@ -110,6 +110,33 @@ body.newspaper-bg {
     font-size: 0.92rem;
     font-weight: 800;
     box-shadow: 0 16px 28px rgba(255, 107, 53, 0.28);
+}
+
+.news-back {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.95rem 2rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--paper-orange), #e85d2d);
+    color: #fff;
+    text-decoration: none;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    box-shadow: 0 18px 32px rgba(255, 107, 53, 0.32);
+    z-index: 10;
+}
+
+.news-back__arrow {
+    font-size: 1.5rem;
+    line-height: 1;
 }
 
 .paper-grid {

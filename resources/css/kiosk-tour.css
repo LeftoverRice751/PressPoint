@@ -22,7 +22,7 @@ html, body {
   padding: 0;
   margin: 0;
   overflow: hidden;
-  font-family: "Trebuchet MS", "Gill Sans", "Avenir Next", sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 16px;
   background-color: #000;
   color: #fff;
@@ -35,7 +35,8 @@ a, a:hover, a:active, a:visited {
 
 #pano {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -305,25 +306,28 @@ body.fullscreen-enabled.mobile #autorotateToggle {
 #sceneList .scene {
   display: block;
   width: 100%;
-  height: 30px;
+  height: 48px;
 }
 
 .mobile #sceneList .scene {
-  height: 40px;
+  height: 56px;
 }
 
 #sceneList .scene .text {
   width: 100%;
   height: 100%;
-  padding: 0 15px;
-  line-height: 30px;
+  padding: 0 18px;
+  line-height: 48px;
+  font-size: 1.1rem;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .mobile #sceneList .scene .text {
-  line-height: 40px;
+  line-height: 56px;
+  font-size: 1.2rem;
 }
 
 .no-touch #sceneList .scene:hover {
@@ -849,26 +853,6 @@ body.view-control-buttons .viewControlButton {
   transition: opacity 0.3s ease;
 }
 
-.tour-viewport {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  background: #000;
-}
-
-.tour-frame {
-  position: relative;
-  width: min(100vw, calc(100vh * 3 / 4));
-  max-width: 768px;
-  aspect-ratio: 3 / 4;
-  height: auto;
-  max-height: 100vh;
-  background: #000;
-  overflow: hidden;
-}
-
 .tour-overlay.is-hidden {
   opacity: 0;
   pointer-events: none;
@@ -972,15 +956,6 @@ body.view-control-buttons .viewControlButton {
   background: linear-gradient(180deg, rgba(255, 251, 244, 0.98), rgba(251, 245, 234, 0.98));
 }
 
-#titleBar,
-#sceneList,
-#sceneListToggle,
-#autorotateToggle,
-#fullscreenToggle,
-.viewControlButton {
-  display: none !important;
-}
-
 .tour-helper {
   margin: 0;
   font-size: 0.95rem;
@@ -990,15 +965,30 @@ body.view-control-buttons .viewControlButton {
   color: #7a6a5a;
 }
 
+.tour-viewport {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  background: #000;
+}
+
+.tour-frame {
+  position: relative;
+  width: min(100vw, calc(100vh * 3 / 4));
+  max-width: 768px;
+  aspect-ratio: 3 / 4;
+  height: auto;
+  max-height: 100vh;
+  background: #000;
+  overflow: hidden;
+}
+
 @media (max-width: 768px) {
   .tour-shell {
     width: 100vw;
     height: 100vh;
-  }
-
-  .tour-frame {
-    width: min(100vw, calc(100vh * 3 / 4));
-    max-width: 100vw;
   }
 
   .tour-app {
@@ -1013,4 +1003,79 @@ body.view-control-buttons .viewControlButton {
   .tour-action {
     min-height: 140px;
   }
+
+  .tour-frame {
+    width: min(100vw, calc(100vh * 3 / 4));
+    max-width: 100vw;
+  }
+}
+
+#titleBar,
+#sceneList,
+#sceneListToggle,
+#autorotateToggle,
+#fullscreenToggle,
+.viewControlButton {
+  display: none !important;
+}
+
+/* ── Bottom exit stripe ─────────────────────────────────────────── */
+
+.map-back {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0 1.5rem;
+  height: 88px;
+  background: #ff5b13;
+  color: #0a0a0a;
+  text-decoration: none;
+  border-top: 4px solid #0a0a0a;
+  transition: background 0.15s ease;
+}
+
+.map-back:active {
+  background: #d63f00;
+}
+
+.map-back::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -10px;
+  height: 6px;
+  background-image: repeating-linear-gradient(
+    135deg,
+    #0a0a0a 0 6px,
+    transparent 6px 12px
+  );
+}
+
+.map-back__arrow {
+  font-size: 2.6rem;
+  line-height: 1;
+  color: #0a0a0a;
+}
+
+.map-back__label {
+  font-size: 1.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #0a0a0a;
+}
+
+.map-back__hint {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  color: #0a0a0a;
+  text-transform: uppercase;
+  text-align: right;
+  opacity: 0.78;
 }

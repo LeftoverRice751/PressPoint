@@ -132,7 +132,7 @@ body {
     display: grid;
     grid-template-columns: 170px 1fr;
     align-items: stretch;
-    border-radius: 22px;
+    border-radius: 0;
     overflow: hidden;
     background: rgba(255, 248, 236, 0.92);
     border: 1px solid rgba(92, 70, 51, 0.08);

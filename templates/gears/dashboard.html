@@ -24,35 +24,35 @@
       </div>
     </div>
 
-    <nav class="dashboard-nav" aria-label="Dashboard navigation">
+    <nav class="dashboard-nav" aria-label="Dashboard navigation" role="tablist">
       <div class="dashboard-nav__group-label">CONTENT</div>
-      <button type="button" class="dashboard-nav__link is-active" data-page-link="dashboard">
+      <button type="button" class="dashboard-nav__link is-active" data-page-link="dashboard" id="nav-dashboard" role="tab" aria-controls="panel-dashboard" aria-selected="true" tabindex="0">
         <span class="dashboard-nav__icon" aria-hidden="true">▣</span>
         <span>Dashboard</span>
       </button>
-      <button type="button" class="dashboard-nav__link" data-page-link="events">
+      <button type="button" class="dashboard-nav__link" data-page-link="events" id="nav-events" role="tab" aria-controls="panel-events" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">▤</span>
         <span>Events</span>
       </button>
-      <button type="button" class="dashboard-nav__link" data-page-link="news">
+      <button type="button" class="dashboard-nav__link" data-page-link="news" id="nav-news" role="tab" aria-controls="panel-news" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">◫</span>
         <span>News</span>
       </button>
-      <button type="button" class="dashboard-nav__link" data-page-link="archives">
+      <button type="button" class="dashboard-nav__link" data-page-link="archives" id="nav-archives" role="tab" aria-controls="panel-archives" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">◧</span>
         <span>Archives</span>
       </button>
-      <button type="button" class="dashboard-nav__link" data-page-link="locations">
+      <button type="button" class="dashboard-nav__link" data-page-link="locations" id="nav-locations" role="tab" aria-controls="panel-locations" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">⌖</span>
         <span>Locations</span>
       </button>
 
       <div class="dashboard-nav__group-label dashboard-nav__group-label--tools">SYSTEM TOOLS</div>
-      <button type="button" class="dashboard-nav__link" data-page-link="video-manager">
+      <button type="button" class="dashboard-nav__link" data-page-link="video-manager" id="nav-video-manager" role="tab" aria-controls="panel-video-manager" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">▣</span>
         <span>Video Manager</span>
       </button>
-      <button type="button" class="dashboard-nav__link" data-page-link="kiosk-lock">
+      <button type="button" class="dashboard-nav__link" data-page-link="kiosk-lock" id="nav-kiosk-lock" role="tab" aria-controls="panel-kiosk-lock" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">⟐</span>
         <span>Kiosk Lock</span>
       </button>
@@ -70,16 +70,16 @@
   </aside>
 
   <main class="gears-main">
-    <header class="gears-hero">
+    <header class="gears-hero" data-hero>
       <div>
-        <p class="gears-hero__eyebrow">Dashboard</p>
-        <h1 class="gears-hero__title">Real-time overview of your kiosk content</h1>
-        <p class="gears-hero__subtitle">Manage events, news, campus locations, kiosk playback, and remote lockdown from one place.</p>
+        <p class="gears-hero__eyebrow" data-hero-eyebrow>Dashboard</p>
+        <h1 class="gears-hero__title" data-hero-title>Real-time overview of your kiosk content</h1>
+        <p class="gears-hero__subtitle" data-hero-subtitle>Manage events, news, campus locations, kiosk playback, and remote lockdown from one place.</p>
       </div>
       <div class="gears-hero__chip">GEARS CMS</div>
     </header>
 
-    <section class="gears-page is-visible" data-page-panel="dashboard">
+    <section class="gears-page is-visible" data-page-panel="dashboard" id="panel-dashboard" role="tabpanel" aria-labelledby="nav-dashboard" data-hero-eyebrow="Dashboard" data-hero-title="Real-time overview of your kiosk content" data-hero-subtitle="Manage events, news, campus locations, kiosk playback, and remote lockdown from one place.">
       <div class="stats-grid">
         <article class="stat-card stat-card--blue">
           <div class="stat-card__label">Total Articles</div>
@@ -181,7 +181,7 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="events" hidden>
+    <section class="gears-page" data-page-panel="events" id="panel-events" role="tabpanel" aria-labelledby="nav-events" data-hero-eyebrow="Content" data-hero-title="Events and campus calendar" data-hero-subtitle="Publish event listings for the kiosk schedule and lobby screens." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
@@ -230,7 +230,7 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="news" hidden>
+    <section class="gears-page" data-page-panel="news" id="panel-news" role="tabpanel" aria-labelledby="nav-news" data-hero-eyebrow="Content" data-hero-title="News layout editor" data-hero-subtitle="Arrange the headline, secondary, and widget slots before publishing." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
@@ -539,7 +539,7 @@
     </dialog>
     </section>
 
-    <section class="gears-page" data-page-panel="archives" hidden>
+    <section class="gears-page" data-page-panel="archives" id="panel-archives" role="tabpanel" aria-labelledby="nav-archives" data-hero-eyebrow="Content" data-hero-title="Archive library" data-hero-subtitle="Upload PDF archives and publish them by year." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
@@ -646,7 +646,7 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="locations" hidden>
+    <section class="gears-page" data-page-panel="locations" id="panel-locations" role="tabpanel" aria-labelledby="nav-locations" data-hero-eyebrow="Content" data-hero-title="Locations and wayfinding" data-hero-subtitle="Maintain campus locations used by maps and routing." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
@@ -680,7 +680,7 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="video-manager" hidden>
+    <section class="gears-page" data-page-panel="video-manager" id="panel-video-manager" role="tabpanel" aria-labelledby="nav-video-manager" data-hero-eyebrow="System Tools" data-hero-title="Video manager" data-hero-subtitle="Upload, preview, and push videos to the kiosk screen." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">System Tools</p>
@@ -787,7 +787,7 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="kiosk-lock" hidden>
+    <section class="gears-page" data-page-panel="kiosk-lock" id="panel-kiosk-lock" role="tabpanel" aria-labelledby="nav-kiosk-lock" data-hero-eyebrow="System Tools" data-hero-title="Kiosk remote control" data-hero-subtitle="Lock or unlock the kiosk display instantly from the dashboard." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">System Tools</p>

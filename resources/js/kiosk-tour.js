@@ -68,7 +68,7 @@ function ensureTourDependencies() {
 
 function initTour() {
   var Marzipano = window.Marzipano;
-  var bowser = window.bowser;
+  var bowser = window.bowser || {};
   var screenfull = window.screenfull;
   var data = window.APP_DATA || { scenes: [], settings: {} };
 
@@ -506,11 +506,6 @@ function initTour() {
     exitButton.addEventListener('click', function() {
       window.location.href = '/kiosk';
     });
-  }
-
-  if (!scenes.length) {
-    setTourMessage('No tour scenes are configured yet.');
-    return;
   }
 
   if (!overlayElement) {
