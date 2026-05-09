@@ -1,117 +1,179 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<title>About LSPU — PressPoint</title>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
-<link rel="stylesheet" href="/assets/css/about-lspu-kiosk.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>About LSPU</title>
+  <link rel="stylesheet" href="/assets/css/welcome-screen.css" />
+  <link rel="stylesheet" href="/assets/css/about-lspu-kiosk.css" />
 </head>
-<body class="about-page">
+<body>
+  <div class="kiosk-shell">
+    <main class="kiosk-app about-app" data-view="hub" aria-label="About LSPU">
 
-  <header class="about-hero">
-    <img class="about-hero__logo" src="/gears.png?v=20260411" alt="Gears logo">
-    <div class="about-hero__text">
-      <h1 class="about-hero__title">PRESSPOINT</h1>
-      <p class="about-hero__subtitle">About LSPU</p>
-    </div>
-  </header>
-
-  <main id="about-stage" class="about-stage" data-view="hub">
-
-    {# ===== HUB ===== #}
-    <section class="about-hub" data-pane="hub" aria-hidden="false">
-      <ul class="about-tiles">
-        {% set tiles = [
-          {'slug': 'mission', 'icon': '🎯', 'color': 'tile--blue',   'teaser': 'What we stand for'},
-          {'slug': 'values',  'icon': '🤝', 'color': 'tile--amber',  'teaser': 'How we work together'},
-          {'slug': 'history', 'icon': '📜', 'color': 'tile--green',  'teaser': 'Milestones over the years'},
-          {'slug': 'quality', 'icon': '⭐', 'color': 'tile--purple', 'teaser': 'Our commitment to quality'},
-          {'slug': 'hymn',    'icon': '🎵', 'color': 'tile--pink',   'teaser': 'Sing with the campus'},
-          {'slug': 'seal',    'icon': '🛡️', 'color': 'tile--cyan',   'teaser': 'Symbols and meaning'}
-        ] %}
-        {% for tile in tiles %}
-          {% set section = sections.get(tile.slug) %}
-          <li>
-            <button type="button"
-                    class="about-tile {{ tile.color }}"
-                    data-target="{{ tile.slug }}">
-              <span class="about-tile__icon" aria-hidden="true">{{ tile.icon }}</span>
-              <span class="about-tile__title">{{ section.title if section else tile.slug|capitalize }}</span>
-              <span class="about-tile__teaser">{{ tile.teaser }}</span>
-            </button>
-          </li>
-        {% endfor %}
-      </ul>
-      <a class="about-back-kiosk" href="/kiosk">◀ Back to Kiosk</a>
-    </section>
-
-    {# ===== DETAIL PANES ===== #}
-    {% for slug in ordered_slugs %}
-      {% set section = sections.get(slug) %}
-      <section class="about-detail" data-pane="{{ slug }}" aria-hidden="true">
-        <header class="about-detail__bar">
-          <button type="button" class="about-detail__back" data-back>◀ Back to Hub</button>
-          <h2 class="about-detail__title">{{ section.title if section else slug|capitalize }}</h2>
-          <span class="about-detail__idle" aria-hidden="true" title="Auto-returns to hub after 60s of inactivity"></span>
-        </header>
-
-        <div class="about-detail__body">
-          {% if not section %}
-            <p class="about-empty">Coming soon.</p>
-
-          {% elif slug == 'mission' or slug == 'values' %}
-            <div class="about-subcards">
-              {% for sub in (section.subsections or []) %}
-                <article class="about-subcard">
-                  <h3 class="about-subcard__heading">{{ sub.heading }}</h3>
-                  <div class="about-subcard__body">{{ sub.body_html|safe }}</div>
-                </article>
-              {% endfor %}
-            </div>
-
-          {% elif slug == 'history' %}
-            {% if section.body_html %}
-              <div class="about-history__intro">{{ section.body_html|safe }}</div>
-            {% endif %}
-            <ol class="about-timeline">
-              {% for m in milestones %}
-                <li class="about-timeline__item {% if loop.index is even %}is-right{% else %}is-left{% endif %}">
-                  <span class="about-timeline__year">{{ m.year }}</span>
-                  <article class="about-timeline__card">
-                    <h3 class="about-timeline__heading">{{ m.heading }}</h3>
-                    {% if m.image_path %}
-                      <img class="about-timeline__image" src="/storage/{{ m.image_path }}" alt="">
-                    {% endif %}
-                    <div class="about-timeline__body">{{ m.body_html|safe }}</div>
-                  </article>
-                </li>
-              {% endfor %}
-              {% if not milestones %}
-                <li class="about-empty">No milestones yet.</li>
-              {% endif %}
-            </ol>
-
-          {% elif slug == 'quality' %}
-            <article class="about-statement">{{ section.body_html|safe }}</article>
-
-          {% elif slug == 'hymn' %}
-            <article class="about-hymn">{{ section.body_html|safe }}</article>
-
-          {% elif slug == 'seal' %}
-            <div class="about-seal">
-              {% if section.image_path %}
-                <img class="about-seal__image" src="/storage/{{ section.image_path }}" alt="University Seal">
-              {% else %}
-                <div class="about-seal__placeholder" aria-hidden="true">🛡️</div>
-              {% endif %}
-              <div class="about-seal__description">{{ section.body_html|safe }}</div>
-            </div>
-          {% endif %}
-        </div>
+      <section class="hero" aria-label="Brand mark">
+        <img class="hero__logo" src="/gears.png?v=20260411" alt="Gears logo" />
       </section>
-    {% endfor %}
 
-  </main>
+      {# ===== HUB ===== #}
+      <section class="feature-grid about-hub" data-pane="hub" aria-label="About LSPU sections">
+
+        {% set tile_meta = {
+          'mission': {'label': 'Mission, Vision & Mandate', 'hint': 'What we stand for'},
+          'values':  {'label': 'Group Values & Pledge',     'hint': 'How we work together'},
+          'history': {'label': 'Historical Development',    'hint': 'Milestones over the years'},
+          'quality': {'label': 'Quality Policy',            'hint': 'Our commitment to quality'},
+          'hymn':    {'label': 'University Hymn',           'hint': 'Sing with the campus'},
+          'seal':    {'label': 'University Seal',           'hint': 'Symbols and meaning'}
+        } %}
+
+        <button class="feature-card" type="button" data-target="mission">
+          <span class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9"></circle>
+              <circle cx="12" cy="12" r="5"></circle>
+              <circle cx="12" cy="12" r="1.6"></circle>
+            </svg>
+          </span>
+          <span class="feature-card__label">{{ tile_meta.mission.label }}</span>
+          <span class="feature-card__hint">{{ tile_meta.mission.hint }}</span>
+        </button>
+
+        <button class="feature-card" type="button" data-target="values">
+          <span class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 19.5s-7-4.3-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 9.5c0 5.7-7 10-7 10Z"></path>
+              <path d="M9.5 11.5 11 13l3.5-3.5"></path>
+            </svg>
+          </span>
+          <span class="feature-card__label">{{ tile_meta.values.label }}</span>
+          <span class="feature-card__hint">{{ tile_meta.values.hint }}</span>
+        </button>
+
+        <button class="feature-card" type="button" data-target="history">
+          <span class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M12 7v5l3.5 2"></path>
+            </svg>
+          </span>
+          <span class="feature-card__label">{{ tile_meta.history.label }}</span>
+          <span class="feature-card__hint">{{ tile_meta.history.hint }}</span>
+        </button>
+
+        <button class="feature-card" type="button" data-target="quality">
+          <span class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 3l2.6 5.5 6 .9-4.4 4.2 1.1 6L12 17l-5.3 2.6 1.1-6L3.4 9.4l6-.9L12 3Z"></path>
+            </svg>
+          </span>
+          <span class="feature-card__label">{{ tile_meta.quality.label }}</span>
+          <span class="feature-card__hint">{{ tile_meta.quality.hint }}</span>
+        </button>
+
+        <button class="feature-card" type="button" data-target="hymn">
+          <span class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3Z"></path>
+              <path d="M20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3Z"></path>
+              <path d="M9 18V5l11-2v13"></path>
+            </svg>
+          </span>
+          <span class="feature-card__label">{{ tile_meta.hymn.label }}</span>
+          <span class="feature-card__hint">{{ tile_meta.hymn.hint }}</span>
+        </button>
+
+        <button class="feature-card" type="button" data-target="seal">
+          <span class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 3l8 3v5c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-3Z"></path>
+              <path d="M9 12l2 2 4-4"></path>
+            </svg>
+          </span>
+          <span class="feature-card__label">{{ tile_meta.seal.label }}</span>
+          <span class="feature-card__hint">{{ tile_meta.seal.hint }}</span>
+        </button>
+      </section>
+
+      {# ===== DETAIL PANES ===== #}
+      {% for slug in ordered_slugs %}
+        {% set section = sections.get(slug) %}
+        <section class="about-detail" data-pane="{{ slug }}" aria-hidden="true">
+          <header class="about-detail__head">
+            <h2 class="about-detail__title">{{ section.title if section else tile_meta[slug].label }}</h2>
+          </header>
+          <div class="about-detail__scroll">
+            {% if not section %}
+              <p class="about-detail__empty">Coming soon.</p>
+
+            {% elif slug == 'mission' or slug == 'values' %}
+              <div class="about-subcards">
+                {% for sub in (section.subsections or []) %}
+                  <article class="about-subcard">
+                    <h3 class="about-subcard__heading">{{ sub.heading }}</h3>
+                    <div class="about-subcard__body">{{ sub.body_html|safe }}</div>
+                  </article>
+                {% endfor %}
+              </div>
+
+            {% elif slug == 'history' %}
+              {% if section.body_html %}
+                <div class="about-history__intro">{{ section.body_html|safe }}</div>
+              {% endif %}
+              <ol class="about-timeline">
+                {% for m in milestones %}
+                  <li class="about-timeline__item">
+                    <span class="about-timeline__year">{{ m.year }}</span>
+                    <article class="about-timeline__card">
+                      <h3 class="about-timeline__heading">{{ m.heading }}</h3>
+                      {% if m.image_path %}
+                        <img class="about-timeline__image" src="/storage/{{ m.image_path }}" alt="">
+                      {% endif %}
+                      <div class="about-timeline__body">{{ m.body_html|safe }}</div>
+                    </article>
+                  </li>
+                {% endfor %}
+                {% if not milestones %}
+                  <li class="about-detail__empty">No milestones yet.</li>
+                {% endif %}
+              </ol>
+
+            {% elif slug == 'quality' %}
+              <article class="about-statement">{{ section.body_html|safe }}</article>
+
+            {% elif slug == 'hymn' %}
+              <article class="about-hymn">{{ section.body_html|safe }}</article>
+
+            {% elif slug == 'seal' %}
+              <div class="about-seal">
+                {% if section.image_path %}
+                  <img class="about-seal__image" src="/storage/{{ section.image_path }}" alt="University Seal">
+                {% else %}
+                  <div class="about-seal__placeholder" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M12 3l8 3v5c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-3Z"></path><path d="M9 12l2 2 4-4"></path></svg>
+                  </div>
+                {% endif %}
+                <div class="about-seal__description">{{ section.body_html|safe }}</div>
+              </div>
+            {% endif %}
+          </div>
+        </section>
+      {% endfor %}
+
+      {# ===== Footer (back buttons mirror welcome.html news-ticker placement) ===== #}
+      <section class="about-foot" aria-label="Navigation">
+        <a class="about-back about-back--kiosk" href="/kiosk">
+          <span class="about-back__icon" aria-hidden="true">◀</span>
+          <span class="about-back__label">Back to Kiosk</span>
+        </a>
+        <button type="button" class="about-back about-back--hub" data-back>
+          <span class="about-back__icon" aria-hidden="true">◀</span>
+          <span class="about-back__label">Back to About LSPU</span>
+        </button>
+      </section>
+
+    </main>
+  </div>
 
   <script src="/assets/js/about-lspu-kiosk.js"></script>
 </body>

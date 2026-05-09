@@ -1,218 +1,280 @@
-/* About LSPU kiosk — solid colors only, no gradients. */
+/* About LSPU kiosk additions.
+   Reuses welcome-screen.css for the shell, hero, and feature-card grid
+   so the hub looks identical to welcome.html. The styles below cover
+   only the detail panes, view switching, and the footer back-buttons
+   (which sit in the same row welcome.html uses for the news ticker). */
 
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; min-height: 100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-
-.about-page {
-  background: #0f1428;
-  color: #e5e7eb;
-  min-height: 100vh;
+.about-app {
+  /* Match welcome.html's three-row layout: header / content / footer. */
+  grid-template-rows: auto 1fr auto;
 }
 
-/* ===== Hero ===== */
-.about-hero {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 24px 28px 12px;
-  border-bottom: 1px solid #1a2240;
-}
-.about-hero__logo { width: 72px; height: auto; flex-shrink: 0; }
-.about-hero__text { display: flex; flex-direction: column; }
-.about-hero__title { margin: 0; font-size: 28px; letter-spacing: 4px; color: #fff; font-weight: 800; }
-.about-hero__subtitle { margin: 4px 0 0; font-size: 16px; color: #9ca3af; letter-spacing: 2px; text-transform: uppercase; }
+/* ===== View switching =====
+   The hub is the feature grid. The 6 detail panes share the same
+   middle row. The active pane is selected via the data-view attribute
+   on .about-app, set by the kiosk JS. */
 
-/* ===== Stage / view switching ===== */
-.about-stage { padding: 28px; max-width: 1280px; margin: 0 auto; }
-
-.about-hub,
 .about-detail { display: none; }
 
-.about-stage[data-view="hub"]                 .about-hub                                 { display: block; }
-.about-stage[data-view="mission"]  .about-detail[data-pane="mission"],
-.about-stage[data-view="values"]   .about-detail[data-pane="values"],
-.about-stage[data-view="history"]  .about-detail[data-pane="history"],
-.about-stage[data-view="quality"]  .about-detail[data-pane="quality"],
-.about-stage[data-view="hymn"]     .about-detail[data-pane="hymn"],
-.about-stage[data-view="seal"]     .about-detail[data-pane="seal"]                       { display: block; }
+.about-app[data-view="hub"]      .about-hub                                 { display: grid; }
+.about-app[data-view="mission"]  .about-detail[data-pane="mission"],
+.about-app[data-view="values"]   .about-detail[data-pane="values"],
+.about-app[data-view="history"]  .about-detail[data-pane="history"],
+.about-app[data-view="quality"]  .about-detail[data-pane="quality"],
+.about-app[data-view="hymn"]     .about-detail[data-pane="hymn"],
+.about-app[data-view="seal"]     .about-detail[data-pane="seal"]            { display: grid; }
 
-/* ===== Hub: tile grid ===== */
-.about-tiles {
-  list-style: none; margin: 0; padding: 0;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 22px;
+.about-app:not([data-view="hub"]) .about-hub { display: none; }
+
+/* Footer back-buttons: only one shows depending on view. */
+.about-back--hub { display: none; }
+.about-app:not([data-view="hub"]) .about-back--kiosk { display: none; }
+.about-app:not([data-view="hub"]) .about-back--hub { display: inline-flex; }
+
+/* ===== Detail pane =====
+   Sits in the middle row of the kiosk-app grid (where feature-grid
+   is). Cream surface, brown text, maroon and orange accents — matches
+   the welcome-screen palette. */
+
+.about-detail {
+  align-self: stretch;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+  background: #fffdf8;
+  border: 1px solid rgba(92, 70, 51, 0.12);
+  border-radius: 25px;
+  box-shadow: 0 18px 40px rgba(78, 56, 38, 0.12);
+  padding: 22px 22px 18px;
+  overflow: hidden;
+  min-height: 0;
 }
-@media (max-width: 900px) { .about-tiles { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 540px) { .about-tiles { grid-template-columns: 1fr; } }
 
-.about-tile {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  border: none;
-  border-radius: 24px;
-  padding: 22px;
-  cursor: pointer;
-  color: #fff;
-  text-align: left;
+.about-detail__head {
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  font-family: inherit;
-  transition: transform 120ms ease, box-shadow 120ms ease;
-  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.30);
-}
-.about-tile:hover { transform: translateY(-2px); }
-.about-tile:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.30); }
-
-.about-tile__icon { font-size: 52px; line-height: 1; margin-bottom: 10px; }
-.about-tile__title { display: block; font-size: 22px; font-weight: 800; letter-spacing: 0.5px; }
-.about-tile__teaser { display: block; font-size: 14px; opacity: 0.88; margin-top: 6px; }
-
-/* Solid tile colors — no gradients. */
-.tile--blue   { background: #2563eb; }
-.tile--amber  { background: #d97706; }
-.tile--green  { background: #059669; }
-.tile--purple { background: #7c3aed; }
-.tile--pink   { background: #db2777; }
-.tile--cyan   { background: #0891b2; }
-
-.about-back-kiosk {
-  position: fixed; right: 24px; bottom: 24px;
-  background: #1a2240; color: #fff;
-  padding: 12px 22px; border-radius: 999px;
-  text-decoration: none; font-weight: 600;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.30);
-}
-.about-back-kiosk:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.30); }
-
-/* ===== Detail pane ===== */
-.about-detail__bar {
-  display: flex; align-items: center; gap: 16px;
-  padding: 8px 0 22px;
-}
-.about-detail__back {
-  background: #1a2240; color: #fff; border: none;
-  padding: 12px 20px; border-radius: 999px; cursor: pointer;
-  font-family: inherit; font-weight: 600; font-size: 16px;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
-}
-.about-detail__back:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
-.about-detail__title { margin: 0; font-size: 28px; color: #fff; flex: 1; font-weight: 800; }
-.about-detail__idle {
-  width: 12px; height: 12px; border-radius: 50%;
-  background: #10b981;
-  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(92, 70, 51, 0.10);
 }
 
-.about-detail__body {
-  background: #1a2240;
-  border-radius: 20px;
-  padding: 30px;
-  color: #e5e7eb;
-  font-size: 18px;
-  line-height: 1.65;
+.about-detail__title {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.2vw, 1.55rem);
+  font-weight: 900;
+  color: #2f2721;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
 }
-.about-detail__body p { margin: 0 0 12px; }
-.about-detail__body p:last-child { margin-bottom: 0; }
-.about-detail__body strong { color: #fff; }
-.about-detail__body ul, .about-detail__body ol { padding-left: 22px; margin: 0 0 12px; }
-.about-detail__body li { margin-bottom: 6px; }
-.about-detail__body a { color: #60a5fa; text-decoration: underline; }
+
+.about-detail__scroll {
+  overflow-y: auto;
+  padding-right: 6px;
+  color: #2f2721;
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.about-detail__scroll::-webkit-scrollbar { width: 8px; }
+.about-detail__scroll::-webkit-scrollbar-thumb {
+  background: rgba(92, 70, 51, 0.25);
+  border-radius: 999px;
+}
+
+.about-detail__scroll p { margin: 0 0 0.75rem; }
+.about-detail__scroll p:last-child { margin-bottom: 0; }
+.about-detail__scroll strong { color: #8f1e24; }
+.about-detail__scroll ul,
+.about-detail__scroll ol { margin: 0 0 0.75rem; padding-left: 1.4rem; }
+.about-detail__scroll li { margin-bottom: 0.35rem; }
+.about-detail__scroll a { color: #8f1e24; text-decoration: underline; }
+
+.about-detail__empty {
+  margin: 12px 0 0;
+  color: #7a6a5a;
+  font-style: italic;
+}
 
 /* Sub-cards (mission, values) */
-.about-subcards { display: flex; flex-direction: column; gap: 18px; }
+.about-subcards { display: flex; flex-direction: column; gap: 14px; }
 .about-subcard {
-  background: #0f1428;
+  background: #fff8ec;
+  border-left: 4px solid #8f1e24;
   border-radius: 14px;
-  padding: 22px;
-  border-left: 6px solid #2563eb;
+  padding: 16px 18px;
 }
-.about-subcard__heading { margin: 0 0 10px; color: #fff; font-size: 22px; font-weight: 800; }
+.about-subcard__heading {
+  margin: 0 0 8px;
+  color: #8f1e24;
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
 
 /* Timeline (history) */
-.about-history__intro { margin-bottom: 24px; font-size: 18px; color: #cbd5e1; }
+.about-history__intro {
+  color: #5b4635;
+  margin-bottom: 14px;
+}
 .about-timeline {
   list-style: none;
   margin: 0;
-  padding: 0 0 0 28px;
-  border-left: 3px solid #2563eb;
-  position: relative;
+  padding: 4px 0 4px 22px;
+  border-left: 2px solid rgba(143, 30, 36, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
-.about-timeline__item { position: relative; margin-bottom: 28px; }
-.about-timeline__item:last-child { margin-bottom: 0; }
+.about-timeline__item { position: relative; }
 .about-timeline__item::before {
   content: '';
   position: absolute;
-  left: -36px;
-  top: 6px;
-  width: 14px;
-  height: 14px;
+  left: -29px;
+  top: 8px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: #059669;
-  border: 3px solid #0f1428;
-  box-shadow: 0 0 0 2px #059669;
+  background: #ff7a1a;
+  border: 3px solid #fffdf8;
+  box-shadow: 0 0 0 2px #8f1e24;
 }
 .about-timeline__year {
   display: inline-block;
-  background: #059669;
-  color: #fff;
-  padding: 4px 14px;
+  background: #8f1e24;
+  color: #fff8f2;
+  padding: 3px 12px;
   border-radius: 999px;
-  font-weight: 700;
-  font-size: 14px;
-  margin-bottom: 10px;
-  letter-spacing: 0.5px;
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
 }
-.about-timeline__card { background: #0f1428; padding: 18px 20px; border-radius: 12px; }
-.about-timeline__heading { margin: 0 0 8px; color: #fff; font-size: 20px; font-weight: 800; }
-.about-timeline__image { max-width: 100%; border-radius: 8px; margin-bottom: 10px; }
-.about-timeline__body { color: #cbd5e1; }
+.about-timeline__card {
+  background: #fff8ec;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.about-timeline__heading {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 900;
+  color: #2f2721;
+}
+.about-timeline__image {
+  max-width: 100%;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
 
 /* Quality */
 .about-statement {
+  display: block;
   text-align: center;
-  font-size: 22px;
-  padding: 32px 24px;
-  border-top: 4px solid #7c3aed;
-  border-bottom: 4px solid #7c3aed;
-  color: #f3f4f6;
+  font-size: 1.05rem;
   font-style: italic;
+  color: #2f2721;
+  padding: 18px 16px;
+  border-top: 3px solid #8f1e24;
+  border-bottom: 3px solid #8f1e24;
 }
 
 /* Hymn */
 .about-hymn {
-  font-size: 22px;
-  line-height: 1.9;
   text-align: center;
-  color: #fbcfe8;
+  font-size: 1.02rem;
+  line-height: 1.85;
+  color: #2f2721;
 }
-.about-hymn p { margin-bottom: 18px; }
+.about-hymn p { margin-bottom: 1rem; }
 .about-hymn p:last-child { margin-bottom: 0; }
 
 /* Seal */
-.about-seal { display: flex; gap: 28px; align-items: flex-start; }
-@media (max-width: 700px) { .about-seal { flex-direction: column; align-items: center; } }
+.about-seal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
 .about-seal__image {
-  max-width: 280px;
+  max-width: 220px;
   width: 100%;
   height: auto;
-  border-radius: 14px;
+  border-radius: 16px;
   background: #fff;
-  padding: 12px;
-  flex-shrink: 0;
+  padding: 10px;
+  border: 1px solid rgba(92, 70, 51, 0.12);
 }
 .about-seal__placeholder {
-  width: 220px; height: 220px;
-  background: #0891b2;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  font-size: 96px;
-  flex-shrink: 0;
+  width: 180px;
+  height: 180px;
+  border-radius: 16px;
+  background: rgba(143, 30, 36, 0.08);
+  display: grid;
+  place-items: center;
+  color: #8f1e24;
 }
-.about-seal__description { flex: 1; }
+.about-seal__placeholder svg {
+  width: 88px;
+  height: 88px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.about-seal__description { width: 100%; }
 
-.about-empty { color: #9ca3af; font-style: italic; }
+/* ===== Footer back-buttons =====
+   Sits in the bottom row of the kiosk-app grid — same row welcome.html
+   uses for its news ticker, keeping vertical placement consistent. */
+
+.about-foot {
+  display: flex;
+  justify-content: center;
+}
+
+.about-back {
+  appearance: none;
+  border: 1px solid rgba(92, 70, 51, 0.12);
+  background: #fff8ec;
+  color: #2f2721;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 12px 22px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 14px 28px rgba(84, 61, 42, 0.10);
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+.about-back:hover,
+.about-back:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 36px rgba(84, 61, 42, 0.16);
+  outline: none;
+  background: #fff;
+}
+.about-back--hub {
+  background: #8f1e24;
+  color: #fff8f2;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.about-back--hub:hover,
+.about-back--hub:focus-visible {
+  background: #6f141b;
+}
+.about-back__icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+@media (max-width: 640px) {
+  .about-detail { padding: 18px 16px 14px; border-radius: 22px; }
+  .about-back { padding: 10px 18px; font-size: 0.85rem; }
+}

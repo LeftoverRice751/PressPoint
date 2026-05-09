@@ -1,23 +1,22 @@
 // About LSPU kiosk client.
-// - Hub-and-spoke: tile click swaps the active pane via the data-view
-//   attribute on #about-stage (CSS handles show/hide).
+// - Hub-and-spoke on the welcome-style shell. Tile click swaps the
+//   active pane via the data-view attribute on .about-app.
 // - Idle timer: 60s with no input outside the hub returns to hub.
-//   Reset on pointerdown, touchstart, wheel, keydown.
 
 (function () {
-  var stage = document.getElementById('about-stage');
-  if (!stage) return;
+  var app = document.querySelector('.about-app');
+  if (!app) return;
 
   var IDLE_MS = 60 * 1000;
   var idleTimer = null;
 
   function showPane(slug) {
-    stage.dataset.view = slug;
+    app.dataset.view = slug;
     if (slug === 'hub') {
       stopIdle();
     } else {
       restartIdle();
-      var pane = stage.querySelector('.about-detail[data-pane="' + slug + '"]');
+      var pane = app.querySelector('.about-detail[data-pane="' + slug + '"] .about-detail__scroll');
       if (pane) pane.scrollTop = 0;
       window.scrollTo(0, 0);
     }
@@ -34,17 +33,17 @@
   }
 
   function onActivity() {
-    if (stage.dataset.view !== 'hub') restartIdle();
+    if (app.dataset.view !== 'hub') restartIdle();
   }
 
-  stage.querySelectorAll('.about-tile').forEach(function (btn) {
+  app.querySelectorAll('.feature-card').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var target = btn.getAttribute('data-target');
       if (target) showPane(target);
     });
   });
 
-  stage.querySelectorAll('[data-back]').forEach(function (btn) {
+  app.querySelectorAll('[data-back]').forEach(function (btn) {
     btn.addEventListener('click', function () { showPane('hub'); });
   });
 
