@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>About LSPU — Editor</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.snow.css">
+<link rel="stylesheet" href="/storage/compiled/css/about-lspu-editor.css">
+</head>
+<body class="about-editor">
+
+<header class="editor-header">
+  <a href="/gears/dashboard" class="editor-back">◀ Dashboard</a>
+  <h1>About LSPU</h1>
+  <span class="editor-header__hint">Edits go live on the kiosk after Save</span>
+</header>
+
+{% set _flash = request.session.get('flash_success') if request.session else None %}
+{% set _errs  = request.session.get('flash_errors')  if request.session else None %}
+{% if _flash %}<div class="flash flash--success">{{ _flash|join(' ') }}</div>{% endif %}
+{% if _errs %}<div class="flash flash--error">{{ _errs|join(' ') }}</div>{% endif %}
+
+<div class="editor-shell">
+
+  {# ===== Mission / Values: subsections ===== #}
+  {% for slug in ['mission', 'values'] %}
+    {% set section = sections.get(slug) %}
+    <details class="acc" open>
+      <summary class="acc__summary">{{ section.title if section else slug }}</summary>
+      <form class="acc__form" method="POST" action="/gears/about-lspu/sections/{{ slug }}" data-section-form="{{ slug }}">
+        <input type="hidden" name="__token" value="{{ request.session.get('csrf_token', '') if request.session else '' }}">
+        <label class="field">
+          <span>Title</span>
+          <input type="text" name="title" value="{{ section.title if section else '' }}" maxlength="150">
+        </label>
+        <div class="subblocks" data-subblocks>
+          {% for sub in (section.subsections if section else []) %}
+            <div class="subblock">
+              <label class="field">
+                <span>Heading</span>
+                <input type="text" class="js-sub-heading" value="{{ sub.heading }}" maxlength="200">
+              </label>
+              <label class="field">
+                <span>Body</span>
+                <div class="js-sub-editor">{{ sub.body_html|safe }}</div>
+              </label>
+            </div>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="subsections" class="js-subsections-payload">
+        <button type="submit" class="btn btn--primary">Save</button>
+      </form>
+    </details>
+  {% endfor %}
+
+  {# ===== History ===== #}
+  {% set history = sections.get('history') %}
+  <details class="acc" open>
+    <summary class="acc__summary">{{ history.title if history else 'Historical Development' }}</summary>
+
+    <form class="acc__form" method="POST" action="/gears/about-lspu/sections/history" data-section-form="history">
+      <input type="hidden" name="__token" value="{{ request.session.get('csrf_token', '') if request.session else '' }}">
+      <label class="field">
+        <span>Intro paragraph (optional)</span>
+        <div class="js-body-editor">{{ history.body_html|safe if history else '' }}</div>
+      </label>
+      <input type="hidden" name="body_html" class="js-body-payload">
+      <input type="hidden" name="title" value="{{ history.title if history else 'Historical Development' }}">
+      <button type="submit" class="btn btn--primary">Save intro</button>
+    </form>
+
+    <h3 class="section-heading">Milestones</h3>
+    <ol class="milestones">
+      {% for m in milestones %}
+        <li class="milestone">
+          <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}" data-milestone-form>
+            <input type="hidden" name="__token" value="{{ request.session.get('csrf_token', '') if request.session else '' }}">
+            <div class="row">
+              <input type="text" name="year" value="{{ m.year }}" maxlength="20" placeholder="Year">
+              <input type="text" name="heading" value="{{ m.heading }}" maxlength="200" placeholder="Heading">
+            </div>
+            <div class="js-body-editor">{{ m.body_html|safe }}</div>
+            <input type="hidden" name="body_html" class="js-body-payload">
+            <button type="submit" class="btn">Save milestone</button>
+          </form>
+          <div class="milestone-actions">
+            <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}/reorder" class="reorder-form">
+              <input type="hidden" name="__token" value="{{ request.session.get('csrf_token', '') if request.session else '' }}">
+              <button name="direction" value="up" class="btn btn--icon" title="Move up">↑</button>
+              <button name="direction" value="down" class="btn btn--icon" title="Move down">↓</button>
+            </form>
+            <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}/delete" onsubmit="return confirm('Delete this milestone?');">
+              <input type="hidden" name="__token" value="{{ request.session.get('csrf_token', '') if request.session else '' }}">
+              <button class="btn btn--danger">✕ Delete</button>
+            </form>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+
+    <form method="POST" action="/gears/about-lspu/milestones" class="milestone-create" data-milestone-form>
+      <input type="hidden" name="__token" value="{{ request.session.get('csrf_token', '') if request.session else '' }}">
+      <h4>Add milestone</h4>
+      <div class="row">
+        <input type="text" name="year" maxlength="20" placeholder="Year" required>
+        <input type="text" name="heading" maxlength="200" placeholder="Heading" required>
+      </div>
+      <div class="js-body-editor"></div>
+      <input type="hidden" name="body_html" class="js-body-payload">
+      <button type="submit" class="btn btn--primary">+ Add milestone</button>
+    </form>
+  </details>
+
+  {# ===== Quality / Hymn ===== #}
+  {% for slug in ['quality', 'hymn'] %}
+    {% set section = sections.get(slug) %}
+    <details class="acc">
+      <summary class="acc__summary">{{ section.title if section else slug }}</summary>
+      <form class="acc__form" method="POST" action="/gears/about-lspu/sections/{{ slug }}" data-section-form="{{ slug }}">
+        <input type="hidden" name="__token" value="{{ request.session.get('csrf_token', '') if request.session else '' }}">
+        <label class="field">
+          <span>Title</span>
+          <input type="text" name="title" value="{{ section.title if section else '' }}" maxlength="150">
+        </label>
+        <label class="field">
+          <span>Body</span>
+          <div class="js-body-editor">{{ section.body_html|safe if section else '' }}</div>
+        </label>
+        <input type="hidden" name="body_html" class="js-body-payload">
+        <button type="submit" class="btn btn--primary">Save</button>
+      </form>
+    </details>
+  {% endfor %}
+
+  {# ===== Seal ===== #}
+  {% set seal = sections.get('seal') %}
+  <details class="acc">
+    <summary class="acc__summary">{{ seal.title if seal else 'University Seal' }}</summary>
+
+    <form class="acc__form" method="POST" action="/gears/about-lspu/seal/upload" enctype="multipart/form-data">
+      <input type="hidden" name="__token" value="{{ request.session.get('csrf_token', '') if request.session else '' }}">
+      <label class="field">
+        <span>Seal image (JPG / PNG / WEBP, max 4 MB)</span>
+        <input type="file" name="file" accept="image/jpeg,image/png,image/webp" required>
+      </label>
+      {% if seal and seal.image_path %}
+        <img class="seal-preview" src="/storage/{{ seal.image_path }}" alt="Current seal">
+      {% endif %}
+      <button type="submit" class="btn">Upload image</button>
+    </form>
+
+    <form class="acc__form" method="POST" action="/gears/about-lspu/sections/seal" data-section-form="seal">
+      <input type="hidden" name="__token" value="{{ request.session.get('csrf_token', '') if request.session else '' }}">
+      <label class="field">
+        <span>Title</span>
+        <input type="text" name="title" value="{{ seal.title if seal else '' }}" maxlength="150">
+      </label>
+      <label class="field">
+        <span>Description</span>
+        <div class="js-body-editor">{{ seal.body_html|safe if seal else '' }}</div>
+      </label>
+      <input type="hidden" name="body_html" class="js-body-payload">
+      <button type="submit" class="btn btn--primary">Save description</button>
+    </form>
+  </details>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.js"></script>
+<script src="/storage/compiled/js/about-lspu-editor.js"></script>
+</body>
+</html>

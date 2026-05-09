@@ -1,155 +1,209 @@
-"""AboutController — kiosk-side About LSPU page.
+"""AboutController — kiosk + editor surfaces for the About LSPU page."""
 
-Frontend-only stub: section content is hardcoded here so the kiosk
-template renders end-to-end without database setup. Backend (DB-backed
-sections, editor saves, sanitisation) is implemented in a later phase.
-"""
+import json
+import os
+import secrets
 
 from masonite.controllers import Controller
+from masonite.request import Request
+from masonite.response import Response
 from masonite.views import View
 
+from app.models.AboutMilestone import AboutMilestone
+from app.models.AboutSection import AboutSection
+from app.services.AboutContent import AboutContent, SECTION_SLUGS
 
-SECTION_SLUGS = ["mission", "values", "history", "quality", "hymn", "seal"]
+
+ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp"}
+MAX_IMAGE_BYTES = 4 * 1024 * 1024
+SEAL_DIR = "storage/about"
+MILESTONE_DIR = "storage/about/milestones"
+EXT_BY_MIME = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 
-def _stub_data():
-    """Placeholder content for the six sections + history milestones.
+def _editor_redirect(response: Response):
+    """Helper: every editor save endpoint redirects back to the editor page."""
+    return response.redirect(name="gears.about-lspu")
 
-    Mirrors the shape the DB-backed loader will return later:
-      sections[slug] -> object with title, body_html, subsections, image_path
-      milestones     -> ordered list of timeline entries
-    Lambdas are not used; we return plain dicts and let the template
-    use attribute access through Jinja's getattr fallback.
-    """
 
-    def section(title, body_html=None, subsections=None, image_path=None):
-        return {
-            "title": title,
-            "body_html": body_html,
-            "subsections": subsections,
-            "image_path": image_path,
-        }
+def _save_uploaded_image(file, target_dir, prefix):
+    """Validate and persist an uploaded image. Returns (relative_path, error)."""
+    if isinstance(file, list):
+        file = file[0] if file else None
 
-    sections = {
-        "mission": section(
-            "Mission, Vision & Mandate",
-            subsections=[
-                {
-                    "heading": "Mission",
-                    "body_html": "<p>The Laguna State Polytechnic University is committed to provide quality and relevant education for lifelong learning, sustainable productivity and global competitiveness.</p>",
-                },
-                {
-                    "heading": "Vision",
-                    "body_html": "<p>A premier university in CALABARZON offering academic programs and related services designed to respond to the requirements of the Philippines and the global economy.</p>",
-                },
-                {
-                    "heading": "Mandate",
-                    "body_html": "<p>LSPU shall provide higher professional, technical and special instructions in the arts, sciences, humanities, and technology, and promote research, advanced studies, progressive leadership, and extension services.</p>",
-                },
-            ],
-        ),
-        "values": section(
-            "Group Values & Performance Pledge",
-            subsections=[
-                {
-                    "heading": "Group Values",
-                    "body_html": (
-                        "<ul>"
-                        "<li><strong>Excellence</strong> in everything we do.</li>"
-                        "<li><strong>Integrity</strong> in our dealings.</li>"
-                        "<li><strong>Service</strong> to our community.</li>"
-                        "<li><strong>Innovation</strong> for the future.</li>"
-                        "</ul>"
-                    ),
-                },
-                {
-                    "heading": "Performance Pledge",
-                    "body_html": "<p>We pledge to deliver quality education, uphold integrity in all transactions, and foster a culture of excellence, innovation, and service to the community.</p>",
-                },
-            ],
-        ),
-        "history": section(
-            "Historical Development",
-            body_html="<p>From a single agricultural high school to a multi-campus polytechnic university — these are the milestones that shaped LSPU.</p>",
-        ),
-        "quality": section(
-            "Quality Policy",
-            body_html=(
-                "<p>The Laguna State Polytechnic University is committed to provide "
-                "quality higher and advanced education, research, extension, and "
-                "production services that consistently conform to customer requirements "
-                "and applicable statutory and regulatory mandates through continual "
-                "improvement of the Quality Management System.</p>"
-            ),
-        ),
-        "hymn": section(
-            "University Hymn",
-            body_html=(
-                "<p>Hail, hail to thee, our Alma Mater dear<br>"
-                "Laguna State Polytechnic University<br>"
-                "Source of knowledge, wisdom, light and love<br>"
-                "Forever we shall sing thy praise.</p>"
-                "<p>With heads held high we'll bring thee honor and fame<br>"
-                "Truth and excellence will guide our way<br>"
-                "Loyal sons and daughters we shall be<br>"
-                "LSPU, we pledge to thee.</p>"
-            ),
-        ),
-        "seal": section(
-            "University Seal",
-            body_html=(
-                "<p>The University Seal embodies LSPU's commitment to academic excellence, "
-                "service to community, and rootedness in the Laguna heritage. The torch "
-                "represents enlightenment, the open book signifies knowledge, and the "
-                "encircling laurel honors achievement and unity across all campuses.</p>"
-            ),
-        ),
-    }
+    mime = getattr(file, "mime_type", None) or getattr(file, "mimetype", None)
+    if not file or mime not in ALLOWED_IMAGE_MIMES:
+        return None, "Upload must be a JPEG, PNG, or WEBP image."
 
-    milestones = [
-        {
-            "year": "1952",
-            "heading": "Founding as Baybay Rural High School",
-            "body_html": "<p>Established as a rural high school serving the agricultural communities of southern Laguna.</p>",
-            "image_path": None,
-        },
-        {
-            "year": "1957",
-            "heading": "Conversion to Baybay Agricultural School",
-            "body_html": "<p>Reorganized to focus on agricultural education and vocational training.</p>",
-            "image_path": None,
-        },
-        {
-            "year": "1983",
-            "heading": "Becomes Laguna College of Arts and Trades",
-            "body_html": "<p>Expanded into arts, trades, and technology programs serving a broader student base.</p>",
-            "image_path": None,
-        },
-        {
-            "year": "2007",
-            "heading": "Charter as Laguna State Polytechnic University",
-            "body_html": "<p>Republic Act No. 9402 elevated the institution to university status, integrating multiple campuses across Laguna.</p>",
-            "image_path": None,
-        },
-        {
-            "year": "Today",
-            "heading": "A Multi-Campus Polytechnic University",
-            "body_html": "<p>LSPU continues to grow as a premier polytechnic university in CALABARZON, offering diverse programs in arts, sciences, technology, and education.</p>",
-            "image_path": None,
-        },
-    ]
+    content = getattr(file, "content", None)
+    if content is None and hasattr(file, "stream"):
+        content = file.stream.read()
+    if content is None:
+        return None, "Could not read uploaded file."
+    if len(content) > MAX_IMAGE_BYTES:
+        return None, "Image must be 4 MB or smaller."
 
-    return {"sections": sections, "milestones": milestones}
+    ext = EXT_BY_MIME[mime]
+    name = f"{prefix}-{secrets.token_hex(8)}{ext}"
+    os.makedirs(target_dir, exist_ok=True)
+    target_path = os.path.join(target_dir, name)
+    with open(target_path, "wb") as fh:
+        fh.write(content)
+
+    # Return path relative to the storage/ route prefix (the route is
+    # /storage/@path:any served by VideoController@serve_storage).
+    relative = os.path.relpath(target_path, "storage")
+    return relative, None
 
 
 class AboutController(Controller):
+    # ===== Kiosk =====
+
     def kiosk(self, view: View):
-        data = _stub_data()
+        data = AboutContent.load_all()
         return view.render(
             "kiosk/about-lspu",
             {
                 "sections": data["sections"],
-                "ordered_slugs": SECTION_SLUGS,
+                "ordered_slugs": data["ordered_slugs"],
                 "milestones": data["milestones"],
             },
         )
+
+    # ===== Editor =====
+
+    def editor(self, view: View):
+        data = AboutContent.load_all()
+        return view.render(
+            "gears/about-lspu",
+            {
+                "sections": data["sections"],
+                "ordered_slugs": data["ordered_slugs"],
+                "milestones": data["milestones"],
+            },
+        )
+
+    def save_section(self, slug, request: Request, response: Response):
+        if slug not in SECTION_SLUGS:
+            return _editor_redirect(response).with_errors(["Unknown section."])
+
+        section = AboutSection.where("slug", slug).first()
+        if not section:
+            return _editor_redirect(response).with_errors(["Section not found."])
+
+        if slug in ("mission", "values"):
+            raw = request.input("subsections") or "[]"
+            try:
+                parsed = json.loads(raw)
+            except (TypeError, ValueError):
+                parsed = []
+            section.subsections = AboutContent.sanitize_subsections(parsed)
+            section.body_html = None
+        else:
+            section.body_html = AboutContent.sanitize_html(
+                request.input("body_html") or ""
+            )
+
+        title = (request.input("title") or section.title).strip()
+        if title:
+            section.title = title[:150]
+
+        try:
+            user = request.user() if callable(getattr(request, "user", None)) else None
+            section.updated_by_id = getattr(user, "id", None)
+        except Exception:
+            section.updated_by_id = None
+
+        section.save()
+        return _editor_redirect(response).with_success(["Section saved."])
+
+    # ===== Milestones =====
+
+    def create_milestone(self, request: Request, response: Response):
+        year = (request.input("year") or "").strip()[:20]
+        heading = (request.input("heading") or "").strip()[:200]
+        body_html = AboutContent.sanitize_html(request.input("body_html") or "")
+        if not year or not heading:
+            return _editor_redirect(response).with_errors(
+                ["Year and heading are required."]
+            )
+
+        last = AboutMilestone.order_by("sort_order", "desc").first()
+        next_order = (getattr(last, "sort_order", 0) or 0) + 1
+
+        AboutMilestone.create({
+            "year": year,
+            "heading": heading,
+            "body_html": body_html,
+            "image_path": None,
+            "sort_order": next_order,
+        })
+        return _editor_redirect(response).with_success(["Milestone added."])
+
+    def update_milestone(self, id, request: Request, response: Response):
+        row = AboutMilestone.where("id", id).first()
+        if not row:
+            return _editor_redirect(response).with_errors(["Milestone not found."])
+
+        year = (request.input("year") or "").strip()[:20]
+        heading = (request.input("heading") or "").strip()[:200]
+        if year:
+            row.year = year
+        if heading:
+            row.heading = heading
+        body_html = request.input("body_html")
+        if body_html is not None:
+            row.body_html = AboutContent.sanitize_html(body_html)
+
+        # Optional image upload swap-in.
+        file = request.input("file")
+        if file:
+            relative, err = _save_uploaded_image(file, MILESTONE_DIR, "milestone")
+            if err:
+                return _editor_redirect(response).with_errors([err])
+            row.image_path = relative
+
+        row.save()
+        return _editor_redirect(response).with_success(["Milestone updated."])
+
+    def delete_milestone(self, id, response: Response):
+        row = AboutMilestone.where("id", id).first()
+        if row:
+            row.delete()
+        return _editor_redirect(response).with_success(["Milestone removed."])
+
+    def reorder_milestone(self, id, request: Request, response: Response):
+        # direction = 'up' (smaller sort_order) or 'down' (larger).
+        # Swap sort_order with the adjacent neighbour.
+        direction = (request.input("direction") or "").strip()
+        row = AboutMilestone.where("id", id).first()
+        if not row or direction not in ("up", "down"):
+            return _editor_redirect(response).with_errors(["Cannot reorder."])
+
+        comparator = "<" if direction == "up" else ">"
+        order_dir = "desc" if direction == "up" else "asc"
+        neighbour = (
+            AboutMilestone.where("sort_order", comparator, row.sort_order)
+                          .order_by("sort_order", order_dir)
+                          .first()
+        )
+        if neighbour:
+            row.sort_order, neighbour.sort_order = neighbour.sort_order, row.sort_order
+            row.save()
+            neighbour.save()
+        return _editor_redirect(response).with_success(["Order updated."])
+
+    # ===== Seal image =====
+
+    def upload_seal(self, request: Request, response: Response):
+        file = request.input("file")
+        relative, err = _save_uploaded_image(file, SEAL_DIR, "seal")
+        if err:
+            return _editor_redirect(response).with_errors([err])
+
+        section = AboutSection.where("slug", "seal").first()
+        if section:
+            section.image_path = relative
+            section.save()
+
+        return _editor_redirect(response).with_success(["Seal image uploaded."])

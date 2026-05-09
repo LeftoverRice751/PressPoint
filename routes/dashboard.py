@@ -13,4 +13,13 @@ ROUTES = [
     Route.post("/events/dashboard/archive", "EventController@extract_from_pdf").name("events.archive").middleware("auth"),
     Route.post("/news/dashboard", "NewsController@store").name("news.store").middleware("auth"),
     Route.post("/tour-scenes/dashboard", "TourController@store").name("tour-scenes.store").middleware("auth"),
+
+    # About LSPU editor
+    Route.get ("/gears/about-lspu",                            "AboutController@editor").name("gears.about-lspu").middleware("auth"),
+    Route.post("/gears/about-lspu/sections/@slug",             "AboutController@save_section").middleware("auth"),
+    Route.post("/gears/about-lspu/milestones",                 "AboutController@create_milestone").middleware("auth"),
+    Route.post("/gears/about-lspu/milestones/@id",             "AboutController@update_milestone").middleware("auth"),
+    Route.post("/gears/about-lspu/milestones/@id/delete",      "AboutController@delete_milestone").middleware("auth"),
+    Route.post("/gears/about-lspu/milestones/@id/reorder",     "AboutController@reorder_milestone").middleware("auth"),
+    Route.post("/gears/about-lspu/seal/upload",                "AboutController@upload_seal").middleware("auth"),
 ]
