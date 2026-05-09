@@ -77,8 +77,9 @@ The seed migration creates all 6 rows so the kiosk page never sees missing secti
 - Reuses the kiosk-tour hero pattern (`templates/kiosk/kiosk-tour.html:17-21`): gears logo + "PRESSPOINT" wordmark + subtitle.
 - Page subtitle: "About LSPU".
 - 3×2 tile grid (portrait kiosk default; falls back to 2×3 below 900 px width).
-- Each tile: emoji icon, section title, one-line teaser, gradient background per section:
+- Each tile: emoji icon, section title, one-line teaser, solid color background per section (no gradients):
   - mission → blue, values → amber, history → green, quality → purple, hymn → pink, seal → cyan
+  - All tile backgrounds use single flat colors — no gradients anywhere in the About LSPU UI (kiosk or editor)
 - Bottom-right pill: "◀ Back to Kiosk" (returns to `/kiosk`).
 
 ### Detail view
