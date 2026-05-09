@@ -20,6 +20,7 @@
     "webpack-dev-server": "4.7.3"
   },
   "dependencies": {
-    "marzipano": "^0.10.2"
+    "marzipano": "^0.10.2",
+    "pdfjs-dist": "^5.7.284"
   }
 }

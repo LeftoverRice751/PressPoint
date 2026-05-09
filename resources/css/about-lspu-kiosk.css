@@ -231,6 +231,8 @@
 .about-foot {
   display: flex;
   justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 
 .about-back {
@@ -273,6 +275,16 @@
   font-size: 0.85rem;
   line-height: 1;
 }
+.about-back--hub-return {
+  background: #8f1e24;
+  color: #fff8f2;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.about-back--hub-return:hover,
+.about-back--hub-return:focus-visible {
+  background: #6f141b;
+}
+.about-app[data-view="hub"] .about-back--hub-return { display: none; }
 
 @media (max-width: 640px) {
   .about-detail { padding: 18px 16px 14px; border-radius: 22px; }

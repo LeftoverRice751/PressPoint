@@ -268,6 +268,97 @@ function initTour() {
     updateSceneList(scene);
   }
 
+  // ── Warp transition (Street-View style): zoom toward the hotspot,
+  // fade through black, land in the next scene at a tight FOV and
+  // tween back out. Falls back to switchScene if anything is off.
+  var warping = false;
+  var warpOverlay = null;
+  function getWarpOverlay() {
+    if (warpOverlay) return warpOverlay;
+    warpOverlay = document.createElement('div');
+    warpOverlay.className = 'tour-warp-overlay';
+    document.body.appendChild(warpOverlay);
+    return warpOverlay;
+  }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function lerpAngle(a, b, t) {
+    var d = b - a;
+    while (d >  Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    return a + d * t;
+  }
+  function easeInCubic(t)  { return t * t * t; }
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+  function tween(duration, ease, step, done) {
+    var start = performance.now();
+    function frame(now) {
+      var t = Math.min(1, (now - start) / duration);
+      step(ease(t));
+      if (t < 1) requestAnimationFrame(frame);
+      else if (done) done();
+    }
+    requestAnimationFrame(frame);
+  }
+  function warpToScene(targetScene, hotspot) {
+    if (warping || !targetScene) {
+      if (targetScene) switchScene(targetScene);
+      return;
+    }
+    var currentScene = null;
+    for (var i = 0; i < scenes.length; i++) {
+      if (scenes[i].scene === viewer.scene()) { currentScene = scenes[i]; break; }
+    }
+    if (!currentScene) { switchScene(targetScene); return; }
+
+    warping = true;
+    stopAutorotate();
+
+    var overlay = getWarpOverlay();
+    var view = currentScene.view;
+    var startYaw   = view.yaw();
+    var startPitch = view.pitch();
+    var startFov   = view.fov();
+
+    var initial = targetScene.data.initialViewParameters || {};
+    var endFov  = typeof initial.fov === 'number' ? initial.fov : Math.PI / 2;
+    var warpFov = Math.max(0.32, endFov * 0.42); // tight zoom at impact
+
+    var ZOOM_IN_MS  = 360;
+    var ZOOM_OUT_MS = 420;
+
+    // Phase 1: rotate toward the hotspot + zoom in + fade to black.
+    tween(ZOOM_IN_MS, easeInCubic, function(t) {
+      view.setParameters({
+        yaw:   lerpAngle(startYaw,   hotspot.yaw,   t),
+        pitch: lerpAngle(startPitch, hotspot.pitch, t),
+        fov:   lerp(startFov, warpFov, t)
+      });
+      overlay.style.opacity = String(t);
+    }, function() {
+      // Land in the new scene at the same tight FOV, looking at its
+      // initial heading. Skip Marzipano's built-in cross-fade so we
+      // control the whole transition.
+      targetScene.view.setParameters({
+        yaw:   typeof initial.yaw   === 'number' ? initial.yaw   : 0,
+        pitch: typeof initial.pitch === 'number' ? initial.pitch : 0,
+        fov:   warpFov
+      });
+      targetScene.scene.switchTo({ transitionDuration: 0 });
+      updateSceneName(targetScene);
+      updateSceneList(targetScene);
+
+      // Phase 2: zoom back out + fade from black.
+      tween(ZOOM_OUT_MS, easeOutCubic, function(t) {
+        targetScene.view.setFov(lerp(warpFov, endFov, t));
+        overlay.style.opacity = String(1 - t);
+      }, function() {
+        overlay.style.opacity = '0';
+        warping = false;
+        startAutorotate();
+      });
+    });
+  }
+
   function updateSceneName(scene) {
     if (sceneNameElement) {
       sceneNameElement.innerHTML = sanitize(scene.data.name);
@@ -353,9 +444,10 @@ function initTour() {
       icon.style[property] = 'rotate(' + hotspot.rotation + 'rad)';
     }
 
-    // Add click event handler.
+    // Add click event handler — warp to the target scene.
     wrapper.addEventListener('click', function() {
-      switchScene(findSceneById(hotspot.target));
+      var target = findSceneById(hotspot.target);
+      if (target) warpToScene(target, hotspot);
     });
 
     // Prevent touch and scroll events from reaching the parent element.

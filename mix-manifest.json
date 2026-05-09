@@ -32,5 +32,7 @@
     "/storage/compiled/css/news-dashboard.css": "/storage/compiled/css/news-dashboard.css",
     "/storage/compiled/css/gears-dashboard.css": "/storage/compiled/css/gears-dashboard.css",
     "/storage/compiled/css/auth-admin.css": "/storage/compiled/css/auth-admin.css",
-    "/storage/compiled/css/auth-otp-code.css": "/storage/compiled/css/auth-otp-code.css"
+    "/storage/compiled/css/auth-otp-code.css": "/storage/compiled/css/auth-otp-code.css",
+    "/storage/compiled/js/pdfjs/pdf.min.mjs": "/storage/compiled/js/pdfjs/pdf.min.mjs",
+    "/storage/compiled/js/pdfjs/pdf.worker.min.mjs": "/storage/compiled/js/pdfjs/pdf.worker.min.mjs"
 }

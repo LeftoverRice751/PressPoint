@@ -76,6 +76,18 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
     //
   ])
 
+// Vendor pdf.js (used by the archive book reader). Copy the minified ESM
+// build + worker straight into the compiled assets so they ship with the
+// rest of the kiosk JS and can be loaded as modules from /assets/js/pdfjs/.
+mix.copy(
+  "node_modules/pdfjs-dist/legacy/build/pdf.min.mjs",
+  "storage/compiled/js/pdfjs/pdf.min.mjs",
+)
+mix.copy(
+  "node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+  "storage/compiled/js/pdfjs/pdf.worker.min.mjs",
+)
+
 // ensure root directory of mix is project root
 mix.setPublicPath(".")
 
