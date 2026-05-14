@@ -21,6 +21,7 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/welcome-lock.js', 'storage/compiled/js')
   .js('resources/js/about-lspu-kiosk.js', 'storage/compiled/js')
   .js('resources/js/about-lspu-editor.js', 'storage/compiled/js')
+  .js('resources/js/org-board.js', 'storage/compiled/js')
   .postCss('resources/css/app.css', 'storage/compiled/css', [
     //
   ])
@@ -73,6 +74,9 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
     //
   ])
   .postCss('resources/css/about-lspu-editor.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/org-board.css', 'storage/compiled/css', [
     //
   ])
 

@@ -1,9 +1,167 @@
 {% extends "base.html" %}
-{% block title %}GEARS CMS{% endblock %}
+{% block title %}{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="/assets/css/gears-dashboard.css" />
 <link rel="stylesheet" href="/assets/css/news-dashboard.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.snow.css">
+{% raw %}
+<style>
+  .org-board-layout {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.18fr);
+    gap: 1rem;
+  }
+
+  .org-board-board {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .org-board-columns {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    align-items: start;
+  }
+
+  .org-board-column {
+    display: grid;
+    gap: 0.85rem;
+    padding: 1rem;
+    border-radius: var(--gears-radius-lg);
+    border: 1px solid rgba(17, 24, 39, 0.08);
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
+  }
+
+  .org-board-column__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .org-board-column__title {
+    color: #121826;
+    font-size: 1rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .org-board-column__meta {
+    color: var(--gears-muted);
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
+
+  .org-board-dropzone {
+    padding: 0.72rem 0.9rem;
+    border: 1px dashed rgba(255, 107, 53, 0.26);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--gears-muted);
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-align: center;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  }
+
+  .org-board-dropzone.is-active {
+    border-color: rgba(255, 107, 53, 0.55);
+    background: rgba(255, 107, 53, 0.12);
+    color: var(--gears-accent-strong);
+    transform: translateY(-1px);
+  }
+
+  .org-board-member {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.85rem;
+    align-items: center;
+    padding: 0.92rem 1rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(17, 24, 39, 0.08);
+    background: #fff;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+  }
+
+  .org-board-member.is-dragging {
+    opacity: 0.45;
+  }
+
+  .org-board-member__handle {
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border-radius: 0.7rem;
+    background: rgba(255, 107, 53, 0.12);
+    color: var(--gears-accent-strong);
+    font-weight: 900;
+    cursor: grab;
+    user-select: none;
+  }
+
+  .org-board-member__body {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .org-board-member__name {
+    color: #121826;
+    font-size: 0.98rem;
+    font-weight: 900;
+  }
+
+  .org-board-member__meta {
+    color: var(--gears-muted);
+    font-size: 0.86rem;
+  }
+
+  .org-board-member__children {
+    display: grid;
+    gap: 0.6rem;
+    margin-left: 1.25rem;
+    padding-left: 1rem;
+    border-left: 1px solid rgba(17, 24, 39, 0.08);
+  }
+
+  .org-board-node {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .org-board-column__members {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .org-board-dropzone--root {
+    min-height: 3rem;
+    display: grid;
+    place-items: center;
+  }
+
+  .org-board-empty {
+    min-height: 112px;
+  }
+
+  .org-board-form-card {
+    display: grid;
+    gap: 1rem;
+    align-self: start;
+  }
+
+  @media (max-width: 1100px) {
+    .org-board-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endraw %}
 {% endblock %}
 
 {% block content %}
@@ -12,9 +170,31 @@
   data-dashboard-shell
   data-default-page="{{ default_page if default_page else 'dashboard' }}"
   data-video-push-url="{{ route('video.push', {}, False) }}"
+  data-org-board-reorder-url="{{ route('org-board.reorder', {}, False) }}"
   data-open-events-modal="{{ 'true' if bag().any() and (default_page or 'dashboard') == 'events' else 'false' }}"
   data-open-news-modal="false"
 >
+  {% macro render_org_board_member(member, department_id) %}
+  <div class="org-board-node">
+    <div class="org-board-dropzone org-board-dropzone--before" data-org-board-dropzone="before" data-anchor-id="{{ member.id }}" data-department-id="{{ department_id }}">Drop before</div>
+    <article class="org-board-member" draggable="true" data-org-board-member data-member-id="{{ member.id }}">
+      <div class="org-board-member__handle" data-org-board-drag-handle aria-label="Drag member" title="Drag member">⋮⋮</div>
+      <div class="org-board-member__body">
+        <div class="org-board-member__name">{{ member.name }}</div>
+        <div class="org-board-member__meta">{{ member.position if member.position else 'No position' }}</div>
+      </div>
+      <span class="status-pill status-pill--neutral">{{ 'Photo' if member.photo_path else 'Text' }}</span>
+    </article>
+    <div class="org-board-member__children">
+      <div class="org-board-dropzone org-board-dropzone--child" data-org-board-dropzone="child" data-anchor-id="{{ member.id }}" data-department-id="{{ department_id }}">Drop here to nest under this member</div>
+      {% for child in member.children %}
+      {{ render_org_board_member(child, department_id) }}
+      {% endfor %}
+    </div>
+    <div class="org-board-dropzone org-board-dropzone--after" data-org-board-dropzone="after" data-anchor-id="{{ member.id }}" data-department-id="{{ department_id }}">Drop after</div>
+  </div>
+  {% endmacro %}
+
   <aside class="gears-sidebar">
     <div class="gears-sidebar__brand">
       <div class="gears-sidebar__mark" aria-hidden="true"><img src="gears.png" alt=""></div>
@@ -46,11 +226,15 @@
         <span class="dashboard-nav__icon" aria-hidden="true">⌖</span>
         <span>Locations</span>
       </button>
+      <button type="button" class="dashboard-nav__link" data-page-link="org-board" id="nav-org-board" role="tab" aria-controls="panel-org-board" aria-selected="false" tabindex="-1">
+        <span class="dashboard-nav__icon" aria-hidden="true">◉</span>
+        <span>Org Board</span>
+      </button>
       <button type="button" class="dashboard-nav__link" data-page-link="tour-mapping" id="nav-tour-mapping" role="tab" aria-controls="panel-tour-mapping" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">◬</span>
         <span>Tour Mapping</span>
       </button>
-      <a href="/gears/about-lspu" class="dashboard-nav__link" id="nav-about-lspu">
+      <a href="/gears/about-lspu?page=about-lspu" class="dashboard-nav__link" data-page-link="about-lspu" id="nav-about-lspu" role="tab" aria-controls="panel-about-lspu" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">🎓</span>
         <span>About LSPU</span>
       </a>
@@ -90,12 +274,12 @@
     <section class="gears-page is-visible" data-page-panel="dashboard" id="panel-dashboard" role="tabpanel" aria-labelledby="nav-dashboard" data-hero-eyebrow="Dashboard" data-hero-title="Real-time overview of your kiosk content" data-hero-subtitle="Manage events, news, campus locations, kiosk videos, and screen control from one place.">
       <div class="stats-grid">
         <article class="stat-card stat-card--blue">
-          <div class="stat-card__label">Total Articles</div>
+          <div class="stat-card__label">Total News</div>
           <div class="stat-card__value">{{ total_articles or 0 }}</div>
         </article>
 
         <article class="stat-card stat-card--orange">
-          <div class="stat-card__label">Published Articles</div>
+          <div class="stat-card__label">Published News</div>
           <div class="stat-card__value">{{ published_articles or 0 }}</div>
         </article>
 
@@ -210,30 +394,39 @@
       </div>
       {% endif %}
 
-      <div class="page-card" data-section-count="{{ posts|length }}">
+      <div class="page-card" data-section-count="{{ events|length }}">
         <div class="empty-state" data-empty-state>
           <div class="empty-state__title">No data available</div>
-          <p class="empty-state__text">Create or publish articles to populate this section.</p>
+          <p class="empty-state__text">Create events to populate this section.</p>
         </div>
 
-        <div class="article-grid" data-section-content>
-          {% for article in posts %}
-          <article class="article-card">
-            <div class="article-card__header">
-              <div class="article-card__title">{{ article.title }}</div>
-              <span class="status-pill {{ 'status-pill--published' if (article.status or '')|lower == 'published' else 'status-pill--draft' }}">
-                {{ article.status if article.status else 'draft' }}
-              </span>
-            </div>
-            <div class="article-card__meta article-card__meta--stacked">
-              <span>Event date: {{ article.event_date.strftime('%m-%d-%Y') if article.event_date else 'Not set' }}</span>
-              <span>Location: {{ location_lookup.get(article.location_id, 'Unassigned') if location_lookup else 'Unassigned' }}</span>
-            </div>
-            <p class="article-card__summary">{{ article.description if article.description else article.content[:220] if article.content else 'No summary available.' }}</p>
-          </article>
-          {% else %}
-          <div class="empty-state empty-state--embedded">No data available.</div>
-          {% endfor %}
+        <div class="table-responsive" data-section-content>
+          <table class="events-table" aria-label="Events table">
+            <thead>
+              <tr>
+                <th scope="col">Title</th>
+                <th scope="col">Description</th>
+                <th scope="col">Event date</th>
+                <th scope="col">Location</th>
+                <th scope="col">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for event in events %}
+              <tr>
+                <td>{{ event.title }}</td>
+                <td>{{ event.description if event.description else 'No summary available.' }}</td>
+                <td>{{ event.event_date.strftime('%m-%d-%Y') if event.event_date else 'Not set' }}</td>
+                <td>{{ location_lookup.get(event.location_id, 'Unassigned') if location_lookup else 'Unassigned' }}</td>
+                <td>{{ 'Archive' if event.is_archive else 'Manual' }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5" class="empty-state empty-state--embedded">No data available.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -689,6 +882,99 @@
       </div>
     </section>
 
+    <section class="gears-page" data-page-panel="org-board" id="panel-org-board" role="tabpanel" aria-labelledby="nav-org-board" data-hero-eyebrow="Content" data-hero-title="Organization board" data-hero-subtitle="Drag members to nest them under a leader or move them between departments." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">Org Board</h2>
+        </div>
+        <p class="section-head__subtitle">Drop a card onto a member to nest it, or use the lanes between cards to change the order.</p>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="org-board-layout">
+        <article class="page-card org-board-form-card">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Org Board Entry</p>
+              <h3 class="panel-header__title">Add a member</h3>
+            </div>
+          </div>
+
+          <p class="panel-header__subtitle">Editors can add members here first, then arrange the hierarchy with drag and drop.</p>
+
+          <form action="{{ route('org-board.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack">
+            {{ csrf_field | safe }}
+
+            <label class="field" for="org-board-name">
+              <span class="field__label">Name</span>
+              <input type="text" name="name" id="org-board-name" class="field__input" placeholder="Member name" required>
+            </label>
+
+            <label class="field" for="org-board-position">
+              <span class="field__label">Position</span>
+              <input type="text" name="position" id="org-board-position" class="field__input" placeholder="Department head" required>
+            </label>
+
+            <label class="field" for="org-board-department-id">
+              <span class="field__label">Department</span>
+              <select name="department_id" id="org-board-department-id" class="field__input field__input--select" required>
+                <option value="">Choose a department</option>
+                {% for department in departments %}
+                <option value="{{ department.id }}">{{ department.name }}</option>
+                {% endfor %}
+              </select>
+            </label>
+
+            <label class="field" for="org-board-photo-path">
+              <span class="field__label">Photo</span>
+              <input type="file" name="photo_path" id="org-board-photo-path" class="field__input field__input--file" accept="image/*">
+            </label>
+
+            <button type="submit" class="primary-button">Save member</button>
+          </form>
+        </article>
+
+        <div class="org-board-board" data-org-board-board>
+          {% for department in org_board_departments %}
+          <article class="org-board-column" data-org-board-column data-department-id="{{ department.id }}">
+            <div class="org-board-column__header">
+              <div>
+                <div class="org-board-column__title">{{ department.name }}</div>
+                <div class="org-board-column__meta">{{ department.location_name if department.location_name else 'Linked location not set' }}</div>
+                {% if department.location_type %}
+                <div class="org-board-column__meta">{{ department.location_type }}</div>
+                {% endif %}
+              </div>
+              <span class="status-pill status-pill--neutral">{{ department.members|length }} members</span>
+            </div>
+
+            <div class="org-board-dropzone org-board-dropzone--root" data-org-board-dropzone="root" data-department-id="{{ department.id }}">Drop here to add to this department</div>
+
+            <div class="org-board-column__members">
+              {% for member in department.members %}
+              {{ render_org_board_member(member, department.id) }}
+              {% else %}
+              <div class="empty-state empty-state--embedded org-board-empty">No members yet. Add one or drag a card here.</div>
+              {% endfor %}
+            </div>
+          </article>
+          {% else %}
+          <div class="empty-state empty-state--embedded">No departments found.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
     <section class="gears-page" data-page-panel="tour-mapping" id="panel-tour-mapping" role="tabpanel" aria-labelledby="nav-tour-mapping" data-hero-eyebrow="Content" data-hero-title="Link panoramas to buildings" data-hero-subtitle="Tell the virtual tour which building each panorama represents so visitors can search and walk to it." hidden>
       <div class="section-head">
         <div>
@@ -751,6 +1037,227 @@
           <div class="empty-state empty-state--embedded">No tour scenes detected.</div>
           {% endfor %}
         </div>
+      </div>
+    </section>
+
+    <section class="gears-page" data-page-panel="about-lspu" id="panel-about-lspu" role="tabpanel" aria-labelledby="nav-about-lspu" data-hero-eyebrow="Content" data-hero-title="About LSPU" data-hero-subtitle="Manage the campus history, mission, values, seal, and supporting copy shown on the kiosk." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">About LSPU</h2>
+        </div>
+        <p class="section-head__subtitle">Edits go live on the kiosk after you save.</p>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="about-editor-grid">
+        <article class="page-card about-card about-card--stacked">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Mission / Values</p>
+              <h3 class="panel-header__title">Core statements</h3>
+            </div>
+          </div>
+
+          {% for slug in ['mission', 'values'] %}
+          {% set section = sections.get(slug) %}
+          <form class="about-section-form form-stack" method="POST" action="/gears/about-lspu/sections/{{ slug }}" data-section-form="{{ slug }}">
+            {{ csrf_field | safe }}
+            <label class="field">
+              <span class="field__label">Title</span>
+              <input type="text" name="title" class="field__input" value="{{ section.title if section else '' }}" maxlength="150">
+            </label>
+
+            <div class="about-subblocks" data-subblocks>
+              {% for sub in (section.subsections if section else []) %}
+              <div class="about-subblock">
+                <label class="field">
+                  <span class="field__label">Heading</span>
+                  <input type="text" class="field__input js-sub-heading" value="{{ sub.heading }}" maxlength="200">
+                </label>
+                <label class="field">
+                  <span class="field__label">Body</span>
+                  <div class="about-editor-frame js-sub-editor">{{ sub.body_html|safe }}</div>
+                </label>
+              </div>
+              {% endfor %}
+            </div>
+
+            <input type="hidden" name="subsections" class="js-subsections-payload">
+            <div class="about-section-form__actions">
+              <button type="submit" class="primary-button">Save {{ section.title if section else slug }}</button>
+            </div>
+          </form>
+          {% endfor %}
+        </article>
+
+        <article class="page-card about-card about-card--stacked">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">History</p>
+              <h3 class="panel-header__title">Historical development</h3>
+            </div>
+          </div>
+
+          {% set history = sections.get('history') %}
+          <form class="about-section-form form-stack" method="POST" action="/gears/about-lspu/sections/history" data-section-form="history">
+            {{ csrf_field | safe }}
+            <label class="field">
+              <span class="field__label">Title</span>
+              <input type="text" name="title" class="field__input" value="{{ history.title if history else 'Historical Development' }}" maxlength="150">
+            </label>
+            <label class="field">
+              <span class="field__label">Intro paragraph</span>
+              <div class="about-editor-frame js-body-editor">{{ history.body_html|safe if history else '' }}</div>
+            </label>
+            <input type="hidden" name="body_html" class="js-body-payload">
+            <div class="about-section-form__actions">
+              <button type="submit" class="primary-button">Save intro</button>
+            </div>
+          </form>
+
+          <h3 class="about-card__subheading">Milestones</h3>
+          <ol class="about-milestones">
+            {% for m in milestones %}
+            <li class="about-milestone">
+              <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}" data-milestone-form class="about-milestone__form form-stack">
+                {{ csrf_field | safe }}
+                <div class="about-milestone__grid">
+                  <label class="field">
+                    <span class="field__label">Year</span>
+                    <input type="text" name="year" class="field__input" value="{{ m.year }}" maxlength="20" placeholder="Year">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Heading</span>
+                    <input type="text" name="heading" class="field__input" value="{{ m.heading }}" maxlength="200" placeholder="Heading">
+                  </label>
+                </div>
+                <label class="field">
+                  <span class="field__label">Body</span>
+                  <div class="about-editor-frame js-body-editor">{{ m.body_html|safe }}</div>
+                </label>
+                <input type="hidden" name="body_html" class="js-body-payload">
+                <div class="about-section-form__actions">
+                  <button type="submit" class="primary-button">Save milestone</button>
+                </div>
+              </form>
+              <div class="about-milestone__actions">
+                <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}/reorder" class="about-milestone__action-form">
+                  {{ csrf_field | safe }}
+                  <button name="direction" value="up" class="ghost-button about-icon-button" title="Move up">↑</button>
+                  <button name="direction" value="down" class="ghost-button about-icon-button" title="Move down">↓</button>
+                </form>
+                <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}/delete" onsubmit="return confirm('Delete this milestone?');">
+                  {{ csrf_field | safe }}
+                  <button class="danger-button">✕ Delete</button>
+                </form>
+              </div>
+            </li>
+            {% endfor %}
+          </ol>
+
+          <form method="POST" action="/gears/about-lspu/milestones" class="about-section-form form-stack about-milestone-create" data-milestone-form>
+            {{ csrf_field | safe }}
+            <h4 class="about-card__subheading">Add milestone</h4>
+            <div class="about-milestone__grid">
+              <label class="field">
+                <span class="field__label">Year</span>
+                <input type="text" name="year" class="field__input" maxlength="20" placeholder="Year" required>
+              </label>
+              <label class="field">
+                <span class="field__label">Heading</span>
+                <input type="text" name="heading" class="field__input" maxlength="200" placeholder="Heading" required>
+              </label>
+            </div>
+            <label class="field">
+              <span class="field__label">Body</span>
+              <div class="about-editor-frame js-body-editor"></div>
+            </label>
+            <input type="hidden" name="body_html" class="js-body-payload">
+            <div class="about-section-form__actions">
+              <button type="submit" class="primary-button">+ Add milestone</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="page-card about-card about-card--compact">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Quality / Hymn</p>
+              <h3 class="panel-header__title">Supporting pages</h3>
+            </div>
+          </div>
+
+          <div class="about-two-up">
+            {% for slug in ['quality', 'hymn'] %}
+            {% set section = sections.get(slug) %}
+            <form class="about-section-form form-stack about-subsection-card" method="POST" action="/gears/about-lspu/sections/{{ slug }}" data-section-form="{{ slug }}">
+              {{ csrf_field | safe }}
+              <label class="field">
+                <span class="field__label">Title</span>
+                <input type="text" name="title" class="field__input" value="{{ section.title if section else '' }}" maxlength="150">
+              </label>
+              <label class="field">
+                <span class="field__label">Body</span>
+                <div class="about-editor-frame js-body-editor">{{ section.body_html|safe if section else '' }}</div>
+              </label>
+              <input type="hidden" name="body_html" class="js-body-payload">
+              <div class="about-section-form__actions">
+                <button type="submit" class="primary-button">Save</button>
+              </div>
+            </form>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="page-card about-card about-card--compact">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Seal</p>
+              <h3 class="panel-header__title">University seal</h3>
+            </div>
+          </div>
+
+          {% set seal = sections.get('seal') %}
+          <form class="about-section-form form-stack" method="POST" action="/gears/about-lspu/seal/upload" enctype="multipart/form-data">
+            {{ csrf_field | safe }}
+            <label class="field">
+              <span class="field__label">Seal image</span>
+              <input type="file" name="file" class="field__input field__input--file" accept="image/jpeg,image/png,image/webp" required>
+            </label>
+            {% if seal and seal.image_path %}
+            <img class="about-seal-preview" src="/storage/{{ seal.image_path }}" alt="Current seal">
+            {% endif %}
+            <div class="about-section-form__actions">
+              <button type="submit" class="ghost-button">Upload image</button>
+            </div>
+          </form>
+
+          <form class="about-section-form form-stack" method="POST" action="/gears/about-lspu/sections/seal" data-section-form="seal">
+            {{ csrf_field | safe }}
+            <label class="field">
+              <span class="field__label">Title</span>
+              <input type="text" name="title" class="field__input" value="{{ seal.title if seal else '' }}" maxlength="150">
+            </label>
+            <label class="field">
+              <span class="field__label">Description</span>
+              <div class="about-editor-frame js-body-editor">{{ seal.body_html|safe if seal else '' }}</div>
+            </label>
+            <input type="hidden" name="body_html" class="js-body-payload">
+            <div class="about-section-form__actions">
+              <button type="submit" class="primary-button">Save description</button>
+            </div>
+          </form>
+        </article>
       </div>
     </section>
 
@@ -897,4 +1404,189 @@
 {% block js %}
 <script src="/assets/js/gears-dashboard.js" defer></script>
 <script src="/assets/js/news-dashboard.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.js" defer></script>
+<script src="/assets/js/about-lspu-editor.js" defer></script>
+<script>
+(function () {
+  var dashboardRoot = document.querySelector('[data-dashboard-shell]');
+
+  if (!dashboardRoot) {
+    return;
+  }
+
+  var board = dashboardRoot.querySelector('[data-org-board-board]');
+
+  if (!board) {
+    return;
+  }
+
+  var tokenMeta = document.querySelector('meta[name="csrf-token"]');
+  var token = tokenMeta ? tokenMeta.getAttribute('content') : '';
+  var reorderUrl = dashboardRoot.getAttribute('data-org-board-reorder-url') || '/org-board/dashboard/reorder';
+  var draggedMemberId = '';
+  var activeDropzone = null;
+  var orgBoardTab = dashboardRoot.querySelector('[data-page-link="org-board"]');
+
+  function syncOrgBoardUrl() {
+    try {
+      var url = new URL(window.location.href);
+      url.searchParams.set('page', 'org-board');
+      window.history.replaceState({}, '', url.toString());
+    } catch (error) {
+      // Ignore browsers that cannot construct the URL helper here.
+    }
+  }
+
+  if (orgBoardTab) {
+    orgBoardTab.addEventListener('click', function () {
+      window.requestAnimationFrame(syncOrgBoardUrl);
+    });
+  }
+
+  function clearActiveDropzone() {
+    if (!activeDropzone) {
+      return;
+    }
+
+    activeDropzone.classList.remove('is-active');
+    activeDropzone = null;
+  }
+
+  function setActiveDropzone(dropzone) {
+    if (activeDropzone === dropzone) {
+      return;
+    }
+
+    clearActiveDropzone();
+
+    activeDropzone = dropzone;
+    if (activeDropzone) {
+      activeDropzone.classList.add('is-active');
+    }
+  }
+
+  function moveMember(payload) {
+    var formData = new FormData();
+    formData.append('__token', token);
+
+    Object.keys(payload).forEach(function (key) {
+      var value = payload[key];
+      if (value !== undefined && value !== null && value !== '') {
+        formData.append(key, String(value));
+      }
+    });
+
+    return fetch(reorderUrl, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN': token,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: formData,
+      credentials: 'same-origin'
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error('Request failed');
+      }
+
+      return response;
+    });
+  }
+
+  board.addEventListener('dragstart', function (event) {
+    var handle = event.target.closest('[data-org-board-drag-handle]');
+
+    if (!handle || !board.contains(handle)) {
+      return;
+    }
+
+    var memberCard = handle.closest('[data-org-board-member]');
+
+    if (!memberCard) {
+      return;
+    }
+
+    draggedMemberId = memberCard.getAttribute('data-member-id') || '';
+    if (!draggedMemberId) {
+      return;
+    }
+
+    memberCard.classList.add('is-dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', draggedMemberId);
+  });
+
+  board.addEventListener('dragend', function (event) {
+    var memberCard = event.target.closest('[data-org-board-member]');
+
+    if (memberCard) {
+      memberCard.classList.remove('is-dragging');
+    }
+
+    draggedMemberId = '';
+    clearActiveDropzone();
+  });
+
+  board.addEventListener('dragover', function (event) {
+    var dropzone = event.target.closest('[data-org-board-dropzone]');
+
+    if (!dropzone || !board.contains(dropzone)) {
+      return;
+    }
+
+    event.preventDefault();
+    setActiveDropzone(dropzone);
+  });
+
+  board.addEventListener('dragleave', function (event) {
+    var dropzone = event.target.closest('[data-org-board-dropzone]');
+
+    if (!dropzone || dropzone !== activeDropzone) {
+      return;
+    }
+
+    if (dropzone.contains(event.relatedTarget)) {
+      return;
+    }
+
+    clearActiveDropzone();
+  });
+
+  board.addEventListener('drop', function (event) {
+    var dropzone = event.target.closest('[data-org-board-dropzone]');
+
+    if (!dropzone || !board.contains(dropzone)) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (!draggedMemberId) {
+      return;
+    }
+
+    if (draggedMemberId === (dropzone.getAttribute('data-anchor-id') || '')) {
+      return;
+    }
+
+    moveMember({
+      member_id: draggedMemberId,
+      dropzone: dropzone.getAttribute('data-org-board-dropzone') || '',
+      anchor_id: dropzone.getAttribute('data-anchor-id') || '',
+      department_id: dropzone.getAttribute('data-department-id') || ''
+    })
+      .then(function () {
+        syncOrgBoardUrl();
+        window.location.reload();
+      })
+      .catch(function () {
+        alert('Could not move the member.');
+      })
+      .finally(function () {
+        draggedMemberId = '';
+        clearActiveDropzone();
+      });
+  });
+})();
+</script>
 {% endblock %}

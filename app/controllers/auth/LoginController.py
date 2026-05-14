@@ -11,6 +11,10 @@ class LoginController(Controller):
     def show(self, view: View):
         return view.render("auth.login")
 
+    def _fresh_login_record(self, login, username: str):
+        persisted_login = User.where("username", username).first()
+        return persisted_login or login
+
     def _sync_admin_user(self, admin_record, password: str):
         """Mirror the AdminGears row into a `users` row so the rest of the
         framework (request.user(), guards, redirects) can treat it like
@@ -56,8 +60,9 @@ class LoginController(Controller):
                         login = User().attempt(synced_user.username, password)
 
         if login:
+            login = self._fresh_login_record(login, username)
             request.set_user(login)
-            response.cookie("token", getattr(login, "remember_token", ""))
+            response.cookie("token", getattr(login, "remember_token", "") or "")
             role = (getattr(login, "role", "") or "").strip().lower()
 
             if role == "admin":

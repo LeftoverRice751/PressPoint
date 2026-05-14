@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}LSPU Org Board{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/assets/css/org-board.css" />
+{% endblock %}
+
+{% block content %}
+<div class="org-board-page" data-org-board data-default-section="{{ active_section if active_section else 'departments' }}">
+  <main class="org-board-shell">
+    <section class="org-board-hero" aria-labelledby="org-board-title">
+      <p class="org-board-hero__eyebrow">LSPU Campus</p>
+      <h1 id="org-board-title">{{ campus_name if campus_name else 'LSPU Organizational Chart' }}</h1>
+      <p class="org-board-hero__lead">
+        A live structure for the campus chart. Editors can manage the chart from the gears dashboard, while this page presents the public view.
+      </p>
+    </section>
+
+    <section class="org-board-campus" aria-labelledby="campus-chart-heading">
+      <div class="org-board-section-heading">
+        <p class="org-board-section-heading__label">Campus Structure</p>
+        <h2 id="campus-chart-heading">Organizational Chart</h2>
+      </div>
+
+      <div class="org-board-campus__chart" aria-label="Campus organizational chart preview">
+        <div class="org-board-node org-board-node--root">
+          <span class="org-board-node__kicker">Campus</span>
+          <strong>LSPU</strong>
+          <span class="org-board-node__meta">Main leadership structure</span>
+        </div>
+
+        <div class="org-board-campus__branches" aria-hidden="true">
+          <span class="org-board-campus__line"></span>
+          <div class="org-board-campus__branch">
+            <span class="org-board-campus__branch-dot"></span>
+            <span>Departments</span>
+          </div>
+          <div class="org-board-campus__branch">
+            <span class="org-board-campus__branch-dot"></span>
+            <span>Offices</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="org-board-toggle-bar" role="tablist" aria-label="Org board sections">
+        <button
+          class="org-board-toggle is-active"
+          type="button"
+          data-org-board-tab="departments"
+          aria-pressed="true"
+        >
+          Departments
+        </button>
+        <button
+          class="org-board-toggle"
+          type="button"
+          data-org-board-tab="offices"
+          aria-pressed="false"
+        >
+          Offices
+        </button>
+      </div>
+    </section>
+
+    <section class="org-board-panel is-active" data-org-board-panel="departments" aria-labelledby="departments-heading">
+      <div class="org-board-section-heading">
+        <p class="org-board-section-heading__label">Departments</p>
+        <h2 id="departments-heading">Department Org Charts</h2>
+        <p class="org-board-section-heading__copy">
+          Each department will show its members once editors add them.
+        </p>
+      </div>
+
+      <div class="org-board-department-grid">
+        {% if departments %}
+          {% for department in departments %}
+          <article class="org-board-department-card">
+            <header class="org-board-department-card__header">
+              <h3>{{ department.name }}</h3>
+              {% if department.type %}<span>{{ department.type }}</span>{% endif %}
+            </header>
+            <div class="org-board-empty-state">
+              <strong>No members yet</strong>
+              <p>This department has not been populated by editors.</p>
+            </div>
+          </article>
+          {% endfor %}
+        {% else %}
+          <article class="org-board-empty-panel">
+            <span class="org-board-empty-panel__eyebrow">No data yet</span>
+            <h3>Department charts will appear here</h3>
+            <p>Editors can add members from the org-board tools in the dashboard. The public chart will update after data is added.</p>
+          </article>
+        {% endif %}
+      </div>
+
+      <footer class="org-board-department-nav" aria-label="Other departments navigation">
+        <div>
+          <p class="org-board-section-heading__label">Other departments</p>
+          <h3>Navigate across campus departments</h3>
+        </div>
+        <div class="org-board-chip-list">
+          {% if departments %}
+            {% for department in departments %}
+            <button class="org-board-chip" type="button">{{ department.name }}</button>
+            {% endfor %}
+          {% else %}
+            <span class="org-board-chip org-board-chip--empty">No departments published yet</span>
+          {% endif %}
+        </div>
+      </footer>
+    </section>
+
+    <section class="org-board-panel" data-org-board-panel="offices" aria-labelledby="offices-heading" hidden>
+      <div class="org-board-section-heading">
+        <p class="org-board-section-heading__label">Offices</p>
+        <h2 id="offices-heading">Office Org Charts</h2>
+        <p class="org-board-section-heading__copy">
+          Office structures will appear here once editors publish them.
+        </p>
+      </div>
+
+      <div class="org-board-department-grid">
+        {% if offices %}
+          {% for office in offices %}
+          <article class="org-board-department-card">
+            <header class="org-board-department-card__header">
+              <h3>{{ office.name }}</h3>
+              {% if office.type %}<span>{{ office.type }}</span>{% endif %}
+            </header>
+            <div class="org-board-empty-state">
+              <strong>No members yet</strong>
+              <p>This office has not been populated by editors.</p>
+            </div>
+          </article>
+          {% endfor %}
+        {% else %}
+          <article class="org-board-empty-panel">
+            <span class="org-board-empty-panel__eyebrow">No data yet</span>
+            <h3>Office charts will appear here</h3>
+            <p>Publish office members from the dashboard and this section will render the campus office structure.</p>
+          </article>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+</div>
+{% endblock %}
+
+{% block js %}
+<script src="/assets/js/org-board.js" defer></script>
+{% endblock %}

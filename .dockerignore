@@ -9,7 +9,6 @@ venv
 !.env.testing
 # npm
 node_modules
-package-lock.json
 
 .vscode
 **/*.DS_Store

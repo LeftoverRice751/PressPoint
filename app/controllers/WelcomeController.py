@@ -106,5 +106,5 @@ class WelcomeController(Controller):
     def virtual_tour(self, view: View):
         return view.render("kiosk/kiosk-tour")
 
-def org_chart(self, view: View):
-        return self.coming_soon(view, "LSPU Organizational Chart")
+    def org_chart(self, response: Response):
+        return response.redirect(name="kiosk.org-board")

@@ -72,7 +72,7 @@ class EventController(Controller):
                 "Please upload a PDF file.",
             ])
 
-        if pdf_file.mimetype != "application/pdf":
+        if pdf_file.extension().lower() != "application/pdf":
             return response.back().with_errors([
                 "Only PDF files are allowed.",
             ])

@@ -23,7 +23,7 @@ EXT_BY_MIME = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 def _editor_redirect(response: Response):
     """Helper: every editor save endpoint redirects back to the editor page."""
-    return response.redirect(name="gears.about-lspu")
+    return response.redirect(name="gears.dashboard", query_params={"page": "about-lspu"})
 
 
 def _save_uploaded_image(file, target_dir, prefix):
@@ -72,16 +72,8 @@ class AboutController(Controller):
 
     # ===== Editor =====
 
-    def editor(self, view: View):
-        data = AboutContent.load_all()
-        return view.render(
-            "gears/about-lspu",
-            {
-                "sections": data["sections"],
-                "ordered_slugs": data["ordered_slugs"],
-                "milestones": data["milestones"],
-            },
-        )
+    def editor(self, response: Response):
+        return response.redirect(name="gears.dashboard", query_params={"page": "about-lspu"})
 
     def save_section(self, slug, request: Request, response: Response):
         if slug not in SECTION_SLUGS:

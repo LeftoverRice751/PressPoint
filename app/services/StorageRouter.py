@@ -1,18 +1,3 @@
-"""StorageRouter — one place that knows where stored files physically live.
-
-The app keeps short relative paths in the database (e.g. `Archives/foo.pdf`,
-`Videos/clip.mp4`, `news/banner.png`). Two physical roots back those paths:
-
-  * GEARSNAS_BASE — the GearsNAS Samba mount, holds Archives + Videos so
-    editors and the kiosk share one volume.
-  * the project's local `storage/framework/public/` — everything else
-    (news photos, post images, anything legacy).
-
-Routing is by leading folder. Anything starting with `Archives/` or
-`Videos/` lives on the NAS; the rest stays on the local public disk.
-This gives us one resolver instead of touching `os.path` directly in
-every controller.
-"""
 
 import os
 
