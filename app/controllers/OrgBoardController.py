@@ -287,6 +287,7 @@ class OrgBoardController(Controller):
 
         member.department_id = target_department_id
         member.parent_id = target_parent_id
+        member.save()
 
         source_group = self._sibling_group(members, source_department_id, source_parent_id, excluded_ids=branch_ids)
         destination_group = source_group if (source_department_id, source_parent_id) == (target_department_id, target_parent_id) else self._sibling_group(members, target_department_id, target_parent_id, excluded_ids=branch_ids)

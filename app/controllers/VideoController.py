@@ -244,7 +244,17 @@ class VideoController(Controller):
         videos = sorted(list(Video.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
         locations = sorted(list(Locations.all() or []), key=lambda item: getattr(item, "id", 0))
         location_lookup = {getattr(location, "id", None): getattr(location, "name", "") for location in locations}
-        departments = sorted(list(Departments.all() or []), key=lambda item: (getattr(item, "name", "") or "").lower())
+        location_type_lookup = {
+            getattr(location, "id", None): (getattr(location, "type", "") or "")
+            for location in locations
+        }
+        departments = sorted(
+            [
+                d for d in list(Departments.all() or [])
+                if location_type_lookup.get(getattr(d, "location_id", None), "") == "Department"
+            ],
+            key=lambda item: (getattr(item, "name", "") or "").lower(),
+        )
         org_board_members = sorted(
             list(Member.all() or []),
             key=lambda item: (
