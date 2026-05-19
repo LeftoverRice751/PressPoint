@@ -68,6 +68,19 @@ document.addEventListener('DOMContentLoaded', () => {
     return pdfjsPromise;
   }
 
+  // ------- Archive loader overlay -------
+  const archiveLoader = overlay ? overlay.querySelector('[data-archive-loader]') : null;
+  function showArchiveLoader() {
+    if (!archiveLoader) return;
+    archiveLoader.hidden = false;
+    requestAnimationFrame(() => archiveLoader.classList.add('is-visible'));
+  }
+  function hideArchiveLoader() {
+    if (!archiveLoader) return;
+    archiveLoader.classList.remove('is-visible');
+    setTimeout(() => { archiveLoader.hidden = true; }, 220);
+  }
+
   function measureTargetSize() {
     // The book is hidden until openBook runs; once `is-active` lands the
     // slot dimensions are stable (they're driven by viewport-relative CSS
@@ -303,6 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     overlay.hidden = false;
+    showArchiveLoader();
     overlay.setAttribute('aria-hidden', 'false');
     requestAnimationFrame(() => {
       stage.style.transition = 'none';
@@ -318,6 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.isTabloid) {
           const url = await loadPage(1);
           if (url) setImageSrc(tabloidImg, url);
+          hideArchiveLoader();
           state.isAnimating = false;
           updatePager();
           preloadAround(1);
@@ -339,9 +354,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function animateCoverOpen(coverUrl, pageTwoUrl) {
     if (state.pageCount < 1) {
       state.isAnimating = false;
+      hideArchiveLoader();
       return;
     }
 
+    hideArchiveLoader();
     setImageSrc(rightImg, pageTwoUrl);
     setImageSrc(leftImg, '');
 
@@ -523,6 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.isAnimating) return;
     state.isAnimating = true;
 
+    hideArchiveLoader();
     overlay.classList.remove('is-active');
     stage.style.transition = '';
     applyZoomTransform(state.cardOrigin);

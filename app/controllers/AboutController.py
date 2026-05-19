@@ -12,6 +12,7 @@ from masonite.views import View
 from app.models.AboutMilestone import AboutMilestone
 from app.models.AboutSection import AboutSection
 from app.services.AboutContent import AboutContent, SECTION_SLUGS
+from app.services.AjaxResponses import wants_json, json_success, json_errors
 
 
 ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp"}
@@ -190,12 +191,20 @@ class AboutController(Controller):
     def upload_seal(self, request: Request, response: Response):
         file = request.input("file")
         relative, err = _save_uploaded_image(file, SEAL_DIR, "seal")
+        is_ajax = wants_json(request)
         if err:
+            if is_ajax:
+                return json_errors(response, [err])
             return _editor_redirect(response).with_errors([err])
 
         section = AboutSection.where("slug", "seal").first()
         if section:
             section.image_path = relative
             section.save()
+
+        if is_ajax:
+            return json_success(response, payload={
+                "seal_url": "/storage/" + str(relative).replace("\\", "/").lstrip("/")
+            }, messages=["Seal image uploaded."])
 
         return _editor_redirect(response).with_success(["Seal image uploaded."])

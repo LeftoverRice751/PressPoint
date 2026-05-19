@@ -6,6 +6,7 @@
   <title>Gears: Archives</title>
   <link rel="stylesheet" href="/assets/css/kiosk-archives.css" />
   <link rel="stylesheet" href="/assets/css/kiosk-archive-book.css" />
+  <link rel="stylesheet" href="/assets/css/kiosk-loading.css" />
   {% if archives %}
     {% for archive in archives %}
       {% if archive.first_page_url %}<link rel="preload" as="image" href="{{ archive.first_page_url }}" />{% endif %}
@@ -110,9 +111,17 @@
           <span class="archive-category-button__dot" aria-hidden="true"></span>
           <span class="archive-category-button__label">Folios</span>
         </button>
+        <button type="button" class="archive-category-button" data-archive-category-button data-category="magazine">
+          <span class="archive-category-button__dot" aria-hidden="true"></span>
+          <span class="archive-category-button__label">Magazines</span>
+        </button>
         <button type="button" class="archive-category-button" data-archive-category-button data-category="tabloid">
           <span class="archive-category-button__dot" aria-hidden="true"></span>
           <span class="archive-category-button__label">Tabloids</span>
+        </button>
+        <button type="button" class="archive-category-button" data-archive-category-button data-category="newsletter">
+          <span class="archive-category-button__dot" aria-hidden="true"></span>
+          <span class="archive-category-button__label">Newsletters</span>
         </button>
         <span class="archive-categories__rule" aria-hidden="true"></span>
       </nav>
@@ -132,11 +141,16 @@
       <a class="archive-back-link" href="{{ route('kiosk') }}">Back to kiosk</a>
     </main>
 
-    <div class="archive-book-overlay" data-archive-book hidden aria-hidden="true">
+    <div class="archive-book-overlay" data-archive-book data-mode="folio" hidden aria-hidden="true">
+      <div class="kiosk-loader" data-archive-loader hidden>
+        <img class="kiosk-loader__logo" src="/gears.png" alt="" aria-hidden="true">
+      </div>
+
       <div class="archive-book-overlay__backdrop" data-archive-book-backdrop></div>
 
       <div class="archive-book-stage" data-archive-book-stage>
         <div class="archive-book" data-archive-book-frame>
+          <!-- Folio (book flip) -->
           <div class="archive-book__spread" data-archive-book-spread>
             <div class="archive-book__page archive-book__page--left" data-archive-book-left>
               <img class="archive-book__page-image" data-archive-book-left-image alt="" />
@@ -157,8 +171,39 @@
             </div>
           </div>
 
+          <!-- Tabloid (broadsheet column reader) -->
           <div class="archive-book__tabloid" data-archive-book-tabloid>
-            <img class="archive-book__page-image" data-archive-book-tabloid-image alt="" />
+            <div class="archive-book__tabloid-pan" data-tabloid-pan>
+              <img class="archive-book__page-image" data-archive-book-tabloid-image alt="" />
+            </div>
+            <div class="archive-book__tabloid-controls">
+              <button type="button" class="archive-pill" data-tabloid-toggle-zoom>
+                <span data-tabloid-zoom-label>Read column</span>
+              </button>
+              <div class="archive-book__tabloid-nav">
+                <button type="button" class="archive-arrow" data-tabloid-prev aria-label="Previous page">&larr;</button>
+                <button type="button" class="archive-arrow" data-tabloid-next aria-label="Next page">&rarr;</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Magazine (glossy spread + filmstrip) -->
+          <div class="archive-mag" data-archive-mag>
+            <div class="archive-mag__viewport" data-mag-viewport>
+              <div class="archive-mag__track" data-mag-track></div>
+            </div>
+            <div class="archive-mag__filmstrip" data-mag-filmstrip></div>
+          </div>
+
+          <!-- Newsletter (vertical scroll letter) -->
+          <div class="archive-news" data-archive-news>
+            <div class="archive-news__scroll" data-news-scroll>
+              <div class="archive-news__stack" data-news-stack></div>
+            </div>
+            <div class="archive-news__rail" data-news-rail aria-hidden="true">
+              <span class="archive-news__rail-fill" data-news-rail-fill></span>
+              <div class="archive-news__rail-dots" data-news-rail-dots></div>
+            </div>
           </div>
         </div>
       </div>

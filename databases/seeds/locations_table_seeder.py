@@ -10,10 +10,19 @@ class LocationsTableSeeder(Seeder):
         """Run the database seeds."""
         Locations.create(
             {
+                "name": "Main Gate",
+                "type": "Entrance/Exit",
+                "latitude": 111.00,
+                "longitude": 620.00,
+                "is_routable": True
+            }
+        )
+        Locations.create(
+            {
                 "name": "Student Services Building",
                 "type": "Building/Entrance",
-                "latitude": 194.00,
-                "longitude": 566.00,
+                "latitude": 141.05,
+                "longitude": 583.00,
                 "is_routable": True,
             }
         )
@@ -21,8 +30,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "College of Computer Studies (CCS)",
                 "type": "Department",
-                "latitude": 360.00,
-                "longitude": 364.00,
+                "latitude": 392.09,
+                "longitude": 624.00,
                 "is_routable": True
             }
         )
@@ -39,8 +48,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "Supreme Student Building",
                 "type": "Building",
-                "latitude": 200.00,
-                "longitude": 400.00,
+                "latitude": 100.21,
+                "longitude": 716.00,
                 "is_routable": True
             }
         )
@@ -48,8 +57,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "General Service Office Building (GSO)",
                 "type": "Office/Building",
-                "latitude": 218.00,
-                "longitude": 716.00,
+                "latitude": 96.21,
+                "longitude": 788.00,
                 "is_routable": True
             }
         )
@@ -57,8 +66,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "Multi Purpose Building",
                 "type": "Building",
-                "latitude": 267.00,
-                "longitude": 797.00,
+                "latitude": 188.21,
+                "longitude": 848.00,
                 "is_routable": True
             }
         )
@@ -66,8 +75,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "Administrative Building/Registrar's Office",
                 "type": "Building/Office",
-                "latitude": 400.00,
-                "longitude": 500.00,
+                "latitude": 364.10,
+                "longitude": 624.00,
                 "is_routable": True
             }
         )
@@ -75,8 +84,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "University library",
                 "type": "Library",
-                "latitude": 302.00,
-                "longitude": 636.00,
+                "latitude": 184.07,
+                "longitude": 705.00,
                 "is_routable": True
             }
         )
@@ -84,8 +93,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "Business Affairs Office (BAO)",
                 "type": "Office",
-                "latitude": 516.00,
-                "longitude": 474.00,
+                "latitude": 496.55,
+                "longitude": 624.50,
                 "is_routable": True
             }
         )
@@ -93,8 +102,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "College of Teacher Education (CTE)",
                 "type": "Department",
-                "latitude": 538.00,
-                "longitude": 326.00,
+                "latitude": 580.08,
+                "longitude": 474.00,
                 "is_routable": True
             }
         )
@@ -102,8 +111,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "Supply Office",
                 "type": "Office",
-                "latitude": 586.00,
-                "longitude": 224.00,
+                "latitude": 686.15,
+                "longitude": 396.00,
                 "is_routable": True
             }
         )
@@ -111,8 +120,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "University Hotel",
                 "type": "Hotel",
-                "latitude": 612.00,
-                "longitude": 320.00,
+                "latitude": 666.49,
+                "longitude": 504.00,
                 "is_routable": True
             }
         )
@@ -120,8 +129,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "College of Hospitality Management and Tourism (CHMT)",
                 "type": "Department",
-                "latitude": 664.00,
-                "longitude": 282.00,
+                "latitude": 739.14,
+                "longitude": 489.00,
                 "is_routable": True
             }
         )
@@ -129,8 +138,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "College of Arts and Sciences (CAS)",
                 "type": "Department",
-                "latitude": 556.00,
-                "longitude": 78.00,
+                "latitude": 696.09,
+                "longitude": 320.00,
                 "is_routable": True
             }
         )
@@ -138,17 +147,61 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "College of Business Administration And Accountancy (CBAA)",
                 "type": "Department",
-                "latitude": 626.00,
-                "longitude": 58.00,
+                "latitude": 784.11,
+                "longitude": 329.00,
+                "is_routable": True
+            }
+        )
+        Locations.create ({
+            "name": "Student Center/ROTC Building",
+            "type": "Building",
+            "latitude": 846.28,
+            "longitude": 98.00,
+            "is_routable": True
+        }
+    )
+        Locations.create (
+            {
+                "name": "College of Criminal Justice and Education Academic Building (CCJE)",
+                "type": "Academic Building",
+                "latitude": 878.15,
+                "longitude": 222.00,
                 "is_routable": True
             }
         )
         Locations.create (
             {
-                "name": "College of Criminal Justice and Education Academic Building (CCJE)",
-                "type": "Department/Academic Building",
-                "latitude": 700.00,
-                "longitude": 44.00,
+                "name": "College of Criminal Justice (CCJE)",
+                "type": "Department",
+                "latitude": 986.344,
+                "longitude": 110.00,
+                "is_routable": True
+            }
+        )
+        Locations.create (
+            {
+                "name": "College of Industrial Technology (CIT)",
+                "type": "Department",
+                "latitude": 949.14,
+                "longitude": 308.00,
+                "is_routable": True
+            }
+        )
+        Locations.create (
+            {
+                "name": "College of Industrial Technology Academic Building (CIT)",
+                "type": "Academic Building",
+                "latitude": 1058.17,
+                "longitude": 251.00,
+                "is_routable": True
+            }
+        )
+        Locations.create (
+            {
+                "name": "Automotive Building",
+                "type": "Building",
+                "latitude": 817.08,
+                "longitude": 457.00,
                 "is_routable": True
             }
         )
@@ -156,8 +209,17 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "College of Nursing and Allied Health (CONAH)",
                 "type": "Department",
-                "latitude": 858.00,
-                "longitude": 466.00,
+                "latitude": 870.16,
+                "longitude": 732.00,
+                "is_routable": True
+            }
+        )
+        Locations.create (
+            {
+                "name": "University Clinic",
+                "type": "Clinic",
+                "latitude": 839.13,
+                "longitude": 672.00,
                 "is_routable": True
             }
         )
@@ -165,8 +227,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "Sports and Kinetics Building",
                 "type": "Building",
-                "latitude": 772.00,
-                "longitude": 468.00,
+                "latitude": 770.53,
+                "longitude": 730.00,
                 "is_routable": True
             }
         )
@@ -174,8 +236,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "DOST/C-FOSH Building",
                 "type": "C FOSH Facility",
-                "latitude": 792.00,
-                "longitude": 530.00,
+                "latitude": 762.53,
+                "longitude": 796.25,
                 "is_routable": True 
             }
         )
@@ -183,8 +245,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "Activity Center (AC)",
                 "type": "Activity Center",
-                "latitude": 680.00,
-                "longitude": 514.00,
+                "latitude": 578.00,
+                "longitude": 796.25,
                 "is_routable": True
             }
         )
@@ -192,8 +254,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "Engineering Testing Center",
                 "type": "Testing Center",
-                "latitude": 754.00,
-                "longitude": 630.00,
+                "latitude": 685.00,
+                "longitude": 901.00,
                 "is_routable": True
             }
         )
@@ -201,7 +263,7 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "Senior High School Building",
                 "type": "Building",
-                "latitude": 786.00,
+                "latitude": 682.04,
                 "longitude": 716.00,
                 "is_routable": True
             }
@@ -210,8 +272,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "College of Engineering New Building (COE)",
                 "type": "Department",
-                "latitude": 806.00,
-                "longitude": 650.00,
+                "latitude": 743.13,
+                "longitude": 914.00,
                 "is_routable": True
             }
         )
@@ -219,8 +281,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "College of Engineering Old Building (COE)",
                 "type": "Department",
-                "latitude": 906.00,
-                "longitude": 632.00,
+                "latitude": 852.05,
+                "longitude": 940.50,
                 "is_routable": True
             }
         )
@@ -228,8 +290,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "CFOSH Bakery",
                 "type": "CFOSH Facility",
-                "latitude": 930.00,
-                "longitude": 564.00,
+                "latitude": 906.09,
+                "longitude": 915.00,
                 "is_routable": True
             }
         )
@@ -237,8 +299,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "I.G.P Building",
                 "type": "Building",
-                "latitude": 958.00,
-                "longitude": 742.00,
+                "latitude": 851.15,
+                "longitude": 1052.00,
                 "is_routable": True
             }
         )
@@ -246,17 +308,17 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "UDRRMO Building",
                 "type": "Building",
-                "latitude": 818.00,
-                "longitude": 818.00,
+                "latitude": 652.09,
+                "longitude": 1112.00,
                 "is_routable": True
             }
         )
         Locations.create (
             {
-                "name": "PDNC Building",
-                "type": "Building",
-                "latitude": 820.00,
-                "longitude": 774.00,
+                "name": "PDNC Computer Lab",
+                "type": "Computer Lab",
+                "latitude": 678.07,
+                "longitude": 1075.00,
                 "is_routable": True
             }
         )
@@ -264,8 +326,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "Publication Building And Office (The Gears)",
                 "type": "Office",
-                "latitude": 718.00,
-                "longitude": 826.00,
+                "latitude": 553.10,
+                "longitude": 1095.00,
                 "is_routable": True
             }
         )
@@ -273,8 +335,8 @@ class LocationsTableSeeder(Seeder):
             {
                 "name": "Second Gate",
                 "type": "Entrance/Exit",
-                "latitude": 928.00,
-                "longitude": 796.00,
+                "latitude": 788.16,
+                "longitude": 1106.00,
                 "is_routable": True
             }
         )

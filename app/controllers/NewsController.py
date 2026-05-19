@@ -12,6 +12,41 @@ from masonite.views import View
 
 from app.events.NewNews import NewNews
 from app.models.News import News
+from app.services.AjaxResponses import wants_json, json_success, json_errors
+
+
+_NEWS_STATUS_ALIASES = {
+    "pending": "review",
+    "reviewing": "review",
+    "publish": "published",
+    "live": "published",
+}
+_NEWS_VISIBLE_STATUSES = {"approved", "scheduled", "published"}
+_NEWS_ALLOWED_STATUSES = {"draft", "review", "approved", "scheduled", "published", "archived"}
+
+
+def _normalize_news_status(raw_status, default="approved"):
+    status = (raw_status or default or "approved").strip().lower()
+    status = _NEWS_STATUS_ALIASES.get(status, status)
+    if status not in _NEWS_ALLOWED_STATUSES:
+        return default or "approved"
+    return status
+
+
+def _news_is_public(news_item):
+    status = _normalize_news_status(getattr(news_item, "status", None), default="approved")
+    if status not in _NEWS_VISIBLE_STATUSES:
+        return False
+
+    published_at = getattr(news_item, "published_at", None)
+    if status == "scheduled":
+        if not published_at or not hasattr(published_at, "timestamp"):
+            return False
+
+        now = datetime.now(published_at.tzinfo) if getattr(published_at, "tzinfo", None) else datetime.now()
+        return published_at <= now
+
+    return True
 
 
 def _pusher_configured():
@@ -68,7 +103,7 @@ class NewsController(Controller):
         }
 
     def show(self, view: View):
-        news_items = sorted(list(News.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
+        news_items = [item for item in sorted(list(News.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True) if _news_is_public(item)]
         news_slots = self._group_news_slots(news_items)
 
         return view.render(
@@ -89,6 +124,7 @@ class NewsController(Controller):
         source = (request.input("source") or "").strip()
         location = (request.input("location") or "").strip()
         layout_type = (request.input("layout_type") or "secondary").strip().lower() or "secondary"
+        status = _normalize_news_status(request.input("status"), default="approved")
         published_at_value = (request.input("published_at") or "").strip()
         priority_value = request.input("priority")
         image_file = request.input("image")
@@ -121,41 +157,38 @@ class NewsController(Controller):
 
             image_file = _UploadedImageAdapter(image_file)
 
+        is_ajax = wants_json(request)
+
+        def _err(messages):
+            if is_ajax:
+                return json_errors(response, messages)
+            return response.back().with_errors(messages)
+
         if not title or not description:
-            return response.back().with_errors([
-                "Title and description are required.",
-            ])
+            return _err(["Title and description are required."])
 
         try:
             priority = int(priority_value or 0)
         except (TypeError, ValueError):
-            return response.back().with_errors([
-                "Priority must be a valid number.",
-            ])
+            return _err(["Priority must be a valid number."])
 
         published_at = None
         if published_at_value:
             try:
                 published_at = datetime.fromisoformat(published_at_value)
             except ValueError:
-                return response.back().with_errors([
-                    "Published at must be a valid date and time.",
-                ])
+                return _err(["Published at must be a valid date and time."])
 
         image_path = None
         if image_file:
             if not hasattr(image_file, "get_content") or not hasattr(image_file, "extension"):
-                return response.back().with_errors([
-                    "Please upload a valid image file.",
-                ])
+                return _err(["Please upload a valid image file."])
 
             allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
             file_extension = (image_file.extension() or "").lower()
 
             if file_extension not in allowed_extensions:
-                return response.back().with_errors([
-                    "Please upload a valid image file.",
-                ])
+                return _err(["Please upload a valid image file."])
 
         try:
             if image_file:
@@ -170,6 +203,7 @@ class NewsController(Controller):
                 location=location or None,
                 layout_type=layout_type,
                 priority=priority,
+                status=status,
             )
 
             try:
@@ -177,11 +211,20 @@ class NewsController(Controller):
             except Exception:
                 pass
 
+            if is_ajax:
+                return json_success(response, payload={
+                    "article": {
+                        "id": getattr(created_news, "id", None),
+                        "title": title,
+                        "layout_type": layout_type,
+                        "status": status,
+                        "image": image_path,
+                    }
+                }, messages=["News saved successfully."])
+
             return response.redirect(name="gears.dashboard").with_success([
                 "News saved successfully.",
             ])
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
-            return response.back().with_errors([
-                "Could not save the news item. Please try again.",
-            ])
+            return _err(["Could not save the news item. Please try again."])

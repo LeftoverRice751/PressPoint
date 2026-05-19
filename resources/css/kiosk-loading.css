@@ -1,0 +1,30 @@
+/* Shared logo loader for kiosk overlays — archives, campus map, etc. */
+
+.kiosk-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(249, 247, 242, 0.92); /* matches welcome-screen cream */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.kiosk-loader.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.kiosk-loader__logo {
+  width: 72px;
+  height: 72px;
+  animation: kiosk-logo-spin 2s linear infinite;
+}
+
+@keyframes kiosk-logo-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

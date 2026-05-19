@@ -1,0 +1,52 @@
+{% extends 'auth/base.html' %}
+
+{% block auth_shell_class %}auth-shell--centered{% endblock %}
+
+{% block auth_rail %}{% endblock %}
+
+{% block content %}
+<section class="auth-panel auth-panel--narrow">
+    <div class="auth-panel__header">
+        <h2 class="auth-panel__title">Login</h2>
+        <p class="auth-panel__subtitle">Enter your credentials to open the News Editors Dashboard.</p>
+    </div>
+
+    {% if bag().any() %}
+    <div class="auth-alert">
+        <ul class="auth-alert__list">
+            {% for message in bag().messages() %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <form class="auth-form" method="POST" action="{{ route('auth.news-editor.store', {}, False) }}">
+        {{ csrf_field | safe }}
+
+        <label class="auth-form__group" for="username">
+            <span class="auth-form__label">Username</span>
+            <input id="username" type="text" name="username" placeholder="username" autocomplete="username" class="auth-form__input" required />
+        </label>
+
+        <label class="auth-form__group" for="password">
+            <span class="auth-form__label">Password</span>
+            <div class="password-field">
+                <input id="password" type="password" name="password" placeholder="password" autocomplete="current-password" class="auth-form__input pr-20" required />
+                <button type="button" class="password-toggle" data-password-toggle="password">See</button>
+            </div>
+        </label>
+
+        <button type="submit" class="auth-form__button">Login</button>
+
+        <div class="auth-form__footer">
+            <span>Don't have an account? Register</span>
+            <a class="auth-form__link" href="{{ route('auth.forgot-password') }}">Forgot Password</a>
+        </div>
+    </form>
+</section>
+{% endblock %}
+
+{% block js %}
+<script src="/assets/js/auth-login.js" defer></script>
+{% endblock %}

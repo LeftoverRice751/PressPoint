@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <link rel="stylesheet" href="/assets/css/kiosk-map.css" />
+<link rel="stylesheet" href="/assets/css/kiosk-loading.css" />
 {% endblock %}
 
 {% block content %}
@@ -47,12 +48,20 @@
   </header>
 
   <main class="campus-map-page__stage" id="campus-map-stage">
+    <div class="kiosk-loader is-visible" data-map-loader>
+      <img class="kiosk-loader__logo" src="/gears.png" alt="" aria-hidden="true">
+    </div>
+
     <div id="campus-map" class="campus-map-page__map"></div>
 
     <!-- Zoom controls — 72px touch targets, top-right edge of the map. -->
     <div class="map-zoom" aria-hidden="false">
       <button type="button" class="map-zoom__btn" id="zoom-in" aria-label="Zoom in">+</button>
       <button type="button" class="map-zoom__btn" id="zoom-out" aria-label="Zoom out">−</button>
+    </div>
+
+    <div class="map-coordinate-readout" id="map-coordinate-readout" aria-live="polite" aria-atomic="true">
+      Click the map to read coordinates
     </div>
 
     <!-- Suggestions overlay — shown while typing or filtering by category. -->

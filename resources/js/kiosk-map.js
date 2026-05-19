@@ -80,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
         paneLng: document.getElementById('building-pane-lng'),
         showRoute: document.getElementById('show-route'),
         qrCanvas: document.getElementById('qr-canvas'),
+        coordReadout: document.getElementById('map-coordinate-readout'),
         searchInput: document.getElementById('search-input'),
         searchClear: document.getElementById('search-clear'),
         keyboard: document.getElementById('keyboard'),
@@ -374,8 +375,25 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     mapImage.src = '/campus-map.png';
 
-    // Tapping the map (away from a marker) closes any open pane.
-    map.on('click', () => closeBuildingPane());
+    const updateCoordinateReadout = (latlng) => {
+        if (!dom.coordReadout || !latlng) {
+            return;
+        }
+
+        const lat = Number(latlng.lat);
+        const lng = Number(latlng.lng);
+        const latText = Number.isFinite(lat) ? lat.toFixed(2) : '—';
+        const lngText = Number.isFinite(lng) ? lng.toFixed(2) : '—';
+
+        dom.coordReadout.textContent = `Lat ${latText}, Lng ${lngText}`;
+    };
+
+    // Tapping the map (away from a marker) closes any open pane and
+    // temporarily exposes the raw coordinates for placement work.
+    map.on('click', (event) => {
+        updateCoordinateReadout(event.latlng);
+        closeBuildingPane();
+    });
 
     // ── 8. Building pane ──────────────────────────────────────────
 
@@ -557,6 +575,17 @@ document.addEventListener('DOMContentLoaded', () => {
     map.on('movestart zoomstart', bumpIdleTimer);
 
     // ── 13. Boot ──────────────────────────────────────────────────
+
+    // Hide logo loader once the map and tiles have rendered
+    const mapLoader = document.querySelector('[data-map-loader]');
+    function hideMapLoader() {
+        if (!mapLoader) return;
+        mapLoader.classList.remove('is-visible');
+        setTimeout(() => { mapLoader.hidden = true; }, 220);
+    }
+    map.whenReady(hideMapLoader);
+    // Fallback: hide after 4s regardless
+    setTimeout(hideMapLoader, 4000);
 
     buildKeyboard();
     buildChips();

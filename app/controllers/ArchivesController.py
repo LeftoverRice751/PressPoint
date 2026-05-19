@@ -11,6 +11,7 @@ from masonite.views import View
 from app.models.Archives import Archives
 from app.services.ArchiveServices import ArchiveServices
 from app.services.StorageRouter import absolute_path, gearsnas_base
+from app.services.AjaxResponses import wants_json, json_success, json_errors
 
 
 # Files written to the NAS need to be group-writable so the web user and
@@ -57,9 +58,16 @@ class ArchivesController(Controller):
         # form posts to /archives/dashboard, which is POST-only — without an
         # explicit __back hidden field, response.back() would 302 to that
         # POST-only URL and the browser's follow-up GET hits a 405.
+        is_ajax = wants_json(request)
+
         archives_dashboard = lambda: response.redirect(
             name="gears.dashboard", query_params={"page": "archives"}
         )
+
+        def _err(messages):
+            if is_ajax:
+                return json_errors(response, messages)
+            return archives_dashboard().with_errors(messages)
 
         request.validate({
             "name": "required",
@@ -75,17 +83,13 @@ class ArchivesController(Controller):
         year_value = (request.input("year_published") or request.input("date") or "").strip()
 
         if not year_value:
-            return archives_dashboard().with_errors([
-                "Year published is required.",
-            ])
+            return _err(["Year published is required."])
 
         try:
             published_year = int(year_value[:4])
             archive_date = date(published_year, 1, 1)
         except (TypeError, ValueError):
-            return archives_dashboard().with_errors([
-                "Year published must be a valid year.",
-            ])
+            return _err(["Year published must be a valid year."])
 
         try:
             # Archive PDFs live on GearsNAS under /Archives so the Gears
@@ -106,7 +110,7 @@ class ArchivesController(Controller):
             except OSError:
                 pass
 
-            Archives.create(
+            archive = Archives.create(
                 name=(request.input("name") or "").strip(),
                 type=(request.input("type") or "").strip(),
                 date=archive_date,
@@ -116,14 +120,23 @@ class ArchivesController(Controller):
             archive_services = ArchiveServices()
             archive_services.prewarm_archive_previews(file_path)
 
+            if is_ajax:
+                return json_success(response, payload={
+                    "archive": {
+                        "id": getattr(archive, "id", None),
+                        "name": (request.input("name") or "").strip(),
+                        "type": (request.input("type") or "").strip(),
+                        "year": published_year,
+                        "file_path": file_path,
+                    }
+                }, messages=["Archive saved successfully."])
+
             return response.redirect(name="gears.dashboard", query_params={"page": "archives"}).with_success([
                 "Archive saved successfully.",
             ])
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
-            return archives_dashboard().with_errors([
-                "Could not save the archive. Please try again.",
-            ])
+            return _err(["Could not save the archive. Please try again."])
 
     def page(self, request: Request, response: Response):
         archive_id_value = str(request.param("id") or "").strip()
@@ -161,22 +174,24 @@ class ArchivesController(Controller):
         return response.redirect("/storage/" + page_relative)
 
     def destroy(self, request: Request, storage: Storage, response: Response):
+        is_ajax = wants_json(request)
         archives_dashboard = lambda: response.redirect(
             name="gears.dashboard", query_params={"page": "archives"}
         )
 
+        def _err(messages, status=400):
+            if is_ajax:
+                return json_errors(response, messages, status=status)
+            return archives_dashboard().with_errors(messages)
+
         archive_id_value = str(request.param("id") or "").strip()
 
         if not archive_id_value or not archive_id_value.isdigit():
-            return archives_dashboard().with_errors([
-                "Please choose a valid archive to delete.",
-            ])
+            return _err(["Please choose a valid archive to delete."])
 
         archive = Archives.find(int(archive_id_value))
         if not archive:
-            return archives_dashboard().with_errors([
-                "Please choose a valid archive to delete.",
-            ])
+            return _err(["Please choose a valid archive to delete."], status=404)
 
         try:
             archive_services = ArchiveServices()
@@ -192,20 +207,26 @@ class ArchivesController(Controller):
 
                 full_path = archive_services._storage_public_path(relative_path)
                 if os.path.exists(full_path):
-                    storage.disk("gearsnas").delete(relative_path)
+                    try:
+                        storage.disk("gearsnas").delete(relative_path)
+                    except Exception as exception:
+                        traceback.print_exception(type(exception), exception, exception.__traceback__)
 
             delete_if_exists(file_path)
             delete_if_exists(cover_path)
             delete_if_exists(legacy_page_two_path)
-            archive_services.cleanup_archive_assets(file_path)
+            try:
+                archive_services.cleanup_archive_assets(file_path)
+            except Exception as exception:
+                traceback.print_exception(type(exception), exception, exception.__traceback__)
 
             archive.delete()
 
+            if is_ajax:
+                return json_success(response, messages=["Archive deleted successfully."])
             return response.redirect(name="gears.dashboard", query_params={"page": "archives"}).with_success([
                 "Archive deleted successfully.",
             ])
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
-            return archives_dashboard().with_errors([
-                "Could not delete the archive. Please try again.",
-            ])
+            return _err(["Could not delete the archive. Please try again."], status=500)

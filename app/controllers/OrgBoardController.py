@@ -9,6 +9,7 @@ from masonite.views import View
 
 from app.models.Departments import Departments
 from app.models.Member import Member
+from app.services.AjaxResponses import wants_json, json_success, json_errors
 
 
 ALLOWED_PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
@@ -120,12 +121,32 @@ class OrgBoardController(Controller):
         return _dashboard_redirect(response)
 
     def public_show(self, view: View):
+        from app.models.Locations import Locations
+        from app.controllers.VideoController import _build_org_board_departments
+
+        locations = list(Locations.all() or [])
+        location_type_lookup = {
+            getattr(l, "id", None): (getattr(l, "type", "") or "")
+            for l in locations
+        }
+        departments_rows = sorted(
+            [
+                d for d in list(Departments.all() or [])
+                if location_type_lookup.get(getattr(d, "location_id", None), "") == "Department"
+            ],
+            key=lambda item: (getattr(item, "name", "") or "").lower(),
+        )
+        members = sorted(
+            list(Member.all() or []),
+            key=_member_sort_key,
+        )
+        department_rows = _build_org_board_departments(departments_rows, locations, members)
+
         return view.render(
             "kiosk/org-board",
             {
                 "campus_name": "LSPU Organizational Chart",
-                "departments": [],
-                "offices": [],
+                "departments": department_rows,
                 "active_section": "departments",
             },
         )
@@ -137,39 +158,34 @@ class OrgBoardController(Controller):
         parent_id_value = (request.input("parent_id") or "").strip()
         photo_file = _normalize_uploaded_photo(request.input("photo_path"))
 
+        is_ajax = wants_json(request)
+
+        def _err(messages):
+            if is_ajax:
+                return json_errors(response, messages)
+            return _dashboard_redirect(response).with_errors(messages)
+
         if not name or not position or not department_id_value:
-            return _dashboard_redirect(response).with_errors([
-                "Name, position, and department are required.",
-            ])
+            return _err(["Name, position, and department are required."])
 
         if not department_id_value.isdigit():
-            return _dashboard_redirect(response).with_errors([
-                "Please choose a valid department.",
-            ])
+            return _err(["Please choose a valid department."])
 
         department = Departments.find(int(department_id_value))
         if not department:
-            return _dashboard_redirect(response).with_errors([
-                "Please choose a valid department.",
-            ])
+            return _err(["Please choose a valid department."])
 
         parent_id = None
         if parent_id_value:
             if not parent_id_value.isdigit():
-                return _dashboard_redirect(response).with_errors([
-                    "Please choose a valid supervisor.",
-                ])
+                return _err(["Please choose a valid supervisor."])
 
             parent_member = Member.find(int(parent_id_value))
             if not parent_member:
-                return _dashboard_redirect(response).with_errors([
-                    "Please choose a valid supervisor.",
-                ])
+                return _err(["Please choose a valid supervisor."])
 
             if getattr(parent_member, "department_id", None) != department.id:
-                return _dashboard_redirect(response).with_errors([
-                    "The supervisor must belong to the same department.",
-                ])
+                return _err(["The supervisor must belong to the same department."])
 
             parent_id = parent_member.id
 
@@ -180,9 +196,7 @@ class OrgBoardController(Controller):
             else:
                 file_extension = (photo_file.extension() or "").lower()
                 if file_extension not in ALLOWED_PHOTO_EXTENSIONS:
-                    return _dashboard_redirect(response).with_errors([
-                        "Please upload a valid image file.",
-                    ])
+                    return _err(["Please upload a valid image file."])
 
                 photo_path = storage.disk("public").put_file("org-board", photo_file)
 
@@ -190,7 +204,7 @@ class OrgBoardController(Controller):
             existing_members = self._all_members()
             sort_order = self._next_sort_order(existing_members, department.id, parent_id)
 
-            Member.create({
+            member = Member.create({
                 "name": name,
                 "position": position,
                 "department_id": department.id,
@@ -199,14 +213,23 @@ class OrgBoardController(Controller):
                 "sort_order": sort_order,
             })
 
+            if is_ajax:
+                return json_success(response, payload={
+                    "member": {
+                        "id": getattr(member, "id", None),
+                        "name": name,
+                        "position": position,
+                        "department_id": department.id,
+                        "photo_path": photo_path,
+                    }
+                }, messages=["Member added successfully."])
+
             return _dashboard_redirect(response).with_success([
                 "Member added successfully.",
             ])
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
-            return _dashboard_redirect(response).with_errors([
-                "Could not save the member. Please try again.",
-            ])
+            return _err(["Could not save the member. Please try again."])
 
     def reorder(self, request: Request, response: Response):
         member_id_value = (request.input("member_id") or "").strip()

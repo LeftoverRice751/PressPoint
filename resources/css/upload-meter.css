@@ -1,0 +1,147 @@
+/* Floating bottom-right stack of upload progress toasts.
+ * Each card uses the dashboard palette and progress-track tokens.
+ */
+
+.upload-meter {
+    position: fixed;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 0.75rem;
+    z-index: 90;
+    pointer-events: none;
+    max-width: calc(100vw - 3rem);
+}
+
+.upload-meter__toast {
+    pointer-events: auto;
+    width: 22rem;
+    max-width: 100%;
+    padding: 0.95rem 1.05rem 1rem;
+    background: var(--ink-paper);
+    border: 1px solid var(--ink-rule);
+    border-radius: var(--radius-md, 6px);
+    box-shadow: 0 14px 28px rgba(31, 23, 22, 0.18);
+    transform: translateX(110%);
+    opacity: 0;
+    transition: transform 0.32s ease, opacity 0.32s ease;
+    display: grid;
+    gap: 0.45rem;
+    font-family: var(--font-ui);
+    color: var(--ink-soot);
+}
+
+.upload-meter__toast.is-visible {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.upload-meter__toast.is-leaving {
+    transform: translateX(120%);
+    opacity: 0;
+}
+
+.upload-meter__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.upload-meter__eyebrow {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-terracotta);
+}
+
+.upload-meter__close {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0.2rem 0.35rem;
+    border-radius: 4px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.upload-meter__close:hover {
+    background: var(--ink-cream);
+    color: var(--ink-oxblood);
+}
+
+.upload-meter__filename {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1rem;
+    color: var(--ink-oxblood);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.25;
+}
+
+.upload-meter__detail {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--ink-muted);
+    letter-spacing: 0.02em;
+}
+
+.upload-meter__track {
+    width: 100%;
+    height: 0.45rem;
+    margin-top: 0.2rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--ink-cream);
+    border: 1px solid var(--ink-rule);
+}
+
+.upload-meter__fill {
+    display: block;
+    width: calc(var(--progress, 0) * 1%);
+    height: 100%;
+    background: var(--ink-marigold);
+    transition: width 0.18s ease, background-color 0.18s ease;
+}
+
+.upload-meter__toast.is-complete .upload-meter__fill {
+    background: var(--ink-oxblood);
+}
+
+.upload-meter__toast.is-complete .upload-meter__eyebrow {
+    color: var(--ink-oxblood);
+}
+
+.upload-meter__toast.is-error .upload-meter__fill {
+    background: var(--ink-vermillion);
+}
+
+.upload-meter__toast.is-error .upload-meter__eyebrow {
+    color: var(--ink-vermillion);
+}
+
+.upload-meter__toast.is-error .upload-meter__detail {
+    color: var(--ink-vermillion);
+}
+
+@media (max-width: 540px) {
+    .upload-meter {
+        right: 0.75rem;
+        bottom: 0.75rem;
+        left: 0.75rem;
+        max-width: none;
+    }
+
+    .upload-meter__toast {
+        width: auto;
+    }
+}

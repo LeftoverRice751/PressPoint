@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+{% block title %}News Editor{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/assets/css/gears-dashboard.css" />
+<link rel="stylesheet" href="/assets/css/news-dashboard.css" />
+{% endblock %}
+
+{% block content %}
+<div class="gears-dashboard" data-dashboard-shell data-default-page="submissions">
+  <aside class="gears-sidebar">
+    <div class="gears-sidebar__brand">
+      <div class="gears-sidebar__mark" aria-hidden="true"><img src="/gears.png" alt=""></div>
+      <div>
+        <div class="gears-sidebar__eyebrow">The Gears Publication</div>
+        <div class="gears-sidebar__title">News Editor</div>
+      </div>
+    </div>
+
+    <nav class="dashboard-nav" aria-label="Dashboard navigation" role="tablist">
+      <button type="button" class="dashboard-nav__link is-active" data-page-link="submissions" id="nav-submissions" role="tab" aria-controls="panel-submissions" aria-selected="true" tabindex="0">
+        <span class="dashboard-nav__icon" aria-hidden="true">▣</span>
+        <span>My Submissions</span>
+      </button>
+      <button type="button" class="dashboard-nav__link" data-page-link="write" id="nav-write" role="tab" aria-controls="panel-write" aria-selected="false" tabindex="-1">
+        <span class="dashboard-nav__icon" aria-hidden="true">◫</span>
+        <span>Write Story</span>
+      </button>
+      <button type="button" class="dashboard-nav__link" data-page-link="notifications" id="nav-notifications" role="tab" aria-controls="panel-notifications" aria-selected="false" tabindex="-1">
+        <span class="dashboard-nav__icon" aria-hidden="true">🔔</span>
+        <span>Notifications</span>
+        {% if unread_count and unread_count > 0 %}
+        <span class="notification-bell__badge" aria-label="{{ unread_count }} unread">{{ unread_count }}</span>
+        {% endif %}
+      </button>
+    </nav>
+
+    <div class="gears-sidebar__footer">
+      <a href="{{ route('auth.news-editor.logout', {}, False) }}" class="gears-sidebar__logout">Log out</a>
+    </div>
+  </aside>
+
+  <main class="gears-main">
+    <header class="gears-hero" data-hero>
+      <div>
+        <p class="gears-hero__eyebrow" data-hero-eyebrow>Your Work</p>
+        <h1 class="gears-hero__title" data-hero-title>My Submissions</h1>
+        <p class="gears-hero__subtitle" data-hero-subtitle>Track articles you've submitted and their approval status.</p>
+      </div>
+      <div class="gears-hero__chip">NEWS EDITOR</div>
+    </header>
+
+    <!-- My Submissions Panel (Landing) -->
+    <section class="gears-page is-visible" data-page-panel="submissions" id="panel-submissions" role="tabpanel" aria-labelledby="nav-submissions" data-hero-eyebrow="Your Work" data-hero-title="My Submissions" data-hero-subtitle="Track articles you've submitted and their approval status.">
+      <div class="submission-stats">
+        {% set pending_count = my_news | selectattr('status', 'equalto', 'pending') | list | length %}
+        {% set approved_count = my_news | selectattr('status', 'equalto', 'approved') | list | length %}
+        {% set rejected_count = my_news | selectattr('status', 'equalto', 'rejected') | list | length %}
+
+        <article class="stat-card stat-card--orange">
+          <div class="stat-card__label">Pending Review</div>
+          <div class="stat-card__value">{{ pending_count }}</div>
+        </article>
+
+        <article class="stat-card stat-card--blue">
+          <div class="stat-card__label">Approved</div>
+          <div class="stat-card__value">{{ approved_count }}</div>
+        </article>
+
+        <article class="stat-card stat-card--red">
+          <div class="stat-card__label">Rejected</div>
+          <div class="stat-card__value">{{ rejected_count }}</div>
+        </article>
+      </div>
+
+      <div class="page-card" data-section-count="{{ my_news|length }}">
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No submissions yet</div>
+          <p class="empty-state__text">Switch to "Write Story" to submit your first article.</p>
+        </div>
+
+        <div class="submissions-table" data-section-content>
+          <table class="submissions-grid">
+            <thead class="submissions-grid__head">
+              <tr class="submissions-row submissions-row--header">
+                <th class="submissions-cell submissions-cell--title">Title</th>
+                <th class="submissions-cell submissions-cell--status">Status</th>
+                <th class="submissions-cell submissions-cell--date">Submitted</th>
+              </tr>
+            </thead>
+            <tbody class="submissions-grid__body">
+              {% for article in my_news %}
+              <tr class="submissions-row">
+                <td class="submissions-cell submissions-cell--title">
+                  <span class="submissions-cell__text">{{ article.title }}</span>
+                  {% if article.status == 'rejected' and article.rejection_reason %}
+                  <p class="submissions-cell__reason"><strong>Reason:</strong> {{ article.rejection_reason }}</p>
+                  {% elif article.status == 'approved' and article.display_date %}
+                  <p class="submissions-cell__schedule">
+                    Scheduled {{ article.display_date.strftime('%b %d, %Y') if article.display_date.strftime is defined else article.display_date }}
+                    {% if article.expiration_date %}
+                      – {{ article.expiration_date.strftime('%b %d, %Y') if article.expiration_date.strftime is defined else article.expiration_date }}
+                    {% endif %}
+                  </p>
+                  {% endif %}
+                </td>
+                <td class="submissions-cell submissions-cell--status">
+                  {% set status_class = 'status-badge--' + (article.status | lower if article.status else 'pending') %}
+                  <span class="status-badge {{ status_class }}">
+                    {{ article.status | capitalize if article.status else 'Pending' }}
+                  </span>
+                </td>
+                <td class="submissions-cell submissions-cell--date">
+                  <span class="submissions-cell__text">
+                    {% if article.created_at %}
+                      {{ article.created_at.strftime('%b %d, %Y') if hasattr(article.created_at, 'strftime') else article.created_at }}
+                    {% else %}
+                      Not set
+                    {% endif %}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Write Story Panel -->
+    <section class="gears-page" data-page-panel="write" id="panel-write" role="tabpanel" aria-labelledby="nav-write" data-hero-eyebrow="Create Content" data-hero-title="Write Story" data-hero-subtitle="Submit an article for the chief editor to review and place on the kiosk." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">Write Story</h2>
+        </div>
+        <p class="section-head__subtitle">Create an article with a headline, body, and image. The chief editor will review it and decide where it appears on the kiosk.</p>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="news-layout-editor">
+        <article class="news-preview-panel page-card">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Kiosk preview</p>
+              <h3 class="panel-header__title">How the kiosk will display this story</h3>
+            </div>
+            <p class="panel-header__subtitle">The chief editor chooses where this story appears. Preview updates as you type.</p>
+          </div>
+
+          <div class="news-preview">
+            <div class="news-preview__masthead">
+              <span class="news-preview__brand">THE GEARS PUBLICATION</span>
+              <h4 class="news-preview__headline">LATEST NEWS</h4>
+            </div>
+
+            <div class="news-preview__slot news-preview__slot--main">
+              <span class="news-preview__slot-label">Story Display</span>
+              <div class="news-preview__article">
+                <div class="news-preview__image-wrap">
+                  <div class="news-preview__image news-preview__image--fallback" aria-hidden="true"></div>
+                </div>
+                <div class="news-preview__article-body">
+                  <h4 class="news-preview__article-title">Your headline here</h4>
+                  <p class="news-preview__article-copy">Your story summary appears here. Write something compelling — the chief editor will review it and decide where to place it.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <aside class="news-editor-sidebar page-card">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Submit a story</p>
+              <h3 class="panel-header__title">New article</h3>
+            </div>
+            <p class="panel-header__subtitle">Fill in the story details and submit for chief editor review.</p>
+          </div>
+
+          <form action="{{ route('news.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="slot-form">
+            {{ csrf_field | safe }}
+
+            <label class="field" for="news-title">
+              <span class="field__label">Headline</span>
+              <input type="text" name="title" id="news-title" class="field__input" placeholder="Article headline" required>
+            </label>
+
+            <label class="field" for="news-description">
+              <span class="field__label">Story body</span>
+              <textarea name="description" id="news-description" class="field__input field__textarea" placeholder="Article summary or body" required></textarea>
+            </label>
+
+            <div class="slot-upload">
+              <span class="field__label">Cover image</span>
+              <label class="slot-upload__dropzone" for="news-image">
+                <span class="slot-upload__title">Drag an image here, or tap to choose</span>
+                <span class="slot-upload__copy">PNG, JPG, GIF, or WEBP</span>
+                <input type="file" name="image" id="news-image" class="slot-upload__input" accept="image/*">
+              </label>
+            </div>
+
+            <label class="field" for="news-source">
+              <span class="field__label">Source</span>
+              <input type="text" name="source" id="news-source" class="field__input" placeholder="e.g. Campus Affairs, Editorial Desk">
+            </label>
+
+            <label class="field" for="news-location">
+              <span class="field__label">Location</span>
+              <input type="text" name="location" id="news-location" class="field__input" placeholder="e.g. Campus, Building, City">
+            </label>
+
+            <div class="slot-form__actions">
+              <button type="submit" class="primary-button">Submit for review</button>
+            </div>
+          </form>
+        </aside>
+      </div>
+
+      <div class="news-table-wrap news-table-wrap--compact" data-section-count="{{ news_items|length }}">
+        <div class="panel-header panel-header--compact news-table__header">
+          <div>
+            <p class="panel-header__eyebrow">Currently live</p>
+            <h3 class="panel-header__title">Stories on the kiosk</h3>
+          </div>
+        </div>
+
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No stories live yet</div>
+          <p class="empty-state__text">Check back later to see approved articles on the kiosk.</p>
+        </div>
+
+        <div class="news-table__slots" data-section-content>
+          {% for news in news_items %}
+          {% set _slot_label = {'main': 'Lead', 'secondary': 'Side', 'widget': 'Sidebar fact'}.get(news.layout_type, 'Side') %}
+          <article class="news-slot-row">
+            <div class="news-slot-row__slot">{{ _slot_label }}</div>
+            <div class="news-slot-row__body">
+              <div class="news-slot-row__title">{{ news.title }}</div>
+              <div class="news-slot-row__meta">
+                <span>{{ news.source if news.source else 'Unspecified' }}</span>
+                <span>{{ news.location if news.location else 'Unspecified' }}</span>
+              </div>
+            </div>
+            <div class="news-slot-row__media">
+              {% if news.image %}
+              <img class="news-slot-row__thumb" src="/storage/{{ news.image | replace('\\', '/') }}" alt="{{ news.title | e }}">
+              {% else %}
+              <div class="news-slot-row__thumb news-slot-row__thumb--fallback" aria-hidden="true">No image</div>
+              {% endif %}
+            </div>
+          </article>
+          {% else %}
+          <div class="empty-state empty-state--embedded">No stories currently live.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <!-- Notifications Panel -->
+    <section class="gears-page" data-page-panel="notifications" id="panel-notifications" role="tabpanel" aria-labelledby="nav-notifications" data-hero-eyebrow="Inbox" data-hero-title="Notifications" data-hero-subtitle="Decisions and updates from the chief editor on your submissions." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Recent activity</p>
+          <h2 class="section-head__title">Your notifications</h2>
+        </div>
+        {% if notifications and notifications | length > 0 %}
+        <form method="POST" action="{{ route('notifications.read_all', {}, False) }}" class="notification-bulk-form">
+          {{ csrf_field | safe }}
+          <button type="submit" class="btn-mark-all-read">Mark all as read</button>
+        </form>
+        {% endif %}
+      </div>
+
+      <div class="page-card">
+        {% if not notifications or notifications | length == 0 %}
+        <div class="empty-state">
+          <div class="empty-state__title">No notifications yet</div>
+          <p class="empty-state__text">When the chief editor approves or rejects your submissions, you'll see updates here.</p>
+        </div>
+        {% else %}
+        <ul class="notification-list">
+          {% for notification in notifications %}
+          <li class="notification-item {% if not notification.read_at %}notification-item--unread{% endif %} notification-item--{{ notification.type }}">
+            <form method="POST" action="{{ route('notifications.read', {'id': notification.id}, False) }}" class="notification-item__form">
+              {{ csrf_field | safe }}
+              <button type="submit" class="notification-item__button">
+                <span class="notification-item__icon" aria-hidden="true">
+                  {% if notification.type == 'news_approved' %}✓{% else %}✕{% endif %}
+                </span>
+                <span class="notification-item__body">
+                  <span class="notification-item__title">{{ notification.title }}</span>
+                  <span class="notification-item__message">{{ notification.message }}</span>
+                  {% if notification.created_at %}
+                  <span class="notification-item__time">{{ notification.created_at.strftime('%b %d, %Y · %I:%M %p') if hasattr(notification.created_at, 'strftime') else notification.created_at }}</span>
+                  {% endif %}
+                </span>
+                {% if not notification.read_at %}<span class="notification-item__dot" aria-label="Unread"></span>{% endif %}
+              </button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+</div>
+{% endblock %}
+
+{% block js %}
+<script src="/assets/js/gears-dashboard.js" defer></script>
+<script src="/assets/js/news-dashboard.js" defer></script>
+{% endblock %}
