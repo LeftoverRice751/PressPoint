@@ -50,7 +50,7 @@ html, body {
 .campus-map-page {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100dvh;
     background: var(--paper);
     color: var(--ink);
     font-family: var(--body-font);
@@ -386,6 +386,24 @@ html, body {
     box-shadow: 3px 3px 0 var(--ink);
     background: var(--orange);
     color: var(--ink);
+}
+
+.map-coordinate-readout {
+    position: absolute;
+    right: 1rem;
+    bottom: 6.1rem;
+    z-index: 40;
+    padding: 0.7rem 0.95rem;
+    border: 2px solid var(--ink);
+    background: rgba(255, 255, 255, 0.94);
+    color: var(--ink);
+    font-family: var(--mono-font);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    box-shadow: var(--shadow-2);
+    pointer-events: none;
 }
 
 /* ── Category chips (filter + legend in one) ────────────────────── */

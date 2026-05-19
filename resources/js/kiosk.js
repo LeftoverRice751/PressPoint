@@ -176,6 +176,16 @@ function initKiosk() {
 		stage.classList.remove('is-loading');
 	}
 
+	// Seam for the welcome-screen idle scheduler. The idle attract loop
+	// reuses this overlay + playback path so we don't duplicate state
+	// machines. We also expose showStage so the caller can reveal the
+	// stage before kicking off playback.
+	window.__kioskPlaySrc = function (src, title) {
+		showStage();
+		playSrc(src, title);
+	};
+	window.__kioskCloseVideo = closeVideo;
+
 	if (!pusherKey) {
 		stage.classList.add('is-idle');
 		showStatus('Broadcasting is not configured (.env Pusher keys). Local preview only.');

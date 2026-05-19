@@ -7,6 +7,8 @@ ROUTES = [
     Route.get("/gears/dashboard", "VideoController@show").name("gears.dashboard").middleware("auth"),
     Route.post("/videos/dashboard", "VideoController@upload").name("video.upload").middleware("auth"),
     Route.delete("/videos/dashboard/@id", "VideoController@destroy").name("video.destroy").middleware("auth"),
+    Route.post("/videos/dashboard/@id/idle", "VideoController@set_idle").name("video.idle.set").middleware("auth"),
+    Route.post("/videos/dashboard/@id/idle/clear", "VideoController@clear_idle").name("video.idle.clear").middleware("auth"),
     Route.post("/archives/dashboard", "ArchivesController@store").name("archives.store").middleware("auth"),
     Route.delete("/archives/dashboard/@id", "ArchivesController@destroy").name("archives.destroy").middleware("auth"),
     Route.post("/events/dashboard", "EventController@store").name("events.store").middleware("auth"),

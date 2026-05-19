@@ -26,6 +26,36 @@
     subtitle: heroSubtitle ? heroSubtitle.textContent : ''
   };
 
+  function notify(message, opts) {
+    opts = opts || {};
+    if (window.UploadMeter && typeof window.UploadMeter.makeToast === 'function') {
+      var toast = window.UploadMeter.makeToast({
+        filename: message,
+        total: 0,
+        label: opts.label || 'kiosk'
+      });
+      toast.element.classList.add('upload-meter__toast--message');
+      if (opts.error) {
+        toast.error(message);
+      } else {
+        toast.complete(' ');
+      }
+      return;
+    }
+    if (opts.error) {
+      console.error('[gears] ' + message);
+    } else {
+      console.log('[gears] ' + message);
+    }
+  }
+
+  function confirmAction(opts) {
+    if (window.ConfirmModal && typeof window.ConfirmModal.ask === 'function') {
+      return window.ConfirmModal.ask(opts);
+    }
+    return Promise.resolve(window.confirm(opts.body || opts.title || 'Are you sure?'));
+  }
+
   function postKioskAction(action) {
     return fetch(action, {
       method: 'POST',
@@ -57,6 +87,25 @@
         'Content-Type': 'application/json'
       },
       credentials: 'same-origin'
+    });
+  }
+
+  function postVideoIdle(videoId, action) {
+    // action: 'set' marks this video as the kiosk attract loop video
+    // (singleton — server clears all others); 'clear' un-marks it.
+    var suffix = action === 'clear' ? '/idle/clear' : '/idle';
+    return fetch('/videos/dashboard/' + encodeURIComponent(videoId) + suffix, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN': token,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'application/json'
+      },
+      credentials: 'same-origin'
+    }).then(function (response) {
+      return response.json().catch(function () { return null; }).then(function (payload) {
+        return { ok: response.ok, payload: payload };
+      });
     });
   }
 
@@ -273,7 +322,7 @@
       var pushTitle = pushTrigger.getAttribute('data-title');
 
       if (!pushSrc) {
-        alert('Could not determine the video source.');
+        notify('Could not determine the video source.', { error: true });
         return;
       }
 
@@ -281,11 +330,13 @@
       postPlay(pushSrc, pushTitle)
         .then(function (result) {
           if (result && result.broadcast === false) {
-            alert('Saved trigger, but broadcast is off. Check your Pusher settings.');
+            notify('Saved trigger, but broadcast is off. Check your Pusher settings.', { error: true });
+          } else {
+            notify('Now playing on the kiosk.');
           }
         })
         .catch(function () {
-          alert('Could not reach server.');
+          notify('Could not reach server.', { error: true });
         })
         .then(function () {
           pushTrigger.disabled = false;
@@ -293,17 +344,73 @@
       return;
     }
 
-    var deleteTrigger = event.target.closest('[data-video-delete-trigger]');
-    if (deleteTrigger && dashboardRoot.contains(deleteTrigger)) {
-      var videoId = deleteTrigger.getAttribute('data-video-id');
-      var videoTitle = deleteTrigger.getAttribute('data-video-title') || 'this video';
+    var idleTrigger = event.target.closest('[data-video-idle-trigger]');
+    if (idleTrigger && dashboardRoot.contains(idleTrigger)) {
+      var idleVideoId = idleTrigger.getAttribute('data-video-id');
+      var idleActive = idleTrigger.getAttribute('data-idle-active') === 'true';
+      var idleAction = idleActive ? 'clear' : 'set';
 
-      if (!videoId) {
-        alert('Could not find the video id.');
+      if (!idleVideoId) {
+        notify('Could not find the video id.', { error: true });
         return;
       }
 
-      if (!window.confirm('Delete ' + videoTitle + '? This cannot be undone.')) {
+      idleTrigger.disabled = true;
+      postVideoIdle(idleVideoId, idleAction)
+        .then(function (result) {
+          if (!result.ok || !result.payload || !result.payload.ok) {
+            throw new Error('Idle toggle failed');
+          }
+          // Server enforces singleton; mirror that locally without
+          // a full reload so the editor sees instant feedback.
+          var allToggles = dashboardRoot.querySelectorAll('[data-video-idle-trigger]');
+          Array.prototype.forEach.call(allToggles, function (btn) {
+            var isThis = btn === idleTrigger;
+            var nowActive = isThis && idleAction === 'set';
+            btn.classList.toggle('is-active', nowActive);
+            btn.setAttribute('data-idle-active', nowActive ? 'true' : 'false');
+            btn.textContent = nowActive ? '★ Showing on idle' : 'Display this on idle';
+
+            // Move the badge on the card body to match.
+            var card = btn.closest('[data-video-card]');
+            if (!card) return;
+            card.classList.toggle('video-card--idle-active', nowActive);
+            var existingBadge = card.querySelector('.video-card__badge');
+            if (nowActive && !existingBadge) {
+              var copyEl = card.querySelector('.video-card__copy');
+              if (copyEl) {
+                var badge = document.createElement('span');
+                badge.className = 'video-card__badge';
+                badge.textContent = '★ Idle attract';
+                copyEl.appendChild(badge);
+              }
+            } else if (!nowActive && existingBadge) {
+              existingBadge.remove();
+            }
+          });
+
+          notify(idleAction === 'set'
+            ? 'Idle video set. The kiosk will play this when nobody is touching the screen.'
+            : 'Idle video cleared.');
+        })
+        .catch(function () {
+          notify('Could not update the idle video.', { error: true });
+        })
+        .then(function () {
+          idleTrigger.disabled = false;
+        });
+      return;
+    }
+
+    var deleteTrigger = event.target.closest('[data-video-delete-trigger]');
+    if (deleteTrigger && dashboardRoot.contains(deleteTrigger)) {
+      var videoId = deleteTrigger.getAttribute('data-video-id');
+      // Confirmation is handled upstream by confirm-modal.js via
+      // data-confirm — by the time we run here the user has already
+      // approved the action.
+
+      if (!videoId) {
+        notify('Could not find the video id.', { error: true });
         return;
       }
 
@@ -316,7 +423,7 @@
           window.location.reload();
         })
         .catch(function () {
-          alert('Could not delete the video.');
+          notify('Could not delete the video.', { error: true });
         })
         .then(function () {
           deleteTrigger.disabled = false;
@@ -330,22 +437,22 @@
       var kioskUrl = kioskTrigger.getAttribute('data-kiosk-url');
 
       if (!kioskAction) {
-        alert('Could not determine the kiosk action.');
+        notify('Could not determine the kiosk action.', { error: true });
         return;
       }
 
       if (!kioskUrl) {
-        alert('Could not determine the kiosk endpoint.');
+        notify('Could not determine the kiosk endpoint.', { error: true });
         return;
       }
 
       kioskTrigger.disabled = true;
       postKioskAction(kioskUrl)
         .then(function () {
-          alert(kioskAction === 'lock' ? 'Kiosk lock event sent.' : 'Kiosk unlock event sent.');
+          notify(kioskAction === 'lock' ? 'Kiosk lock event sent.' : 'Kiosk unlock event sent.');
         })
         .catch(function () {
-          alert('Could not reach server.');
+          notify('Could not reach server.', { error: true });
         })
         .then(function () {
           kioskTrigger.disabled = false;

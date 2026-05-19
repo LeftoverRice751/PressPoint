@@ -4,164 +4,10 @@
 {% block head %}
 <link rel="stylesheet" href="/assets/css/gears-dashboard.css" />
 <link rel="stylesheet" href="/assets/css/news-dashboard.css" />
+<link rel="stylesheet" href="/assets/css/dropzone.css" />
+<link rel="stylesheet" href="/assets/css/upload-meter.css" />
+<link rel="stylesheet" href="/assets/css/confirm-modal.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.snow.css">
-{% raw %}
-<style>
-  .org-board-layout {
-    display: grid;
-    grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.18fr);
-    gap: 1rem;
-  }
-
-  .org-board-board {
-    display: grid;
-    gap: 1rem;
-  }
-
-  .org-board-columns {
-    display: grid;
-    gap: 1rem;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    align-items: start;
-  }
-
-  .org-board-column {
-    display: grid;
-    gap: 0.85rem;
-    padding: 1rem;
-    border-radius: var(--gears-radius-lg);
-    border: 1px solid rgba(17, 24, 39, 0.08);
-    background: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
-    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
-  }
-
-  .org-board-column__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.75rem;
-  }
-
-  .org-board-column__title {
-    color: #121826;
-    font-size: 1rem;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .org-board-column__meta {
-    color: var(--gears-muted);
-    font-size: 0.86rem;
-    line-height: 1.45;
-  }
-
-  .org-board-dropzone {
-    padding: 0.72rem 0.9rem;
-    border: 1px dashed rgba(255, 107, 53, 0.26);
-    border-radius: 1rem;
-    background: rgba(255, 255, 255, 0.72);
-    color: var(--gears-muted);
-    font-size: 0.8rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-align: center;
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
-  }
-
-  .org-board-dropzone.is-active {
-    border-color: rgba(255, 107, 53, 0.55);
-    background: rgba(255, 107, 53, 0.12);
-    color: var(--gears-accent-strong);
-    transform: translateY(-1px);
-  }
-
-  .org-board-member {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 0.85rem;
-    align-items: center;
-    padding: 0.92rem 1rem;
-    border-radius: 1rem;
-    border: 1px solid rgba(17, 24, 39, 0.08);
-    background: #fff;
-    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
-  }
-
-  .org-board-member.is-dragging {
-    opacity: 0.45;
-  }
-
-  .org-board-member__handle {
-    width: 2rem;
-    height: 2rem;
-    display: grid;
-    place-items: center;
-    border-radius: 0.7rem;
-    background: rgba(255, 107, 53, 0.12);
-    color: var(--gears-accent-strong);
-    font-weight: 900;
-    cursor: grab;
-    user-select: none;
-  }
-
-  .org-board-member__body {
-    display: grid;
-    gap: 0.2rem;
-  }
-
-  .org-board-member__name {
-    color: #121826;
-    font-size: 0.98rem;
-    font-weight: 900;
-  }
-
-  .org-board-member__meta {
-    color: var(--gears-muted);
-    font-size: 0.86rem;
-  }
-
-  .org-board-member__children {
-    display: grid;
-    gap: 0.6rem;
-    margin-left: 1.25rem;
-    padding-left: 1rem;
-    border-left: 1px solid rgba(17, 24, 39, 0.08);
-  }
-
-  .org-board-node {
-    display: grid;
-    gap: 0.55rem;
-  }
-
-  .org-board-column__members {
-    display: grid;
-    gap: 0.75rem;
-  }
-
-  .org-board-dropzone--root {
-    min-height: 3rem;
-    display: grid;
-    place-items: center;
-  }
-
-  .org-board-empty {
-    min-height: 112px;
-  }
-
-  .org-board-form-card {
-    display: grid;
-    gap: 1rem;
-    align-self: start;
-  }
-
-  @media (max-width: 1100px) {
-    .org-board-layout {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>
-{% endraw %}
 {% endblock %}
 
 {% block content %}
@@ -197,7 +43,7 @@
 
   <aside class="gears-sidebar">
     <div class="gears-sidebar__brand">
-      <div class="gears-sidebar__mark" aria-hidden="true"><img src="gears.png" alt=""></div>
+      <div class="gears-sidebar__mark" aria-hidden="true"><img src="/storage/gears.png" alt="Gears logo"></div>
       <div>
         <div class="gears-sidebar__eyebrow">The Gears Publication</div>
         <div class="gears-sidebar__title">GEARS CMS</div>
@@ -268,7 +114,6 @@
         <h1 class="gears-hero__title" data-hero-title>Real-time overview of your kiosk content</h1>
         <p class="gears-hero__subtitle" data-hero-subtitle>Manage events, news, campus locations, kiosk videos, and screen control from one place.</p>
       </div>
-      <div class="gears-hero__chip">GEARS CMS</div>
     </header>
 
     <section class="gears-page is-visible" data-page-panel="dashboard" id="panel-dashboard" role="tabpanel" aria-labelledby="nav-dashboard" data-hero-eyebrow="Dashboard" data-hero-title="Real-time overview of your kiosk content" data-hero-subtitle="Manage events, news, campus locations, kiosk videos, and screen control from one place.">
@@ -431,13 +276,13 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="news" id="panel-news" role="tabpanel" aria-labelledby="nav-news" data-hero-eyebrow="Content" data-hero-title="Lay out the news page" data-hero-subtitle="Decide which story leads, which sit on the side, and which appear as sidebar facts on the kiosk." hidden>
+    <section class="gears-page" data-page-panel="news" id="panel-news" role="tabpanel" aria-labelledby="nav-news" data-hero-eyebrow="Content" data-hero-title="Newsroom composer" data-hero-subtitle="Compose the kiosk page visually: place stories into slots, edit the copy inline, and keep the publication flow moving." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
           <h2 class="section-head__title">News</h2>
         </div>
-        <p class="section-head__subtitle">Pick a lead story, a few side stories, and the sidebar facts that the kiosk will show.</p>
+        <p class="section-head__subtitle">Build the page like an editor's desk: slot the lead story, balance the side stories, and keep the status of each piece visible.</p>
       </div>
 
       {% if bag().any() %}
@@ -450,28 +295,36 @@
       </div>
       {% endif %}
 
-      <div class="news-layout-editor">
+      <div class="news-layout-editor news-layout-editor--composer" data-news-composer>
         <article class="news-preview-panel page-card">
           <div class="panel-header panel-header--compact">
             <div>
-              <p class="panel-header__eyebrow">Kiosk preview</p>
-              <h3 class="panel-header__title">How the kiosk will look</h3>
+              <p class="panel-header__eyebrow">Compose visually</p>
+              <h3 class="panel-header__title">Newsroom canvas</h3>
             </div>
-            <p class="panel-header__subtitle">Empty boxes are spots the kiosk still needs you to fill.</p>
+            <div class="news-workflow-strip" aria-label="Story workflow totals">
+              <span class="news-workflow-strip__chip">Draft {{ news_status_counts['draft'] if news_status_counts else 0 }}</span>
+              <span class="news-workflow-strip__chip">Review {{ news_status_counts['review'] if news_status_counts else 0 }}</span>
+              <span class="news-workflow-strip__chip">Approved {{ news_status_counts['approved'] if news_status_counts else 0 }}</span>
+              <span class="news-workflow-strip__chip">Published {{ news_status_counts['published'] if news_status_counts else 0 }}</span>
+            </div>
           </div>
 
-          <div class="news-preview">
-            <div class="news-preview__masthead">
+          <div class="news-preview news-preview--editorial">
+            <div class="news-preview__masthead news-preview__masthead--editorial">
               <span class="news-preview__brand">THE GEARS PUBLICATION</span>
               <h4 class="news-preview__headline">LATEST NEWS</h4>
             </div>
 
-            <div class="news-preview__slot news-preview__slot--main">
-              <span class="news-preview__slot-label">Lead story</span>
+            <div class="news-preview__slot news-preview__slot--main news-preview__slot--active">
+              <div class="news-preview__slot-head">
+                <span class="news-preview__slot-label">Lead story</span>
+                <span class="news-slot-pill" data-news-preview-slot>Pinned to the lead slot</span>
+              </div>
               {% set main_news = main_news if main_news else (news_items[0] if news_items else None) %}
               {% if main_news %}
               <div class="news-preview__article">
-                <div class="news-preview__image-wrap">
+                <div class="news-preview__image-wrap" data-news-preview-media>
                   {% if main_news.image %}
                   <img class="news-preview__image" src="/storage/{{ main_news.image | replace('\\', '/') }}" alt="{{ main_news.title | e }}">
                   {% else %}
@@ -479,54 +332,78 @@
                   {% endif %}
                 </div>
                 <div class="news-preview__article-body">
-                  <h4 class="news-preview__article-title">{{ main_news.title }}</h4>
-                  <p class="news-preview__article-copy">{{ main_news.description[:220] if main_news.description else 'No summary available.' }}</p>
+                  <h4 class="news-preview__article-title" data-news-preview-title contenteditable="true" role="textbox" aria-label="Edit the headline inline" spellcheck="true">{{ main_news.title }}</h4>
+                  <p class="news-preview__article-copy" data-news-preview-copy contenteditable="true" role="textbox" aria-label="Edit the summary inline" spellcheck="true">{{ main_news.description[:220] if main_news.description else 'No summary available.' }}</p>
                 </div>
               </div>
               {% else %}
-              <div class="news-slot-empty">Pick the lead story</div>
+              <div class="news-slot-empty" data-news-empty-state>
+                <span class="news-slot-empty__kicker">Drop a lead story here</span>
+                <span class="news-slot-empty__helper">Recommended image ratio: 16:9, headline 50-70 characters.</span>
+              </div>
               {% endif %}
             </div>
 
             <div class="news-preview__slot news-preview__slot--secondary">
-              <span class="news-preview__slot-label">Side stories</span>
+              <div class="news-preview__slot-head">
+                <span class="news-preview__slot-label">Side stories</span>
+                <span class="news-slot-pill">Up to four cards</span>
+              </div>
               <div class="news-preview__secondary-grid">
                 {% for news in (secondary_news if secondary_news else news_items[1:5]) %}
-                <article class="news-preview-card">
+                <article class="news-preview-card news-preview-card--story">
                   {% if news.image %}
                   <img class="news-preview-card__thumb" src="/storage/{{ news.image | replace('\\', '/') }}" alt="{{ news.title | e }}">
                   {% else %}
                   <div class="news-preview-card__thumb news-preview-card__thumb--fallback" aria-hidden="true"></div>
                   {% endif %}
+                  <div class="news-preview-card__status">{{ (news.status if news.status else 'approved') | capitalize }}</div>
                   <div class="news-preview-card__title">{{ news.title }}</div>
                 </article>
                 {% else %}
-                <div class="news-slot-empty news-slot-empty--secondary">Add side stories</div>
+                <div class="news-slot-empty news-slot-empty--secondary">
+                  <span class="news-slot-empty__kicker">Add side stories</span>
+                  <span class="news-slot-empty__helper">Use shorter cards to support the lead story.</span>
+                </div>
                 {% endfor %}
               </div>
             </div>
 
             <div class="news-preview__widgets">
               <div class="news-preview__slot news-preview__slot--widget">
-                <span class="news-preview__slot-label">Weather Widget</span>
+                <div class="news-preview__slot-head">
+                  <span class="news-preview__slot-label">Weather Widget</span>
+                  <span class="news-slot-pill">Slot A</span>
+                </div>
                 {% if widget_news and widget_news|length > 0 %}
                 <div class="news-preview-card news-preview-card--widget">
+                  <div class="news-preview-card__status">{{ (widget_news[0].status if widget_news[0].status else 'approved') | capitalize }}</div>
                   <div class="news-preview-card__title">{{ widget_news[0].title }}</div>
                   <div class="news-preview-card__meta">{{ widget_news[0].description[:120] if widget_news[0].description else 'No summary available.' }}</div>
                 </div>
                 {% else %}
-                <div class="news-slot-empty news-slot-empty--widget">Weather Widget</div>
+                <div class="news-slot-empty news-slot-empty--widget">
+                  <span class="news-slot-empty__kicker">Weather Widget</span>
+                  <span class="news-slot-empty__helper">Drop a compact update or alert here.</span>
+                </div>
                 {% endif %}
               </div>
               <div class="news-preview__slot news-preview__slot--widget">
-                <span class="news-preview__slot-label">Community Projects</span>
+                <div class="news-preview__slot-head">
+                  <span class="news-preview__slot-label">Community Projects</span>
+                  <span class="news-slot-pill">Slot B</span>
+                </div>
                 {% if widget_news and widget_news|length > 1 %}
                 <div class="news-preview-card news-preview-card--widget">
+                  <div class="news-preview-card__status">{{ (widget_news[1].status if widget_news[1].status else 'approved') | capitalize }}</div>
                   <div class="news-preview-card__title">{{ widget_news[1].title }}</div>
                   <div class="news-preview-card__meta">{{ widget_news[1].description[:120] if widget_news[1].description else 'No summary available.' }}</div>
                 </div>
                 {% else %}
-                <div class="news-slot-empty news-slot-empty--widget">Community Projects</div>
+                <div class="news-slot-empty news-slot-empty--widget">
+                  <span class="news-slot-empty__kicker">Community Projects</span>
+                  <span class="news-slot-empty__helper">Use this slot for compact features or service notes.</span>
+                </div>
                 {% endif %}
               </div>
             </div>
@@ -536,104 +413,124 @@
         <aside class="news-editor-sidebar page-card">
           <div class="panel-header panel-header--compact">
             <div>
-              <p class="panel-header__eyebrow">Add a story</p>
-              <h3 class="panel-header__title">New story for the kiosk</h3>
+              <p class="panel-header__eyebrow">Story studio</p>
+              <h3 class="panel-header__title">Compose a story</h3>
             </div>
-            <p class="panel-header__subtitle">Fill in the story details and choose where it should appear.</p>
+            <p class="panel-header__subtitle">Edit from the preview or the panel. The story card syncs both ways.</p>
           </div>
 
-          <form action="{{ route('news.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="slot-form">
+          <form action="{{ route('news.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="slot-form news-composer-form" data-news-form data-upload-form data-upload-label="news photo">
             {{ csrf_field | safe }}
 
-            <label class="field" for="news-title">
-              <span class="field__label">Title</span>
-              <input type="text" name="title" id="news-title" class="field__input" placeholder="Headline title" required>
+            <div class="news-composer-palette" role="group" aria-label="Layout slots">
+              <button type="button" class="news-slot-choice is-active" data-news-slot-choice="main">Lead story</button>
+              <button type="button" class="news-slot-choice" data-news-slot-choice="secondary">Side story</button>
+              <button type="button" class="news-slot-choice" data-news-slot-choice="widget">Widget</button>
+              <input type="hidden" name="layout_type" value="main" data-news-layout-field>
+            </div>
+
+            <label class="field" for="news-compose-title">
+              <span class="field__label">Headline</span>
+              <input type="text" name="title" id="news-compose-title" class="field__input" placeholder="Headline title" required data-news-field="title">
+              <span class="field__hint">Recommended 50-70 characters for the lead slot.</span>
             </label>
 
-            <label class="field" for="news-description">
-              <span class="field__label">Story body</span>
-              <textarea name="description" id="news-description" class="field__input field__textarea" placeholder="Story summary" required></textarea>
+            <label class="field" for="news-compose-description">
+              <span class="field__label">Summary</span>
+              <textarea name="description" id="news-compose-description" class="field__input field__textarea" placeholder="Story summary" required data-news-field="description"></textarea>
+              <span class="field__hint">Click the preview text to edit in place, or type here.</span>
             </label>
 
-            <div class="slot-upload">
+            <div class="field">
               <span class="field__label">Cover image</span>
-              <label class="slot-upload__dropzone" for="news-image">
-                <span class="slot-upload__title">Drag an image here, or tap to choose</span>
-                <span class="slot-upload__copy">PNG, JPG, GIF, or WEBP</span>
-                <input type="file" name="image" id="news-image" class="slot-upload__input" accept="image/*">
+              <label class="dropzone" data-dropzone>
+                <input type="file" name="image" id="news-compose-image" class="dropzone__input" accept="image/*" data-news-field="image">
+                <span class="dropzone__empty">
+                  <span class="dropzone__icon" aria-hidden="true">↑</span>
+                  <span class="dropzone__title">Drop an image here, or tap to choose</span>
+                  <span class="dropzone__hint">PNG, JPG, GIF, or WEBP</span>
+                </span>
+                <span class="dropzone__filled" hidden>
+                  <span class="dropzone__filename" data-dropzone-name></span>
+                  <span class="dropzone__size" data-dropzone-size></span>
+                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
+                </span>
               </label>
             </div>
 
-            <label class="field" for="news-layout-type">
-              <span class="field__label">Where it appears</span>
-              <select name="layout_type" id="news-layout-type" class="field__input field__input--select">
-                <option value="main">Lead story</option>
-                <option value="secondary">Side story</option>
-                <option value="widget">Sidebar fact</option>
-              </select>
+            <div class="field">
+              <span class="field__label">Workflow status</span>
+              <div class="news-status-toggle" role="radiogroup" aria-label="Workflow status">
+                <button type="button" class="news-status-toggle__choice is-active" data-news-status-choice="approved">Approved</button>
+                <button type="button" class="news-status-toggle__choice" data-news-status-choice="review">Review</button>
+                <button type="button" class="news-status-toggle__choice" data-news-status-choice="draft">Draft</button>
+                <button type="button" class="news-status-toggle__choice" data-news-status-choice="scheduled">Scheduled</button>
+                <button type="button" class="news-status-toggle__choice" data-news-status-choice="published">Published</button>
+                <button type="button" class="news-status-toggle__choice" data-news-status-choice="archived">Archived</button>
+              </div>
+              <input type="hidden" name="status" value="approved" data-news-status-field>
+            </div>
+
+            <label class="field" for="news-compose-priority">
+              <span class="field__label">Order</span>
+              <input type="range" name="priority" id="news-compose-priority" class="field__input news-composer-range" min="0" max="10" step="1" value="0" data-news-field="priority">
+              <span class="field__hint">Lower numbers surface first inside the selected slot.</span>
             </label>
 
-            <label class="field" for="news-priority">
-              <span class="field__label">Order (lower shows first)</span>
-              <input type="number" name="priority" id="news-priority" class="field__input" min="0" step="1" value="0">
+            <label class="field" for="news-compose-published-at">
+              <span class="field__label">Publish time</span>
+              <input type="datetime-local" name="published_at" id="news-compose-published-at" class="field__input" data-news-field="published_at">
             </label>
 
-            <label class="field" for="news-published-at">
-              <span class="field__label">Published at</span>
-              <input type="datetime-local" name="published_at" id="news-published-at" class="field__input">
-            </label>
-
-            <label class="field" for="news-source">
+            <label class="field" for="news-compose-source">
               <span class="field__label">Source</span>
-              <input type="text" name="source" id="news-source" class="field__input" placeholder="Editorial Desk">
+              <input type="text" name="source" id="news-compose-source" class="field__input" placeholder="Editorial Desk" data-news-field="source">
             </label>
 
-            <label class="field" for="news-location">
+            <label class="field" for="news-compose-location">
               <span class="field__label">Location</span>
-              <input type="text" name="location" id="news-location" class="field__input" placeholder="Campus">
+              <input type="text" name="location" id="news-compose-location" class="field__input" placeholder="Campus" data-news-field="location">
             </label>
 
-            <div class="slot-form__actions">
+            <div class="slot-form__actions slot-form__actions--composer">
               <button type="button" class="ghost-button" data-news-modal-open>Open larger editor</button>
-              <button type="submit" class="primary-button">Save &amp; publish</button>
+              <button type="submit" class="primary-button">Save story</button>
             </div>
           </form>
         </aside>
       </div>
 
-      <div class="news-table-wrap news-table-wrap--compact" data-section-count="{{ news_items|length }}">
+      <div class="news-story-library page-card" data-section-count="{{ news_items|length }}">
         <div class="panel-header panel-header--compact news-table__header">
           <div>
-            <p class="panel-header__eyebrow">All stories</p>
-            <h3 class="panel-header__title">Published on the kiosk</h3>
+            <p class="panel-header__eyebrow">Story library</p>
+            <h3 class="panel-header__title">Reusable stories</h3>
           </div>
-          <button type="button" class="primary-button" data-news-modal-open>Add story</button>
+          <p class="panel-header__subtitle">Reuse a published story, move it to a different slot, or load it back into the composer.</p>
         </div>
 
         <div class="empty-state" data-empty-state>
-          <div class="empty-state__title">No data available</div>
-          <p class="empty-state__text">Publish news articles to populate the kiosk slots and the preview registry.</p>
+          <div class="empty-state__title">No stories in the library yet</div>
+          <p class="empty-state__text">Create a story to start building your newsroom library.</p>
         </div>
 
-        <div class="news-table__slots" data-section-content>
-          {% for news in news_items %}
-          {% set _slot_label = {'main': 'Lead', 'secondary': 'Side', 'widget': 'Sidebar fact'}.get(news.layout_type, 'Side') %}
-          <article class="news-slot-row">
-            <div class="news-slot-row__slot">{{ _slot_label }}</div>
-            <div class="news-slot-row__body">
-              <div class="news-slot-row__title">{{ news.title }}</div>
-              <div class="news-slot-row__meta">
-                <span>{{ news.source if news.source else 'Unspecified' }}</span>
-                <span>{{ news.location if news.location else 'Unspecified' }}</span>
-                <span>Order {{ news.priority if news.priority is not none else 0 }}</span>
-              </div>
+        <div class="news-story-library__grid" data-section-content>
+          {% for news in news_items[:8] %}
+          {% set _slot_label = {'main': 'Lead', 'secondary': 'Side', 'widget': 'Widget'}.get(news.layout_type, 'Side') %}
+          {% set _story_status = (news.status if news.status else 'approved') %}
+          <article class="news-story-card" data-news-library-item data-news-library-title="{{ news.title | e }}" data-news-library-description="{{ news.description | default('', true) | e }}" data-news-library-source="{{ news.source | default('', true) | e }}" data-news-library-location="{{ news.location | default('', true) | e }}" data-news-library-layout="{{ news.layout_type | default('secondary', true) | e }}" data-news-library-status="{{ _story_status | e }}" data-news-library-priority="{{ news.priority if news.priority is not none else 0 }}" data-news-library-image="{{ news.image | default('', true) | e }}">
+            <div class="news-story-card__topline">
+              <span class="news-story-card__slot">{{ _slot_label }}</span>
+              <span class="news-story-card__status news-story-card__status--{{ _story_status | lower }}">{{ _story_status | capitalize }}</span>
             </div>
-            <div class="news-slot-row__media">
-              {% if news.image %}
-              <img class="news-slot-row__thumb" src="/storage/{{ news.image | replace('\\', '/') }}" alt="{{ news.title | e }}">
-              {% else %}
-              <div class="news-slot-row__thumb news-slot-row__thumb--fallback" aria-hidden="true">No image</div>
-              {% endif %}
+            <div class="news-story-card__title">{{ news.title }}</div>
+            <div class="news-story-card__copy">{{ news.description[:140] if news.description else 'No summary available.' }}</div>
+            <div class="news-story-card__meta">
+              <span>{{ news.source if news.source else 'Unspecified' }}</span>
+              <span>Order {{ news.priority if news.priority is not none else 0 }}</span>
+            </div>
+            <div class="news-story-card__actions">
+              <button type="button" class="ghost-button" data-news-load-story>Load into composer</button>
             </div>
           </article>
           {% else %}
@@ -699,37 +596,61 @@
           <button type="button" class="article-modal__close" data-news-modal-close>Close</button>
         </div>
 
-        <form action="{{ route('news.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack">
+        <form action="{{ route('news.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-label="news photo">
           {{ csrf_field | safe }}
 
-          <label class="field" for="news-title">
+          <label class="field" for="news-modal-title">
             <span class="field__label">Headline</span>
-            <input type="text" name="title" id="news-title" class="field__input" placeholder="News headline" required>
+            <input type="text" name="title" id="news-modal-title" class="field__input" placeholder="News headline" required>
           </label>
 
-          <label class="field" for="news-description">
+          <label class="field" for="news-modal-description">
             <span class="field__label">Story body</span>
-            <textarea name="description" id="news-description" class="field__input field__textarea" placeholder="News article summary" required></textarea>
+            <textarea name="description" id="news-modal-description" class="field__input field__textarea" placeholder="News article summary" required></textarea>
           </label>
 
-          <label class="field" for="news-image">
+          <div class="field">
             <span class="field__label">Cover image</span>
-            <input type="file" name="image" id="news-image" class="field__input field__input--file" accept="image/*">
-          </label>
+            <label class="dropzone" data-dropzone>
+              <input type="file" name="image" id="news-image-modal" class="dropzone__input" accept="image/*">
+              <span class="dropzone__empty">
+                <span class="dropzone__icon" aria-hidden="true">↑</span>
+                <span class="dropzone__title">Drop an image here, or tap to choose</span>
+                <span class="dropzone__hint">PNG, JPG, GIF, or WEBP</span>
+              </span>
+              <span class="dropzone__filled" hidden>
+                <span class="dropzone__filename" data-dropzone-name></span>
+                <span class="dropzone__size" data-dropzone-size></span>
+                <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
+              </span>
+            </label>
+          </div>
 
-          <label class="field" for="news-published-at">
+          <label class="field" for="news-modal-published-at">
             <span class="field__label">Published at</span>
-            <input type="datetime-local" name="published_at" id="news-published-at" class="field__input">
+            <input type="datetime-local" name="published_at" id="news-modal-published-at" class="field__input">
           </label>
 
-          <label class="field" for="news-source">
+          <label class="field" for="news-modal-source">
             <span class="field__label">Source</span>
-            <input type="text" name="source" id="news-source" class="field__input" placeholder="Campus affairs, editorial, or outlet name">
+            <input type="text" name="source" id="news-modal-source" class="field__input" placeholder="Campus affairs, editorial, or outlet name">
           </label>
 
-          <label class="field" for="news-location">
+          <label class="field" for="news-modal-location">
             <span class="field__label">Location</span>
-            <input type="text" name="location" id="news-location" class="field__input" placeholder="Building, department, or city">
+            <input type="text" name="location" id="news-modal-location" class="field__input" placeholder="Building, department, or city">
+          </label>
+
+          <label class="field" for="news-modal-status">
+            <span class="field__label">Status</span>
+            <select name="status" id="news-modal-status" class="field__input field__input--select">
+              <option value="approved" selected>Approved</option>
+              <option value="review">Review</option>
+              <option value="draft">Draft</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+            </select>
           </label>
 
           <div class="article-modal__footer">
@@ -769,7 +690,7 @@
             </div>
           </div>
 
-          <form action="{{ route('archives.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack">
+          <form action="{{ route('archives.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-label="archive PDF">
             {{ csrf_field | safe }}
 
             <label class="field" for="archive-name">
@@ -781,8 +702,10 @@
               <span class="field__label">Type</span>
               <select name="type" id="archive-type" class="field__input field__input--select archive-form__select" required>
                 <option value="">Choose archive type</option>
-                <option value="Tabloid">Tabloid</option>
                 <option value="Folio">Folio</option>
+                <option value="Magazine">Magazine</option>
+                <option value="Tabloid">Tabloid</option>
+                <option value="Newsletter">Newsletter</option>
               </select>
             </label>
 
@@ -791,10 +714,22 @@
               <input type="number" name="year_published" id="archive-year-published" class="field__input archive-form__year" min="1900" max="2100" step="1" placeholder="2024" required>
             </label>
 
-            <label class="field" for="archive-file">
+            <div class="field">
               <span class="field__label">PDF file</span>
-              <input type="file" name="file" id="archive-file" class="field__input field__input--file" accept="application/pdf" required>
-            </label>
+              <label class="dropzone" data-dropzone>
+                <input type="file" name="file" id="archive-file" class="dropzone__input" accept="application/pdf" required>
+                <span class="dropzone__empty">
+                  <span class="dropzone__icon" aria-hidden="true">↑</span>
+                  <span class="dropzone__title">Drop a PDF here, or tap to choose</span>
+                  <span class="dropzone__hint">PDF only · up to 200 MB</span>
+                </span>
+                <span class="dropzone__filled" hidden>
+                  <span class="dropzone__filename" data-dropzone-name></span>
+                  <span class="dropzone__size" data-dropzone-size></span>
+                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
+                </span>
+              </label>
+            </div>
 
             <button type="submit" class="primary-button">Save archive</button>
           </form>
@@ -836,7 +771,11 @@
                 <form action="{{ route('archives.destroy', {'id': archive.id}, False) }}" method="post" class="inline-form">
                   {{ csrf_field | safe }}
                   <input type="hidden" name="__method" value="DELETE">
-                  <button type="submit" class="ghost-button">Delete</button>
+                  <button type="submit" class="ghost-button"
+                          data-confirm="Permanently delete the {{ archive.name | e }} archive? Visitors will no longer see it on the kiosk."
+                          data-confirm-title="Delete archive?"
+                          data-confirm-label="Delete archive"
+                          data-confirm-danger>Delete</button>
                 </form>
               </div>
             </article>
@@ -912,7 +851,7 @@
 
           <p class="panel-header__subtitle">Editors can add members here first, then arrange the hierarchy with drag and drop.</p>
 
-          <form action="{{ route('org-board.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack">
+          <form action="{{ route('org-board.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-label="member photo">
             {{ csrf_field | safe }}
 
             <label class="field" for="org-board-name">
@@ -935,10 +874,22 @@
               </select>
             </label>
 
-            <label class="field" for="org-board-photo-path">
+            <div class="field">
               <span class="field__label">Photo</span>
-              <input type="file" name="photo_path" id="org-board-photo-path" class="field__input field__input--file" accept="image/*">
-            </label>
+              <label class="dropzone" data-dropzone>
+                <input type="file" name="photo_path" id="org-board-photo-path" class="dropzone__input" accept="image/*">
+                <span class="dropzone__empty">
+                  <span class="dropzone__icon" aria-hidden="true">↑</span>
+                  <span class="dropzone__title">Drop a portrait here, or tap to choose</span>
+                  <span class="dropzone__hint">PNG, JPG, GIF, or WEBP · optional</span>
+                </span>
+                <span class="dropzone__filled" hidden>
+                  <span class="dropzone__filename" data-dropzone-name></span>
+                  <span class="dropzone__size" data-dropzone-size></span>
+                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
+                </span>
+              </label>
+            </div>
 
             <button type="submit" class="primary-button">Save member</button>
           </form>
@@ -1156,9 +1107,13 @@
                   <button name="direction" value="up" class="ghost-button about-icon-button" title="Move up">↑</button>
                   <button name="direction" value="down" class="ghost-button about-icon-button" title="Move down">↓</button>
                 </form>
-                <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}/delete" onsubmit="return confirm('Delete this milestone?');">
+                <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}/delete">
                   {{ csrf_field | safe }}
-                  <button class="danger-button">✕ Delete</button>
+                  <button type="submit" class="danger-button"
+                          data-confirm="This permanently removes the {{ m.year | e }} — {{ m.heading | e }} milestone from the About LSPU page."
+                          data-confirm-title="Delete milestone?"
+                          data-confirm-label="Delete milestone"
+                          data-confirm-danger>✕ Delete</button>
                 </form>
               </div>
             </li>
@@ -1228,12 +1183,24 @@
           </div>
 
           {% set seal = sections.get('seal') %}
-          <form class="about-section-form form-stack" method="POST" action="/gears/about-lspu/seal/upload" enctype="multipart/form-data">
+          <form class="about-section-form form-stack" method="POST" action="/gears/about-lspu/seal/upload" enctype="multipart/form-data" data-upload-form data-upload-label="seal image">
             {{ csrf_field | safe }}
-            <label class="field">
+            <div class="field">
               <span class="field__label">Seal image</span>
-              <input type="file" name="file" class="field__input field__input--file" accept="image/jpeg,image/png,image/webp" required>
-            </label>
+              <label class="dropzone" data-dropzone>
+                <input type="file" name="file" class="dropzone__input" accept="image/jpeg,image/png,image/webp" required>
+                <span class="dropzone__empty">
+                  <span class="dropzone__icon" aria-hidden="true">↑</span>
+                  <span class="dropzone__title">Drop a seal image, or tap to choose</span>
+                  <span class="dropzone__hint">JPG, PNG, or WEBP</span>
+                </span>
+                <span class="dropzone__filled" hidden>
+                  <span class="dropzone__filename" data-dropzone-name></span>
+                  <span class="dropzone__size" data-dropzone-size></span>
+                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
+                </span>
+              </label>
+            </div>
             {% if seal and seal.image_path %}
             <img class="about-seal-preview" src="/storage/{{ seal.image_path }}" alt="Current seal">
             {% endif %}
@@ -1289,17 +1256,29 @@
             </div>
           </div>
 
-          <form action="{{ route('video.upload', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack">
+          <form action="{{ route('video.upload', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-label="video">
             {{ csrf_field | safe }}
             <label class="field">
               <span class="field__label">Video name</span>
               <input type="text" name="title" class="field__input" placeholder="e.g. Foundation Day" required>
             </label>
 
-            <label class="field">
+            <div class="field">
               <span class="field__label">MP4 file</span>
-              <input type="file" name="video" accept="video/mp4" class="field__input field__input--file" required>
-            </label>
+              <label class="dropzone" data-dropzone>
+                <input type="file" name="video" accept="video/mp4" class="dropzone__input" required>
+                <span class="dropzone__empty">
+                  <span class="dropzone__icon" aria-hidden="true">↑</span>
+                  <span class="dropzone__title">Drop an MP4 here, or tap to choose</span>
+                  <span class="dropzone__hint">MP4 only · up to 500 MB</span>
+                </span>
+                <span class="dropzone__filled" hidden>
+                  <span class="dropzone__filename" data-dropzone-name></span>
+                  <span class="dropzone__size" data-dropzone-size></span>
+                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
+                </span>
+              </label>
+            </div>
 
             <button type="submit" class="primary-button">Save to library</button>
           </form>
@@ -1343,12 +1322,15 @@
 
         <div class="video-library" data-section-content>
           {% for video in videos %}
-          <article class="video-card" data-video-card data-video-src="/storage/{{ video.file_path | replace('\\', '/') }}" data-video-title="{{ video.title | e }}">
+          <article class="video-card{% if video.show_when_idle %} video-card--idle-active{% endif %}" data-video-card data-video-src="/storage/{{ video.file_path | replace('\\', '/') }}" data-video-title="{{ video.title | e }}">
             <button type="button" class="video-card__body" data-video-preview-trigger>
               <span class="video-card__thumb" aria-hidden="true">▶</span>
               <span class="video-card__copy">
                 <span class="video-card__title">{{ video.title }}</span>
                 <span class="video-card__meta">{{ video.file_path }}</span>
+                {% if video.show_when_idle %}
+                <span class="video-card__badge">★ Idle attract</span>
+                {% endif %}
               </span>
             </button>
 
@@ -1356,7 +1338,19 @@
               <button type="button" class="secondary-button" data-video-push-trigger data-src="/storage/{{ video.file_path | replace('\\', '/') }}" data-title="{{ video.title | e }}">
                 Show on screen now
               </button>
-              <button type="button" class="ghost-button" data-video-delete-trigger data-video-id="{{ video.id }}" data-video-title="{{ video.title | e }}">
+              <button type="button"
+                      class="secondary-button video-card__idle-toggle{% if video.show_when_idle %} is-active{% endif %}"
+                      data-video-idle-trigger
+                      data-video-id="{{ video.id }}"
+                      data-video-title="{{ video.title | e }}"
+                      data-idle-active="{{ 'true' if video.show_when_idle else 'false' }}">
+                {% if video.show_when_idle %}★ Showing on idle{% else %}Display this on idle{% endif %}
+              </button>
+              <button type="button" class="ghost-button" data-video-delete-trigger data-video-id="{{ video.id }}" data-video-title="{{ video.title | e }}"
+                      data-confirm="Permanently remove “{{ video.title | e }}” from the kiosk library. This cannot be undone."
+                      data-confirm-title="Delete video?"
+                      data-confirm-label="Delete video"
+                      data-confirm-danger>
                 Delete
               </button>
             </div>
@@ -1387,11 +1381,18 @@
         </div>
 
         <div class="kiosk-toggle-grid">
-          <button type="button" class="toggle-button toggle-button--lock" data-kiosk-action="lock" data-kiosk-url="{{ route('kiosk.lock', {}, False) }}">
+          <button type="button" class="toggle-button toggle-button--lock" data-kiosk-action="lock" data-kiosk-url="{{ route('kiosk.lock', {}, False) }}"
+                  data-confirm="The kiosk screen will freeze immediately and stop showing news, events, and videos until you resume it."
+                  data-confirm-title="Freeze the kiosk screen?"
+                  data-confirm-label="Freeze screen"
+                  data-confirm-danger>
             Freeze screen
           </button>
 
-          <button type="button" class="toggle-button toggle-button--unlock" data-kiosk-action="unlock" data-kiosk-url="{{ route('kiosk.unlock', {}, False) }}">
+          <button type="button" class="toggle-button toggle-button--unlock" data-kiosk-action="unlock" data-kiosk-url="{{ route('kiosk.unlock', {}, False) }}"
+                  data-confirm="The kiosk screen will resume showing scheduled content immediately."
+                  data-confirm-title="Resume the kiosk screen?"
+                  data-confirm-label="Resume screen">
             Resume screen
           </button>
         </div>
@@ -1402,6 +1403,8 @@
 {% endblock %}
 
 {% block js %}
+<script src="/assets/js/confirm-modal.js" defer></script>
+<script src="/assets/js/upload-meter.js" defer></script>
 <script src="/assets/js/gears-dashboard.js" defer></script>
 <script src="/assets/js/news-dashboard.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.js" defer></script>
@@ -1494,15 +1497,9 @@
   }
 
   board.addEventListener('dragstart', function (event) {
-    var handle = event.target.closest('[data-org-board-drag-handle]');
+    var memberCard = event.target.closest('[data-org-board-member]');
 
-    if (!handle || !board.contains(handle)) {
-      return;
-    }
-
-    var memberCard = handle.closest('[data-org-board-member]');
-
-    if (!memberCard) {
+    if (!memberCard || !board.contains(memberCard)) {
       return;
     }
 
@@ -1580,7 +1577,10 @@
         window.location.reload();
       })
       .catch(function () {
-        alert('Could not move the member.');
+        if (window.UploadMeter && window.UploadMeter.makeToast) {
+          var t = window.UploadMeter.makeToast({ filename: 'Could not move the member.', total: 0, label: 'org board' });
+          t.error('Could not move the member.');
+        }
       })
       .finally(function () {
         draggedMemberId = '';

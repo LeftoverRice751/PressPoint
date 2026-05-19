@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Kiosk</title>
+  <link rel="stylesheet" href="/assets/css/kiosk-tokens.css" />
   <link rel="stylesheet" href="/assets/css/welcome-screen.css" />
   <style>
     #kiosk-stage {
@@ -28,7 +29,7 @@
       justify-content: center;
       flex-direction: column;
       gap: 0.9rem;
-      background: radial-gradient(circle at center, rgba(15, 23, 42, 0.9), rgba(0, 0, 0, 0.98));
+      background: rgba(15, 23, 42, 0.96);
       color: #e2e8f0;
       opacity: 0;
       pointer-events: none;
@@ -162,7 +163,7 @@
     }
 
     .hero__logo {
-      width: min(28vw, 12rem);
+      width: clamp(120px, 22vw, 320px);
       height: auto;
       display: block;
       filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.35));
@@ -171,7 +172,7 @@
     .hero__title {
       margin: 0;
       color: #111111;
-      font-size: clamp(2.15rem, 5.6vw, 4.85rem);
+      font-size: clamp(2.4rem, 5.6vw, 6.5rem);
       font-weight: 900;
       letter-spacing: 0.14em;
       text-transform: uppercase;
@@ -182,7 +183,7 @@
       margin: 0;
       max-width: 30rem;
       color: #111111;
-      font-size: clamp(0.9rem, 1.45vw, 1.1rem);
+      font-size: clamp(0.95rem, 1.45vw, 1.35rem);
       line-height: 1.5;
       letter-spacing: 0.03em;
     }
@@ -295,7 +296,7 @@
 
   <div id="kiosk-stage" hidden aria-live="polite">
     <div id="kiosk-loading" aria-hidden="true">
-      <div class="kiosk-spinner"></div>
+      <img class="kiosk-logo-spin" src="/gears.png" alt="" aria-hidden="true">
       <div class="kiosk-loading-title">Loading video</div>
       <div class="kiosk-loading-subtitle">Preparing kiosk playback…</div>
     </div>
@@ -304,6 +305,10 @@
       <div id="kiosk-video-wrap">
         <video id="kiosk-video" playsinline preload="metadata"></video>
       </div>
+      <button type="button" id="kiosk-idle-cta" class="kiosk-idle-cta" aria-label="Tap to start the kiosk">
+        <span class="kiosk-idle-cta__pulse" aria-hidden="true"></span>
+        <span class="kiosk-idle-cta__label">CLICK TO START KIOSK</span>
+      </button>
       <p id="kiosk-status">Waiting for editorial to start a video…</p>
     </div>
   </div>

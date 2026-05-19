@@ -23,7 +23,25 @@ import random
 from app.services.ArchiveServices import ArchiveServices
 from app.services.AboutContent import AboutContent
 from app.services.StorageRouter import absolute_path, is_safe_path
+from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.models.Archives import Archives
+
+
+_NEWS_STATUS_ALIASES = {
+    "pending": "review",
+    "reviewing": "review",
+    "publish": "published",
+    "live": "published",
+}
+_NEWS_ALLOWED_STATUSES = {"draft", "review", "approved", "scheduled", "published", "archived"}
+
+
+def _normalize_news_status(raw_status, default="approved"):
+    status = (raw_status or default or "approved").strip().lower()
+    status = _NEWS_STATUS_ALIASES.get(status, status)
+    if status not in _NEWS_ALLOWED_STATUSES:
+        return default or "approved"
+    return status
 
 
 VIDEO_UPLOAD_LIMIT = 10
@@ -169,6 +187,8 @@ class VideoController(Controller):
                 hits.append(timestamp)
 
         if len(hits) >= VIDEO_UPLOAD_LIMIT:
+            if wants_json(request):
+                return json_errors(response, ["Too many video uploads. Please wait a minute and try again."], status=429)
             return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors([
                 "Too many video uploads. Please wait a minute and try again.",
             ])
@@ -234,6 +254,18 @@ class VideoController(Controller):
         )
         news_items = sorted(list(News.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
         news_slots = self._group_news_slots(news_items)
+        news_status_counts = {
+            "draft": 0,
+            "review": 0,
+            "approved": 0,
+            "scheduled": 0,
+            "published": 0,
+            "archived": 0,
+        }
+
+        for news_item in news_items:
+            news_status = _normalize_news_status(getattr(news_item, "status", None), default="approved")
+            news_status_counts[news_status] = news_status_counts.get(news_status, 0) + 1
         archive_services = ArchiveServices()
         archive_records = sorted(list(Archives.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
         archive_entries = [archive_services.build_archive_entry(archive) for archive in archive_records]
@@ -248,6 +280,21 @@ class VideoController(Controller):
             getattr(location, "id", None): (getattr(location, "type", "") or "")
             for location in locations
         }
+
+        existing_dept_location_ids = {
+            getattr(d, "location_id", None)
+            for d in (Departments.all() or [])
+        }
+        for location in locations:
+            if (getattr(location, "type", "") or "") != "Department":
+                continue
+            if getattr(location, "id", None) in existing_dept_location_ids:
+                continue
+            Departments.create({
+                "location_id": location.id,
+                "name": getattr(location, "name", "") or "Department",
+            })
+
         departments = sorted(
             [
                 d for d in list(Departments.all() or [])
@@ -336,6 +383,7 @@ class VideoController(Controller):
             "main_news": news_slots["main_news"],
             "secondary_news": news_slots["secondary_news"],
             "widget_news": news_slots["widget_news"],
+            "news_status_counts": news_status_counts,
             "archives": archive_entries,
             "archive_years": archive_years,
             "archive_groups": archive_groups_map,
@@ -393,28 +441,27 @@ class VideoController(Controller):
 
             video_file = _UploadedVideoAdapter(video_file)
 
+        is_ajax = wants_json(request)
+
+        def _err(messages):
+            if is_ajax:
+                return json_errors(response, messages)
+            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors(messages)
+
         if not title:
-            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors([
-                "Video title is required.",
-            ])
+            return _err(["Video title is required."])
 
         if not video_file:
-            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors([
-                "No video file provided.",
-            ])
+            return _err(["No video file provided."])
 
         if not hasattr(video_file, "get_content") or not hasattr(video_file, "extension"):
-            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors([
-                "Please upload a valid video file.",
-            ])
+            return _err(["Please upload a valid video file."])
 
         allowed_extensions = {".mp4", ".mov", ".webm", ".m4v", ".ogg"}
         file_extension = (video_file.extension() or "").lower()
 
         if file_extension not in allowed_extensions:
-            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors([
-                "Please upload a valid video file.",
-            ])
+            return _err(["Please upload a valid video file."])
 
         try:
             # Videos live on GearsNAS/Videos so editors can drop files
@@ -431,27 +478,127 @@ class VideoController(Controller):
                 getattr(video, "title", None) or title,
             )
 
+            if is_ajax:
+                return json_success(response, payload={
+                    "video": {
+                        "id": getattr(video, "id", None),
+                        "title": getattr(video, "title", None) or title,
+                        "file_path": str(path),
+                    }
+                }, messages=["Video saved successfully."])
+
             return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_success([
                 "Video saved successfully.",
             ])
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
-            return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"}).with_errors([
-                "Could not save the video. Please try again.",
-            ])
+            return _err(["Could not save the video. Please try again."])
 
-    def destroy(self, request: Request, response: Response):
+    def set_idle(self, request: Request, response: Response):
+        # Editors flag exactly one video as the kiosk attract video.
+        # We enforce the singleton on the server: clear every other
+        # row first, then mark the chosen one.
+        is_ajax = wants_json(request)
         video = Video.find(request.param("id"))
 
         if not video:
+            if is_ajax:
+                return json_errors(response, ["Video not found."], status=404)
+            return response.back().with_errors(["Video not found."])
+
+        try:
+            # Singleton: iterate currently-flagged rows and clear them via
+            # instance.save(), which is the persistence pattern every
+            # other controller uses. The class-level builder .update()
+            # call we tried before raises against masoniteorm 2.x when
+            # the model has no loaded instance behind the builder.
+            currently_idle = list(Video.where("show_when_idle", True).get() or [])
+            for other in currently_idle:
+                if getattr(other, "id", None) == video.id:
+                    continue
+                other.show_when_idle = False
+                other.save()
+            video.show_when_idle = True
+            video.save()
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            if is_ajax:
+                return json_errors(response, ["Could not set idle video."], status=500)
+            return response.back().with_errors(["Could not set idle video."])
+
+        if is_ajax:
+            return json_success(response, payload={
+                "video": {
+                    "id": getattr(video, "id", None),
+                    "title": getattr(video, "title", None) or "",
+                    "show_when_idle": True,
+                }
+            }, messages=["Idle video set."])
+        return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"})
+
+    def clear_idle(self, request: Request, response: Response):
+        is_ajax = wants_json(request)
+        video = Video.find(request.param("id"))
+
+        if not video:
+            if is_ajax:
+                return json_errors(response, ["Video not found."], status=404)
+            return response.back().with_errors(["Video not found."])
+
+        try:
+            video.show_when_idle = False
+            video.save()
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            if is_ajax:
+                return json_errors(response, ["Could not clear idle video."], status=500)
+            return response.back().with_errors(["Could not clear idle video."])
+
+        if is_ajax:
+            return json_success(response, payload={
+                "video": {
+                    "id": getattr(video, "id", None),
+                    "show_when_idle": False,
+                }
+            }, messages=["Idle video cleared."])
+        return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"})
+
+    def idle_video(self, response: Response):
+        # Public read endpoint the welcome screen polls every minute to
+        # discover which video (if any) should play during attract mode.
+        video = Video.where("show_when_idle", True).first()
+        if not video:
+            return response.json({"src": None, "title": None})
+
+        raw_path = (getattr(video, "file_path", "") or "").replace("\\", "/").lstrip("/")
+        if not raw_path:
+            return response.json({"src": None, "title": None})
+
+        return response.json({
+            "src": "/storage/" + raw_path,
+            "title": getattr(video, "title", "") or "",
+        })
+
+    def destroy(self, request: Request, response: Response):
+        is_ajax = wants_json(request)
+        video = Video.find(request.param("id"))
+
+        if not video:
+            if is_ajax:
+                return json_errors(response, ["Video not found."], status=404)
             return response.back().with_errors(["Video not found."])
 
         file_path = getattr(video, "file_path", "") or ""
         if file_path and is_safe_path(file_path):
             full_path = absolute_path(file_path)
             if os.path.exists(full_path):
-                os.remove(full_path)
+                try:
+                    os.remove(full_path)
+                except Exception as exception:
+                    traceback.print_exception(type(exception), exception, exception.__traceback__)
 
         video.delete()
 
+        if is_ajax:
+            return json_success(response, messages=["Video deleted."])
         return response.redirect(name="gears.dashboard")

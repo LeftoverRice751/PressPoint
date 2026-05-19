@@ -185,4 +185,81 @@ document.addEventListener("DOMContentLoaded", () => {
   loadFlashArticles();
   initFlashUpdatesRealtime();
   window.setInterval(loadFlashArticles, 60 * 1000);
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Idle attract loop.
+  //
+  // After IDLE_MS of inactivity on the welcome screen, an editor-flagged
+  // video plays full-bleed via the existing #kiosk-stage overlay. Any
+  // pointer/key/wheel input wakes the kiosk and re-arms the countdown.
+  // The bottom CTA is purely visual — the same global listeners catch
+  // taps on it.
+  // ───────────────────────────────────────────────────────────────────────
+  const IDLE_MS = 20 * 1000;
+  let idleTimer = null;
+  let idleVideoSrc = null;
+  let idleVideoTitle = "";
+  let idleVideoPlaying = false;
+  let pollingTimer = null;
+
+  async function fetchIdleVideo() {
+    try {
+      const response = await fetch("/kiosk/idle-video", {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (!response.ok) return;
+      const payload = await response.json();
+      idleVideoSrc = payload && payload.src ? payload.src : null;
+      idleVideoTitle = (payload && payload.title) || "";
+    } catch (error) {
+      // Network blip — leave the previously-known src in place so the
+      // attract loop still works during a momentary outage.
+    }
+  }
+
+  function startIdleCountdown() {
+    if (idleTimer) window.clearTimeout(idleTimer);
+    if (idleVideoPlaying) return;
+    if (!idleVideoSrc) return;
+    idleTimer = window.setTimeout(playIdleAttract, IDLE_MS);
+  }
+
+  function playIdleAttract() {
+    if (!idleVideoSrc) return;
+    if (typeof window.__kioskPlaySrc !== "function") return;
+    idleVideoPlaying = true;
+    document.body.classList.add("kiosk-idle-active");
+    window.__kioskPlaySrc(idleVideoSrc, idleVideoTitle);
+  }
+
+  function stopIdleAttract() {
+    if (!idleVideoPlaying) return;
+    idleVideoPlaying = false;
+    document.body.classList.remove("kiosk-idle-active");
+    if (typeof window.__kioskCloseVideo === "function") {
+      window.__kioskCloseVideo();
+    }
+    // Re-arm the countdown immediately so a quick tap doesn't leave the
+    // kiosk in attract limbo.
+    startIdleCountdown();
+  }
+
+  function onUserActivity() {
+    if (idleVideoPlaying) {
+      stopIdleAttract();
+    } else {
+      startIdleCountdown();
+    }
+  }
+
+  ["pointerdown", "touchstart", "wheel", "keydown"].forEach((evt) => {
+    document.addEventListener(evt, onUserActivity, { passive: true, capture: true });
+  });
+
+  // Initial fetch + first countdown. Re-poll every 60s so dashboard
+  // changes to the flagged video propagate without a hard reload.
+  fetchIdleVideo().then(startIdleCountdown);
+  pollingTimer = window.setInterval(fetchIdleVideo, 60 * 1000);
 });

@@ -10,6 +10,8 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/auth-change-password.js', 'storage/compiled/js')
   .js('resources/js/auth-otp-code.js', 'storage/compiled/js')
   .js('resources/js/gears-dashboard.js', 'storage/compiled/js')
+  .js('resources/js/upload-meter.js', 'storage/compiled/js')
+  .js('resources/js/confirm-modal.js', 'storage/compiled/js')
   .js('resources/js/news-dashboard.js', 'storage/compiled/js')
   .js('resources/js/kiosk-archives.js', 'storage/compiled/js')
   .js('resources/js/kiosk-archive-book.js', 'storage/compiled/js')
@@ -23,6 +25,9 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/about-lspu-editor.js', 'storage/compiled/js')
   .js('resources/js/org-board.js', 'storage/compiled/js')
   .postCss('resources/css/app.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/kiosk-tokens.css', 'storage/compiled/css', [
     //
   ])
   .postCss('resources/css/welcome-screen.css', 'storage/compiled/css', [
@@ -46,6 +51,15 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .postCss('resources/css/gears-dashboard.css', 'storage/compiled/css', [
     //
   ])
+  .postCss('resources/css/dropzone.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/upload-meter.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/confirm-modal.css', 'storage/compiled/css', [
+    //
+  ])
   .postCss('resources/css/news-dashboard.css', 'storage/compiled/css', [
     //
   ])
@@ -56,6 +70,9 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
     //
   ])
   .postCss('resources/css/kiosk-map.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/kiosk-loading.css', 'storage/compiled/css', [
     //
   ])
   .postCss('resources/css/kiosk-tour.css', 'storage/compiled/css', [

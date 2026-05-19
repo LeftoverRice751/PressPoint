@@ -14,6 +14,7 @@ ROUTES = [
     Route.get("/kiosk/about-lspu", "AboutController@kiosk").name("kiosk.about-lspu"),
     Route.get("/kiosk/org-board", "OrgBoardController@public_show").name("kiosk.org-board"),
     Route.get("/kiosk/org-chart", "WelcomeController@org_chart").name("kiosk.org-chart"),
+    Route.get("/kiosk/idle-video", "VideoController@idle_video").name("kiosk.idle_video"),
     Route.post("/trigger-video", "EditorialController@play_video").name("video.push").middleware("auth"),
     Route.get("/storage/@path:any", "VideoController@serve_storage"),
 ]
