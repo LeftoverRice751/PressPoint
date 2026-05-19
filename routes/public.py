@@ -17,4 +17,5 @@ ROUTES = [
     Route.get("/kiosk/idle-video", "VideoController@idle_video").name("kiosk.idle_video"),
     Route.post("/trigger-video", "EditorialController@play_video").name("video.push").middleware("auth"),
     Route.get("/storage/@path:any", "VideoController@serve_storage"),
+    Route.get("/sw-archives.js", "VideoController@serve_sw"),
 ]

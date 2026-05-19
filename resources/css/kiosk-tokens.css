@@ -12,7 +12,76 @@
  *
  * Loaded from base.html so every kiosk and dashboard page inherits it.
  */
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800;9..144,900&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600;6..72,700&family=JetBrains+Mono:wght@500;700&display=swap");
+/*
+ * Brand font files must be placed in resources/fonts/ by the developer.
+ * Paths below match the copy target set in webpack.mix.js so they are
+ * served from /assets/fonts/. Until the files are added, browsers fall
+ * back to the system-ui stacks defined on each variable below.
+ */
+@font-face {
+  font-family: "Columna";
+  src: url("/assets/fonts/Columna/columna-regular.woff2") format("woff2"),
+       url("/assets/fonts/Columna/columna-regular.woff")  format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/assets/fonts/Gilroy/gilroy-semibold.woff2") format("woff2"),
+       url("/assets/fonts/Gilroy/gilroy-semibold.woff")  format("woff");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/assets/fonts/Gilroy/gilroy-bold.woff2") format("woff2"),
+       url("/assets/fonts/Gilroy/gilroy-bold.woff")  format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/assets/fonts/Gilroy/gilroy-extrabold.woff2") format("woff2"),
+       url("/assets/fonts/Gilroy/gilroy-extrabold.woff")  format("woff");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gotham";
+  src: url("/assets/fonts/Gotham/gotham-book.woff2") format("woff2"),
+       url("/assets/fonts/Gotham/gotham-book.woff")  format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gotham";
+  src: url("/assets/fonts/Gotham/gotham-medium.woff2") format("woff2"),
+       url("/assets/fonts/Gotham/gotham-medium.woff")  format("woff");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gotham";
+  src: url("/assets/fonts/Gotham/gotham-bold.woff2") format("woff2"),
+       url("/assets/fonts/Gotham/gotham-bold.woff")  format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap");
 
 :root {
   /* Client palette */
@@ -35,10 +104,11 @@
   --kiosk-rule: rgba(31, 15, 12, 0.18);
   --kiosk-paper: #F4EFE6;
 
-  /* Type pair */
-  --kiosk-font-display: "Fraunces", "Georgia", "Iowan Old Style", serif;
-  --kiosk-font-body: "Newsreader", "Iowan Old Style", "Georgia", serif;
-  --kiosk-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Gears brand type trio */
+  --kiosk-font-display: "Columna", "Trajan Pro", "Times New Roman", serif;
+  --kiosk-font-ui:      "Gilroy", "Futura", "Century Gothic", sans-serif;
+  --kiosk-font-body:    "Gotham", "Gill Sans", "Century Gothic", sans-serif;
+  --kiosk-font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Fluid type scale — min @ ~360px viewport, max @ 1440px+ */
   --kiosk-text-xs:   clamp(0.70rem, 0.62rem + 0.30vw, 0.85rem);

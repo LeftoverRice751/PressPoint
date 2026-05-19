@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const typeEl = root.querySelector('[data-archive-type]');
   const yearEl = root.querySelector('[data-archive-published]');
   const headerYearEl = root.querySelector('[data-archive-year-label]');
+  const countEl = root.querySelector('[data-archive-count]');
   const selectedYearValue = parseInt((root.getAttribute('data-selected-year') || '').trim(), 10);
   const swipeThreshold = 48;
   const swipeLockDuration = 360;
@@ -84,14 +85,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (category === 'all') {
       return true;
     }
-    const isTabloid = (card.dataset.isTabloid || '').trim() === '1';
-    if (category === 'tabloid') {
-      return isTabloid;
-    }
+    const cardType = (card.dataset.type || '').toLowerCase();
+    if (category === 'tabloid')    return cardType.includes('tabloid');
+    if (category === 'magazine')   return cardType.includes('magazine');
+    if (category === 'newsletter') return cardType.includes('newsletter');
     if (category === 'folio') {
-      return !isTabloid;
+      return !cardType.includes('tabloid')
+          && !cardType.includes('magazine')
+          && !cardType.includes('newsletter');
     }
-    return true;
+    return false;
   }
 
   function getCategoryCards(category = currentCategory) {
@@ -180,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
         titleEl.textContent = 'No archives available';
       }
       if (typeEl) {
-        typeEl.textContent = 'Upload a PDF archive from the editor dashboard';
+        typeEl.textContent = '—';
       }
       if (yearEl) {
         yearEl.textContent = '—';
@@ -196,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (typeEl) {
-      typeEl.textContent = `${type} publication`;
+      typeEl.textContent = type;
     }
 
     if (yearEl) {
@@ -221,6 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setYearButtonState();
       setCategoryButtonState();
       updateDetails(null);
+      if (countEl) countEl.textContent = '';
       return;
     }
 
@@ -250,6 +254,11 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDetails(activeCard);
     if (activeCard && activeFlipIndex === parseInt(activeCard.dataset.index || '', 10)) {
       loadPageTwoFrame(activeCard);
+    }
+
+    if (countEl) {
+      const total = visibleCards.length;
+      countEl.textContent = total > 1 ? `${currentIndex + 1} of ${total}` : '';
     }
   }
 
@@ -459,4 +468,44 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   render();
+
+  // Prime the HTTP cache and Service Worker cache for archive covers so
+  // subsequent opens are instant regardless of connection speed.
+  function prefetchUrls(urls) {
+    if (!urls.length) return;
+    const queue = urls.slice();
+    function next() {
+      const url = queue.shift();
+      if (!url) return;
+      fetch(url, { priority: 'low', mode: 'no-cors', credentials: 'same-origin' })
+        .catch(() => {})
+        .finally(() => setTimeout(next, 80));
+    }
+    setTimeout(next, 600);
+  }
+
+  const coverUrls = cards
+    .map((card) => (card.dataset.coverUrl || '').trim())
+    .filter(Boolean);
+
+  prefetchUrls(coverUrls);
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw-archives.js', { scope: '/' })
+      .then((reg) => {
+        const sw = reg.installing || reg.waiting || reg.active;
+        if (!sw) return;
+        const sendPrecache = (worker) => {
+          worker.postMessage({ type: 'PRECACHE', urls: coverUrls });
+        };
+        if (reg.installing) {
+          reg.installing.addEventListener('statechange', (e) => {
+            if (e.target.state === 'activated') sendPrecache(e.target);
+          });
+        } else {
+          sendPrecache(sw);
+        }
+      })
+      .catch(() => {});
+  }
 });

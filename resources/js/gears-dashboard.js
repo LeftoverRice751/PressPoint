@@ -483,3 +483,189 @@
     setPreview('');
   }
 })();
+
+// ── Dashboard AJAX: toast + form interceptor ─────────────────────────────────
+(function () {
+  var tokenMeta = document.querySelector('meta[name="csrf-token"]');
+  var csrfToken = tokenMeta ? tokenMeta.getAttribute('content') : '';
+
+  // ── Toast ─────────────────────────────────────────────────
+  function showToast(msg, isError) {
+    var t = document.createElement('div');
+    t.className = 'gears-toast' + (isError ? ' gears-toast--error' : '');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { t.classList.add('is-visible'); });
+    });
+    setTimeout(function () {
+      t.classList.remove('is-visible');
+      setTimeout(function () { t.remove(); }, 300);
+    }, 3500);
+  }
+
+  // ── Post-success DOM updates ───────────────────────────────
+  function handleAjaxSuccess(form, json) {
+    var action = form.getAttribute('action') || '';
+
+    // Milestone delete: fade and remove the list item
+    if (json.id && action.indexOf('/milestones/') !== -1 && action.indexOf('/delete') !== -1) {
+      var li = form.closest('li');
+      if (li) {
+        li.style.transition = 'opacity 0.25s';
+        li.style.opacity = '0';
+        setTimeout(function () { li.remove(); }, 260);
+      }
+      return;
+    }
+
+    // Milestone reorder: nothing to update in the DOM — server state changed
+    if (action.indexOf('/milestones/') !== -1 && action.indexOf('/reorder') !== -1) {
+      return;
+    }
+
+    // Milestone create: append placeholder row + reset form
+    if (json.milestone) {
+      var list = document.querySelector('[data-about-panel="history"] .about-milestones');
+      if (list) {
+        var li2 = document.createElement('li');
+        li2.className = 'about-milestone';
+        li2.style.opacity = '0.6';
+        li2.innerHTML =
+          '<div class="about-milestone__form form-stack" style="padding:0.75rem 0">' +
+            '<strong style="color:var(--ink-oxblood)">' +
+              escapeHtml(json.milestone.year) + ' — ' + escapeHtml(json.milestone.heading) +
+            '</strong>' +
+            ' <span style="color:var(--ink-muted);font-size:0.82rem">(reload to edit)</span>' +
+          '</div>';
+        list.appendChild(li2);
+      }
+      form.reset();
+      var qe = form.querySelector('.js-body-editor');
+      if (qe && qe._quill) qe._quill.setContents([]);
+      return;
+    }
+
+    // Archive upload: prepend new card to the grid
+    if (json.archive) {
+      var grid = document.querySelector(
+        '[data-page-panel="archives"] .archive-grid, ' +
+        '[data-page-panel="archives"] [data-archive-list]'
+      );
+      if (grid) {
+        var card = document.createElement('article');
+        card.className = 'archive-card';
+        card.innerHTML =
+          '<div class="archive-card__cover archive-card__cover--fallback" aria-hidden="true">' +
+            '<span class="archive-card__cover-text">Processing…</span>' +
+          '</div>' +
+          '<div class="archive-card__body">' +
+            '<div class="archive-card__title">' + escapeHtml(json.archive.name || '') + '</div>' +
+            '<div class="archive-card__meta">' +
+              '<span>' + escapeHtml(json.archive.type || '') + '</span>' +
+              '<span>Year ' + escapeHtml(String(json.archive.year || 'Not set')) + '</span>' +
+            '</div>' +
+            '<div class="archive-card__year">' + escapeHtml(String(json.archive.year || 'Undated')) + '</div>' +
+            '<div class="archive-card__path">' + escapeHtml(json.archive.file_path || '') + '</div>' +
+          '</div>';
+        grid.prepend(card);
+      }
+      form.reset();
+      return;
+    }
+
+    // News save: reset form and Quill editors
+    if (json.article) {
+      form.reset();
+      form.querySelectorAll('.js-body-editor').forEach(function (el) {
+        if (el._quill) el._quill.setContents([]);
+      });
+      return;
+    }
+
+    // Seal upload: update preview image if present
+    if (json.seal_url) {
+      var preview = document.querySelector('.about-seal-preview');
+      if (preview) {
+        preview.src = json.seal_url;
+      }
+      return;
+    }
+
+    // All other saves (section text, hymn audio): nothing extra needed.
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Generic AJAX form handler ──────────────────────────────
+  function ajaxSubmit(form) {
+    if (form.dataset.ajaxBound) return;
+    form.dataset.ajaxBound = '1';
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      // Let about-lspu-editor.js fire its submit listeners first
+      // (they populate the hidden body_html / subsections inputs).
+      var btn = form.querySelector('[type="submit"]');
+      if (btn) {
+        btn.disabled = true;
+        btn.dataset.origText = btn.textContent;
+        btn.textContent = 'Saving…';
+      }
+
+      var fd = new FormData(form);
+
+      fetch(form.getAttribute('action'), {
+        method: (form.getAttribute('method') || 'POST').toUpperCase(),
+        headers: {
+          'X-CSRF-TOKEN': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: fd,
+        credentials: 'same-origin'
+      })
+      .then(function (r) {
+        if (!r.ok && r.status !== 422 && r.status !== 400) {
+          throw new Error('HTTP ' + r.status);
+        }
+        return r.json();
+      })
+      .then(function (json) {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = btn.dataset.origText || 'Save';
+        }
+        if (json.ok) {
+          showToast((json.messages && json.messages[0]) || 'Saved.', false);
+          handleAjaxSuccess(form, json);
+        } else {
+          showToast((json.errors && json.errors[0]) || 'Something went wrong.', true);
+        }
+      })
+      .catch(function () {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = btn.dataset.origText || 'Save';
+        }
+        showToast('Request failed — please try again.', true);
+      });
+    });
+  }
+
+  var AJAX_SELECTORS = [
+    'form[data-section-form]',
+    'form[data-milestone-form]',
+    'form.about-milestone__action-form',
+    'form[data-upload-form]',
+    'form[data-news-form]'
+  ].join(', ');
+
+  document.querySelectorAll(AJAX_SELECTORS).forEach(ajaxSubmit);
+})();

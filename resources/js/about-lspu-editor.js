@@ -1,32 +1,88 @@
 // About LSPU editor client.
-// - Initialise a Quill editor on every .js-body-editor and .js-sub-editor.
-// - On submit, serialise editor HTML into the matching hidden input.
-// - For mission/values forms, package subblocks into a single
-//   'subsections' JSON payload.
+// - Tab switching: one panel visible at a time, matching the 6 kiosk tiles.
+// - Lazy Quill init: editors are created only when their panel is first opened.
+// - Add / remove subsection blocks (mission, values).
+// - On submit, serialise editor HTML into hidden inputs.
 
 (function () {
   if (typeof Quill === 'undefined') return;
 
   var TOOLBAR = [
     ['bold', 'italic', 'underline'],
-    [{ 'header': 3 }, { 'header': 4 }],
-    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+    [{ header: 3 }, { header: 4 }],
+    [{ list: 'ordered' }, { list: 'bullet' }],
     ['blockquote', 'link', 'clean']
   ];
 
   function makeEditor(el) {
+    if (el._quill) return el._quill;
     var initial = el.innerHTML;
     el.innerHTML = '';
     var quill = new Quill(el, { theme: 'snow', modules: { toolbar: TOOLBAR } });
-    if (initial) quill.clipboard.dangerouslyPasteHTML(initial);
+    if (initial.trim()) quill.clipboard.dangerouslyPasteHTML(initial);
     el._quill = quill;
     return quill;
   }
 
-  document.querySelectorAll('.js-body-editor').forEach(makeEditor);
-  document.querySelectorAll('.js-sub-editor').forEach(makeEditor);
+  // ── Tab switching with lazy Quill init ───────────────────
+  var tabs   = Array.prototype.slice.call(document.querySelectorAll('[data-about-tab]'));
+  var panels = Array.prototype.slice.call(document.querySelectorAll('[data-about-panel]'));
 
-  // Forms with a single body editor.
+  function switchAbout(slug) {
+    tabs.forEach(function (tab) {
+      var active = tab.dataset.aboutTab === slug;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', String(active));
+    });
+    panels.forEach(function (panel) {
+      var active = panel.dataset.aboutPanel === slug;
+      panel.hidden = !active;
+      if (active && !panel.dataset.quillReady) {
+        panel.querySelectorAll('.js-body-editor').forEach(makeEditor);
+        panel.querySelectorAll('.js-sub-editor').forEach(makeEditor);
+        panel.dataset.quillReady = '1';
+      }
+    });
+  }
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () { switchAbout(tab.dataset.aboutTab); });
+  });
+
+  if (tabs.length) switchAbout(tabs[0].dataset.aboutTab);
+
+  // ── Add / remove subblock ────────────────────────────────
+  function wireRemove(block) {
+    var btn = block.querySelector('[data-remove-subblock]');
+    if (btn) btn.addEventListener('click', function () { block.remove(); });
+  }
+
+  document.querySelectorAll('.about-subblock').forEach(wireRemove);
+
+  document.querySelectorAll('[data-add-subblock]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var container = btn.closest('form').querySelector('[data-subblocks]');
+      var block = document.createElement('div');
+      block.className = 'about-subblock';
+      block.innerHTML =
+        '<label class="field">' +
+          '<span class="field__label">Heading</span>' +
+          '<input type="text" class="field__input js-sub-heading" maxlength="200" placeholder="Sub-section heading">' +
+        '</label>' +
+        '<label class="field">' +
+          '<span class="field__label">Body</span>' +
+          '<div class="about-editor-frame js-sub-editor"></div>' +
+        '</label>' +
+        '<button type="button" class="ghost-button about-icon-button" data-remove-subblock>✕ Remove</button>';
+      container.appendChild(block);
+      makeEditor(block.querySelector('.js-sub-editor'));
+      wireRemove(block);
+    });
+  });
+
+  // ── Form serialisation ───────────────────────────────────
+
+  // Single body editor → hidden input.
   var bodySelector = [
     'form[data-milestone-form]',
     'form[data-section-form="history"]',
@@ -45,15 +101,18 @@
     });
   });
 
-  // Mission/values forms bundle subblocks into JSON.
-  document.querySelectorAll('form[data-section-form="mission"], form[data-section-form="values"]').forEach(function (form) {
+  // Mission / values: serialise subblocks to JSON.
+  // Fixed: was querying ".subblock" but HTML class is ".about-subblock".
+  document.querySelectorAll(
+    'form[data-section-form="mission"], form[data-section-form="values"]'
+  ).forEach(function (form) {
     form.addEventListener('submit', function () {
       var blocks = [];
-      form.querySelectorAll('[data-subblocks] .subblock').forEach(function (block) {
+      form.querySelectorAll('[data-subblocks] .about-subblock').forEach(function (block) {
         var heading = block.querySelector('.js-sub-heading');
-        var editor = block.querySelector('.js-sub-editor');
+        var editor  = block.querySelector('.js-sub-editor');
         blocks.push({
-          heading: heading ? heading.value : '',
+          heading:   heading ? heading.value : '',
           body_html: (editor && editor._quill) ? editor._quill.root.innerHTML : ''
         });
       });

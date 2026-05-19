@@ -290,3 +290,20 @@
   .about-detail { padding: 18px 16px 14px; border-radius: 22px; }
   .about-back { padding: 10px 18px; font-size: 0.85rem; }
 }
+
+/* ── Hymn audio player ─────────────────────────────────────────── */
+.about-hymn__player {
+  margin-bottom: 2rem;
+}
+
+.about-hymn__audio {
+  width: 100%;
+  accent-color: var(--kiosk-crimson, #B11E2A);
+  border-radius: 4px;
+}
+
+.about-hymn__lyrics {
+  line-height: 1.9;
+  font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
+  white-space: pre-line;
+}

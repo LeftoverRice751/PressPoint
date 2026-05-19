@@ -1,10 +1,10 @@
 :root {
-    --paper-white: #f8f2e8;
-    --paper-cream: #fffdf7;
-    --paper-ink: #121212;
-    --paper-muted: #5e5e5e;
-    --paper-line: rgba(18, 18, 18, 0.18);
-    --paper-orange: #ff6b35;
+    --paper-white:  var(--kiosk-cream,     #EAE3D9);
+    --paper-cream:  var(--kiosk-paper,     #F4EFE6);
+    --paper-ink:    var(--kiosk-espresso,  #1F0F0C);
+    --paper-muted:  var(--kiosk-ink-muted, rgba(31,15,12,0.62));
+    --paper-line:   var(--kiosk-rule,      rgba(31,15,12,0.18));
+    --paper-orange: var(--kiosk-crimson,   #B11E2A);
 }
 
 * {
@@ -18,20 +18,18 @@ body {
 }
 
 body.newspaper-bg {
-    background:
-        radial-gradient(circle at top, rgba(255, 255, 255, 0.88), rgba(230, 223, 211, 0.95)),
-        linear-gradient(180deg, #ece6da 0%, #ddd3c6 100%);
+    background: var(--paper-white);
     padding: 24px 18px 124px;
     color: var(--paper-ink);
-    font-family: "Georgia", "Times New Roman", serif;
+    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
 }
 
 .paper-container {
     width: min(100%, clamp(720px, 90vw, 1440px));
     margin: 0 auto;
     padding: clamp(20px, 2.6vw, 44px) clamp(18px, 2.4vw, 40px) clamp(22px, 2.6vw, 44px);
-    background: linear-gradient(180deg, rgba(255, 253, 247, 0.98), rgba(248, 242, 232, 0.98));
-    box-shadow: 0 24px 60px rgba(25, 20, 14, 0.18);
+    background: var(--paper-cream);
+    border: 1px solid var(--paper-line);
 }
 
 .paper-header {
@@ -103,13 +101,12 @@ body.newspaper-bg {
     justify-content: center;
     padding: 0.8rem 1.2rem;
     border-radius: 999px;
-    background: linear-gradient(135deg, var(--paper-orange), #e85d2d);
-    color: #fff;
+    background: var(--paper-orange);
+    color: var(--paper-white);
     text-decoration: none;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
     font-size: 0.92rem;
     font-weight: 800;
-    box-shadow: 0 16px 28px rgba(255, 107, 53, 0.28);
 }
 
 .news-back {
@@ -122,15 +119,14 @@ body.newspaper-bg {
     gap: 0.9rem;
     padding: 0.95rem 2rem;
     border-radius: 999px;
-    background: linear-gradient(135deg, var(--paper-orange), #e85d2d);
-    color: #fff;
+    background: var(--paper-orange);
+    color: var(--paper-white);
     text-decoration: none;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
     font-size: 1rem;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    box-shadow: 0 18px 32px rgba(255, 107, 53, 0.32);
     z-index: 10;
 }
 
@@ -169,8 +165,7 @@ body.newspaper-bg {
     object-fit: cover;
     display: block;
     border: 1px solid var(--paper-line);
-    background: linear-gradient(180deg, #ececec, #c8c8c8);
-    filter: grayscale(1);
+    background: rgba(31, 15, 12, 0.08);
 }
 
 .feature-story__content {
@@ -191,7 +186,7 @@ body.newspaper-bg {
 .feature-story__meta {
     margin: 10px 0 12px;
     color: var(--paper-muted);
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
     font-size: 0.9rem;
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -243,9 +238,8 @@ body.newspaper-bg {
     height: 92px;
     object-fit: cover;
     display: block;
-    background: linear-gradient(180deg, #ececec, #d6d6d6);
+    background: rgba(31, 15, 12, 0.08);
     border: 1px solid var(--paper-line);
-    filter: grayscale(1);
 }
 
 .secondary-story__body {
@@ -303,7 +297,7 @@ body.newspaper-bg {
     place-items: center;
     border: 1px dashed rgba(18, 18, 18, 0.28);
     color: var(--paper-muted);
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
     font-size: 0.96rem;
     font-weight: 700;
     text-align: center;

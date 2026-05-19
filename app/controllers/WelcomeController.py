@@ -104,7 +104,7 @@ class WelcomeController(Controller):
         return self.coming_soon(view, "AI Assistant")
 
     def virtual_tour(self, view: View):
-        return view.render("kiosk/kiosk-tour")
+        return view.render("kiosk/kiosk-tour", {"active_nav": "tour"})
 
     def org_chart(self, response: Response):
         return response.redirect(name="kiosk.org-board")

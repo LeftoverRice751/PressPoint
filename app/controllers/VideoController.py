@@ -19,6 +19,7 @@ import json
 import time
 import traceback
 import random
+from datetime import datetime
 
 from app.services.ArchiveServices import ArchiveServices
 from app.services.AboutContent import AboutContent
@@ -228,7 +229,7 @@ class VideoController(Controller):
             "widget_news": widget_news,
         }
 
-    def serve_storage(self, response: Response, path):
+    def serve_storage(self, request: Request, response: Response, path):
         # /storage/<path> serves files from either the GearsNAS volume
         # (anything under Archives/ or Videos/) or the project's local
         # public folder (everything else). The router maps which one;
@@ -243,7 +244,38 @@ class VideoController(Controller):
         if not os.path.isfile(full_path):
             return "File not Found", 404
 
+        try:
+            stat = os.stat(full_path)
+        except OSError:
+            return "File not Found", 404
+
+        etag = f'"{stat.st_mtime_ns}-{stat.st_size}"'
+        last_modified = datetime.utcfromtimestamp(stat.st_mtime).strftime(
+            "%a, %d %b %Y %H:%M:%S GMT"
+        )
+
+        if request.header("If-None-Match") == etag:
+            return response.status(304)
+
+        response.header("Cache-Control", "public, max-age=86400")
+        response.header("ETag", etag)
+        response.header("Last-Modified", last_modified)
+
         return response.download(os.path.basename(full_path), full_path, force=False)
+
+    def serve_sw(self, response: Response):
+        sw_path = os.path.realpath(
+            os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "../../storage/compiled/js/sw-archives.js",
+            )
+        )
+        if not os.path.isfile(sw_path):
+            return "Not found", 404
+        response.header("Content-Type", "application/javascript; charset=utf-8")
+        response.header("Service-Worker-Allowed", "/")
+        response.header("Cache-Control", "no-store")
+        return response.download("sw-archives.js", sw_path, force=False)
     
     def show(self, views: View, request: Request):
         posts = sorted(list(Posts.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)

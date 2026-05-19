@@ -25,4 +25,5 @@ ROUTES = [
     Route.post("/gears/about-lspu/milestones/@id/delete","AboutController@delete_milestone").middleware("auth"),
     Route.post("/gears/about-lspu/milestones/@id/reorder","AboutController@reorder_milestone").middleware("auth"),
     Route.post("/gears/about-lspu/seal/upload","AboutController@upload_seal").middleware("auth"),
+    Route.post("/gears/about-lspu/hymn/audio","AboutController@upload_hymn_audio").middleware("auth"),
 ]

@@ -246,9 +246,17 @@ document.addEventListener("DOMContentLoaded", () => {
     startIdleCountdown();
   }
 
-  function onUserActivity() {
+  function onUserActivity(e) {
     if (idleVideoPlaying) {
+      if (e && typeof e.stopPropagation === "function") {
+        e.stopPropagation();
+      }
       stopIdleAttract();
+      // Swallow the click that follows this pointerdown so no card fires
+      document.addEventListener("click", function swallow(ev) {
+        ev.stopPropagation();
+        document.removeEventListener("click", swallow, true);
+      }, true);
     } else {
       startIdleCountdown();
     }

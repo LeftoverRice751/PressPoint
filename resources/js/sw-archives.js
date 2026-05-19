@@ -1,0 +1,75 @@
+/* Service Worker — Presspoint archive asset cache
+ *
+ * Scope: / (entire origin, granted via Service-Worker-Allowed response header)
+ * Strategy: cache-first for /storage/Archives/**
+ *   Miss → fetch from network, store in Cache Storage, return response
+ *   Hit  → return from Cache Storage immediately (zero network cost)
+ *
+ * Receives PRECACHE messages from kiosk-archives.js to proactively cache
+ * cover images before any user opens an archive.
+ *
+ * To bust the cache after replacing archive files, bump CACHE_NAME below
+ * (e.g. pp-archives-v2). The activate handler deletes old-named caches.
+ */
+
+const CACHE_NAME = 'pp-archives-v1';
+const ARCHIVE_PATH = '/storage/Archives/';
+
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((k) => k.startsWith('pp-archives-') && k !== CACHE_NAME)
+            .map((k) => caches.delete(k))
+        )
+      )
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  if (!url.pathname.startsWith(ARCHIVE_PATH)) return;
+  if (event.request.method !== 'GET') return;
+
+  event.respondWith(
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(event.request, { ignoreVary: true });
+      if (cached) return cached;
+
+      try {
+        const response = await fetch(event.request);
+        if (response.ok) {
+          cache.put(event.request, response.clone());
+        }
+        return response;
+      } catch (_) {
+        return new Response('Offline — archive not yet cached', { status: 503 });
+      }
+    })
+  );
+});
+
+self.addEventListener('message', (event) => {
+  if (!event.data || event.data.type !== 'PRECACHE') return;
+  const urls = Array.isArray(event.data.urls) ? event.data.urls : [];
+  if (!urls.length) return;
+
+  caches.open(CACHE_NAME).then((cache) => {
+    urls.forEach((url) => {
+      cache.match(url).then((hit) => {
+        if (!hit) {
+          fetch(url, { priority: 'low' })
+            .then((r) => { if (r.ok) cache.put(url, r); })
+            .catch(() => {});
+        }
+      });
+    });
+  });
+});

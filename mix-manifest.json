@@ -19,12 +19,12 @@
     "/storage/compiled/js/about-lspu-editor.js": "/storage/compiled/js/about-lspu-editor.js",
     "/storage/compiled/js/org-board.js": "/storage/compiled/js/org-board.js",
     "/storage/compiled/css/kiosk-tokens.css": "/storage/compiled/css/kiosk-tokens.css",
-    "/storage/compiled/css/kiosk-map.css": "/storage/compiled/css/kiosk-map.css",
     "/storage/compiled/css/kiosk-archives.css": "/storage/compiled/css/kiosk-archives.css",
     "/storage/compiled/css/auth-login.css": "/storage/compiled/css/auth-login.css",
     "/storage/compiled/css/auth-shell.css": "/storage/compiled/css/auth-shell.css",
     "/storage/compiled/css/welcome-screen.css": "/storage/compiled/css/welcome-screen.css",
     "/storage/compiled/css/app.css": "/storage/compiled/css/app.css",
+    "/storage/compiled/css/kiosk-nav.css": "/storage/compiled/css/kiosk-nav.css",
     "/storage/compiled/css/org-board.css": "/storage/compiled/css/org-board.css",
     "/storage/compiled/css/about-lspu-editor.css": "/storage/compiled/css/about-lspu-editor.css",
     "/storage/compiled/css/about-lspu-kiosk.css": "/storage/compiled/css/about-lspu-kiosk.css",
@@ -33,6 +33,7 @@
     "/storage/compiled/css/mobile-route.css": "/storage/compiled/css/mobile-route.css",
     "/storage/compiled/css/kiosk-tour.css": "/storage/compiled/css/kiosk-tour.css",
     "/storage/compiled/css/kiosk-loading.css": "/storage/compiled/css/kiosk-loading.css",
+    "/storage/compiled/css/kiosk-map.css": "/storage/compiled/css/kiosk-map.css",
     "/storage/compiled/css/kiosk-archive-book.css": "/storage/compiled/css/kiosk-archive-book.css",
     "/storage/compiled/css/news-dashboard.css": "/storage/compiled/css/news-dashboard.css",
     "/storage/compiled/css/confirm-modal.css": "/storage/compiled/css/confirm-modal.css",
@@ -43,5 +44,6 @@
     "/storage/compiled/css/auth-otp-code.css": "/storage/compiled/css/auth-otp-code.css",
     "/storage/compiled/css/auth-change-password.css": "/storage/compiled/css/auth-change-password.css",
     "/storage/compiled/js/pdfjs/pdf.min.mjs": "/storage/compiled/js/pdfjs/pdf.min.mjs",
-    "/storage/compiled/js/pdfjs/pdf.worker.min.mjs": "/storage/compiled/js/pdfjs/pdf.worker.min.mjs"
+    "/storage/compiled/js/pdfjs/pdf.worker.min.mjs": "/storage/compiled/js/pdfjs/pdf.worker.min.mjs",
+    "/storage/compiled/js/sw-archives.js": "/storage/compiled/js/sw-archives.js"
 }

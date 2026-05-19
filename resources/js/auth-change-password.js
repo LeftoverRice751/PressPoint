@@ -1,59 +1,64 @@
 (function () {
-    const passwordInput = document.getElementById('password');
-    const confirmInput = document.getElementById('password_confirmation');
-    const bar = document.getElementById('password-strength-bar');
-    const label = document.getElementById('password-strength-label');
-    const toggles = Array.from(document.querySelectorAll('.password-toggle'));
+    var EYE_OPEN  = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    var EYE_SLASH = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+
+    var passwordInput = document.getElementById('password');
+    var confirmInput  = document.getElementById('password_confirmation');
+    var bar           = document.getElementById('password-strength-bar');
+    var label         = document.getElementById('password-strength-label');
+
+    function updateIcon(toggle, showing) {
+        var svg = toggle.querySelector('svg');
+        if (svg) svg.innerHTML = showing ? EYE_SLASH : EYE_OPEN;
+        toggle.setAttribute('aria-label', showing ? 'Hide password' : 'Show password');
+    }
+
+    Array.from(document.querySelectorAll('[data-password-toggle]')).forEach(function (toggle) {
+        var targetId = toggle.getAttribute('data-password-toggle');
+        var input = document.getElementById(targetId);
+        if (!toggle || !input) return;
+
+        toggle.addEventListener('click', function () {
+            var showing = input.type === 'text';
+            input.type = showing ? 'password' : 'text';
+            updateIcon(toggle, !showing);
+        });
+    });
 
     function evaluatePassword(password) {
-        const requirements = {
-            length: password.length >= 8,
-            number: /\d/.test(password),
+        var requirements = {
+            length:  password.length >= 8,
+            number:  /\d/.test(password),
             special: /[^A-Za-z0-9]/.test(password),
         };
-
-        const score = Object.values(requirements).filter(Boolean).length;
+        var score = Object.values(requirements).filter(Boolean).length;
         return { requirements: requirements, score: score };
     }
 
     function updateStrength() {
-        const password = passwordInput.value || '';
-        const evaluation = evaluatePassword(password);
-        const score = evaluation.score;
+        var password   = passwordInput.value || '';
+        var evaluation = evaluatePassword(password);
+        var score      = evaluation.score;
 
-        const width = score === 0 ? 0 : score === 1 ? 33 : score === 2 ? 66 : 100;
-        const color = score < 2 ? '#dc2626' : score === 2 ? '#d97706' : '#16a34a';
+        var width = score === 0 ? 0 : score === 1 ? 33 : score === 2 ? 66 : 100;
+        var color = score < 2 ? '#B11E2A' : score === 2 ? '#E89A1C' : '#2E7D32';
 
-        bar.style.width = width + '%';
+        bar.style.width           = width + '%';
         bar.style.backgroundColor = color;
 
-        const missing = [];
-        if (!evaluation.requirements.length) missing.push('8+ chars');
-        if (!evaluation.requirements.number) missing.push('number');
+        var missing = [];
+        if (!evaluation.requirements.length)  missing.push('8+ chars');
+        if (!evaluation.requirements.number)  missing.push('number');
         if (!evaluation.requirements.special) missing.push('special char');
 
         if (score === 3) {
-            label.textContent = 'Strong password.';
-            label.style.color = '#166534';
+            label.textContent  = 'Strong password.';
+            label.style.color  = '#2E7D32';
         } else {
             label.textContent = 'Needs: ' + missing.join(', ');
-            label.style.color = '#6b7280';
+            label.style.color = '';
         }
     }
-
-    toggles.forEach(function (toggle) {
-        toggle.addEventListener('click', function () {
-            const targetId = toggle.getAttribute('data-password-toggle');
-            const target = document.getElementById(targetId);
-            if (!target) {
-                return;
-            }
-
-            const showing = target.type === 'text';
-            target.type = showing ? 'password' : 'text';
-            toggle.textContent = showing ? 'See' : 'Hide';
-        });
-    });
 
     if (passwordInput) {
         passwordInput.addEventListener('input', updateStrength);
@@ -66,7 +71,6 @@
                 confirmInput.setCustomValidity('');
                 return;
             }
-
             confirmInput.setCustomValidity(
                 passwordInput.value === confirmInput.value ? '' : 'Passwords do not match.'
             );

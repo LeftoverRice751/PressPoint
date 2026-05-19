@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>About LSPU</title>
+  <link rel="stylesheet" href="/assets/css/kiosk-tokens.css" />
+
   <link rel="stylesheet" href="/assets/css/welcome-screen.css" />
   <link rel="stylesheet" href="/assets/css/about-lspu-kiosk.css" />
 </head>
@@ -142,7 +144,17 @@
               <article class="about-statement">{{ section.body_html|safe }}</article>
 
             {% elif slug == 'hymn' %}
-              <article class="about-hymn">{{ section.body_html|safe }}</article>
+              <article class="about-hymn">
+                {% if section.audio_path %}
+                <div class="about-hymn__player">
+                  <audio class="about-hymn__audio" controls preload="metadata"
+                         src="/storage/{{ section.audio_path | replace('\\', '/') }}">
+                    Your browser does not support audio.
+                  </audio>
+                </div>
+                {% endif %}
+                <div class="about-hymn__lyrics">{{ section.body_html|safe }}</div>
+              </article>
 
             {% elif slug == 'seal' %}
               <div class="about-seal">

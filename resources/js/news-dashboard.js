@@ -68,9 +68,7 @@
       publishedAt: form ? form.querySelector('[data-news-field="published_at"]') : null,
       image: form ? form.querySelector('[data-news-field="image"]') : null,
       layout: form ? form.querySelector('[data-news-layout-field]') : null,
-      status: form ? form.querySelector('[data-news-status-field]') : null,
       slotButtons: Array.prototype.slice.call(root.querySelectorAll('[data-news-slot-choice]')),
-      statusButtons: Array.prototype.slice.call(root.querySelectorAll('[data-news-status-choice]')),
       previewTitle: root.querySelector('[data-news-preview-title]'),
       previewCopy: root.querySelector('[data-news-preview-copy]'),
       previewSlot: root.querySelector('[data-news-preview-slot]'),
@@ -131,11 +129,6 @@
     }
 
     setActiveButton(fields.form, '[data-news-slot-choice]', 'data-news-slot-choice', layoutValue || 'main');
-    setActiveButton(fields.form, '[data-news-status-choice]', 'data-news-status-choice', fieldValue(fields.status, 'approved'));
-
-    fields.statusButtons.forEach(function (button) {
-      button.setAttribute('aria-pressed', String(button.getAttribute('data-news-status-choice') === fieldValue(fields.status, 'approved')));
-    });
 
     fields.slotButtons.forEach(function (button) {
       button.setAttribute('aria-pressed', String(button.getAttribute('data-news-slot-choice') === fieldValue(fields.layout, 'main')));
@@ -254,17 +247,6 @@
         }
 
         fields.layout.value = button.getAttribute('data-news-slot-choice') || 'secondary';
-        syncComposer(fields);
-      });
-    });
-
-    fields.statusButtons.forEach(function (button) {
-      button.addEventListener('click', function () {
-        if (!fields.status) {
-          return;
-        }
-
-        fields.status.value = button.getAttribute('data-news-status-choice') || 'approved';
         syncComposer(fields);
       });
     });

@@ -14,7 +14,7 @@ from masonite.routes import Route
 from masonite.configuration.Configuration import Configuration
 from masonite.configuration import config
 
-from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware
+from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware, DatabaseReconnectMiddleware
 from masonite.middleware import ThrottleRequestsMiddleware
 
 
@@ -25,7 +25,7 @@ HTTP_MIDDLEWARE = [
 
 class Kernel:
 
-    http_middleware = [MaintenanceModeMiddleware, EncryptCookies]
+    http_middleware = [MaintenanceModeMiddleware, EncryptCookies, DatabaseReconnectMiddleware]
 
     route_middleware = {
         "web": [SessionMiddleware, LoadUserMiddleware, VerifyCsrfToken],

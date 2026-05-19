@@ -4,15 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Gears: Archives</title>
+  <link rel="stylesheet" href="/assets/css/kiosk-tokens.css" />
+
   <link rel="stylesheet" href="/assets/css/kiosk-archives.css" />
   <link rel="stylesheet" href="/assets/css/kiosk-archive-book.css" />
   <link rel="stylesheet" href="/assets/css/kiosk-loading.css" />
-  {% if archives %}
-    {% for archive in archives %}
-      {% if archive.first_page_url %}<link rel="preload" as="image" href="{{ archive.first_page_url }}" />{% endif %}
-      {% if archive.second_page_url %}<link rel="preload" as="image" href="{{ archive.second_page_url }}" />{% endif %}
-    {% endfor %}
-  {% endif %}
 </head>
 <body>
   <div
@@ -32,6 +28,8 @@
     </header>
 
     <main class="archive-stage">
+
+      <!-- 1. Carousel (swipe to navigate) -->
       <div class="archive-carousel-shell perspective-1000">
         <div class="archive-track" data-archive-track>
           {% if archives %}
@@ -91,16 +89,17 @@
             </div>
           {% endif %}
         </div>
-
       </div>
 
+      <!-- 2. Details + count -->
       <section class="archive-details" aria-live="polite">
-        <div class="archive-details__eyebrow">Archive Bulletin</div>
+        <div class="archive-details__eyebrow" data-archive-type>—</div>
         <h2 class="archive-details__title" data-archive-title>—</h2>
-        <div class="archive-details__subtext" data-archive-type>—</div>
         <div class="archive-details__year" data-archive-published>—</div>
+        <div class="archive-details__count" data-archive-count aria-live="polite"></div>
       </section>
 
+      <!-- 3. Category tabs — bottom for ergonomic kiosk reach -->
       <nav class="archive-categories" aria-label="Archive categories" data-archive-categories>
         <span class="archive-categories__rule" aria-hidden="true"></span>
         <button type="button" class="archive-category-button" data-archive-category-button data-category="all">
@@ -126,6 +125,7 @@
         <span class="archive-categories__rule" aria-hidden="true"></span>
       </nav>
 
+      <!-- 4. Year strip -->
       <nav class="archive-years" aria-label="Archive years">
         {% if archive_years %}
           {% for year in archive_years %}
@@ -138,7 +138,9 @@
         {% endif %}
       </nav>
 
+      <!-- 5. Back link -->
       <a class="archive-back-link" href="{{ route('kiosk') }}">Back to kiosk</a>
+
     </main>
 
     <div class="archive-book-overlay" data-archive-book data-mode="folio" hidden aria-hidden="true">
@@ -169,6 +171,11 @@
                 <img class="archive-book__page-image" data-archive-book-flipper-back alt="" />
               </div>
             </div>
+
+            <button type="button" class="archive-folio-btn archive-folio-btn--prev"
+                    data-archive-folio-prev aria-label="Previous pages">&larr;</button>
+            <button type="button" class="archive-folio-btn archive-folio-btn--next"
+                    data-archive-folio-next aria-label="Next pages">&rarr;</button>
           </div>
 
           <!-- Tabloid (broadsheet column reader) -->

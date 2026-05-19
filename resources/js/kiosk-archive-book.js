@@ -30,6 +30,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabloidSlot = overlay.querySelector('[data-archive-book-tabloid]');
   const backButton = overlay.querySelector('[data-archive-book-back]');
   const pager = overlay.querySelector('[data-archive-book-pager]');
+  const folioPrevBtn = overlay.querySelector('[data-archive-folio-prev]');
+  const folioNextBtn = overlay.querySelector('[data-archive-folio-next]');
+  const newsScroll   = overlay.querySelector('[data-news-scroll]');
+  const newsStack    = overlay.querySelector('[data-news-stack]');
+  const newsRailFill = overlay.querySelector('[data-news-rail-fill]');
+  const newsRailDots = overlay.querySelector('[data-news-rail-dots]');
 
   const SWIPE_THRESHOLD = 56;
   const FLIP_DURATION = 720;
@@ -42,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     archiveId: null,
     pageCount: 0,
     isTabloid: false,
+    isNewsletter: false,
     fileUrl: '',
     spreadIndex: 0,
     isAnimating: false,
@@ -286,6 +293,8 @@ document.addEventListener('DOMContentLoaded', () => {
     state.archiveId = card.dataset.archiveId || '';
     state.pageCount = parseInt(card.dataset.pageCount || '0', 10) || 0;
     state.isTabloid = card.dataset.isTabloid === '1';
+    state.isNewsletter = !state.isTabloid
+      && (card.dataset.type || '').toLowerCase().includes('newsletter');
     state.fileUrl = card.dataset.fileUrl || '';
     state.cardOrigin = card.getBoundingClientRect();
     clearAllPages();
@@ -295,8 +304,43 @@ document.addEventListener('DOMContentLoaded', () => {
       'is-tabloid',
       'is-tabloid-flipping-up',
       'is-tabloid-flipping-down',
+      'is-newsletter',
     );
     resetFlipper();
+
+    const isForFolio = !state.isTabloid && !state.isNewsletter;
+    if (folioPrevBtn) folioPrevBtn.hidden = !isForFolio;
+    if (folioNextBtn) folioNextBtn.hidden = !isForFolio;
+
+    if (state.isNewsletter) {
+      state.spreadIndex = 1;
+      book.classList.add('is-newsletter');
+      if (newsStack) newsStack.innerHTML = '';
+      updateNewsRail();
+
+      overlay.hidden = false;
+      showArchiveLoader();
+      overlay.setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(() => {
+        stage.style.transition = 'none';
+        applyZoomTransform(state.cardOrigin);
+        void stage.offsetWidth;
+        overlay.classList.add('is-active');
+        stage.style.transition = '';
+        stage.style.transform = '';
+        window.setTimeout(async () => {
+          measureTargetSize();
+          try { await ensurePdfDoc(); } catch (_) {}
+          const url = await loadPage(1);
+          renderNewsPage(url);
+          hideArchiveLoader();
+          state.isAnimating = false;
+          updateNewsRail();
+          preloadAround(1);
+        }, ZOOM_DURATION);
+      });
+      return;
+    }
 
     if (state.isTabloid) {
       state.spreadIndex = 1;
@@ -587,6 +631,84 @@ document.addEventListener('DOMContentLoaded', () => {
       event.preventDefault();
       closeBook();
     });
+  }
+
+  if (folioPrevBtn) {
+    folioPrevBtn.addEventListener('click', (e) => {
+      e.stopImmediatePropagation();
+      if (!state.isAnimating && !state.isTabloid) flipBackward();
+    });
+  }
+
+  if (folioNextBtn) {
+    folioNextBtn.addEventListener('click', (e) => {
+      e.stopImmediatePropagation();
+      if (!state.isAnimating && !state.isTabloid) flipForward();
+    });
+  }
+
+  // ── Newsletter helpers ──────────────────────────────────
+
+  function renderNewsPage(url) {
+    if (!newsStack) return;
+    newsStack.innerHTML = '';
+    if (!url) return;
+    const img = document.createElement('img');
+    img.src = url;
+    img.className = 'archive-news__page';
+    img.draggable = false;
+    newsStack.appendChild(img);
+  }
+
+  function updateNewsRail() {
+    if (!newsRailFill || !newsRailDots || !state.pageCount) return;
+    const pct = (state.spreadIndex / state.pageCount) * 100;
+    newsRailFill.style.height = pct + '%';
+    if (newsRailDots.children.length !== state.pageCount) {
+      newsRailDots.innerHTML = '';
+      for (let i = 0; i < state.pageCount; i++) {
+        const dot = document.createElement('span');
+        dot.className = 'archive-news__dot';
+        newsRailDots.appendChild(dot);
+      }
+    }
+    Array.from(newsRailDots.children).forEach((dot, i) => {
+      dot.classList.toggle('is-active', i === state.spreadIndex - 1);
+    });
+  }
+
+  async function newsNavigate(delta) {
+    if (state.isAnimating) return;
+    const next = state.spreadIndex + delta;
+    if (next < 1 || next > state.pageCount) return;
+    state.isAnimating = true;
+    state.spreadIndex = next;
+    showArchiveLoader();
+    const url = await loadPage(next);
+    renderNewsPage(url);
+    hideArchiveLoader();
+    state.isAnimating = false;
+    updateNewsRail();
+    preloadAround(next);
+  }
+
+  if (newsScroll) {
+    let newsSwipeStart = null;
+
+    newsScroll.addEventListener('pointerdown', (e) => {
+      if (!state.isNewsletter) return;
+      newsSwipeStart = { y: e.clientY, id: e.pointerId };
+      try { newsScroll.setPointerCapture(e.pointerId); } catch (_) {}
+    }, { passive: true });
+
+    newsScroll.addEventListener('pointerup', (e) => {
+      if (!state.isNewsletter || !newsSwipeStart || newsSwipeStart.id !== e.pointerId) return;
+      const dy = newsSwipeStart.y - e.clientY;
+      if (Math.abs(dy) >= 48) newsNavigate(dy > 0 ? 1 : -1);
+      newsSwipeStart = null;
+    }, { passive: true });
+
+    newsScroll.addEventListener('pointercancel', () => { newsSwipeStart = null; }, { passive: true });
   }
 
   // Touch swipe handling on the book stage.

@@ -23,7 +23,7 @@ KIOSK_START_LOCATION_NAME = "student services building"
 
 class MapController(Controller):
     def show(self, view: View):
-        return view.render("kiosk/campus-map")
+        return view.render("kiosk/campus-map", {"active_nav": "map"})
 
     def get_locations(self, response: Response):
         locations = Locations.all()

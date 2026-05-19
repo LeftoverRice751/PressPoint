@@ -148,6 +148,7 @@ class OrgBoardController(Controller):
                 "campus_name": "LSPU Organizational Chart",
                 "departments": department_rows,
                 "active_section": "departments",
+                "active_nav": "",
             },
         )
 

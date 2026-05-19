@@ -50,6 +50,7 @@ class ArchivesController(Controller):
                 "archives": archive_entries,
                 "archive_years": archive_years,
                 "selected_year": selected_year,
+                "active_nav": "archives",
             },
         )
     

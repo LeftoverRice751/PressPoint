@@ -43,7 +43,7 @@
 
   <aside class="gears-sidebar">
     <div class="gears-sidebar__brand">
-      <div class="gears-sidebar__mark" aria-hidden="true"><img src="/storage/gears.png" alt="Gears logo"></div>
+      <div class="gears-sidebar__mark" aria-hidden="true"><img src="/gears.png" alt="Gears logo"></div>
       <div>
         <div class="gears-sidebar__eyebrow">The Gears Publication</div>
         <div class="gears-sidebar__title">GEARS CMS</div>
@@ -302,12 +302,6 @@
               <p class="panel-header__eyebrow">Compose visually</p>
               <h3 class="panel-header__title">Newsroom canvas</h3>
             </div>
-            <div class="news-workflow-strip" aria-label="Story workflow totals">
-              <span class="news-workflow-strip__chip">Draft {{ news_status_counts['draft'] if news_status_counts else 0 }}</span>
-              <span class="news-workflow-strip__chip">Review {{ news_status_counts['review'] if news_status_counts else 0 }}</span>
-              <span class="news-workflow-strip__chip">Approved {{ news_status_counts['approved'] if news_status_counts else 0 }}</span>
-              <span class="news-workflow-strip__chip">Published {{ news_status_counts['published'] if news_status_counts else 0 }}</span>
-            </div>
           </div>
 
           <div class="news-preview news-preview--editorial">
@@ -458,18 +452,7 @@
               </label>
             </div>
 
-            <div class="field">
-              <span class="field__label">Workflow status</span>
-              <div class="news-status-toggle" role="radiogroup" aria-label="Workflow status">
-                <button type="button" class="news-status-toggle__choice is-active" data-news-status-choice="approved">Approved</button>
-                <button type="button" class="news-status-toggle__choice" data-news-status-choice="review">Review</button>
-                <button type="button" class="news-status-toggle__choice" data-news-status-choice="draft">Draft</button>
-                <button type="button" class="news-status-toggle__choice" data-news-status-choice="scheduled">Scheduled</button>
-                <button type="button" class="news-status-toggle__choice" data-news-status-choice="published">Published</button>
-                <button type="button" class="news-status-toggle__choice" data-news-status-choice="archived">Archived</button>
-              </div>
-              <input type="hidden" name="status" value="approved" data-news-status-field>
-            </div>
+            <input type="hidden" name="status" value="published">
 
             <label class="field" for="news-compose-priority">
               <span class="field__label">Order</span>
@@ -1010,156 +993,274 @@
       </div>
       {% endif %}
 
-      <div class="about-editor-grid">
-        <article class="page-card about-card about-card--stacked">
-          <div class="panel-header panel-header--compact">
-            <div>
-              <p class="panel-header__eyebrow">Mission / Values</p>
-              <h3 class="panel-header__title">Core statements</h3>
-            </div>
-          </div>
+      <div class="about-section-switcher">
 
-          {% for slug in ['mission', 'values'] %}
-          {% set section = sections.get(slug) %}
-          <form class="about-section-form form-stack" method="POST" action="/gears/about-lspu/sections/{{ slug }}" data-section-form="{{ slug }}">
-            {{ csrf_field | safe }}
-            <label class="field">
-              <span class="field__label">Title</span>
-              <input type="text" name="title" class="field__input" value="{{ section.title if section else '' }}" maxlength="150">
-            </label>
+        <!-- ── Tab navigation ─────────────────────────────── -->
+        <nav class="about-section-nav" role="tablist" aria-label="About LSPU sections">
+          <button type="button" class="about-section-tab" role="tab"
+                  data-about-tab="mission" aria-selected="true"
+                  aria-controls="about-panel-mission" id="about-tab-mission">
+            <span class="about-section-tab__icon" aria-hidden="true">◎</span>
+            <span>Mission</span>
+          </button>
+          <button type="button" class="about-section-tab" role="tab"
+                  data-about-tab="values" aria-selected="false"
+                  aria-controls="about-panel-values" id="about-tab-values">
+            <span class="about-section-tab__icon" aria-hidden="true">♥</span>
+            <span>Values</span>
+          </button>
+          <button type="button" class="about-section-tab" role="tab"
+                  data-about-tab="history" aria-selected="false"
+                  aria-controls="about-panel-history" id="about-tab-history">
+            <span class="about-section-tab__icon" aria-hidden="true">◷</span>
+            <span>History</span>
+          </button>
+          <button type="button" class="about-section-tab" role="tab"
+                  data-about-tab="quality" aria-selected="false"
+                  aria-controls="about-panel-quality" id="about-tab-quality">
+            <span class="about-section-tab__icon" aria-hidden="true">★</span>
+            <span>Quality</span>
+          </button>
+          <button type="button" class="about-section-tab" role="tab"
+                  data-about-tab="hymn" aria-selected="false"
+                  aria-controls="about-panel-hymn" id="about-tab-hymn">
+            <span class="about-section-tab__icon" aria-hidden="true">♪</span>
+            <span>Hymn</span>
+          </button>
+          <button type="button" class="about-section-tab" role="tab"
+                  data-about-tab="seal" aria-selected="false"
+                  aria-controls="about-panel-seal" id="about-tab-seal">
+            <span class="about-section-tab__icon" aria-hidden="true">⛨</span>
+            <span>Seal</span>
+          </button>
+        </nav>
 
-            <div class="about-subblocks" data-subblocks>
-              {% for sub in (section.subsections if section else []) %}
-              <div class="about-subblock">
-                <label class="field">
-                  <span class="field__label">Heading</span>
-                  <input type="text" class="field__input js-sub-heading" value="{{ sub.heading }}" maxlength="200">
-                </label>
-                <label class="field">
-                  <span class="field__label">Body</span>
-                  <div class="about-editor-frame js-sub-editor">{{ sub.body_html|safe }}</div>
-                </label>
+        <!-- ── Panel: Mission ────────────────────────────── -->
+        <section id="about-panel-mission" class="about-section-panel"
+                 data-about-panel="mission" role="tabpanel"
+                 aria-labelledby="about-tab-mission">
+          <article class="page-card about-card">
+            <div class="panel-header panel-header--compact">
+              <div>
+                <p class="panel-header__eyebrow">Mission</p>
+                <h3 class="panel-header__title">Mission, Vision &amp; Mandate</h3>
               </div>
-              {% endfor %}
             </div>
-
-            <input type="hidden" name="subsections" class="js-subsections-payload">
-            <div class="about-section-form__actions">
-              <button type="submit" class="primary-button">Save {{ section.title if section else slug }}</button>
-            </div>
-          </form>
-          {% endfor %}
-        </article>
-
-        <article class="page-card about-card about-card--stacked">
-          <div class="panel-header panel-header--compact">
-            <div>
-              <p class="panel-header__eyebrow">History</p>
-              <h3 class="panel-header__title">Historical development</h3>
-            </div>
-          </div>
-
-          {% set history = sections.get('history') %}
-          <form class="about-section-form form-stack" method="POST" action="/gears/about-lspu/sections/history" data-section-form="history">
-            {{ csrf_field | safe }}
-            <label class="field">
-              <span class="field__label">Title</span>
-              <input type="text" name="title" class="field__input" value="{{ history.title if history else 'Historical Development' }}" maxlength="150">
-            </label>
-            <label class="field">
-              <span class="field__label">Intro paragraph</span>
-              <div class="about-editor-frame js-body-editor">{{ history.body_html|safe if history else '' }}</div>
-            </label>
-            <input type="hidden" name="body_html" class="js-body-payload">
-            <div class="about-section-form__actions">
-              <button type="submit" class="primary-button">Save intro</button>
-            </div>
-          </form>
-
-          <h3 class="about-card__subheading">Milestones</h3>
-          <ol class="about-milestones">
-            {% for m in milestones %}
-            <li class="about-milestone">
-              <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}" data-milestone-form class="about-milestone__form form-stack">
-                {{ csrf_field | safe }}
-                <div class="about-milestone__grid">
-                  <label class="field">
-                    <span class="field__label">Year</span>
-                    <input type="text" name="year" class="field__input" value="{{ m.year }}" maxlength="20" placeholder="Year">
-                  </label>
-                  <label class="field">
-                    <span class="field__label">Heading</span>
-                    <input type="text" name="heading" class="field__input" value="{{ m.heading }}" maxlength="200" placeholder="Heading">
-                  </label>
-                </div>
-                <label class="field">
-                  <span class="field__label">Body</span>
-                  <div class="about-editor-frame js-body-editor">{{ m.body_html|safe }}</div>
-                </label>
-                <input type="hidden" name="body_html" class="js-body-payload">
-                <div class="about-section-form__actions">
-                  <button type="submit" class="primary-button">Save milestone</button>
-                </div>
-              </form>
-              <div class="about-milestone__actions">
-                <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}/reorder" class="about-milestone__action-form">
-                  {{ csrf_field | safe }}
-                  <button name="direction" value="up" class="ghost-button about-icon-button" title="Move up">↑</button>
-                  <button name="direction" value="down" class="ghost-button about-icon-button" title="Move down">↓</button>
-                </form>
-                <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}/delete">
-                  {{ csrf_field | safe }}
-                  <button type="submit" class="danger-button"
-                          data-confirm="This permanently removes the {{ m.year | e }} — {{ m.heading | e }} milestone from the About LSPU page."
-                          data-confirm-title="Delete milestone?"
-                          data-confirm-label="Delete milestone"
-                          data-confirm-danger>✕ Delete</button>
-                </form>
-              </div>
-            </li>
-            {% endfor %}
-          </ol>
-
-          <form method="POST" action="/gears/about-lspu/milestones" class="about-section-form form-stack about-milestone-create" data-milestone-form>
-            {{ csrf_field | safe }}
-            <h4 class="about-card__subheading">Add milestone</h4>
-            <div class="about-milestone__grid">
-              <label class="field">
-                <span class="field__label">Year</span>
-                <input type="text" name="year" class="field__input" maxlength="20" placeholder="Year" required>
-              </label>
-              <label class="field">
-                <span class="field__label">Heading</span>
-                <input type="text" name="heading" class="field__input" maxlength="200" placeholder="Heading" required>
-              </label>
-            </div>
-            <label class="field">
-              <span class="field__label">Body</span>
-              <div class="about-editor-frame js-body-editor"></div>
-            </label>
-            <input type="hidden" name="body_html" class="js-body-payload">
-            <div class="about-section-form__actions">
-              <button type="submit" class="primary-button">+ Add milestone</button>
-            </div>
-          </form>
-        </article>
-
-        <article class="page-card about-card about-card--compact">
-          <div class="panel-header panel-header--compact">
-            <div>
-              <p class="panel-header__eyebrow">Quality / Hymn</p>
-              <h3 class="panel-header__title">Supporting pages</h3>
-            </div>
-          </div>
-
-          <div class="about-two-up">
-            {% for slug in ['quality', 'hymn'] %}
-            {% set section = sections.get(slug) %}
-            <form class="about-section-form form-stack about-subsection-card" method="POST" action="/gears/about-lspu/sections/{{ slug }}" data-section-form="{{ slug }}">
+            {% set section = sections.get('mission') %}
+            <form class="about-section-form form-stack" method="POST"
+                  action="/gears/about-lspu/sections/mission"
+                  data-section-form="mission">
               {{ csrf_field | safe }}
               <label class="field">
                 <span class="field__label">Title</span>
-                <input type="text" name="title" class="field__input" value="{{ section.title if section else '' }}" maxlength="150">
+                <input type="text" name="title" class="field__input"
+                       value="{{ section.title if section else '' }}" maxlength="150">
+              </label>
+              <div class="about-subblocks" data-subblocks>
+                {% for sub in (section.subsections if section else []) %}
+                <div class="about-subblock">
+                  <label class="field">
+                    <span class="field__label">Heading</span>
+                    <input type="text" class="field__input js-sub-heading"
+                           value="{{ sub.heading }}" maxlength="200">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Body</span>
+                    <div class="about-editor-frame js-sub-editor">{{ sub.body_html|safe }}</div>
+                  </label>
+                  <button type="button" class="ghost-button about-icon-button"
+                          data-remove-subblock>✕ Remove</button>
+                </div>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="subsections" class="js-subsections-payload">
+              <div class="about-section-form__actions">
+                <button type="button" class="ghost-button" data-add-subblock>+ Add sub-section</button>
+                <button type="submit" class="primary-button">Save Mission</button>
+              </div>
+            </form>
+          </article>
+        </section>
+
+        <!-- ── Panel: Values ─────────────────────────────── -->
+        <section id="about-panel-values" class="about-section-panel"
+                 data-about-panel="values" role="tabpanel"
+                 aria-labelledby="about-tab-values" hidden>
+          <article class="page-card about-card">
+            <div class="panel-header panel-header--compact">
+              <div>
+                <p class="panel-header__eyebrow">Values</p>
+                <h3 class="panel-header__title">Group Values &amp; Pledge</h3>
+              </div>
+            </div>
+            {% set section = sections.get('values') %}
+            <form class="about-section-form form-stack" method="POST"
+                  action="/gears/about-lspu/sections/values"
+                  data-section-form="values">
+              {{ csrf_field | safe }}
+              <label class="field">
+                <span class="field__label">Title</span>
+                <input type="text" name="title" class="field__input"
+                       value="{{ section.title if section else '' }}" maxlength="150">
+              </label>
+              <div class="about-subblocks" data-subblocks>
+                {% for sub in (section.subsections if section else []) %}
+                <div class="about-subblock">
+                  <label class="field">
+                    <span class="field__label">Heading</span>
+                    <input type="text" class="field__input js-sub-heading"
+                           value="{{ sub.heading }}" maxlength="200">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Body</span>
+                    <div class="about-editor-frame js-sub-editor">{{ sub.body_html|safe }}</div>
+                  </label>
+                  <button type="button" class="ghost-button about-icon-button"
+                          data-remove-subblock>✕ Remove</button>
+                </div>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="subsections" class="js-subsections-payload">
+              <div class="about-section-form__actions">
+                <button type="button" class="ghost-button" data-add-subblock>+ Add sub-section</button>
+                <button type="submit" class="primary-button">Save Values</button>
+              </div>
+            </form>
+          </article>
+        </section>
+
+        <!-- ── Panel: History ────────────────────────────── -->
+        <section id="about-panel-history" class="about-section-panel"
+                 data-about-panel="history" role="tabpanel"
+                 aria-labelledby="about-tab-history" hidden>
+          <article class="page-card about-card">
+            <div class="panel-header panel-header--compact">
+              <div>
+                <p class="panel-header__eyebrow">History</p>
+                <h3 class="panel-header__title">Historical development</h3>
+              </div>
+            </div>
+
+            {% set history = sections.get('history') %}
+            <form class="about-section-form form-stack" method="POST"
+                  action="/gears/about-lspu/sections/history"
+                  data-section-form="history">
+              {{ csrf_field | safe }}
+              <label class="field">
+                <span class="field__label">Title</span>
+                <input type="text" name="title" class="field__input"
+                       value="{{ history.title if history else 'Historical Development' }}"
+                       maxlength="150">
+              </label>
+              <label class="field">
+                <span class="field__label">Intro paragraph</span>
+                <div class="about-editor-frame js-body-editor">{{ history.body_html|safe if history else '' }}</div>
+              </label>
+              <input type="hidden" name="body_html" class="js-body-payload">
+              <div class="about-section-form__actions">
+                <button type="submit" class="primary-button">Save intro</button>
+              </div>
+            </form>
+
+            <h3 class="about-card__subheading">Milestones</h3>
+            <ol class="about-milestones">
+              {% for m in milestones %}
+              <li class="about-milestone">
+                <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}"
+                      data-milestone-form class="about-milestone__form form-stack">
+                  {{ csrf_field | safe }}
+                  <div class="about-milestone__grid">
+                    <label class="field">
+                      <span class="field__label">Year</span>
+                      <input type="text" name="year" class="field__input"
+                             value="{{ m.year }}" maxlength="20" placeholder="Year">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Heading</span>
+                      <input type="text" name="heading" class="field__input"
+                             value="{{ m.heading }}" maxlength="200" placeholder="Heading">
+                    </label>
+                  </div>
+                  <label class="field">
+                    <span class="field__label">Body</span>
+                    <div class="about-editor-frame js-body-editor">{{ m.body_html|safe }}</div>
+                  </label>
+                  <input type="hidden" name="body_html" class="js-body-payload">
+                  <div class="about-section-form__actions">
+                    <button type="submit" class="primary-button">Save milestone</button>
+                  </div>
+                </form>
+                <div class="about-milestone__actions">
+                  <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}/reorder"
+                        class="about-milestone__action-form">
+                    {{ csrf_field | safe }}
+                    <button name="direction" value="up"
+                            class="ghost-button about-icon-button" title="Move up">↑</button>
+                    <button name="direction" value="down"
+                            class="ghost-button about-icon-button" title="Move down">↓</button>
+                  </form>
+                  <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}/delete">
+                    {{ csrf_field | safe }}
+                    <button type="submit" class="danger-button"
+                            data-confirm="This permanently removes the {{ m.year | e }} — {{ m.heading | e }} milestone."
+                            data-confirm-title="Delete milestone?"
+                            data-confirm-label="Delete milestone"
+                            data-confirm-danger>✕ Delete</button>
+                  </form>
+                </div>
+              </li>
+              {% endfor %}
+            </ol>
+
+            <form method="POST" action="/gears/about-lspu/milestones"
+                  class="about-section-form form-stack about-milestone-create"
+                  data-milestone-form>
+              {{ csrf_field | safe }}
+              <h4 class="about-card__subheading">Add milestone</h4>
+              <div class="about-milestone__grid">
+                <label class="field">
+                  <span class="field__label">Year</span>
+                  <input type="text" name="year" class="field__input"
+                         maxlength="20" placeholder="Year" required>
+                </label>
+                <label class="field">
+                  <span class="field__label">Heading</span>
+                  <input type="text" name="heading" class="field__input"
+                         maxlength="200" placeholder="Heading" required>
+                </label>
+              </div>
+              <label class="field">
+                <span class="field__label">Body</span>
+                <div class="about-editor-frame js-body-editor"></div>
+              </label>
+              <input type="hidden" name="body_html" class="js-body-payload">
+              <div class="about-section-form__actions">
+                <button type="submit" class="primary-button">+ Add milestone</button>
+              </div>
+            </form>
+          </article>
+        </section>
+
+        <!-- ── Panel: Quality ────────────────────────────── -->
+        <section id="about-panel-quality" class="about-section-panel"
+                 data-about-panel="quality" role="tabpanel"
+                 aria-labelledby="about-tab-quality" hidden>
+          <article class="page-card about-card">
+            <div class="panel-header panel-header--compact">
+              <div>
+                <p class="panel-header__eyebrow">Quality</p>
+                <h3 class="panel-header__title">Quality Policy</h3>
+              </div>
+            </div>
+            {% set section = sections.get('quality') %}
+            <form class="about-section-form form-stack" method="POST"
+                  action="/gears/about-lspu/sections/quality"
+                  data-section-form="quality">
+              {{ csrf_field | safe }}
+              <label class="field">
+                <span class="field__label">Title</span>
+                <input type="text" name="title" class="field__input"
+                       value="{{ section.title if section else '' }}" maxlength="150">
               </label>
               <label class="field">
                 <span class="field__label">Body</span>
@@ -1167,65 +1268,142 @@
               </label>
               <input type="hidden" name="body_html" class="js-body-payload">
               <div class="about-section-form__actions">
-                <button type="submit" class="primary-button">Save</button>
+                <button type="submit" class="primary-button">Save Quality Policy</button>
               </div>
             </form>
-            {% endfor %}
-          </div>
-        </article>
+          </article>
+        </section>
 
-        <article class="page-card about-card about-card--compact">
-          <div class="panel-header panel-header--compact">
-            <div>
-              <p class="panel-header__eyebrow">Seal</p>
-              <h3 class="panel-header__title">University seal</h3>
+        <!-- ── Panel: Hymn ───────────────────────────────── -->
+        <section id="about-panel-hymn" class="about-section-panel"
+                 data-about-panel="hymn" role="tabpanel"
+                 aria-labelledby="about-tab-hymn" hidden>
+          <article class="page-card about-card">
+            <div class="panel-header panel-header--compact">
+              <div>
+                <p class="panel-header__eyebrow">Hymn</p>
+                <h3 class="panel-header__title">University Hymn</h3>
+              </div>
             </div>
-          </div>
-
-          {% set seal = sections.get('seal') %}
-          <form class="about-section-form form-stack" method="POST" action="/gears/about-lspu/seal/upload" enctype="multipart/form-data" data-upload-form data-upload-label="seal image">
-            {{ csrf_field | safe }}
-            <div class="field">
-              <span class="field__label">Seal image</span>
-              <label class="dropzone" data-dropzone>
-                <input type="file" name="file" class="dropzone__input" accept="image/jpeg,image/png,image/webp" required>
-                <span class="dropzone__empty">
-                  <span class="dropzone__icon" aria-hidden="true">↑</span>
-                  <span class="dropzone__title">Drop a seal image, or tap to choose</span>
-                  <span class="dropzone__hint">JPG, PNG, or WEBP</span>
-                </span>
-                <span class="dropzone__filled" hidden>
-                  <span class="dropzone__filename" data-dropzone-name></span>
-                  <span class="dropzone__size" data-dropzone-size></span>
-                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
-                </span>
+            {% set section = sections.get('hymn') %}
+            <form class="about-section-form form-stack" method="POST"
+                  action="/gears/about-lspu/sections/hymn"
+                  data-section-form="hymn">
+              {{ csrf_field | safe }}
+              <label class="field">
+                <span class="field__label">Title</span>
+                <input type="text" name="title" class="field__input"
+                       value="{{ section.title if section else '' }}" maxlength="150">
               </label>
-            </div>
-            {% if seal and seal.image_path %}
-            <img class="about-seal-preview" src="/storage/{{ seal.image_path }}" alt="Current seal">
-            {% endif %}
-            <div class="about-section-form__actions">
-              <button type="submit" class="ghost-button">Upload image</button>
-            </div>
-          </form>
+              <label class="field">
+                <span class="field__label">Lyrics</span>
+                <div class="about-editor-frame js-body-editor">{{ section.body_html|safe if section else '' }}</div>
+              </label>
+              <input type="hidden" name="body_html" class="js-body-payload">
+              <div class="about-section-form__actions">
+                <button type="submit" class="primary-button">Save Hymn</button>
+              </div>
+            </form>
 
-          <form class="about-section-form form-stack" method="POST" action="/gears/about-lspu/sections/seal" data-section-form="seal">
-            {{ csrf_field | safe }}
-            <label class="field">
-              <span class="field__label">Title</span>
-              <input type="text" name="title" class="field__input" value="{{ seal.title if seal else '' }}" maxlength="150">
-            </label>
-            <label class="field">
-              <span class="field__label">Description</span>
-              <div class="about-editor-frame js-body-editor">{{ seal.body_html|safe if seal else '' }}</div>
-            </label>
-            <input type="hidden" name="body_html" class="js-body-payload">
-            <div class="about-section-form__actions">
-              <button type="submit" class="primary-button">Save description</button>
+            <form class="about-section-form form-stack" method="POST"
+                  action="/gears/about-lspu/hymn/audio" enctype="multipart/form-data"
+                  data-upload-form data-upload-label="hymn audio">
+              {{ csrf_field | safe }}
+              <label class="field">
+                <span class="field__label">Hymn audio file</span>
+                <label class="dropzone" data-dropzone>
+                  <input type="file" name="file" class="dropzone__input"
+                         accept="audio/mpeg,audio/ogg,audio/wav,audio/mp4">
+                  <span class="dropzone__empty">
+                    <span class="dropzone__icon" aria-hidden="true">♪</span>
+                    <span class="dropzone__title">Drop an MP3/OGG/WAV, or tap to choose</span>
+                    {% if section and section.audio_path %}
+                    <span class="dropzone__hint">Current: {{ section.audio_path }}</span>
+                    {% else %}
+                    <span class="dropzone__hint">No audio uploaded yet</span>
+                    {% endif %}
+                  </span>
+                  <span class="dropzone__filled" hidden>
+                    <span class="dropzone__filename" data-dropzone-name></span>
+                    <span class="dropzone__size" data-dropzone-size></span>
+                    <button type="button" class="dropzone__clear"
+                            data-dropzone-clear aria-label="Remove file">×</button>
+                  </span>
+                </label>
+              </label>
+              <div class="about-section-form__actions">
+                <button type="submit" class="primary-button">Upload audio</button>
+              </div>
+            </form>
+          </article>
+        </section>
+
+        <!-- ── Panel: Seal ───────────────────────────────── -->
+        <section id="about-panel-seal" class="about-section-panel"
+                 data-about-panel="seal" role="tabpanel"
+                 aria-labelledby="about-tab-seal" hidden>
+          <article class="page-card about-card">
+            <div class="panel-header panel-header--compact">
+              <div>
+                <p class="panel-header__eyebrow">Seal</p>
+                <h3 class="panel-header__title">University Seal</h3>
+              </div>
             </div>
-          </form>
-        </article>
-      </div>
+            {% set seal = sections.get('seal') %}
+            <form class="about-section-form form-stack" method="POST"
+                  action="/gears/about-lspu/seal/upload"
+                  enctype="multipart/form-data"
+                  data-upload-form data-upload-label="seal image">
+              {{ csrf_field | safe }}
+              <div class="field">
+                <span class="field__label">Seal image</span>
+                <label class="dropzone" data-dropzone>
+                  <input type="file" name="file" class="dropzone__input"
+                         accept="image/jpeg,image/png,image/webp" required>
+                  <span class="dropzone__empty">
+                    <span class="dropzone__icon" aria-hidden="true">↑</span>
+                    <span class="dropzone__title">Drop a seal image, or tap to choose</span>
+                    <span class="dropzone__hint">JPG, PNG, or WEBP</span>
+                  </span>
+                  <span class="dropzone__filled" hidden>
+                    <span class="dropzone__filename" data-dropzone-name></span>
+                    <span class="dropzone__size" data-dropzone-size></span>
+                    <button type="button" class="dropzone__clear"
+                            data-dropzone-clear aria-label="Remove file">×</button>
+                  </span>
+                </label>
+              </div>
+              {% if seal and seal.image_path %}
+              <img class="about-seal-preview" src="/storage/{{ seal.image_path }}"
+                   alt="Current seal">
+              {% endif %}
+              <div class="about-section-form__actions">
+                <button type="submit" class="ghost-button">Upload image</button>
+              </div>
+            </form>
+
+            <form class="about-section-form form-stack" method="POST"
+                  action="/gears/about-lspu/sections/seal"
+                  data-section-form="seal">
+              {{ csrf_field | safe }}
+              <label class="field">
+                <span class="field__label">Title</span>
+                <input type="text" name="title" class="field__input"
+                       value="{{ seal.title if seal else '' }}" maxlength="150">
+              </label>
+              <label class="field">
+                <span class="field__label">Description</span>
+                <div class="about-editor-frame js-body-editor">{{ seal.body_html|safe if seal else '' }}</div>
+              </label>
+              <input type="hidden" name="body_html" class="js-body-payload">
+              <div class="about-section-form__actions">
+                <button type="submit" class="primary-button">Save description</button>
+              </div>
+            </form>
+          </article>
+        </section>
+
+      </div><!-- /.about-section-switcher -->
     </section>
 
     <section class="gears-page" data-page-panel="video-manager" id="panel-video-manager" role="tabpanel" aria-labelledby="nav-video-manager" data-hero-eyebrow="System Tools" data-hero-title="Videos for the kiosk" data-hero-subtitle="Upload a video, preview it, then show it on the kiosk screen." hidden>

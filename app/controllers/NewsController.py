@@ -115,6 +115,7 @@ class NewsController(Controller):
                 "main_news": news_slots["main_news"],
                 "secondary_news": news_slots["secondary_news"],
                 "widget_news": news_slots["widget_news"],
+                "active_nav": "news",
             },
         )
 

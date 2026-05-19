@@ -13,6 +13,7 @@ from app.models.AboutMilestone import AboutMilestone
 from app.models.AboutSection import AboutSection
 from app.services.AboutContent import AboutContent, SECTION_SLUGS
 from app.services.AjaxResponses import wants_json, json_success, json_errors
+from app.services.StorageRouter import gearsnas_base
 
 
 ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp"}
@@ -20,6 +21,36 @@ MAX_IMAGE_BYTES = 4 * 1024 * 1024
 SEAL_DIR = "storage/about"
 MILESTONE_DIR = "storage/about/milestones"
 EXT_BY_MIME = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+MAX_AUDIO_BYTES = 20 * 1024 * 1024
+_AUDIO_ALLOWED_EXTS = {".mp3", ".ogg", ".wav", ".m4a"}
+
+
+def _save_uploaded_audio(file, target_dir, prefix):
+    """Validate and persist an uploaded audio file. Returns (relative_path, error)."""
+    if isinstance(file, list):
+        file = file[0] if file else None
+
+    mime = getattr(file, "mime_type", None) or getattr(file, "mimetype", None)
+    if not file or mime not in ALLOWED_AUDIO_MIMES:
+        return None, "Upload must be an MP3, OGG, WAV, or M4A audio file."
+
+    content = getattr(file, "content", None)
+    if content is None and hasattr(file, "stream"):
+        content = file.stream.read()
+    if content is None:
+        return None, "Could not read uploaded file."
+    if len(content) > MAX_AUDIO_BYTES:
+        return None, "Audio file must be 20 MB or smaller."
+
+    ext = AUDIO_EXT_BY_MIME[mime]
+    name = f"{prefix}{ext}"
+    os.makedirs(target_dir, exist_ok=True)
+    target_path = os.path.join(target_dir, name)
+    with open(target_path, "wb") as fh:
+        fh.write(content)
+
+    relative = os.path.relpath(target_path, "storage")
+    return relative, None
 
 
 def _editor_redirect(response: Response):
@@ -68,6 +99,7 @@ class AboutController(Controller):
                 "sections": data["sections"],
                 "ordered_slugs": data["ordered_slugs"],
                 "milestones": data["milestones"],
+                "active_nav": "about",
             },
         )
 
@@ -78,10 +110,14 @@ class AboutController(Controller):
 
     def save_section(self, slug, request: Request, response: Response):
         if slug not in SECTION_SLUGS:
+            if wants_json(request):
+                return json_errors(response, ["Unknown section."])
             return _editor_redirect(response).with_errors(["Unknown section."])
 
         section = AboutSection.where("slug", slug).first()
         if not section:
+            if wants_json(request):
+                return json_errors(response, ["Section not found."])
             return _editor_redirect(response).with_errors(["Section not found."])
 
         if slug in ("mission", "values"):
@@ -108,6 +144,8 @@ class AboutController(Controller):
             section.updated_by_id = None
 
         section.save()
+        if wants_json(request):
+            return json_success(response, messages=["Section saved."])
         return _editor_redirect(response).with_success(["Section saved."])
 
     # ===== Milestones =====
@@ -124,13 +162,17 @@ class AboutController(Controller):
         last = AboutMilestone.order_by("sort_order", "desc").first()
         next_order = (getattr(last, "sort_order", 0) or 0) + 1
 
-        AboutMilestone.create({
+        m = AboutMilestone.create({
             "year": year,
             "heading": heading,
             "body_html": body_html,
             "image_path": None,
             "sort_order": next_order,
         })
+        if wants_json(request):
+            return json_success(response, payload={
+                "milestone": {"id": m.id, "year": m.year, "heading": m.heading}
+            }, messages=["Milestone added."])
         return _editor_redirect(response).with_success(["Milestone added."])
 
     def update_milestone(self, id, request: Request, response: Response):
@@ -157,12 +199,16 @@ class AboutController(Controller):
             row.image_path = relative
 
         row.save()
+        if wants_json(request):
+            return json_success(response, messages=["Milestone updated."])
         return _editor_redirect(response).with_success(["Milestone updated."])
 
-    def delete_milestone(self, id, response: Response):
+    def delete_milestone(self, id, request: Request, response: Response):
         row = AboutMilestone.where("id", id).first()
         if row:
             row.delete()
+        if wants_json(request):
+            return json_success(response, payload={"id": int(id)}, messages=["Milestone removed."])
         return _editor_redirect(response).with_success(["Milestone removed."])
 
     def reorder_milestone(self, id, request: Request, response: Response):
@@ -184,6 +230,8 @@ class AboutController(Controller):
             row.sort_order, neighbour.sort_order = neighbour.sort_order, row.sort_order
             row.save()
             neighbour.save()
+        if wants_json(request):
+            return json_success(response, messages=["Order updated."])
         return _editor_redirect(response).with_success(["Order updated."])
 
     # ===== Seal image =====
@@ -208,3 +256,67 @@ class AboutController(Controller):
             }, messages=["Seal image uploaded."])
 
         return _editor_redirect(response).with_success(["Seal image uploaded."])
+
+    def upload_hymn_audio(self, request: Request, response: Response):
+        file = request.input("file")
+        if isinstance(file, list):
+            file = file[0] if file else None
+
+        if not file:
+            err = "No audio file provided."
+            if wants_json(request):
+                return json_errors(response, [err])
+            return _editor_redirect(response).with_errors([err])
+
+        # Masonite file objects expose .filename, not .mime_type — use extension.
+        raw_filename = getattr(file, "filename", "") or ""
+        ext = os.path.splitext(raw_filename)[1].lower()
+        if hasattr(file, "extension") and callable(file.extension):
+            ext = (file.extension() or ext).lower()
+        if ext and not ext.startswith("."):
+            ext = "." + ext
+
+        if ext not in _AUDIO_ALLOWED_EXTS:
+            err = "Upload must be an MP3, OGG, WAV, or M4A audio file."
+            if wants_json(request):
+                return json_errors(response, [err])
+            return _editor_redirect(response).with_errors([err])
+
+        # stream() is a callable in Masonite, not a plain property.
+        content = getattr(file, "content", None)
+        if content is None and hasattr(file, "stream") and callable(file.stream):
+            s = file.stream()
+            content = s.read() if hasattr(s, "read") else s
+        if not content:
+            err = "Could not read uploaded file."
+            if wants_json(request):
+                return json_errors(response, [err])
+            return _editor_redirect(response).with_errors([err])
+        if len(content) > MAX_AUDIO_BYTES:
+            err = "Audio file must be 20 MB or smaller."
+            if wants_json(request):
+                return json_errors(response, [err])
+            return _editor_redirect(response).with_errors([err])
+
+        nas_dir = os.path.join(gearsnas_base(), "About")
+        filename = f"hymn_audio{ext}"
+        target = os.path.join(nas_dir, filename)
+
+        old_mask = os.umask(0o002)
+        try:
+            os.makedirs(nas_dir, mode=0o775, exist_ok=True)
+            with open(target, "wb") as fh:
+                fh.write(content)
+            os.chmod(target, 0o664)
+        finally:
+            os.umask(old_mask)
+
+        relative = f"About/{filename}"
+        section = AboutSection.where("slug", "hymn").first()
+        if section:
+            section.audio_path = relative
+            section.save()
+
+        if wants_json(request):
+            return json_success(response, messages=["Hymn audio uploaded."])
+        return _editor_redirect(response).with_success(["Hymn audio uploaded."])

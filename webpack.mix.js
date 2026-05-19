@@ -96,6 +96,9 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .postCss('resources/css/org-board.css', 'storage/compiled/css', [
     //
   ])
+  .postCss('resources/css/kiosk-nav.css', 'storage/compiled/css', [
+    //
+  ])
 
 // Vendor pdf.js (used by the archive book reader). Copy the minified ESM
 // build + worker straight into the compiled assets so they ship with the
@@ -108,6 +111,15 @@ mix.copy(
   "node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs",
   "storage/compiled/js/pdfjs/pdf.worker.min.mjs",
 )
+mix.copy(
+  "resources/js/sw-archives.js",
+  "storage/compiled/js/sw-archives.js",
+)
+// Brand fonts — drop files into resources/fonts/{Columna,Gilroy,Gotham}/
+// before deploying. The copy is a no-op if the directory is empty.
+if (require('fs').existsSync('resources/fonts')) {
+  mix.copy('resources/fonts', 'storage/compiled/fonts');
+}
 
 // ensure root directory of mix is project root
 mix.setPublicPath(".")

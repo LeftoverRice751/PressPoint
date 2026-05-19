@@ -22,7 +22,7 @@ body {
     overflow: hidden;
     background: #f9f7f2;
     color: #2f2721;
-    font-family: "Trebuchet MS", "Gill Sans", "Avenir Next", sans-serif;
+    font-family: var(--kiosk-font-body);
 }
 
 * {
@@ -46,10 +46,10 @@ body {
 .kiosk-app {
     position: relative;
     height: 100%;
-    padding: clamp(20px, 3.5vh, 56px) clamp(20px, 3vw, 60px) clamp(18px, 3vh, 40px);
+    padding: clamp(16px, 3vh, 56px) clamp(18px, 3vw, 60px) clamp(14px, 2.4vh, 40px);
     display: grid;
-    grid-template-rows: auto 1fr auto;
-    gap: clamp(16px, 2.5vh, 36px);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: clamp(12px, 2vh, 36px);
 }
 
 .hero {
@@ -60,36 +60,63 @@ body {
 
 .hero__logo {
     display: block;
-    width: clamp(120px, 22vw, 320px);
+    width: clamp(96px, 18vw, 260px);
+    max-height: clamp(96px, 18vh, 240px);
     height: auto;
     object-fit: contain;
     filter: drop-shadow(0 16px 26px rgba(76, 53, 35, 0.16));
 }
 
+/*
+ * The feature grid fills the 1fr row between hero and ticker, with three
+ * card rows that each grab an equal share of the remaining height. The
+ * minmax(0, 1fr) on the row template is what lets the cards SHRINK below
+ * any intrinsic min-content height — without it, three rows of 200px+
+ * cards would overflow the 1024px-tall kiosk shell.
+ */
 .feature-grid {
-    align-self: center;
+    align-self: stretch;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: clamp(14px, 2vw, 32px);
+    grid-auto-rows: minmax(0, 1fr);
+    gap: clamp(10px, 1.8vw, 32px);
     padding: clamp(2px, 0.5vh, 8px) 0 0;
     width: 100%;
+    height: 100%;
+    min-height: 0;
 }
 
 .feature-card {
     appearance: none;
+    position: relative;
+    z-index: 1;
     border: 1px solid rgba(85, 61, 42, 0.12);
     border-radius: clamp(16px, 2vw, 28px);
     background: #fdf8ee;
     box-shadow: 0 18px 40px rgba(78, 56, 38, 0.12);
-    min-height: clamp(160px, 22vh, 280px);
-    padding: clamp(16px, 2.2vw, 32px) clamp(14px, 1.8vw, 26px) clamp(14px, 2vw, 26px);
+    min-height: 0;
+    padding: clamp(12px, 2vw, 32px) clamp(12px, 1.6vw, 26px);
     display: grid;
     place-items: center;
-    gap: clamp(10px, 1.4vw, 22px);
+    gap: clamp(8px, 1.2vw, 22px);
     text-align: center;
     color: #2f2721;
     cursor: pointer;
+    overflow: hidden;
     transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease;
+    animation: kiosk-card-enter var(--kiosk-dur-slow, 480ms) var(--kiosk-ease, cubic-bezier(0.2,0,0,1)) both;
+}
+
+.feature-card:nth-child(1) { animation-delay:  60ms; }
+.feature-card:nth-child(2) { animation-delay: 120ms; }
+.feature-card:nth-child(3) { animation-delay: 180ms; }
+.feature-card:nth-child(4) { animation-delay: 240ms; }
+.feature-card:nth-child(5) { animation-delay: 300ms; }
+.feature-card:nth-child(6) { animation-delay: 360ms; }
+
+@keyframes kiosk-card-enter {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 .feature-card:hover,
@@ -107,8 +134,8 @@ body {
 }
 
 .feature-card__icon {
-    width: clamp(64px, 8vw, 120px);
-    height: clamp(64px, 8vw, 120px);
+    width: clamp(52px, 7vw, 110px);
+    height: clamp(52px, 7vw, 110px);
     border-radius: 999px;
     background: rgba(143, 30, 36, 0.08);
     display: grid;
@@ -122,8 +149,8 @@ body {
 }
 
 .feature-card__icon svg {
-    width: clamp(28px, 3vw, 50px);
-    height: clamp(28px, 3vw, 50px);
+    width: clamp(24px, 2.6vw, 46px);
+    height: clamp(24px, 2.6vw, 46px);
     stroke: currentColor;
     fill: none;
     stroke-width: 2.2;
@@ -133,6 +160,7 @@ body {
 
 .feature-card__label {
     margin: 0;
+    font-family: var(--kiosk-font-ui);
     font-size: clamp(0.95rem, 1.4vw, 1.5rem);
     font-weight: 800;
     letter-spacing: 0.02em;
@@ -141,12 +169,15 @@ body {
 
 .feature-card__hint {
     margin: 0;
+    font-family: var(--kiosk-font-body);
     font-size: clamp(0.78rem, 1.1vw, 1.15rem);
     color: inherit;
     opacity: 0.7;
 }
 
 .news-ticker {
+    position: relative;
+    z-index: 2;
     display: grid;
     grid-template-columns: clamp(110px, 18vw, 240px) 1fr;
     align-items: stretch;
@@ -155,7 +186,7 @@ body {
     background: #fff8ec;
     border: 1px solid rgba(92, 70, 51, 0.08);
     box-shadow: 0 14px 28px rgba(84, 61, 42, 0.08);
-    min-height: clamp(44px, 6vh, 68px);
+    min-height: clamp(48px, 6.5vh, 72px);
 }
 
 .news-ticker__label {
@@ -164,6 +195,7 @@ body {
     padding: 0 clamp(10px, 1.4vw, 24px);
     background: #2f2721;
     color: #fff8f2;
+    font-family: var(--kiosk-font-ui);
     font-size: clamp(0.72rem, 1vw, 1.05rem);
     font-weight: 800;
     letter-spacing: 0.14em;
@@ -210,6 +242,7 @@ body {
 }
 
 .news-ticker__headline {
+    font-family: var(--kiosk-font-ui);
     font-weight: 800;
 }
 
@@ -350,7 +383,7 @@ body {
     border: 0;
     border-radius: 12px;
     box-shadow: 0 6px 0 0 var(--kiosk-espresso, #1F0F0C);
-    font-family: "Trebuchet MS", "Gill Sans", "Avenir Next", sans-serif;
+    font-family: var(--kiosk-font-ui);
     font-weight: 800;
     font-size: clamp(0.85rem, 1.1vw, 1.1rem);
     letter-spacing: 0.22em;
