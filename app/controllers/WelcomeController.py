@@ -17,10 +17,15 @@ class WelcomeController(Controller):
     def _is_recent(self, created_at):
         if not created_at:
             return False
-
-        now = datetime.now(created_at.tzinfo) if getattr(created_at, "tzinfo", None) else datetime.now()
-        age = now - created_at
-        return timedelta(0) <= age <= timedelta(days=1)
+        try:
+            from datetime import date as _date
+            if isinstance(created_at, _date) and not isinstance(created_at, datetime):
+                created_at = datetime.combine(created_at, datetime.min.time())
+            now = datetime.now(created_at.tzinfo) if getattr(created_at, "tzinfo", None) else datetime.now()
+            age = now - created_at
+            return timedelta(0) <= age <= timedelta(days=1)
+        except (TypeError, AttributeError):
+            return False
 
     def _format_date(self, value):
         return value.strftime("%b %d, %Y") if hasattr(value, "strftime") else ""
@@ -43,26 +48,35 @@ class WelcomeController(Controller):
         flash_articles = []
 
         for news_item in list(News.all() or []):
-            reference_at = getattr(news_item, "published_at", None) or getattr(news_item, "created_at", None)
-            self._append_flash_article(
-                flash_articles,
-                news_item,
-                getattr(news_item, "title", None) or "News update",
-                reference_at,
-                "news",
-            )
+            try:
+                reference_at = getattr(news_item, "published_at", None) or getattr(news_item, "created_at", None)
+                self._append_flash_article(
+                    flash_articles,
+                    news_item,
+                    getattr(news_item, "title", None) or "News update",
+                    reference_at,
+                    "news",
+                )
+            except Exception:
+                pass
 
         for event_item in list(Events.all() or []):
-            reference_at = getattr(event_item, "event_date", None) or getattr(event_item, "created_at", None)
-            self._append_flash_article(
-                flash_articles,
-                event_item,
-                getattr(event_item, "title", None) or "Event update",
-                reference_at,
-                "event",
-            )
+            try:
+                reference_at = getattr(event_item, "event_date", None) or getattr(event_item, "created_at", None)
+                self._append_flash_article(
+                    flash_articles,
+                    event_item,
+                    getattr(event_item, "title", None) or "Event update",
+                    reference_at,
+                    "event",
+                )
+            except Exception:
+                pass
 
-        flash_articles.sort(key=lambda item: item["_created_at"], reverse=True)
+        try:
+            flash_articles.sort(key=lambda item: item["_created_at"], reverse=True)
+        except TypeError:
+            pass
         return [
             {
                 "headline": item["headline"],

@@ -184,7 +184,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderTicker();
   loadFlashArticles();
   initFlashUpdatesRealtime();
-  window.setInterval(loadFlashArticles, 60 * 1000);
+  window.setInterval(loadFlashArticles, 15 * 1000);
 
   // ───────────────────────────────────────────────────────────────────────
   // Idle attract loop.

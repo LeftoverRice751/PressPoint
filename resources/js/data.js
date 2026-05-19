@@ -49,7 +49,7 @@ window.APP_DATA = {
           "yaw": -0.9409279669764636,
           "pitch": 0.1755930797179932,
           "title": "Student Services Building",
-          "text": "Text here"
+          "text": "Handles student welfare, scholarships, academic records, and support services for the LSPU student body."
         }
       ]
     },
@@ -130,7 +130,7 @@ window.APP_DATA = {
           "yaw": 0.9206036009241085,
           "pitch": 0.1350415142664403,
           "title": "Auditor's Office",
-          "text": "Text here"
+          "text": "Responsible for internal auditing of university financial transactions and ensuring compliance with government regulations."
         }
       ]
     },
@@ -223,13 +223,13 @@ window.APP_DATA = {
           "yaw": 0.822095214805719,
           "pitch": 0.179653759904582,
           "title": "Cashier's Office (Registrar)",
-          "text": "Text here"
+          "text": "Processes tuition payments, fees, and other financial transactions for students and university personnel."
         },
         {
           "yaw": -1.8148160558258901,
           "pitch": 0.20063524013133716,
           "title": "College of Computer Studies",
-          "text": "Text"
+          "text": "Offers programs in Information Technology and Computer Science, developing future tech professionals for the digital economy."
         }
       ]
     },
@@ -322,7 +322,7 @@ window.APP_DATA = {
           "yaw": 0.8744480704687447,
           "pitch": 0.19344683522834316,
           "title": "Title",
-          "text": "Text"
+          "text": "Campus facility — description to be updated."
         }
       ]
     },
@@ -369,7 +369,7 @@ window.APP_DATA = {
           "yaw": -0.09047745163147525,
           "pitch": 0.26801382211129265,
           "title": "<div>Quality Assurance Center</div>",
-          "text": "Text"
+          "text": "Oversees academic quality standards, program accreditation, and continuous improvement initiatives across the university."
         }
       ]
     },
@@ -456,7 +456,7 @@ window.APP_DATA = {
           "yaw": -0.0897829500551044,
           "pitch": 0.27618353194961287,
           "title": "ICTSO",
-          "text": "Text"
+          "text": "The Information and Communications Technology Services Office manages the university's IT infrastructure, network, and digital services."
         }
       ]
     },
@@ -503,13 +503,13 @@ window.APP_DATA = {
           "yaw": 0.383624473435102,
           "pitch": 0.20068630598593273,
           "title": "CCS Faculty",
-          "text": "Text"
+          "text": "Faculty offices and workrooms for College of Computer Studies instructors and professors."
         },
         {
           "yaw": -0.4736942982893364,
           "pitch": 0.19240033512513754,
           "title": "CCS Dean's Office",
-          "text": "Text"
+          "text": "Administrative hub of the College of Computer Studies, led by the Dean overseeing academic and administrative affairs."
         }
       ]
     },
@@ -768,7 +768,7 @@ window.APP_DATA = {
           "yaw": 0.03659313245333351,
           "pitch": 0.20880954535039464,
           "title": "Office of the Campus Director",
-          "text": "Text"
+          "text": "Central executive office of the campus, headed by the Campus Director responsible for all academic and administrative operations."
         }
       ]
     },
@@ -809,13 +809,13 @@ window.APP_DATA = {
           "yaw": -0.6457628942961549,
           "pitch": 0.22613996472629871,
           "title": "Records Management Office",
-          "text": "Text"
+          "text": "Maintains and safeguards official university records, documents, and archives for students and personnel."
         },
         {
           "yaw": -1.4684720940799139,
           "pitch": 0.21190738693597666,
           "title": "Title",
-          "text": "Text"
+          "text": "Campus facility — description to be updated."
         }
       ]
     },
@@ -868,7 +868,7 @@ window.APP_DATA = {
           "yaw": 0.7652359866530585,
           "pitch": 0.025221819615548924,
           "title": "Business Affairs Office",
-          "text": "Text"
+          "text": "Manages the university's financial operations, procurement, and business transactions."
         }
       ]
     },
@@ -955,7 +955,7 @@ window.APP_DATA = {
           "yaw": 1.9515694922837419,
           "pitch": 0.03607498072690163,
           "title": "LSPU Hotel",
-          "text": "Text"
+          "text": "A training hotel facility operated by the College of Hospitality Management and Tourism for hands-on student learning experiences."
         }
       ]
     },
@@ -1048,7 +1048,7 @@ window.APP_DATA = {
           "yaw": 2.0205469164856176,
           "pitch": 0.2787309929253716,
           "title": "Collage of Hospitality and Management and Tourism",
-          "text": "Text"
+          "text": "Offers programs in hotel management, tourism, and culinary arts, preparing students for careers in the global hospitality industry."
         }
       ]
     },
@@ -1089,7 +1089,7 @@ window.APP_DATA = {
           "yaw": -0.10213649833668192,
           "pitch": 0.08618402452231777,
           "title": "Supply Office",
-          "text": "Text"
+          "text": "Manages procurement, storage, and distribution of university supplies and equipment for all departments."
         }
       ]
     },
@@ -1296,19 +1296,19 @@ window.APP_DATA = {
           "yaw": 2.890021155957994,
           "pitch": 0.02062272839166468,
           "title": "University Clinic",
-          "text": "Text"
+          "text": "Provides basic health care, first aid, and medical consultations for students, faculty, and university staff."
         },
         {
           "yaw": -2.5997783666675733,
           "pitch": 0.031296128393137224,
           "title": "College of Nursing and Allied Health",
-          "text": "Text"
+          "text": "Trains future nurses and allied health professionals through rigorous academic coursework and clinical practicum programs."
         },
         {
           "yaw": 0.5503001023883023,
           "pitch": 0.009323950527594604,
           "title": "Human Kinetics Center",
-          "text": "Text"
+          "text": "A sports and physical education facility supporting student athletic programs, health, and wellness activities."
         }
       ]
     },
@@ -1355,7 +1355,7 @@ window.APP_DATA = {
           "yaw": 0.5601519544443612,
           "pitch": 0.007147579410109017,
           "title": "College of Engineering&nbsp;",
-          "text": "Text"
+          "text": "Offers engineering degree programs with modern laboratory facilities, preparing graduates for national and international engineering practice."
         }
       ]
     },
@@ -1482,7 +1482,7 @@ window.APP_DATA = {
           "yaw": -0.005754628623620306,
           "pitch": 0.10562164345161307,
           "title": "I.G.P Building",
-          "text": "Text"
+          "text": "Income Generating Project building housing university-managed commercial services and enterprise programs that support institutional funding."
         }
       ]
     },
@@ -1529,7 +1529,7 @@ window.APP_DATA = {
           "yaw": 1.506576371378321,
           "pitch": 0.020192776866338136,
           "title": "Activity Center",
-          "text": "Text"
+          "text": "A multi-purpose venue for student events, university ceremonies, cultural activities, and major academic gatherings."
         }
       ]
     },
@@ -1674,7 +1674,7 @@ window.APP_DATA = {
           "yaw": -2.4421946561461496,
           "pitch": -0.00291350746587149,
           "title": "Administration Building",
-          "text": "Text here"
+          "text": "Main administrative center of the university, housing key governance offices and executive leadership."
         }
       ]
     },
@@ -1787,7 +1787,7 @@ window.APP_DATA = {
           "yaw": 1.3418815464479295,
           "pitch": -0.028392667547262107,
           "title": "Grand Stand",
-          "text": "Text here"
+          "text": "Outdoor grandstand overlooking the university sports field, used for athletic competitions and major university ceremonies."
         }
       ]
     },
@@ -1960,7 +1960,7 @@ window.APP_DATA = {
           "yaw": -1.6976723464004273,
           "pitch": 0.028289166572429636,
           "title": "University Library",
-          "text": "Text"
+          "text": "Houses an extensive collection of books, journals, and digital resources supporting academic research and lifelong learning."
         }
       ]
     },

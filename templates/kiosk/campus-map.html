@@ -51,14 +51,15 @@
 
     <div id="campus-map" class="campus-map-page__map"></div>
 
-    <!-- Zoom controls — 72px touch targets, top-right edge of the map. -->
-    <div class="map-zoom" aria-hidden="false">
-      <button type="button" class="map-zoom__btn" id="zoom-in" aria-label="Zoom in">+</button>
-      <button type="button" class="map-zoom__btn" id="zoom-out" aria-label="Zoom out">−</button>
-    </div>
-
-    <div class="map-coordinate-readout" id="map-coordinate-readout" aria-live="polite" aria-atomic="true">
-      Click the map to read coordinates
+    <!-- Zoom controls + coordinate readout — stacked in the bottom-right corner. -->
+    <div class="map-controls-stack">
+      <div class="map-coordinate-readout" id="map-coordinate-readout" aria-live="polite" aria-atomic="true">
+        Click the map to read coordinates
+      </div>
+      <div class="map-zoom" aria-hidden="false">
+        <button type="button" class="map-zoom__btn" id="zoom-in" aria-label="Zoom in">+</button>
+        <button type="button" class="map-zoom__btn" id="zoom-out" aria-label="Zoom out">−</button>
+      </div>
     </div>
 
     <!-- Suggestions overlay — shown while typing or filtering by category. -->

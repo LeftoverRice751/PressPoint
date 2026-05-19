@@ -68,21 +68,23 @@
         </div>
       </section>
 
-      <section class="paper-slot paper-slot--widget" aria-label="Weather widget">
-        <div class="paper-slot__label">Weather Widget</div>
+      {% for widget in widget_news %}
+      <section class="paper-slot paper-slot--widget" aria-label="Widget story">
+        <div class="paper-slot__label">Widget Slot</div>
         <article class="info-card">
-          <h3 class="info-card__title">WEATHER FORECAST: WARM SPELL AHEAD</h3>
-          <p class="info-card__copy">Weather forecast: warm spell ahead with sunny skies over Laguna. Temperatures will remain high, so kiosks should stay bright and readable throughout the day.</p>
+          <h3 class="info-card__title">{{ widget.title | upper }}</h3>
+          <p class="info-card__copy">{{ widget.description[:200] if widget.description else '' }}</p>
         </article>
       </section>
-
-      <section class="paper-slot paper-slot--widget" aria-label="Community projects">
-        <div class="paper-slot__label">Community Projects</div>
+      {% else %}
+      <section class="paper-slot paper-slot--widget" aria-label="Widget slot (empty)">
+        <div class="paper-slot__label">Widget Slot</div>
         <article class="info-card">
-          <h3 class="info-card__title">COMMUNITY GARDEN PROJECT LAUNCHES</h3>
-          <p class="info-card__copy">Community projects are highlighted here as a text-led slot for campus updates, volunteer announcements, and editorial notices that do not need a feature image.</p>
+          <h3 class="info-card__title">WIDGET SLOT AVAILABLE</h3>
+          <p class="info-card__copy">No widget content has been published yet.</p>
         </article>
       </section>
+      {% endfor %}
     </main>
 
   </div>
@@ -91,5 +93,22 @@
     <span class="news-back__arrow" aria-hidden="true">←</span>
     <span class="news-back__label">Back to kiosk</span>
   </a>
+
+  <script>
+    (function () {
+      var POLL_MS = 30000;
+      var lastActivity = Date.now();
+
+      ['pointerdown', 'touchstart', 'keydown'].forEach(function (evt) {
+        document.addEventListener(evt, function () { lastActivity = Date.now(); }, { passive: true });
+      });
+
+      setInterval(function () {
+        if (Date.now() - lastActivity >= POLL_MS) {
+          window.location.reload();
+        }
+      }, POLL_MS);
+    })();
+  </script>
 </body>
 </html>

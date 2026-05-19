@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
-    Zoneinfo = None
+    ZoneInfo = None
 
 
 from masonite.configuration import config
@@ -72,4 +72,4 @@ class NewEvent(Event):
         }
         
     def broadcast_as(self):
-        return "app.events.NewEvent"
+        return "new-news"

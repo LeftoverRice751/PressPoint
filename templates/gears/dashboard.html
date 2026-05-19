@@ -296,192 +296,179 @@
       {% endif %}
 
       <div class="news-layout-editor news-layout-editor--composer" data-news-composer>
-        <article class="news-preview-panel page-card">
-          <div class="panel-header panel-header--compact">
-            <div>
-              <p class="panel-header__eyebrow">Compose visually</p>
-              <h3 class="panel-header__title">Newsroom canvas</h3>
+
+        <!-- ── Hidden sync form (submits the actual data) ─────── -->
+        <form action="{{ route('news.store', {}, False) }}" method="POST"
+              enctype="multipart/form-data" data-news-form class="news-hidden-form">
+          {{ csrf_field | safe }}
+          <input type="hidden" name="title"        data-news-field="title">
+          <input type="hidden" name="description"  data-news-field="description">
+          <input type="hidden" name="source"       data-news-field="source">
+          <input type="hidden" name="location"     data-news-field="location">
+          <input type="hidden" name="layout_type"  value="main" data-news-layout-field>
+          <input type="hidden" name="status"       value="published">
+          <input type="hidden" name="priority"     value="0" data-news-field="priority">
+          <input type="hidden" name="published_at" data-news-field="published_at">
+          <input type="hidden" name="article_id"   data-news-field="article_id">
+          <input type="file"   name="image" accept="image/*" data-news-field="image"
+                 class="news-canvas__file-input" aria-hidden="true" tabindex="-1">
+        </form>
+
+        <!-- ── Editable newspaper canvas ─────────────────────── -->
+        <div class="news-canvas page-card" data-news-canvas>
+
+          <!-- Static masthead -->
+          <div class="news-canvas__masthead">
+            <div class="news-canvas__masthead-top">
+              <span>ESTABLISHED 2026</span>
+              <span class="news-canvas__brand">THE GEARS PUBLICATION</span>
+              <span>LAGUNA, PHILIPPINES</span>
             </div>
+            <div class="news-canvas__pub-title">LATEST NEWS</div>
+            <div class="news-canvas__rule"></div>
           </div>
 
-          <div class="news-preview news-preview--editorial">
-            <div class="news-preview__masthead news-preview__masthead--editorial">
-              <span class="news-preview__brand">THE GEARS PUBLICATION</span>
-              <h4 class="news-preview__headline">LATEST NEWS</h4>
+          <!-- Slot layout — swapped by JS via data-canvas-slot -->
+          <div class="news-canvas__body" data-canvas-slot="main">
+
+            <!-- MAIN slot layout -->
+            <div class="news-canvas__slot news-canvas__slot--main" data-canvas-layout="main">
+              <div class="news-canvas__slot-eyebrow">LEAD STORY</div>
+
+              <div class="news-canvas__image-zone" data-news-image-zone>
+                <img class="news-canvas__cover" data-news-canvas-image
+                     src="" alt="" style="display:none">
+                <div class="news-canvas__cover-fallback" data-news-image-fallback>
+                  <span class="news-canvas__cover-icon" aria-hidden="true">+</span>
+                  <span>Click to add cover image</span>
+                </div>
+              </div>
+
+              <h2 class="news-canvas__title" data-news-canvas-title
+                  contenteditable="true" role="textbox"
+                  aria-label="Headline" spellcheck="true"
+                  data-placeholder="Click to write headline…"></h2>
+
+              <div class="news-canvas__byline">
+                <span>— </span>
+                <span class="news-canvas__byline-source" data-news-canvas-source
+                      contenteditable="true" role="textbox"
+                      aria-label="Source" data-placeholder="Editorial Desk"></span>
+                <span>, </span>
+                <span class="news-canvas__byline-loc" data-news-canvas-location
+                      contenteditable="true" role="textbox"
+                      aria-label="Location" data-placeholder="Campus"></span>
+              </div>
+
+              <p class="news-canvas__copy" data-news-canvas-copy
+                 contenteditable="true" role="textbox"
+                 aria-label="Story body" spellcheck="true"
+                 data-placeholder="Write your story summary here…"></p>
             </div>
 
-            <div class="news-preview__slot news-preview__slot--main news-preview__slot--active">
-              <div class="news-preview__slot-head">
-                <span class="news-preview__slot-label">Lead story</span>
-                <span class="news-slot-pill" data-news-preview-slot>Pinned to the lead slot</span>
-              </div>
-              {% set main_news = main_news if main_news else (news_items[0] if news_items else None) %}
-              {% if main_news %}
-              <div class="news-preview__article">
-                <div class="news-preview__image-wrap" data-news-preview-media>
-                  {% if main_news.image %}
-                  <img class="news-preview__image" src="/storage/{{ main_news.image | replace('\\', '/') }}" alt="{{ main_news.title | e }}">
-                  {% else %}
-                  <div class="news-preview__image news-preview__image--fallback" aria-hidden="true"></div>
-                  {% endif %}
+            <!-- SECONDARY slot layout -->
+            <div class="news-canvas__slot news-canvas__slot--secondary" data-canvas-layout="secondary" hidden>
+              <div class="news-canvas__slot-eyebrow">SIDE STORY</div>
+              <div class="news-canvas__secondary-card">
+                <div class="news-canvas__image-zone news-canvas__image-zone--thumb" data-news-image-zone>
+                  <img class="news-canvas__thumb" data-news-canvas-image
+                       src="" alt="" style="display:none">
+                  <div class="news-canvas__cover-fallback news-canvas__cover-fallback--thumb" data-news-image-fallback>
+                    <span class="news-canvas__cover-icon" aria-hidden="true">+</span>
+                    <span>Add thumbnail</span>
+                  </div>
                 </div>
-                <div class="news-preview__article-body">
-                  <h4 class="news-preview__article-title" data-news-preview-title contenteditable="true" role="textbox" aria-label="Edit the headline inline" spellcheck="true">{{ main_news.title }}</h4>
-                  <p class="news-preview__article-copy" data-news-preview-copy contenteditable="true" role="textbox" aria-label="Edit the summary inline" spellcheck="true">{{ main_news.description[:220] if main_news.description else 'No summary available.' }}</p>
+                <div class="news-canvas__secondary-body">
+                  <h3 class="news-canvas__secondary-title" data-news-canvas-title
+                      contenteditable="true" role="textbox"
+                      aria-label="Headline" data-placeholder="Headline…"></h3>
+                  <p class="news-canvas__secondary-copy" data-news-canvas-copy
+                     contenteditable="true" role="textbox"
+                     aria-label="Summary" data-placeholder="Short summary…"></p>
                 </div>
               </div>
-              {% else %}
-              <div class="news-slot-empty" data-news-empty-state>
-                <span class="news-slot-empty__kicker">Drop a lead story here</span>
-                <span class="news-slot-empty__helper">Recommended image ratio: 16:9, headline 50-70 characters.</span>
-              </div>
-              {% endif %}
-            </div>
 
-            <div class="news-preview__slot news-preview__slot--secondary">
-              <div class="news-preview__slot-head">
-                <span class="news-preview__slot-label">Side stories</span>
-                <span class="news-slot-pill">Up to four cards</span>
-              </div>
-              <div class="news-preview__secondary-grid">
-                {% for news in (secondary_news if secondary_news else news_items[1:5]) %}
-                <article class="news-preview-card news-preview-card--story">
-                  {% if news.image %}
-                  <img class="news-preview-card__thumb" src="/storage/{{ news.image | replace('\\', '/') }}" alt="{{ news.title | e }}">
-                  {% else %}
-                  <div class="news-preview-card__thumb news-preview-card__thumb--fallback" aria-hidden="true"></div>
-                  {% endif %}
-                  <div class="news-preview-card__status">{{ (news.status if news.status else 'approved') | capitalize }}</div>
-                  <div class="news-preview-card__title">{{ news.title }}</div>
-                </article>
-                {% else %}
-                <div class="news-slot-empty news-slot-empty--secondary">
-                  <span class="news-slot-empty__kicker">Add side stories</span>
-                  <span class="news-slot-empty__helper">Use shorter cards to support the lead story.</span>
-                </div>
-                {% endfor %}
+              <div class="news-canvas__byline news-canvas__byline--secondary">
+                <span>— </span>
+                <span class="news-canvas__byline-source" data-news-canvas-source
+                      contenteditable="true" role="textbox"
+                      aria-label="Source" data-placeholder="Editorial Desk"></span>
+                <span>, </span>
+                <span class="news-canvas__byline-loc" data-news-canvas-location
+                      contenteditable="true" role="textbox"
+                      aria-label="Location" data-placeholder="Campus"></span>
               </div>
             </div>
 
-            <div class="news-preview__widgets">
-              <div class="news-preview__slot news-preview__slot--widget">
-                <div class="news-preview__slot-head">
-                  <span class="news-preview__slot-label">Weather Widget</span>
-                  <span class="news-slot-pill">Slot A</span>
-                </div>
-                {% if widget_news and widget_news|length > 0 %}
-                <div class="news-preview-card news-preview-card--widget">
-                  <div class="news-preview-card__status">{{ (widget_news[0].status if widget_news[0].status else 'approved') | capitalize }}</div>
-                  <div class="news-preview-card__title">{{ widget_news[0].title }}</div>
-                  <div class="news-preview-card__meta">{{ widget_news[0].description[:120] if widget_news[0].description else 'No summary available.' }}</div>
-                </div>
-                {% else %}
-                <div class="news-slot-empty news-slot-empty--widget">
-                  <span class="news-slot-empty__kicker">Weather Widget</span>
-                  <span class="news-slot-empty__helper">Drop a compact update or alert here.</span>
-                </div>
-                {% endif %}
+            <!-- WIDGET slot layout -->
+            <div class="news-canvas__slot news-canvas__slot--widget" data-canvas-layout="widget" hidden>
+              <div class="news-canvas__slot-eyebrow">WIDGET CARD</div>
+              <div class="news-canvas__widget-card">
+                <h3 class="news-canvas__widget-title" data-news-canvas-title
+                    contenteditable="true" role="textbox"
+                    aria-label="Widget title" data-placeholder="Widget title…"></h3>
+                <p class="news-canvas__widget-copy" data-news-canvas-copy
+                   contenteditable="true" role="textbox"
+                   aria-label="Widget body" data-placeholder="Short description…"></p>
               </div>
-              <div class="news-preview__slot news-preview__slot--widget">
-                <div class="news-preview__slot-head">
-                  <span class="news-preview__slot-label">Community Projects</span>
-                  <span class="news-slot-pill">Slot B</span>
-                </div>
-                {% if widget_news and widget_news|length > 1 %}
-                <div class="news-preview-card news-preview-card--widget">
-                  <div class="news-preview-card__status">{{ (widget_news[1].status if widget_news[1].status else 'approved') | capitalize }}</div>
-                  <div class="news-preview-card__title">{{ widget_news[1].title }}</div>
-                  <div class="news-preview-card__meta">{{ widget_news[1].description[:120] if widget_news[1].description else 'No summary available.' }}</div>
-                </div>
-                {% else %}
-                <div class="news-slot-empty news-slot-empty--widget">
-                  <span class="news-slot-empty__kicker">Community Projects</span>
-                  <span class="news-slot-empty__helper">Use this slot for compact features or service notes.</span>
-                </div>
-                {% endif %}
+              <div class="news-canvas__byline news-canvas__byline--widget">
+                <span>— </span>
+                <span class="news-canvas__byline-source" data-news-canvas-source
+                      contenteditable="true" role="textbox"
+                      aria-label="Source" data-placeholder="Editorial Desk"></span>
+                <span>, </span>
+                <span class="news-canvas__byline-loc" data-news-canvas-location
+                      contenteditable="true" role="textbox"
+                      aria-label="Location" data-placeholder="Campus"></span>
               </div>
             </div>
-          </div>
-        </article>
 
-        <aside class="news-editor-sidebar page-card">
-          <div class="panel-header panel-header--compact">
-            <div>
-              <p class="panel-header__eyebrow">Story studio</p>
-              <h3 class="panel-header__title">Compose a story</h3>
-            </div>
-            <p class="panel-header__subtitle">Edit from the preview or the panel. The story card syncs both ways.</p>
-          </div>
+          </div><!-- /.news-canvas__body -->
+        </div><!-- /.news-canvas -->
 
-          <form action="{{ route('news.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="slot-form news-composer-form" data-news-form data-upload-form data-upload-label="news photo">
-            {{ csrf_field | safe }}
+        <!-- ── Properties panel ───────────────────────────── -->
+        <aside class="news-properties page-card" data-news-properties>
 
+          <div class="news-prop-section">
+            <div class="news-prop-section__label">Slot</div>
             <div class="news-composer-palette" role="group" aria-label="Layout slots">
-              <button type="button" class="news-slot-choice is-active" data-news-slot-choice="main">Lead story</button>
-              <button type="button" class="news-slot-choice" data-news-slot-choice="secondary">Side story</button>
-              <button type="button" class="news-slot-choice" data-news-slot-choice="widget">Widget</button>
-              <input type="hidden" name="layout_type" value="main" data-news-layout-field>
+              <button type="button" class="news-slot-choice is-active"
+                      data-news-slot-choice="main" aria-pressed="true">Lead</button>
+              <button type="button" class="news-slot-choice"
+                      data-news-slot-choice="secondary" aria-pressed="false">Side</button>
+              <button type="button" class="news-slot-choice"
+                      data-news-slot-choice="widget" aria-pressed="false">Widget</button>
             </div>
+          </div>
 
-            <label class="field" for="news-compose-title">
-              <span class="field__label">Headline</span>
-              <input type="text" name="title" id="news-compose-title" class="field__input" placeholder="Headline title" required data-news-field="title">
-              <span class="field__hint">Recommended 50-70 characters for the lead slot.</span>
+          <div class="news-prop-section">
+            <label class="news-prop-section__label" for="np-priority">
+              Order <span class="news-prop-section__hint">(lower = first)</span>
             </label>
+            <input type="range" id="np-priority" class="news-composer-range"
+                   min="0" max="10" step="1" value="0" data-news-prop="priority">
+          </div>
 
-            <label class="field" for="news-compose-description">
-              <span class="field__label">Summary</span>
-              <textarea name="description" id="news-compose-description" class="field__input field__textarea" placeholder="Story summary" required data-news-field="description"></textarea>
-              <span class="field__hint">Click the preview text to edit in place, or type here.</span>
-            </label>
+          <div class="news-prop-section">
+            <label class="news-prop-section__label" for="np-published-at">Publish date</label>
+            <input type="datetime-local" id="np-published-at"
+                   class="field__input news-prop-field" data-news-prop="published_at">
+          </div>
 
-            <div class="field">
-              <span class="field__label">Cover image</span>
-              <label class="dropzone" data-dropzone>
-                <input type="file" name="image" id="news-compose-image" class="dropzone__input" accept="image/*" data-news-field="image">
-                <span class="dropzone__empty">
-                  <span class="dropzone__icon" aria-hidden="true">↑</span>
-                  <span class="dropzone__title">Drop an image here, or tap to choose</span>
-                  <span class="dropzone__hint">PNG, JPG, GIF, or WEBP</span>
-                </span>
-                <span class="dropzone__filled" hidden>
-                  <span class="dropzone__filename" data-dropzone-name></span>
-                  <span class="dropzone__size" data-dropzone-size></span>
-                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
-                </span>
-              </label>
-            </div>
+          <div class="news-prop-section news-prop-section--actions">
+            <button type="button" class="ghost-button" data-news-canvas-discard>Discard</button>
+            <button type="button" class="primary-button" data-news-canvas-save>Publish</button>
+          </div>
 
-            <input type="hidden" name="status" value="published">
+          <div class="news-prop-section news-prop-section--open-modal">
+            <button type="button" class="ghost-button ghost-button--full" data-news-modal-open>
+              Full editor ↗
+            </button>
+          </div>
 
-            <label class="field" for="news-compose-priority">
-              <span class="field__label">Order</span>
-              <input type="range" name="priority" id="news-compose-priority" class="field__input news-composer-range" min="0" max="10" step="1" value="0" data-news-field="priority">
-              <span class="field__hint">Lower numbers surface first inside the selected slot.</span>
-            </label>
-
-            <label class="field" for="news-compose-published-at">
-              <span class="field__label">Publish time</span>
-              <input type="datetime-local" name="published_at" id="news-compose-published-at" class="field__input" data-news-field="published_at">
-            </label>
-
-            <label class="field" for="news-compose-source">
-              <span class="field__label">Source</span>
-              <input type="text" name="source" id="news-compose-source" class="field__input" placeholder="Editorial Desk" data-news-field="source">
-            </label>
-
-            <label class="field" for="news-compose-location">
-              <span class="field__label">Location</span>
-              <input type="text" name="location" id="news-compose-location" class="field__input" placeholder="Campus" data-news-field="location">
-            </label>
-
-            <div class="slot-form__actions slot-form__actions--composer">
-              <button type="button" class="ghost-button" data-news-modal-open>Open larger editor</button>
-              <button type="submit" class="primary-button">Save story</button>
-            </div>
-          </form>
         </aside>
-      </div>
+
+      </div><!-- /.news-layout-editor -->
 
       <div class="news-story-library page-card" data-section-count="{{ news_items|length }}">
         <div class="panel-header panel-header--compact news-table__header">
@@ -501,7 +488,7 @@
           {% for news in news_items[:8] %}
           {% set _slot_label = {'main': 'Lead', 'secondary': 'Side', 'widget': 'Widget'}.get(news.layout_type, 'Side') %}
           {% set _story_status = (news.status if news.status else 'approved') %}
-          <article class="news-story-card" data-news-library-item data-news-library-title="{{ news.title | e }}" data-news-library-description="{{ news.description | default('', true) | e }}" data-news-library-source="{{ news.source | default('', true) | e }}" data-news-library-location="{{ news.location | default('', true) | e }}" data-news-library-layout="{{ news.layout_type | default('secondary', true) | e }}" data-news-library-status="{{ _story_status | e }}" data-news-library-priority="{{ news.priority if news.priority is not none else 0 }}" data-news-library-image="{{ news.image | default('', true) | e }}">
+          <article class="news-story-card" data-news-library-item data-news-library-id="{{ news.id }}" data-news-library-title="{{ news.title | e }}" data-news-library-description="{{ news.description | default('', true) | e }}" data-news-library-source="{{ news.source | default('', true) | e }}" data-news-library-location="{{ news.location | default('', true) | e }}" data-news-library-layout="{{ news.layout_type | default('secondary', true) | e }}" data-news-library-status="{{ _story_status | e }}" data-news-library-priority="{{ news.priority if news.priority is not none else 0 }}" data-news-library-image="{{ news.image | default('', true) | e }}">
             <div class="news-story-card__topline">
               <span class="news-story-card__slot">{{ _slot_label }}</span>
               <span class="news-story-card__status news-story-card__status--{{ _story_status | lower }}">{{ _story_status | capitalize }}</span>

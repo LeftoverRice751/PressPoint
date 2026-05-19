@@ -16,11 +16,10 @@ from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.StorageRouter import gearsnas_base
 
 
-ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
-SEAL_DIR = "storage/about"
-MILESTONE_DIR = "storage/about/milestones"
-EXT_BY_MIME = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+_SEAL_NAS_SUBDIR = "About"
+_MILESTONE_NAS_SUBDIR = "About/milestones"
+_IMAGE_ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
 _AUDIO_ALLOWED_EXTS = {".mp3", ".ogg", ".wav", ".m4a"}
 
@@ -58,34 +57,56 @@ def _editor_redirect(response: Response):
     return response.redirect(name="gears.dashboard", query_params={"page": "about-lspu"})
 
 
-def _save_uploaded_image(file, target_dir, prefix):
-    """Validate and persist an uploaded image. Returns (relative_path, error)."""
+def _save_uploaded_image(file, nas_subdir, prefix):
+    """Validate and persist an uploaded image to NAS. Returns (stored_path, error).
+
+    stored_path uses the NAS-relative form (e.g. 'About/seal-abc.png') so that
+    StorageRouter.absolute_path resolves it to the correct NAS mount.
+    """
     if isinstance(file, list):
         file = file[0] if file else None
+    if not file:
+        return None, "Upload must be a JPEG, PNG, or WEBP image."
 
-    mime = getattr(file, "mime_type", None) or getattr(file, "mimetype", None)
-    if not file or mime not in ALLOWED_IMAGE_MIMES:
+    # Masonite file objects expose .filename, not .mime_type — validate by extension.
+    raw_filename = getattr(file, "filename", "") or ""
+    ext = os.path.splitext(raw_filename)[1].lower()
+    if hasattr(file, "extension") and callable(file.extension):
+        ext = (file.extension() or ext).lower()
+    if ext and not ext.startswith("."):
+        ext = "." + ext
+    if ext == ".jpeg":
+        ext = ".jpg"
+
+    if ext not in _IMAGE_ALLOWED_EXTS:
         return None, "Upload must be a JPEG, PNG, or WEBP image."
 
     content = getattr(file, "content", None)
-    if content is None and hasattr(file, "stream"):
+    if content is None and hasattr(file, "stream") and callable(file.stream):
+        s = file.stream()
+        content = s.read() if hasattr(s, "read") else s
+    elif content is None and hasattr(file, "stream"):
         content = file.stream.read()
     if content is None:
         return None, "Could not read uploaded file."
     if len(content) > MAX_IMAGE_BYTES:
         return None, "Image must be 4 MB or smaller."
 
-    ext = EXT_BY_MIME[mime]
-    name = f"{prefix}-{secrets.token_hex(8)}{ext}"
-    os.makedirs(target_dir, exist_ok=True)
-    target_path = os.path.join(target_dir, name)
-    with open(target_path, "wb") as fh:
-        fh.write(content)
+    filename = f"{prefix}-{secrets.token_hex(8)}{ext}"
+    target_dir = os.path.join(gearsnas_base(), nas_subdir)
 
-    # Return path relative to the storage/ route prefix (the route is
-    # /storage/@path:any served by VideoController@serve_storage).
-    relative = os.path.relpath(target_path, "storage")
-    return relative, None
+    old_mask = os.umask(0o002)
+    try:
+        os.makedirs(target_dir, mode=0o775, exist_ok=True)
+        target_path = os.path.join(target_dir, filename)
+        with open(target_path, "wb") as fh:
+            fh.write(content)
+        os.chmod(target_path, 0o664)
+    finally:
+        os.umask(old_mask)
+
+    stored_path = f"{nas_subdir}/{filename}"
+    return stored_path, None
 
 
 class AboutController(Controller):
@@ -193,7 +214,7 @@ class AboutController(Controller):
         # Optional image upload swap-in.
         file = request.input("file")
         if file:
-            relative, err = _save_uploaded_image(file, MILESTONE_DIR, "milestone")
+            relative, err = _save_uploaded_image(file, _MILESTONE_NAS_SUBDIR, "milestone")
             if err:
                 return _editor_redirect(response).with_errors([err])
             row.image_path = relative
@@ -238,7 +259,7 @@ class AboutController(Controller):
 
     def upload_seal(self, request: Request, response: Response):
         file = request.input("file")
-        relative, err = _save_uploaded_image(file, SEAL_DIR, "seal")
+        stored_path, err = _save_uploaded_image(file, _SEAL_NAS_SUBDIR, "seal")
         is_ajax = wants_json(request)
         if err:
             if is_ajax:
@@ -247,12 +268,12 @@ class AboutController(Controller):
 
         section = AboutSection.where("slug", "seal").first()
         if section:
-            section.image_path = relative
+            section.image_path = stored_path
             section.save()
 
         if is_ajax:
             return json_success(response, payload={
-                "seal_url": "/storage/" + str(relative).replace("\\", "/").lstrip("/")
+                "seal_url": "/storage/" + stored_path.replace("\\", "/")
             }, messages=["Seal image uploaded."])
 
         return _editor_redirect(response).with_success(["Seal image uploaded."])

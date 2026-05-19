@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from masonite.configuration import config
 from masonite.events import Event
-from pendulum import instance
 
 try:
     from zoneinfo import ZoneInfo
@@ -26,12 +25,12 @@ class NewNews(Event):
             return timezone.utc
         
     def _today_key(self):
-        return datetime.now(self.timezone()).date().isoformat()
+        return datetime.now(self._timezone()).date().isoformat()
     
     def _format_date(self, value):
         app_timezone = self._timezone()
         
-        if instance(value, datetime):
+        if isinstance(value, datetime):
             if value.tzinfo is None:
                 return value.replace(tzinfo=app_timezone).date().isoformat()
             return value.astimezone(app_timezone).date().isoformat()
@@ -72,6 +71,6 @@ class NewNews(Event):
         }
         
     def broadcast_as(self):
-        return "app.events.NewNews"
+        return "new-news"
     
     

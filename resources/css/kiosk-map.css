@@ -352,16 +352,23 @@ html, body {
     box-shadow: inset 0 0 0 4px var(--ink), inset 0 0 0 8px var(--orange), 0 0 0 2px var(--ink), 0 6px 14px rgba(10, 10, 10, 0.22);
 }
 
-/* ── Zoom controls ──────────────────────────────────────────────── */
+/* ── Zoom controls + coordinate readout (stacked group) ─────────── */
 
-.map-zoom {
+.map-controls-stack {
     position: absolute;
     right: 1.25rem;
     bottom: 1.5rem;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.75rem;
+}
+
+.map-zoom {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    z-index: 35;
 }
 
 .map-zoom__btn {
@@ -387,10 +394,6 @@ html, body {
 }
 
 .map-coordinate-readout {
-    position: absolute;
-    right: 1rem;
-    bottom: 6.1rem;
-    z-index: 40;
     padding: 0.7rem 0.95rem;
     border: 2px solid var(--ink);
     background: rgba(255, 255, 255, 0.94);

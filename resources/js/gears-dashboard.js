@@ -574,12 +574,25 @@
       return;
     }
 
-    // News save: reset form and Quill editors
+    // News save: reset form and update library card status badge if editing existing
     if (json.article) {
       form.reset();
+      var idField = form.querySelector('[data-news-field="article_id"]');
+      if (idField) idField.value = '';
       form.querySelectorAll('.js-body-editor').forEach(function (el) {
         if (el._quill) el._quill.setContents([]);
       });
+      if (!json.article.is_new && json.article.id) {
+        var libCard = document.querySelector('[data-news-library-id="' + json.article.id + '"]');
+        if (libCard) {
+          var badge = libCard.querySelector('.news-story-card__status');
+          if (badge) {
+            var s = json.article.status || 'published';
+            badge.className = 'news-story-card__status news-story-card__status--' + s;
+            badge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+          }
+        }
+      }
       return;
     }
 
@@ -663,8 +676,7 @@
     'form[data-section-form]',
     'form[data-milestone-form]',
     'form.about-milestone__action-form',
-    'form[data-upload-form]',
-    'form[data-news-form]'
+    'form[data-upload-form]'
   ].join(', ');
 
   document.querySelectorAll(AJAX_SELECTORS).forEach(ajaxSubmit);

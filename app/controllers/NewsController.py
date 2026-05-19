@@ -191,35 +191,58 @@ class NewsController(Controller):
             if file_extension not in allowed_extensions:
                 return _err(["Please upload a valid image file."])
 
+        article_id = (request.input("article_id") or "").strip()
+
         try:
             if image_file:
                 image_path = storage.disk("public").put_file("news", image_file)
 
-            created_news = News.create(
-                title=title,
-                description=description,
-                image=image_path,
-                published_at=published_at,
-                source=source or None,
-                location=location or None,
-                layout_type=layout_type,
-                priority=priority,
-                status=status,
-            )
+            if article_id:
+                existing = News.where("id", article_id).first()
+                if not existing:
+                    return _err(["Article not found."])
+                existing.title = title
+                existing.description = description
+                existing.source = source or None
+                existing.location = location or None
+                existing.layout_type = layout_type
+                existing.priority = priority
+                existing.status = status
+                if published_at is not None:
+                    existing.published_at = published_at
+                if image_path is not None:
+                    existing.image = image_path
+                existing.save()
+                saved_news = existing
+                is_new = False
+            else:
+                saved_news = News.create(
+                    title=title,
+                    description=description,
+                    image=image_path,
+                    published_at=published_at,
+                    source=source or None,
+                    location=location or None,
+                    layout_type=layout_type,
+                    priority=priority,
+                    status=status,
+                )
+                is_new = True
 
             try:
-                NewNews(created_news).fire()
+                NewNews(saved_news).fire()
             except Exception:
                 pass
 
             if is_ajax:
                 return json_success(response, payload={
                     "article": {
-                        "id": getattr(created_news, "id", None),
+                        "id": getattr(saved_news, "id", None),
                         "title": title,
                         "layout_type": layout_type,
                         "status": status,
-                        "image": image_path,
+                        "image": getattr(saved_news, "image", None),
+                        "is_new": is_new,
                     }
                 }, messages=["News saved successfully."])
 
