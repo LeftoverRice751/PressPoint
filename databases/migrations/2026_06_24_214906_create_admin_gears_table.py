@@ -1,5 +1,3 @@
-"""CreateAdminGearsTable Migration."""
-
 from masoniteorm.migrations import Migration
 
 
@@ -11,6 +9,7 @@ class CreateAdminGearsTable(Migration):
         with self.schema.create("admin_gears") as table:
             table.increments("id")
             table.string("admin_username").unique()
+            table.string("admin_email").unique()
             table.string("admin_password")
             table.string("role").default("admin")
             table.timestamps()

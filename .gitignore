@@ -17,3 +17,6 @@ package-lock.json
 # compiled assets
 storage/compiled
 .superpowers/
+
+#databases
+databases/seeds

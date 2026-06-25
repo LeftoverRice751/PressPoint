@@ -64,10 +64,6 @@
         <span class="dashboard-nav__icon" aria-hidden="true">◫</span>
         <span>News</span>
       </button>
-      <button type="button" class="dashboard-nav__link" data-page-link="archives" id="nav-archives" role="tab" aria-controls="panel-archives" aria-selected="false" tabindex="-1">
-        <span class="dashboard-nav__icon" aria-hidden="true">◧</span>
-        <span>Archives</span>
-      </button>
       <button type="button" class="dashboard-nav__link" data-page-link="locations" id="nav-locations" role="tab" aria-controls="panel-locations" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">⌖</span>
         <span>Locations</span>
@@ -104,6 +100,14 @@
           <div class="live-status-card__text">Changes appear on kiosk instantly</div>
         </div>
       </div>
+      <a href="{{ route('auth.logout') }}"
+         class="gears-sidebar__logout"
+         data-confirm="You'll be signed out of GEARS CMS."
+         data-confirm-title="Log out?"
+         data-confirm-label="Log out"
+         data-confirm-cancel="Stay">
+        Log out
+      </a>
     </div>
   </aside>
 

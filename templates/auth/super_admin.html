@@ -1,0 +1,71 @@
+{% extends 'auth/base.html' %}
+
+{% block auth_shell_class %}auth-shell--centered{% endblock %}
+
+{% block auth_rail %}{% endblock %}
+
+{% block content %}
+<section class="auth-panel auth-panel--wide">
+    <div class="auth-panel__header">
+        <h2 class="auth-panel__title">Super Admin Dashboard</h2>
+        <p class="auth-panel__subtitle">Welcome, {{ current_admin.admin_username }}. Manage users from the same GEARS visual system.</p>
+    </div>
+
+    {% if bag().any() %}
+    <div class="auth-alert">
+        <ul class="auth-alert__list">
+            {% for message in bag().messages() %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="auth-card-grid">
+        <form class="auth-form" action="{{ route('auth.super_admin.store', {}, False) }}" method="post">
+            {{ csrf_field | safe }}
+
+            <div class="auth-form__split">
+                <label class="auth-form__group" for="admin_email">
+                    <span class="auth-form__label">Email</span>
+                    <input type="text" name="admin_email" id="admin_email" placeholder="Email" class="auth-form__input" required>
+                </label>
+
+                <label class="auth-form__group" for="admin_username">
+                    <span class="auth-form__label">Username</span>
+                    <input type="text" name="admin_username" id="admin_username" placeholder="Username" class="auth-form__input" required>
+                </label>
+            </div>
+
+            <button type="submit" class="auth-form__button">Create User</button>
+        </form>
+
+        <table class="auth-table user-management">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Email</th>  
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.admin_username }}</td>
+                    <td>{{ user.admin_email }}</td>
+                    <td>
+                        <div class="auth-table__actions">
+                            <form action="{{ route('auth.super_admin.destroy', {'id': user.id}, False) }}" method="post" class="inline-form">
+                                {{ csrf_field | safe }}
+                                <input type="hidden" name="__method" value="DELETE">
+                                <button type="submit" class="auth-mini-button auth-mini-button--danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

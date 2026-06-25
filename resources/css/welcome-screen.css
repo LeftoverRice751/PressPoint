@@ -161,7 +161,7 @@ body {
 .feature-card__label {
     margin: 0;
     font-family: var(--kiosk-font-ui);
-    font-size: clamp(0.95rem, 1.4vw, 1.5rem);
+    font-size: clamp(1.1rem, 1.8vw, 2rem);
     font-weight: 800;
     letter-spacing: 0.02em;
     line-height: 1.1;
@@ -216,7 +216,7 @@ body {
     gap: clamp(14px, 1.6vw, 28px);
     align-items: center;
     will-change: transform;
-    animation: ticker-scroll 28s linear infinite;
+    animation: ticker-scroll 50s linear infinite;
 }
 
 .news-ticker__group {

@@ -9,7 +9,10 @@ from app.models.Locations import Locations
 class Departments(Model):
     """Departments Model"""
 
-    __fillable__ = ["location_id", "name"]
+    __fillable__ = [
+        "location_id",
+        "name"
+        ]
 
     @belongs_to("location_id", "id")
     def location(self):

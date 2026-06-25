@@ -2,7 +2,7 @@ from masonite.routes import Route
 
 
 ROUTES = [
-    Route.get("/login", "auth.LoginController@show").name("auth.login"),
+    Route.get("/login","auth.LoginController@show").name("auth.login"),
     Route.post("/login", "auth.LoginController@store").name("auth.login.store"),
     Route.get("/forgot-password", "auth.PasswordResetController@show").name("auth.forgot-password"),
     Route.get("/forgot-password/otp", "auth.PasswordResetController@show_otp").name("auth.forgot-password.otp"),

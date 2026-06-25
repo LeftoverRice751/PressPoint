@@ -70,7 +70,16 @@ class PasswordResetController(Controller):
 
         application.make("builder").new().table(reset_table).create(reset_payload)
 
-        Mail.mailable(ResetPassword(token=reset_token).to(email)).send()
+        try:
+            Mail.mailable(ResetPassword(token=reset_token).to(email)).send()
+        except Exception:
+            application.make("builder").new().statement(
+                f"DELETE FROM {reset_table} WHERE email = %s",
+                [email],
+            )
+            return response.back().with_errors([
+                "Could not send the OTP email. Please try again later."
+            ])
         return response.redirect(
             name="auth.forgot-password.otp",
             query_params={"email": email},

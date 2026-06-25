@@ -195,6 +195,25 @@ body {
     padding-top: 1rem;
 }
 
+.gears-sidebar__logout {
+    display: block;
+    margin-top: 0.75rem;
+    padding: 0.55rem 0.95rem;
+    border-radius: var(--radius-sm);
+    color: rgba(241, 236, 227, 0.55);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    letter-spacing: 0.02em;
+    transition: background 0.15s, color 0.15s;
+}
+.gears-sidebar__logout:hover,
+.gears-sidebar__logout:focus-visible {
+    background: rgba(241, 236, 227, 0.07);
+    color: var(--ink-cream);
+    outline: none;
+}
+
 .live-status-card {
     display: flex;
     align-items: flex-start;

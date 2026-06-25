@@ -8,7 +8,14 @@ from app.models.Departments import Departments
 
 class Member(Model):
     """Member Model"""
-    __fillable__ = ["department_id", "name", "position", "photo_path", "parent_id", "sort_order"]
+    __fillable__ = [
+        "department_id",
+        "name",
+        "position",
+        "photo_path", 
+        "parent_id",
+        "sort_order"
+        ]
 
     @has_many("id", "parent_id")
     def subordinates(self):

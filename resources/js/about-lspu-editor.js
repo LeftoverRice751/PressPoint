@@ -1,8 +1,6 @@
 // About LSPU editor client.
-// - Tab switching: one panel visible at a time, matching the 6 kiosk tiles.
-// - Lazy Quill init: editors are created only when their panel is first opened.
-// - Add / remove subsection blocks (mission, values).
-// - On submit, serialise editor HTML into hidden inputs.
+
+// This is for editing sa about lspu section. 
 
 (function () {
   if (typeof Quill === 'undefined') return;

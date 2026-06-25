@@ -5,6 +5,7 @@ from masonite.request import Request
 from masonite.response import Response
 from app.models.User import User
 from app.models.AdminGears import AdminGears
+from app.models.SuperAdmin import SuperAdmin
 
 
 class LoginController(Controller):
@@ -41,7 +42,21 @@ class LoginController(Controller):
         user.role = role
         user.save()
         return user
-
+    
+    def sync_super_admin(self, raw_username: str, password: str):
+        username = (raw_username or "").strip() or "super_admin"
+        
+        if super_admin:
+            super_admin.password = Hash.make(password)
+        else:
+            super_admin = SuperAdmin()
+            super_admin.username = username
+            super_admin.email = f"{username}@presspoint.local"
+            super_admin.password = Hash.make(password)
+            
+        super_admin.save()
+        return super_admin
+            
     def store(self, request: Request, response: Response):
         username = (request.input("username") or "").strip()
         password = request.input("password") or ""
