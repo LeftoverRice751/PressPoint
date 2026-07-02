@@ -100,14 +100,15 @@
           <div class="live-status-card__text">Changes appear on kiosk instantly</div>
         </div>
       </div>
-      <a href="{{ route('auth.logout') }}"
-         class="gears-sidebar__logout"
-         data-confirm="You'll be signed out of GEARS CMS."
-         data-confirm-title="Log out?"
-         data-confirm-label="Log out"
-         data-confirm-cancel="Stay">
-        Log out
-      </a>
+      <form method="POST" action="{{ route('auth.logout') }}" class="gears-sidebar__logout-form">
+        {{ csrf | safe }}
+        <button type="submit"
+                class="gears-sidebar__logout"
+                data-confirm="You'll be signed out of GEARS CMS."
+                data-confirm-title="Log out?"
+                data-confirm-label="Log out"
+                data-confirm-cancel="Stay">Log out</button>
+    </form>
     </div>
   </aside>
 

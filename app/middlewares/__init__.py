@@ -3,3 +3,4 @@ from .VerifyCsrfToken import VerifyCsrfToken
 from .AuthenticationMiddleware import AuthenticationMiddleware
 from .AdminMiddleware import AdminMiddleware
 from .DatabaseReconnectMiddleware import DatabaseReconnectMiddleware
+from .SuperAdminMiddleware import SuperAdminMiddleware

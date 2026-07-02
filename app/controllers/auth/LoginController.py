@@ -4,9 +4,6 @@ from masonite.views import View
 from masonite.request import Request
 from masonite.response import Response
 from app.models.User import User
-from app.models.AdminGears import AdminGears
-from app.models.SuperAdmin import SuperAdmin
-
 
 class LoginController(Controller):
     def show(self, view: View):
@@ -15,47 +12,6 @@ class LoginController(Controller):
     def _fresh_login_record(self, login, username: str):
         persisted_login = User.where("username", username).first()
         return persisted_login or login
-
-    def _sync_admin_user(self, admin_record, password: str):
-        """Mirror the AdminGears row into a `users` row so the rest of the
-        framework (request.user(), guards, redirects) can treat it like
-        any other authenticated user.
-
-        We assign attributes directly instead of `User.create({...})`
-        because `role` is intentionally NOT in `User.__fillable__` —
-        keeping it out of fillable prevents mass-assignment elsewhere
-        in the app. Direct assignment here is safe: we only reach this
-        method after `Hash.check` has already verified the admin_gears
-        password.
-        """
-        username = (getattr(admin_record, "admin_username", "") or "").strip()
-        if not username:
-            return None
-
-        role = (getattr(admin_record, "role", "") or "admin").strip().lower() or "admin"
-        email = f"{username}@presspoint.local"
-
-        user = User.where("username", username).first() or User()
-        user.username = username
-        user.email = getattr(user, "email", None) or email
-        user.password = Hash.make(password)
-        user.role = role
-        user.save()
-        return user
-    
-    def sync_super_admin(self, raw_username: str, password: str):
-        username = (raw_username or "").strip() or "super_admin"
-        
-        if super_admin:
-            super_admin.password = Hash.make(password)
-        else:
-            super_admin = SuperAdmin()
-            super_admin.username = username
-            super_admin.email = f"{username}@presspoint.local"
-            super_admin.password = Hash.make(password)
-            
-        super_admin.save()
-        return super_admin
             
     def store(self, request: Request, response: Response):
         username = (request.input("username") or "").strip()
@@ -63,22 +19,14 @@ class LoginController(Controller):
 
         login = User().attempt(username, password)
 
-        if not login:
-            admin_record = AdminGears.where("admin_username", username).first()
-
-            if admin_record and Hash.check(password, getattr(admin_record, "admin_password", "")):
-                login = User().attempt(username, password)
-
-                if not login:
-                    synced_user = self._sync_admin_user(admin_record, password)
-                    if synced_user:
-                        login = User().attempt(synced_user.username, password)
-
         if login:
             login = self._fresh_login_record(login, username)
             request.set_user(login)
             response.cookie("token", getattr(login, "remember_token", "") or "")
             role = (getattr(login, "role", "") or "").strip().lower()
+
+            if role == "superadmin":
+                return response.redirect(name="auth.super_admin")
 
             if role == "admin":
                 return response.redirect(name="users.view")

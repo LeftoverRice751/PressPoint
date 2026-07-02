@@ -18,7 +18,7 @@ class PasswordResetController(Controller):
     def _is_reset_record_expired(self, reset_record):
         expires_at = reset_record.get("expires_at") if isinstance(reset_record, dict) else None
         if not expires_at:
-            return False
+            return True
 
         try:
             return pendulum.now() > pendulum.parse(str(expires_at))
@@ -120,23 +120,41 @@ class PasswordResetController(Controller):
                 [otp],
             )
             return response.back().with_errors(["OTP code has expired. Please request a new one."])
+        
+        request.session.put("reset_token", otp)
+        request.session.put("reset_email", reset_record["email"])
+        
+        return response.redirect(name="auth.change-password")
 
-        return response.redirect(name="auth.change-password", params={"token": otp})
+    def change_password(self, view: View, request: Request, response: Response):
+        reset_token = request.session.get("reset_token")
+        if not reset_token:
+            return response.redirect(name="auth.forgot-password").with_errors([
+                "Please verify your OTP first."
+            ])
 
-    def change_password(self, view: View, request: Request):
-        return view.render("auth.change_password", {"token": request.param("token")})
+        return view.render("auth.change_password", {"token": reset_token})
+            
 
     def store_changed_password(self, auth: Auth, request: Request, response: Response):
+        token = request.session.get("reset_token")
+        if not token:
+            return response.back().with_errors([
+                "Session expired. Please try again."
+            ])
+            
         is_valid = request.validate(
             {
                 "password": "required|strong|confirmed",
             }
         )
+    
 
         if not is_valid:
+            request.session.forget("reset_token")
+            request.session.forget("reset_email")
             return response.back().with_errors(["Password must be strong and confirmed."])
 
-        token = request.param("token")
         reset_table = config("auth.guards.password_reset_table", "password_resets")
         reset_records = application.make("builder").new().statement(
             f"SELECT * FROM {reset_table} WHERE token = %s LIMIT 1",
@@ -153,7 +171,8 @@ class PasswordResetController(Controller):
                 [token],
             )
             return response.back().with_errors(["Reset token has expired. Please request a new one."])
-
+        
+        
         new_password = Hash.make(request.input("password"))
         application.make("builder").new().statement(
             "UPDATE users SET password = %s WHERE email = %s",
@@ -163,6 +182,9 @@ class PasswordResetController(Controller):
             f"DELETE FROM {reset_table} WHERE token = %s",
             [token],
         )
+        
+        request.session.forget("reset_token")
+        request.session.forget("reset_email")
 
         return response.redirect(name="auth.login").with_success([
             "Password Reset Successfully",

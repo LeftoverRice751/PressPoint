@@ -14,7 +14,7 @@ from masonite.routes import Route
 from masonite.configuration.Configuration import Configuration
 from masonite.configuration import config
 
-from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware, DatabaseReconnectMiddleware
+from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware, DatabaseReconnectMiddleware, SuperAdminMiddleware
 from masonite.middleware import ThrottleRequestsMiddleware
 
 
@@ -31,6 +31,7 @@ class Kernel:
         "web": [SessionMiddleware, LoadUserMiddleware, VerifyCsrfToken],
         "auth": [AuthenticationMiddleware],
         "admin": [AdminMiddleware],
+        "super_admin": [SuperAdminMiddleware],
     }
 
     def __init__(self, app):

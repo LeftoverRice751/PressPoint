@@ -6,6 +6,7 @@ from masonite.response import Response
 
 from app.events.NewEvent import NewEvent
 from app.services.ArchiveServices import ArchiveServices
+from app.services.FileVerificationService import FileVerificationService
 from app.models.Events import Events
 from app.models.Locations import Locations
 
@@ -72,9 +73,14 @@ class EventController(Controller):
                 "Please upload a PDF file.",
             ])
 
-        if pdf_file.extension().lower() != "application/pdf":
+        if pdf_file.extension().lower() != "pdf":
             return response.back().with_errors([
                 "Only PDF files are allowed.",
+            ])
+
+        if not FileVerificationService.verify_file_type(pdf_file.path, "pdf"):
+            return response.back().with_errors([
+                "The uploaded file is not a valid PDF.",
             ])
 
         archive_services = ArchiveServices()

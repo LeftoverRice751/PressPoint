@@ -15,11 +15,9 @@ class CreateMembersTable(Migration):
             table.string("name")
             table.string("position")
             table.string("photo_path").nullable()
-            
             table.integer("parent_id").unsigned().nullable()
             table.foreign("parent_id").references("id").on("members").on_delete("cascade")
             table.integer("sort_order").default(0)
-
             table.timestamps()
 
     def down(self):

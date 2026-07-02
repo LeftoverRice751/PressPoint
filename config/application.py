@@ -3,7 +3,7 @@ from masonite.environment import env
 
 KEY = env("APP_KEY", "-RkDOqXojJIlsF_I8wWiUq_KRZ0PtGWTOZ676u5HtLg=")
 
-DEBUG = env("APP_DEBUG", True)
+DEBUG = env("APP_DEBUG", False)
 
 HASHING = {
     "default": env("HASHING_FUNCTION", "bcrypt"),

@@ -3,5 +3,5 @@
 
 DRIVERS = {
     "default": "cookie",
-    "cookie": {},
+    "cookie": {"secure": True, "samesite": "Lax"},
 }

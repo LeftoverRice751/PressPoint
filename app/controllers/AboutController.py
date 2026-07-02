@@ -14,42 +14,13 @@ from app.models.AboutSection import AboutSection
 from app.services.AboutContent import AboutContent, SECTION_SLUGS
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.StorageRouter import gearsnas_base
+from app.services.FileVerificationService import FileVerificationService
 
 
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
 _SEAL_NAS_SUBDIR = "About"
 _MILESTONE_NAS_SUBDIR = "About/milestones"
-_IMAGE_ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
-_AUDIO_ALLOWED_EXTS = {".mp3", ".ogg", ".wav", ".m4a"}
-
-
-def _save_uploaded_audio(file, target_dir, prefix):
-    """Validate and persist an uploaded audio file. Returns (relative_path, error)."""
-    if isinstance(file, list):
-        file = file[0] if file else None
-
-    mime = getattr(file, "mime_type", None) or getattr(file, "mimetype", None)
-    if not file or mime not in ALLOWED_AUDIO_MIMES:
-        return None, "Upload must be an MP3, OGG, WAV, or M4A audio file."
-
-    content = getattr(file, "content", None)
-    if content is None and hasattr(file, "stream"):
-        content = file.stream.read()
-    if content is None:
-        return None, "Could not read uploaded file."
-    if len(content) > MAX_AUDIO_BYTES:
-        return None, "Audio file must be 20 MB or smaller."
-
-    ext = AUDIO_EXT_BY_MIME[mime]
-    name = f"{prefix}{ext}"
-    os.makedirs(target_dir, exist_ok=True)
-    target_path = os.path.join(target_dir, name)
-    with open(target_path, "wb") as fh:
-        fh.write(content)
-
-    relative = os.path.relpath(target_path, "storage")
-    return relative, None
 
 
 def _editor_redirect(response: Response):
@@ -68,19 +39,6 @@ def _save_uploaded_image(file, nas_subdir, prefix):
     if not file:
         return None, "Upload must be a JPEG, PNG, or WEBP image."
 
-    # Masonite file objects expose .filename, not .mime_type — validate by extension.
-    raw_filename = getattr(file, "filename", "") or ""
-    ext = os.path.splitext(raw_filename)[1].lower()
-    if hasattr(file, "extension") and callable(file.extension):
-        ext = (file.extension() or ext).lower()
-    if ext and not ext.startswith("."):
-        ext = "." + ext
-    if ext == ".jpeg":
-        ext = ".jpg"
-
-    if ext not in _IMAGE_ALLOWED_EXTS:
-        return None, "Upload must be a JPEG, PNG, or WEBP image."
-
     content = getattr(file, "content", None)
     if content is None and hasattr(file, "stream") and callable(file.stream):
         s = file.stream()
@@ -89,8 +47,24 @@ def _save_uploaded_image(file, nas_subdir, prefix):
         content = file.stream.read()
     if content is None:
         return None, "Could not read uploaded file."
+
+    # Verify by actual content (magic bytes), not just the extension.
+    if not FileVerificationService.verify_buffer(content, "image"):
+        return None, "Upload must be a JPEG, PNG, or WEBP image."
+
     if len(content) > MAX_IMAGE_BYTES:
         return None, "Image must be 4 MB or smaller."
+
+    # Masonite file objects expose .filename, not .mime_type — the extension is
+    # only used to name the stored file, not to validate it.
+    raw_filename = getattr(file, "filename", "") or ""
+    ext = os.path.splitext(raw_filename)[1].lower()
+    if hasattr(file, "extension") and callable(file.extension):
+        ext = (file.extension() or ext).lower()
+    if ext and not ext.startswith("."):
+        ext = "." + ext
+    if ext == ".jpeg":
+        ext = ".jpg"
 
     filename = f"{prefix}-{secrets.token_hex(8)}{ext}"
     target_dir = os.path.join(gearsnas_base(), nas_subdir)
@@ -297,7 +271,7 @@ class AboutController(Controller):
         if ext and not ext.startswith("."):
             ext = "." + ext
 
-        if ext not in _AUDIO_ALLOWED_EXTS:
+        if not FileVerificationService.verify_extension(ext, "audio"):
             err = "Upload must be an MP3, OGG, WAV, or M4A audio file."
             if wants_json(request):
                 return json_errors(response, [err])

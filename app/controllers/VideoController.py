@@ -25,6 +25,7 @@ from app.services.ArchiveServices import ArchiveServices
 from app.services.AboutContent import AboutContent
 from app.services.StorageRouter import absolute_path, is_safe_path
 from app.services.AjaxResponses import wants_json, json_success, json_errors
+from app.services.FileVerificationService import FileVerificationService
 from app.models.Archives import Archives
 
 
@@ -489,10 +490,7 @@ class VideoController(Controller):
         if not hasattr(video_file, "get_content") or not hasattr(video_file, "extension"):
             return _err(["Please upload a valid video file."])
 
-        allowed_extensions = {".mp4", ".mov", ".webm", ".m4v", ".ogg"}
-        file_extension = (video_file.extension() or "").lower()
-
-        if file_extension not in allowed_extensions:
+        if not FileVerificationService.verify_extension(video_file.extension(), "video"):
             return _err(["Please upload a valid video file."])
 
         try:

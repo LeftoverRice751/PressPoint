@@ -12,6 +12,7 @@ from app.models.Archives import Archives
 from app.services.ArchiveServices import ArchiveServices
 from app.services.StorageRouter import absolute_path, gearsnas_base
 from app.services.AjaxResponses import wants_json, json_success, json_errors
+from app.services.FileVerificationService import FileVerificationService
 
 
 # Files written to the NAS need to be group-writable so the web user and
@@ -76,10 +77,17 @@ class ArchivesController(Controller):
             "year_published": "required",
             "file": "required|file"
         })
+        
 
-        file = request.input("file")
-        if isinstance(file, list):
-            file = file[0] if file else None
+        archive_file = request.input("file")
+        if isinstance(archive_file, list):
+            archive_file = archive_file[0] if archive_file else None
+
+        if not archive_file:
+            return _err(["Please upload a PDF file."])
+
+        if archive_file.extension().lower() not in ("pdf", ".pdf"):
+            return _err(["The uploaded file must be a PDF."])
 
         year_value = (request.input("year_published") or request.input("date") or "").strip()
 
@@ -104,12 +112,19 @@ class ArchivesController(Controller):
                 pass
 
             with _group_writable_umask():
-                file_path = storage.disk("gearsnas").put_file("Archives", file)
+                file_path = storage.disk("gearsnas").put_file("Archives", archive_file)
 
             try:
                 os.chmod(absolute_path(file_path), _NAS_FILE_MODE)
             except OSError:
                 pass
+
+            if not FileVerificationService.verify_file_type(absolute_path(file_path), "pdf"):
+                try:
+                    storage.disk("gearsnas").delete(file_path)
+                except Exception:
+                    pass
+                return _err(["The uploaded file is not a valid PDF."])
 
             archive = Archives.create(
                 name=(request.input("name") or "").strip(),
