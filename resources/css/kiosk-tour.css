@@ -42,16 +42,7 @@ a, a:hover, a:active, a:visited {
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.35s ease, filter 0.22s ease-out;
-}
-
-/* Motion blur during a scene warp — kiosk-tour.js adds this class at the
-   start of a warp and removes it near the midpoint, so the CSS transition
-   ramps the blur up then eases it back to 0. Class toggle only: no
-   per-frame work competes with the WebGL render. */
-#pano.tour-warp-blur {
-  filter: blur(var(--warp-blur, 6px));
-  will-change: filter;
+  transition: opacity 0.35s ease;
 }
 
 body.tour-ready #pano {
