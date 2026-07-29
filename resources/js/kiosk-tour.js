@@ -131,6 +131,12 @@ function initTour() {
   // Initialize viewer.
   var viewer = new Marzipano.Viewer(panoElement, viewerOpts);
 
+  // Rectilinear-view FOV bounds. Shared between the view limiter (below) and
+  // the warp's wide entry, so the wide starting FOV can never exceed maxFov
+  // and get silently clamped. Raise FOV_MAX here for a more dramatic entry.
+  var FOV_MIN = 100 * Math.PI / 180;
+  var FOV_MAX = 120 * Math.PI / 180;
+
   // Create scenes.
   // Track everything needed by the search/route module appended below.
   // We populate `window.__tourBridge` once scenes + switchScene exist so
@@ -143,7 +149,7 @@ function initTour() {
       { cubeMapPreviewUrl: urlPrefix + "/" + data.id + "/preview.jpg" });
     var geometry = new Marzipano.CubeGeometry(data.levels);
 
-    var limiter = Marzipano.RectilinearView.limit.traditional(data.faceSize, 100*Math.PI/180, 120*Math.PI/180);
+    var limiter = Marzipano.RectilinearView.limit.traditional(data.faceSize, FOV_MIN, FOV_MAX);
     var view = new Marzipano.RectilinearView(data.initialViewParameters, limiter);
 
     var scene = viewer.createScene({
@@ -259,104 +265,212 @@ function initTour() {
     return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;');
   }
 
-  function switchScene(scene) {
-    stopAutorotate();
-    scene.view.setParameters(scene.data.initialViewParameters);
-    scene.scene.switchTo();
-    startAutorotate();
-    updateSceneName(scene);
-    updateSceneList(scene);
-  }
+  // ── Transition tuning ──────────────────────────────────────────
+  // Every parameter of the Street-View-style warp lives here so the
+  // whole effect can be re-timed from one place.
+  var WARP = {
+    durationMs:     900,   // total arrow warp (spec: 800–1000)
+    zoomFactor:     0.5,   // outgoing FOV pushes down to 0.5 × base (narrow)
+    wideFactor:     1.25,  // incoming FOV starts at 1.25 × base (capped to FOV_MAX)
+    zoomInFrac:     0.4,   // outgoing push completes by this fraction
+    zoomOutStart:   0.3,   // incoming settle begins at this fraction
+    fadeStart:      0.15,  // when the destination starts becoming visible
+    blurPx:         6,     // motion-blur peak; set 0 to disable the blur
+    blurClearAt:    0.5,   // fraction of duration at which blur starts clearing
+    menuCrossfadeMs: 450   // plain crossfade for scene-list jumps (no dolly)
+  };
 
-  // ── Warp transition (Street-View style): zoom toward the hotspot,
-  // fade through black, land in the next scene at a tight FOV and
-  // tween back out. Falls back to switchScene if anything is off.
-  var warping = false;
-  var warpOverlay = null;
-  function getWarpOverlay() {
-    if (warpOverlay) return warpOverlay;
-    warpOverlay = document.createElement('div');
-    warpOverlay.className = 'tour-warp-overlay';
-    document.body.appendChild(warpOverlay);
-    return warpOverlay;
-  }
+  // ── Turn-then-travel tuning ────────────────────────────────────
+  // Street View turns to face the arrow BEFORE moving. This short
+  // `lookTo` head-turn runs ahead of the warp; because the camera ends
+  // it already facing the travel heading, the warp's own outgoing pan
+  // becomes a no-op and reads as a clean straight push-in.
+  var TURN = {
+    durationMs:   350,  // head-turn to face the arrow before the warp
+    skipBelowDeg: 10,   // already facing it (e.g. chevron dead ahead) → skip the turn
+    narrowFov:    0     // optional FOV multiplier during the turn; 0 = keep current FOV
+  };
+
   function lerp(a, b, t) { return a + (b - a) * t; }
+  function clamp01(t) { return t < 0 ? 0 : (t > 1 ? 1 : t); }
   function lerpAngle(a, b, t) {
     var d = b - a;
     while (d >  Math.PI) d -= 2 * Math.PI;
     while (d < -Math.PI) d += 2 * Math.PI;
     return a + d * t;
   }
-  function easeInCubic(t)  { return t * t * t; }
-  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
-  function tween(duration, ease, step, done) {
-    var start = performance.now();
-    function frame(now) {
-      var t = Math.min(1, (now - start) / duration);
-      step(ease(t));
-      if (t < 1) requestAnimationFrame(frame);
-      else if (done) done();
-    }
-    requestAnimationFrame(frame);
-  }
-  function warpToScene(targetScene, hotspot) {
-    if (warping || !targetScene) {
-      if (targetScene) switchScene(targetScene);
-      return;
-    }
-    var currentScene = null;
-    for (var i = 0; i < scenes.length; i++) {
-      if (scenes[i].scene === viewer.scene()) { currentScene = scenes[i]; break; }
-    }
-    if (!currentScene) { switchScene(targetScene); return; }
+  // Smoothstep — the eased curve for the whole warp (spec: not linear).
+  function smoothstep(t) { t = clamp01(t); return t * t * (3 - 2 * t); }
 
+  var warping = false;
+
+  // ── Motion blur (CSS filter on the viewer container) ───────────
+  // Two short CSS transitions do the ramping; JS only toggles a class,
+  // so there's no per-frame DOM work competing with the WebGL render.
+  var blurClearTimer = null;
+  function applyWarpBlur() {
+    if (!panoElement || !WARP.blurPx) return;
+    panoElement.style.setProperty('--warp-blur', WARP.blurPx + 'px');
+    panoElement.classList.add('tour-warp-blur');
+    if (blurClearTimer) clearTimeout(blurClearTimer);
+    // Ease the blur back to 0 around the transition midpoint.
+    blurClearTimer = setTimeout(function () {
+      panoElement.classList.remove('tour-warp-blur');
+    }, WARP.durationMs * WARP.blurClearAt);
+  }
+  function clearWarpBlur() {
+    if (blurClearTimer) { clearTimeout(blurClearTimer); blurClearTimer = null; }
+    if (panoElement) panoElement.classList.remove('tour-warp-blur');
+  }
+
+  // Menu / non-directional jumps: a plain opacity crossfade, no dolly.
+  function switchScene(scene) {
+    if (warping || !scene) return;
     warping = true;
     stopAutorotate();
+    scene.view.setParameters(scene.data.initialViewParameters);
+    scene.scene.switchTo({ transitionDuration: WARP.menuCrossfadeMs }, function () {
+      warping = false;
+      startAutorotate();
+    });
+    updateSceneName(scene);
+    updateSceneList(scene);
+  }
 
-    var overlay = getWarpOverlay();
-    var view = currentScene.view;
-    var startYaw   = view.yaw();
-    var startPitch = view.pitch();
-    var startFov   = view.fov();
+  // ── moveToScene: orchestrate the turn-then-travel navigation ───
+  // Street View first rotates to face the arrow, then moves. We mirror
+  // that: a short `lookTo` head-turn to the travel heading, then the warp
+  // (startWarp). If the camera is already facing the arrow, or lookTo is
+  // unavailable, we skip straight to the warp. Falls back to switchScene
+  // when there is no current scene to depart from.
+  function moveToScene(newSceneObj, hotspot) {
+    // Ignore clicks while a transition is running so rapid taps can't stack
+    // transitions or strand the viewer mid-effect.
+    if (warping || !newSceneObj || !hotspot) return;
 
-    var initial = targetScene.data.initialViewParameters || {};
-    var endFov  = typeof initial.fov === 'number' ? initial.fov : Math.PI / 2;
-    var warpFov = Math.max(0.32, endFov * 0.42); // tight zoom at impact
+    var currentScene = currentSceneObj();
+    if (!currentScene) { switchScene(newSceneObj); return; }
 
-    var ZOOM_IN_MS  = 360;
-    var ZOOM_OUT_MS = 420;
+    // How far we must rotate to face the clicked arrow.
+    var startYaw = currentScene.view.yaw();
+    var turnRad  = Math.abs(angleDelta(startYaw, hotspot.yaw));
+    var skipRad  = TURN.skipBelowDeg * Math.PI / 180;
 
-    // Phase 1: rotate toward the hotspot + zoom in + fade to black.
-    tween(ZOOM_IN_MS, easeInCubic, function(t) {
-      view.setParameters({
-        yaw:   lerpAngle(startYaw,   hotspot.yaw,   t),
-        pitch: lerpAngle(startPitch, hotspot.pitch, t),
-        fov:   lerp(startFov, warpFov, t)
-      });
-      overlay.style.opacity = String(t);
-    }, function() {
-      // Land in the new scene at the same tight FOV, looking at its
-      // initial heading. Skip Marzipano's built-in cross-fade so we
-      // control the whole transition.
-      targetScene.view.setParameters({
-        yaw:   typeof initial.yaw   === 'number' ? initial.yaw   : 0,
-        pitch: typeof initial.pitch === 'number' ? initial.pitch : 0,
-        fov:   warpFov
-      });
-      targetScene.scene.switchTo({ transitionDuration: 0 });
-      updateSceneName(targetScene);
-      updateSceneList(targetScene);
+    // Already facing the arrow (e.g. a chevron dead ahead), or no lookTo
+    // to animate with → warp straight away without the pre-turn.
+    if (turnRad < skipRad || typeof viewer.lookTo !== 'function') {
+      startWarp(currentScene, newSceneObj, hotspot);
+      return;
+    }
 
-      // Phase 2: zoom back out + fade from black.
-      tween(ZOOM_OUT_MS, easeOutCubic, function(t) {
-        targetScene.view.setFov(lerp(warpFov, endFov, t));
-        overlay.style.opacity = String(1 - t);
-      }, function() {
-        overlay.style.opacity = '0';
+    // Turn-then-travel: hold the guard across the whole beat, rotate to the
+    // travel heading, then hand off to the warp.
+    warping = true;
+    stopAutorotate();
+    viewer.controls().disable();
+
+    var didWarp = false;
+    var runWarp = function () {
+      if (didWarp) return;
+      didWarp = true;
+      // startWarp re-enables controls and clears `warping` when it lands.
+      startWarp(currentScene, newSceneObj, hotspot);
+    };
+
+    try {
+      var look = { yaw: hotspot.yaw, pitch: hotspot.pitch };
+      if (TURN.narrowFov) look.fov = Math.max(0.3, currentScene.view.fov() * TURN.narrowFov);
+      viewer.lookTo(look, { transitionDuration: TURN.durationMs, shortest: true }, runWarp);
+      // Safety net: if the tween never reports done, warp anyway.
+      setTimeout(runWarp, TURN.durationMs + 120);
+    } catch (err) {
+      runWarp();
+    }
+  }
+
+  // ── startWarp: Street-View dolly transition ────────────────────
+  // A single Marzipano switchTo() drives the whole effect, so both scenes
+  // stay live — no teardown, no black flash:
+  //   1. the outgoing view pans toward the clicked hotspot while its FOV
+  //      NARROWS (pushes forward down the path);
+  //   2. the incoming scene is seated WIDE and facing the travel heading,
+  //      then settles back to its normal FOV as it crossfades in;
+  //   3. a container blur ramps up and clears as the new scene lands.
+  // Everything is eased with smoothstep. Assumes the caller resolved the
+  // current scene; falls back to switchScene on error.
+  function startWarp(currentScene, newSceneObj, hotspot) {
+    var startView  = currentScene.view;
+    var startYaw   = startView.yaw();
+    var startPitch = startView.pitch();
+    var startFov   = startView.fov();
+
+    var initial   = newSceneObj.data.initialViewParameters || {};
+    var baseFov   = typeof initial.fov === 'number' ? initial.fov : Math.PI / 2;
+    var pushFov   = Math.max(0.3, baseFov * WARP.zoomFactor);        // outgoing narrows to this
+    // Incoming blooms wide, but never past the limiter's maxFov or setFov
+    // would clamp it and the settle-back would do nothing.
+    var wideFov   = Math.min(baseFov * WARP.wideFactor, FOV_MAX - 0.005);
+    // Direction of travel: an explicit per-arrow targetYaw wins; otherwise
+    // open the destination facing the yaw of the clicked arrow.
+    var landingYaw   = typeof hotspot.targetYaw === 'number' ? hotspot.targetYaw : hotspot.yaw;
+    var landingPitch = typeof initial.pitch === 'number' ? initial.pitch : 0;
+
+    try {
+      warping = true;
+      stopAutorotate();
+      viewer.controls().disable();
+      applyWarpBlur();
+
+      // Seat the destination wide and facing the travel direction before it
+      // starts fading in.
+      newSceneObj.view.setParameters({ yaw: landingYaw, pitch: landingPitch, fov: wideFov });
+
+      newSceneObj.scene.switchTo({
+        transitionDuration: WARP.durationMs,
+        transitionUpdate: function (val, newScene, oldScene) {
+          // Two overlapping smoothstep phases from one tween: the outgoing
+          // push lands early (~zoomInFrac); the incoming settle runs over
+          // the remainder. All curves are smoothstep, none linear.
+          var inP  = smoothstep(clamp01(val / WARP.zoomInFrac));
+          var outP = smoothstep(clamp01((val - WARP.zoomOutStart) / (1 - WARP.zoomOutStart)));
+          var fade = smoothstep(clamp01((val - WARP.fadeStart) / (1 - WARP.fadeStart)));
+
+          // Crossfade the destination (layers + its hotspots) in over the
+          // still-visible current scene — mirrors Marzipano's default.
+          newScene.listLayers().forEach(function (layer) {
+            layer.mergeEffects({ opacity: fade });
+          });
+          newScene.hotspotContainer().domElement().style.opacity = fade;
+
+          // Outgoing: pan toward the arrow + push forward (narrow).
+          oldScene.view().setParameters({
+            yaw:   lerpAngle(startYaw,   hotspot.yaw,   inP),
+            pitch: lerpAngle(startPitch, hotspot.pitch, inP),
+            fov:   lerp(startFov, pushFov, inP)
+          });
+          // Incoming: bloom wide, then settle back to the normal FOV.
+          newScene.view().setFov(lerp(wideFov, baseFov, outP));
+        }
+      }, function () {
+        // Land clean at the intended heading and base FOV.
+        newSceneObj.view.setParameters({ yaw: landingYaw, pitch: landingPitch, fov: baseFov });
+        // Reset the scene we left back to its resting view so it never
+        // lingers mid-dolly if the user returns to it later.
+        currentScene.view.setParameters(currentScene.data.initialViewParameters);
+        clearWarpBlur();
+        viewer.controls().enable();
         warping = false;
         startAutorotate();
+        updateSceneName(newSceneObj);
+        updateSceneList(newSceneObj);
       });
-    });
+    } catch (err) {
+      // Never strand the viewer: undo transient state and hard-switch.
+      clearWarpBlur();
+      try { viewer.controls().enable(); } catch (e2) {}
+      warping = false;
+      switchScene(newSceneObj);
+    }
   }
 
   function updateSceneName(scene) {
@@ -444,10 +558,10 @@ function initTour() {
       icon.style[property] = 'rotate(' + hotspot.rotation + 'rad)';
     }
 
-    // Add click event handler — warp to the target scene.
+    // Add click event handler — move to the target scene.
     wrapper.addEventListener('click', function() {
       var target = findSceneById(hotspot.target);
-      if (target) warpToScene(target, hotspot);
+      if (target) moveToScene(target, hotspot);
     });
 
     // Prevent touch and scroll events from reaching the parent element.
@@ -550,6 +664,209 @@ function initTour() {
     }
   }
 
+  // ════════════════════════════════════════════════════════════════
+  //  Feature 2 — Street-View-style cursor ground indicator
+  //
+  //  A translucent disc glides along the ground under the cursor and
+  //  morphs into a directional chevron when the cursor points along a
+  //  navigation path; clicking the chevron warps down that path. It is
+  //  a single pointer-events:none overlay reprojected each animation
+  //  frame from yaw/pitch, so it never fights Marzipano's drag-to-look
+  //  and does no per-frame layout. Mouse/hover only — touchscreens keep
+  //  the static arrows (handled by the `hoverCapable` gate below).
+  // ════════════════════════════════════════════════════════════════
+
+  var NAV = {
+    groundPitchMin: 0.15,  // rad below the horizon before the disc appears
+    snapYawDeg:     25,    // cursor within this yaw of a link → chevron
+    discBasePx:     120,   // intrinsic element size; scaled per-frame
+    discMinScale:   0.34,  // size factor at the horizon (far)
+    discMaxScale:   1.0,   // size factor underfoot (near)
+    flattenFar:     0.32,  // vertical squash near the horizon (flat ellipse)
+    flattenNear:    0.78,  // vertical squash underfoot (rounder)
+    dragThreshold:  6,     // px of movement that counts as a drag, not a click
+    noPathPulse:    false  // pulse the disc when clicking ground with no path
+  };
+
+  var gi = null; // ground-indicator state, populated by initGroundIndicator()
+
+  function currentSceneObj() {
+    var s = viewer.scene();
+    for (var i = 0; i < scenes.length; i++) {
+      if (scenes[i].scene === s) return scenes[i];
+    }
+    return null;
+  }
+
+  // Smallest signed angular difference a→b, in (-π, π].
+  function angleDelta(a, b) {
+    var d = b - a;
+    while (d >  Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    return d;
+  }
+
+  function buildIndicatorElement() {
+    var wrap = document.createElement('div');
+    wrap.className = 'ground-indicator';
+    // Disc: a flattened ring drawn as an SVG ellipse.
+    var disc = document.createElement('div');
+    disc.className = 'ground-indicator__disc';
+    disc.innerHTML =
+      '<svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">' +
+        '<ellipse cx="60" cy="60" rx="54" ry="54" class="gi-ring"></ellipse>' +
+        '<ellipse cx="60" cy="60" rx="20" ry="20" class="gi-dot"></ellipse>' +
+      '</svg>';
+    // Chevron: an arrow that points along the snapped path.
+    var chev = document.createElement('div');
+    chev.className = 'ground-indicator__chevron';
+    chev.innerHTML =
+      '<svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">' +
+        '<path d="M60 24 L96 84 L60 66 L24 84 Z" class="gi-arrow"></path>' +
+      '</svg>';
+    wrap.appendChild(disc);
+    wrap.appendChild(chev);
+    return { wrap: wrap, disc: disc, chev: chev };
+  }
+
+  function initGroundIndicator() {
+    if (gi || !panoElement || !viewer) return;
+
+    // Hover/mouse only. Touchscreens (incl. the kiosk) keep the static
+    // arrows and never see the disc — there is no cursor to follow.
+    var hoverCapable = !window.matchMedia ||
+      window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (!hoverCapable) return;
+
+    var el = buildIndicatorElement();
+    panoElement.appendChild(el.wrap);
+    document.body.classList.add('nav-indicator-on'); // CSS hides static arrows
+
+    gi = {
+      el: el,
+      cx: 0, cy: 0,        // last cursor pos relative to #pano
+      inside: false,
+      down: false, downX: 0, downY: 0, dragged: false,
+      armed: null,         // linkHotspot the cursor is currently snapped to
+      raf: 0,
+      pulseUntil: 0
+    };
+
+    var rect = function () { return panoElement.getBoundingClientRect(); };
+
+    // Pointer tracking. Passive + never preventDefault/stopPropagation, so
+    // Marzipano's own drag controls keep working untouched.
+    panoElement.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'touch') return;
+      var r = rect();
+      gi.cx = e.clientX - r.left;
+      gi.cy = e.clientY - r.top;
+      gi.inside = true;
+      if (gi.down) {
+        var dx = e.clientX - gi.downX, dy = e.clientY - gi.downY;
+        if (dx * dx + dy * dy > NAV.dragThreshold * NAV.dragThreshold) gi.dragged = true;
+      }
+    }, { passive: true });
+
+    panoElement.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'touch') return;
+      gi.down = true; gi.dragged = false;
+      gi.downX = e.clientX; gi.downY = e.clientY;
+    }, { passive: true });
+
+    panoElement.addEventListener('pointerup', function (e) {
+      if (e.pointerType === 'touch') return;
+      var wasClick = gi.down && !gi.dragged;
+      gi.down = false;
+      if (!wasClick || warping) return;
+      if (gi.armed) {
+        var target = findSceneById(gi.armed.target);
+        if (target) moveToScene(target, gi.armed);
+      } else if (NAV.noPathPulse) {
+        gi.pulseUntil = performance.now() + 320;
+      }
+    }, { passive: true });
+
+    panoElement.addEventListener('pointerleave', function () {
+      gi.inside = false;
+    }, { passive: true });
+
+    function frame() {
+      updateIndicator();
+      gi.raf = requestAnimationFrame(frame);
+    }
+    gi.raf = requestAnimationFrame(frame);
+  }
+
+  function hideIndicator() {
+    if (gi) {
+      gi.el.wrap.classList.remove('is-visible', 'is-snapped', 'is-pulse');
+      gi.armed = null;
+    }
+    if (panoElement) panoElement.style.cursor = '';
+  }
+
+  function updateIndicator() {
+    if (!gi) return;
+
+    // Never compete with a drag, a warp, or an off-canvas cursor.
+    if (!gi.inside || gi.dragged || warping) { hideIndicator(); return; }
+
+    var sceneObj = currentSceneObj();
+    var view = sceneObj && sceneObj.view;
+    if (!view) { hideIndicator(); return; }
+
+    var ground = view.screenToCoordinates({ x: gi.cx, y: gi.cy });
+    if (!ground || ground.pitch < NAV.groundPitchMin) { hideIndicator(); return; }
+
+    // Perspective: flatter + smaller toward the horizon, rounder + larger
+    // underfoot. Derive both from how far below the horizon we point.
+    var span = (Math.PI / 2) - NAV.groundPitchMin;
+    var t = clamp01((ground.pitch - NAV.groundPitchMin) / span);
+    var scale   = lerp(NAV.discMinScale, NAV.discMaxScale, t);
+    var flatten = lerp(NAV.flattenFar,   NAV.flattenNear,  t);
+
+    var screen = view.coordinatesToScreen({ yaw: ground.yaw, pitch: ground.pitch });
+    if (!screen) { hideIndicator(); return; }
+
+    // Snap test: nearest navigation link within the yaw threshold.
+    var links = (sceneObj.data.linkHotspots || []);
+    var snapRad = NAV.snapYawDeg * Math.PI / 180;
+    var best = null, bestAbs = snapRad;
+    for (var i = 0; i < links.length; i++) {
+      var d = Math.abs(angleDelta(ground.yaw, links[i].yaw));
+      if (d < bestAbs) { bestAbs = d; best = links[i]; }
+    }
+    gi.armed = best;
+
+    var wrap = gi.el.wrap;
+    wrap.classList.add('is-visible');
+    // Position the wrapper at the ground point (its own transform centers it).
+    wrap.style.transform = 'translate(' + screen.x + 'px,' + screen.y + 'px)';
+
+    if (best) {
+      // Chevron pointing along the path: project a point a bit further along
+      // the link's yaw and aim the arrow at it in screen space.
+      wrap.classList.add('is-snapped');
+      var ahead = view.coordinatesToScreen({
+        yaw: best.yaw,
+        pitch: Math.min(ground.pitch + 0.12, Math.PI / 2)
+      });
+      var ang = 0;
+      if (ahead) ang = Math.atan2(ahead.y - screen.y, ahead.x - screen.x) + Math.PI / 2;
+      gi.el.chev.style.transform =
+        'translate(-50%,-50%) scale(' + scale + ') rotate(' + ang + 'rad)';
+      panoElement.style.cursor = 'pointer';
+    } else {
+      wrap.classList.remove('is-snapped');
+      gi.el.disc.style.transform =
+        'translate(-50%,-50%) scale(' + scale + ',' + (scale * flatten) + ')';
+      panoElement.style.cursor = '';
+    }
+
+    wrap.classList.toggle('is-pulse', NAV.noPathPulse && performance.now() < gi.pulseUntil && !best);
+  }
+
   function findSceneById(id) {
     for (var i = 0; i < scenes.length; i++) {
       if (scenes[i].data.id === id) {
@@ -592,6 +909,7 @@ function initTour() {
     if (scenes.length) {
       switchScene(scenes[0]);
     }
+    initGroundIndicator();
     publishTourBridge();
   }
 
