@@ -266,19 +266,27 @@ function initTour() {
   }
 
   // ── Transition tuning ──────────────────────────────────────────
-  // Every parameter of the Street-View-style warp lives here so the
-  // whole effect can be re-timed from one place.
+  // Street-View-style "walking" transition: a stretch+zoom phase (the
+  // outgoing view pulls toward the travel direction and pushes forward),
+  // then a blend phase (incoming scene fades in, FOV relaxes to base).
+  // zoomK = stretchRamp * (1 - blendRamp) drives the CSS stretch + blur,
+  // both ramps eased with `easing`.
+  function easeInOutQuad(t) {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+
   var WARP = {
-    durationMs:     900,   // total arrow warp (spec: 800–1000)
-    zoomFactor:     0.5,   // outgoing FOV pushes down to 0.5 × base (narrow)
-    wideFactor:     1.25,  // incoming FOV starts at 1.25 × base (capped to FOV_MAX)
-    zoomInFrac:     0.4,   // outgoing push completes by this fraction
-    zoomOutStart:   0.3,   // incoming settle begins at this fraction
-    fadeStart:      0.15,  // when the destination starts becoming visible
-    blurPx:         6,     // motion-blur peak; set 0 to disable the blur
-    blurClearAt:    0.5,   // fraction of duration at which blur starts clearing
-    menuCrossfadeMs: 450   // plain crossfade for scene-list jumps (no dolly)
+    durationMs:   1400,          // total transition (spec: 900–2400)
+    stretchPhase: 0.6,           // fraction of timeline in stretch+zoom (0–0.95)
+    zoomStrength: 0.35,          // max FOV reduction / CSS scale bump (0–0.5)
+    blurPx:       8,             // peak blur in px at full stretch (0–30; 0 disables)
+    easing:       easeInOutQuad,
+    menuCrossfadeMs: 450         // plain crossfade for scene-list jumps (no dolly)
   };
+
+  var SUPPORTS_CSS_FILTER = typeof CSS !== 'undefined' &&
+    typeof CSS.supports === 'function' &&
+    CSS.supports('filter', 'blur(1px)');
 
   // ── Turn-then-travel tuning ────────────────────────────────────
   // Street View turns to face the arrow BEFORE moving. This short
@@ -299,29 +307,7 @@ function initTour() {
     while (d < -Math.PI) d += 2 * Math.PI;
     return a + d * t;
   }
-  // Smoothstep — the eased curve for the whole warp (spec: not linear).
-  function smoothstep(t) { t = clamp01(t); return t * t * (3 - 2 * t); }
-
   var warping = false;
-
-  // ── Motion blur (CSS filter on the viewer container) ───────────
-  // Two short CSS transitions do the ramping; JS only toggles a class,
-  // so there's no per-frame DOM work competing with the WebGL render.
-  var blurClearTimer = null;
-  function applyWarpBlur() {
-    if (!panoElement || !WARP.blurPx) return;
-    panoElement.style.setProperty('--warp-blur', WARP.blurPx + 'px');
-    panoElement.classList.add('tour-warp-blur');
-    if (blurClearTimer) clearTimeout(blurClearTimer);
-    // Ease the blur back to 0 around the transition midpoint.
-    blurClearTimer = setTimeout(function () {
-      panoElement.classList.remove('tour-warp-blur');
-    }, WARP.durationMs * WARP.blurClearAt);
-  }
-  function clearWarpBlur() {
-    if (blurClearTimer) { clearTimeout(blurClearTimer); blurClearTimer = null; }
-    if (panoElement) panoElement.classList.remove('tour-warp-blur');
-  }
 
   // Menu / non-directional jumps: a plain opacity crossfade, no dolly.
   function switchScene(scene) {
@@ -388,16 +374,18 @@ function initTour() {
     }
   }
 
-  // ── startWarp: Street-View dolly transition ────────────────────
+  // ── startWarp: Street-View walking transition ──────────────────
   // A single Marzipano switchTo() drives the whole effect, so both scenes
-  // stay live — no teardown, no black flash:
-  //   1. the outgoing view pans toward the clicked hotspot while its FOV
-  //      NARROWS (pushes forward down the path);
-  //   2. the incoming scene is seated WIDE and facing the travel heading,
-  //      then settles back to its normal FOV as it crossfades in;
-  //   3. a container blur ramps up and clears as the new scene lands.
-  // Everything is eased with smoothstep. Assumes the caller resolved the
-  // current scene; falls back to switchScene on error.
+  // stay live — no teardown, no black flash. Two phases on one timeline:
+  //   1. stretch+zoom (first `stretchPhase` of the duration): the outgoing
+  //      view pans toward the clicked hotspot and its FOV eases down
+  //      (zoom in), while #pano gets a CSS radial-stretch transform and a
+  //      blur, both locked to zoomK so they build with the stretch and
+  //      land at zero exactly at the phase boundary/arrival;
+  //   2. blend (remainder): the incoming scene fades in via layer opacity
+  //      while its FOV relaxes back to base, landing sharp/normal-zoom at
+  //      t=1. Both ramps use `WARP.easing`. Assumes the caller resolved
+  //      the current scene; falls back to switchScene on error.
   function startWarp(currentScene, newSceneObj, hotspot) {
     var startView  = currentScene.view;
     var startYaw   = startView.yaw();
@@ -406,58 +394,91 @@ function initTour() {
 
     var initial   = newSceneObj.data.initialViewParameters || {};
     var baseFov   = typeof initial.fov === 'number' ? initial.fov : Math.PI / 2;
-    var pushFov   = Math.max(0.3, baseFov * WARP.zoomFactor);        // outgoing narrows to this
-    // Incoming blooms wide, but never past the limiter's maxFov or setFov
-    // would clamp it and the settle-back would do nothing.
-    var wideFov   = Math.min(baseFov * WARP.wideFactor, FOV_MAX - 0.005);
     // Direction of travel: an explicit per-arrow targetYaw wins; otherwise
     // open the destination facing the yaw of the clicked arrow.
     var landingYaw   = typeof hotspot.targetYaw === 'number' ? hotspot.targetYaw : hotspot.yaw;
     var landingPitch = typeof initial.pitch === 'number' ? initial.pitch : 0;
 
+    // Screen projection of the clicked hotspot, for the CSS stretch's
+    // transform-origin. Falls back to viewport center if the projection
+    // is unavailable (e.g. hotspot outside the current frustum).
+    var origin = '50% 50%';
+    try {
+      var screen = startView.coordinatesToScreen({ yaw: hotspot.yaw, pitch: hotspot.pitch });
+      if (screen && typeof screen.x === 'number' && typeof screen.y === 'number' &&
+          !isNaN(screen.x) && !isNaN(screen.y)) {
+        origin = screen.x + 'px ' + screen.y + 'px';
+      }
+    } catch (e) { /* keep center fallback */ }
+
+    var outgoingHotspots = currentScene.scene.hotspotContainer().domElement();
+    var incomingHotspots = null; // resolved once newScene is available in transitionUpdate
+
+    function resetPano() {
+      panoElement.style.transform = '';
+      panoElement.style.filter = '';
+    }
+
+    function restoreHotspots() {
+      outgoingHotspots.style.opacity = '';
+      if (incomingHotspots) incomingHotspots.style.opacity = '';
+    }
+
     try {
       warping = true;
       stopAutorotate();
       viewer.controls().disable();
-      applyWarpBlur();
 
-      // Seat the destination wide and facing the travel direction before it
-      // starts fading in.
-      newSceneObj.view.setParameters({ yaw: landingYaw, pitch: landingPitch, fov: wideFov });
+      // Hide both scenes' hotspots for the duration of the transition.
+      outgoingHotspots.style.opacity = 0;
+
+      // Seat the destination facing the travel direction, at base FOV,
+      // before it starts fading in.
+      newSceneObj.view.setParameters({ yaw: landingYaw, pitch: landingPitch, fov: baseFov });
 
       newSceneObj.scene.switchTo({
         transitionDuration: WARP.durationMs,
         transitionUpdate: function (val, newScene, oldScene) {
-          // Two overlapping smoothstep phases from one tween: the outgoing
-          // push lands early (~zoomInFrac); the incoming settle runs over
-          // the remainder. All curves are smoothstep, none linear.
-          var inP  = smoothstep(clamp01(val / WARP.zoomInFrac));
-          var outP = smoothstep(clamp01((val - WARP.zoomOutStart) / (1 - WARP.zoomOutStart)));
-          var fade = smoothstep(clamp01((val - WARP.fadeStart) / (1 - WARP.fadeStart)));
+          if (!incomingHotspots) {
+            incomingHotspots = newScene.hotspotContainer().domElement();
+            incomingHotspots.style.opacity = 0;
+          }
+
+          var stretchRamp = WARP.easing(clamp01(val / WARP.stretchPhase));
+          var blendRamp   = WARP.easing(clamp01((val - WARP.stretchPhase) / (1 - WARP.stretchPhase)));
+          var zoomK       = stretchRamp * (1 - blendRamp);
 
           // Crossfade the destination (layers + its hotspots) in over the
-          // still-visible current scene — mirrors Marzipano's default.
+          // still-visible current scene.
           newScene.listLayers().forEach(function (layer) {
-            layer.mergeEffects({ opacity: fade });
+            layer.mergeEffects({ opacity: blendRamp });
           });
-          newScene.hotspotContainer().domElement().style.opacity = fade;
 
-          // Outgoing: pan toward the arrow + push forward (narrow).
+          // Outgoing: pan toward the arrow + ease FOV down (zoom in).
           oldScene.view().setParameters({
-            yaw:   lerpAngle(startYaw,   hotspot.yaw,   inP),
-            pitch: lerpAngle(startPitch, hotspot.pitch, inP),
-            fov:   lerp(startFov, pushFov, inP)
+            yaw:   lerpAngle(startYaw,   hotspot.yaw,   stretchRamp),
+            pitch: lerpAngle(startPitch, hotspot.pitch, stretchRamp),
+            fov:   startFov * (1 - WARP.zoomStrength * stretchRamp)
           });
-          // Incoming: bloom wide, then settle back to the normal FOV.
-          newScene.view().setFov(lerp(wideFov, baseFov, outP));
+          // Incoming: relax its FOV back to base over the blend phase.
+          newScene.view().setFov(baseFov * (1 - WARP.zoomStrength * (1 - blendRamp)));
+
+          // Radial stretch + locked blur, applied to the single shared
+          // canvas wrapper (Marzipano has no per-scene DOM node here).
+          panoElement.style.transformOrigin = origin;
+          panoElement.style.transform = 'scale(' + (1 + WARP.zoomStrength * zoomK) + ')';
+          if (SUPPORTS_CSS_FILTER && WARP.blurPx) {
+            panoElement.style.filter = 'blur(' + (zoomK * WARP.blurPx) + 'px)';
+          }
         }
       }, function () {
         // Land clean at the intended heading and base FOV.
         newSceneObj.view.setParameters({ yaw: landingYaw, pitch: landingPitch, fov: baseFov });
         // Reset the scene we left back to its resting view so it never
-        // lingers mid-dolly if the user returns to it later.
+        // lingers mid-warp if the user returns to it later.
         currentScene.view.setParameters(currentScene.data.initialViewParameters);
-        clearWarpBlur();
+        resetPano();
+        restoreHotspots();
         viewer.controls().enable();
         warping = false;
         startAutorotate();
@@ -466,7 +487,8 @@ function initTour() {
       });
     } catch (err) {
       // Never strand the viewer: undo transient state and hard-switch.
-      clearWarpBlur();
+      resetPano();
+      restoreHotspots();
       try { viewer.controls().enable(); } catch (e2) {}
       warping = false;
       switchScene(newSceneObj);
