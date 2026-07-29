@@ -42,7 +42,16 @@ a, a:hover, a:active, a:visited {
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.35s ease, filter 0.22s ease-out;
+}
+
+/* Motion blur during a scene warp — kiosk-tour.js adds this class at the
+   start of a warp and removes it near the midpoint, so the CSS transition
+   ramps the blur up then eases it back to 0. Class toggle only: no
+   per-frame work competes with the WebGL render. */
+#pano.tour-warp-blur {
+  filter: blur(var(--warp-blur, 6px));
+  will-change: filter;
 }
 
 body.tour-ready #pano {
@@ -1505,18 +1514,96 @@ body.tour-ready .tour-search-dock {
   box-shadow: 0 0 0 4px rgba(10, 10, 10, 0.18);
 }
 
-/* ── Warp transition overlay (Street-View-style scene jump) ──────
-   Black fade injected by kiosk-tour.js during warpToScene().
-   Stays above the panorama, below the search dock, and is never
-   interactive. Opacity is driven by JS, not CSS transitions, so
-   the curve stays in lock-step with the FOV tween.
-*/
-.tour-warp-overlay {
-  position: fixed;
-  inset: 0;
-  background: #000;
-  opacity: 0;
+/* ── Feature 2: cursor ground navigation indicator ──────────────────
+   A pointer-events:none overlay glued to the ground under the cursor
+   (kiosk-tour.js reprojects it each frame). Disc when hovering ground,
+   chevron when snapped to a navigation path. Mouse/hover only; on touch
+   the static .link-hotspot arrows are used instead (see below). */
+.ground-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 30;
   pointer-events: none;
-  z-index: 9000;
-  will-change: opacity;
+  opacity: 0;
+  transition: opacity 140ms ease;
+  will-change: transform;
+}
+
+.ground-indicator.is-visible {
+  opacity: 1;
+}
+
+.ground-indicator__disc,
+.ground-indicator__chevron {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 120px;
+  height: 120px;
+  transform-origin: 50% 50%;
+  transform: translate(-50%, -50%);
+  transition: opacity 120ms ease;
+  will-change: transform;
+  filter: drop-shadow(0 2px 4px rgba(10, 10, 10, 0.45));
+}
+
+/* Disc by default; chevron once snapped to a path. */
+.ground-indicator__chevron { opacity: 0; }
+.ground-indicator__disc    { opacity: 1; }
+.ground-indicator.is-snapped .ground-indicator__disc    { opacity: 0; }
+.ground-indicator.is-snapped .ground-indicator__chevron { opacity: 1; }
+
+.ground-indicator svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.ground-indicator .gi-ring {
+  fill: rgba(255, 255, 255, 0.16);
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 4;
+}
+.ground-indicator .gi-dot {
+  fill: rgba(255, 255, 255, 0.85);
+}
+.ground-indicator .gi-arrow {
+  fill: rgba(255, 255, 255, 0.94);
+  stroke: rgba(20, 20, 20, 0.35);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+/* "No path here" feedback (config-gated). */
+.ground-indicator.is-pulse .ground-indicator__disc {
+  animation: gi-pulse 320ms ease-out;
+}
+@keyframes gi-pulse {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.35; }
+  100% { opacity: 1; }
+}
+
+/* When the cursor indicator is active (hover devices), the static link
+   arrows are redundant — hide them. Info hotspots are unaffected, and
+   touch devices never get this class so their arrows stay. !important
+   overrides Marzipano's inline `display` (it toggles that per hotspot to
+   cull off-screen ones). */
+body.nav-indicator-on .link-hotspot {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ground-indicator,
+  .ground-indicator__disc,
+  .ground-indicator__chevron {
+    transition: none;
+  }
+  .ground-indicator.is-pulse .ground-indicator__disc {
+    animation: none;
+  }
 }
