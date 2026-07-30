@@ -53,3 +53,29 @@ class TourScenesCatalog:
             for scene in scenes
             if scene.get("id")
         ]
+
+    @classmethod
+    def scene_by_id(cls, scene_id):
+        """Return the full scene dict (id, name, levels, faceSize, ...) for
+        one scene_id, or None if missing/unparsable. Unlike all_scenes(),
+        this keeps every field — callers that need `levels` (e.g. the
+        equirect generator) use this instead."""
+        try:
+            with open(_DATA_JS_PATH, "r", encoding="utf-8") as f:
+                contents = f.read()
+        except OSError:
+            return None
+
+        stripped = _PREFIX_RE.sub("", contents, count=1).strip()
+        if stripped.endswith(";"):
+            stripped = stripped[:-1].strip()
+
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            return None
+
+        for scene in payload.get("scenes") or []:
+            if scene.get("id") == scene_id:
+                return scene
+        return None

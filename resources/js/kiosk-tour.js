@@ -63,11 +63,18 @@ function ensureTourDependencies() {
       })
     );
   }
+  if (!window.THREE) {
+    // Non-fatal if this never resolves: the zoom-blend transition degrades
+    // to a hard scene switch per-click (see startWarp's onError path)
+    // rather than blocking the whole tour from loading.
+    loaders.push(loadTourScript('/pano/vendor/three.min.js').catch(function() {}));
+  }
   return Promise.all(loaders);
 }
 
 function initTour() {
   var Marzipano = window.Marzipano;
+  var THREE = window.THREE;
   var bowser = window.bowser || {};
   var screenfull = window.screenfull;
   var data = window.APP_DATA || { scenes: [], settings: {} };
@@ -265,28 +272,7 @@ function initTour() {
     return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;');
   }
 
-  // ── Transition tuning ──────────────────────────────────────────
-  // Street-View-style "walking" transition: a stretch+zoom phase (the
-  // outgoing view pulls toward the travel direction and pushes forward),
-  // then a blend phase (incoming scene fades in, FOV relaxes to base).
-  // zoomK = stretchRamp * (1 - blendRamp) drives the CSS stretch + blur,
-  // both ramps eased with `easing`.
-  function easeInOutQuad(t) {
-    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-  }
-
-  var WARP = {
-    durationMs:   1400,          // total transition (spec: 900–2400)
-    stretchPhase: 0.6,           // fraction of timeline in stretch+zoom (0–0.95)
-    zoomStrength: 0.35,          // max FOV reduction / CSS scale bump (0–0.5)
-    blurPx:       8,             // peak blur in px at full stretch (0–30; 0 disables)
-    easing:       easeInOutQuad,
-    menuCrossfadeMs: 450         // plain crossfade for scene-list jumps (no dolly)
-  };
-
-  var SUPPORTS_CSS_FILTER = typeof CSS !== 'undefined' &&
-    typeof CSS.supports === 'function' &&
-    CSS.supports('filter', 'blur(1px)');
+  var MENU_CROSSFADE_MS = 450; // plain crossfade for scene-list jumps (no dolly)
 
   // ── Turn-then-travel tuning ────────────────────────────────────
   // Street View turns to face the arrow BEFORE moving. This short
@@ -315,7 +301,7 @@ function initTour() {
     warping = true;
     stopAutorotate();
     scene.view.setParameters(scene.data.initialViewParameters);
-    scene.scene.switchTo({ transitionDuration: WARP.menuCrossfadeMs }, function () {
+    scene.scene.switchTo({ transitionDuration: MENU_CROSSFADE_MS }, function () {
       warping = false;
       startAutorotate();
     });
@@ -374,120 +360,272 @@ function initTour() {
     }
   }
 
-  // ── startWarp: Street-View walking transition ──────────────────
-  // A single Marzipano switchTo() drives the whole effect, so both scenes
-  // stay live — no teardown, no black flash. Two phases on one timeline:
-  //   1. stretch+zoom (first `stretchPhase` of the duration): the outgoing
-  //      view pans toward the clicked hotspot and its FOV eases down
-  //      (zoom in), while #pano gets a CSS radial-stretch transform and a
-  //      blur, both locked to zoomK so they build with the stretch and
-  //      land at zero exactly at the phase boundary/arrival;
-  //   2. blend (remainder): the incoming scene fades in via layer opacity
-  //      while its FOV relaxes back to base, landing sharp/normal-zoom at
-  //      t=1. Both ramps use `WARP.easing`. Assumes the caller resolved
-  //      the current scene; falls back to switchScene on error.
-  function startWarp(currentScene, newSceneObj, hotspot) {
-    var startView  = currentScene.view;
+  // ── TourZoomBlendTransition: Street-View zoom-blend transition ──
+  // A Three.js overlay (a textured sphere, camera seated at the exact
+  // current yaw/pitch/fov so there's no jump) covers the Marzipano canvas
+  // for the whole transition. First half: fov eases down (zoom in) while
+  // panning toward the clicked hotspot, texture mix stays at the current
+  // scene. Second half: mixAmount eases 0->1 (cross-blend to the
+  // destination's equirect) while fov eases back up to the destination's
+  // base fov. On completion, the real Marzipano scene is switched to
+  // instantly (still hidden under the overlay) and the overlay is torn
+  // down, handing control back to normal Marzipano rendering/input.
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  var ZOOM_BLEND = {
+    durationMs:   1350,  // spec: 1200-1500ms
+    zoomStrength: 0.55,  // fraction of live fov shed at the phase midpoint
+    easing:       easeInOutCubic
+  };
+
+  function TourZoomBlendTransition(viewerRef, panoEl, currentSceneObj, destinationSceneObj) {
+    this.viewer = viewerRef;
+    this.panoElement = panoEl;
+    this.currentSceneObj = currentSceneObj;
+    this.destinationSceneObj = destinationSceneObj;
+    this.canvas = null;
+    this.renderer = null;
+    this.scene = null;
+    this.camera = null;
+    this.material = null;
+    this.geometry = null;
+    this.mesh = null;
+    this.texCurrent = null;
+    this.texNext = null;
+    this.rafId = null;
+    this._destroyed = false;
+  }
+
+  TourZoomBlendTransition.prototype._equirectUrl = function (sceneObj) {
+    return '/pano/tiles/' + sceneObj.data.id + '/equirect.jpg';
+  };
+
+  TourZoomBlendTransition.prototype._loadTexture = function (url) {
+    return new Promise(function (resolve, reject) {
+      new THREE.TextureLoader().load(
+        url,
+        function (tex) {
+          tex.encoding = THREE.sRGBEncoding;
+          resolve(tex);
+        },
+        undefined,
+        function (err) { reject(err || new Error('texture load failed: ' + url)); }
+      );
+    });
+  };
+
+  TourZoomBlendTransition.prototype.run = function (hotspot, onLanding, onError) {
+    var self = this;
+    if (!THREE) { onError(new Error('THREE unavailable')); return; }
+
+    var startView  = this.currentSceneObj.view;
     var startYaw   = startView.yaw();
     var startPitch = startView.pitch();
     var startFov   = startView.fov();
 
-    var initial   = newSceneObj.data.initialViewParameters || {};
-    var baseFov   = typeof initial.fov === 'number' ? initial.fov : Math.PI / 2;
-    // Direction of travel: an explicit per-arrow targetYaw wins; otherwise
-    // open the destination facing the yaw of the clicked arrow.
+    var initial   = this.destinationSceneObj.data.initialViewParameters || {};
+    var baseFov   = typeof initial.fov === 'number' ? initial.fov : startFov;
     var landingYaw   = typeof hotspot.targetYaw === 'number' ? hotspot.targetYaw : hotspot.yaw;
     var landingPitch = typeof initial.pitch === 'number' ? initial.pitch : 0;
 
-    // Screen projection of the clicked hotspot, for the CSS stretch's
-    // transform-origin. Falls back to viewport center if the projection
-    // is unavailable (e.g. hotspot outside the current frustum).
-    var origin = '50% 50%';
-    try {
-      var screen = startView.coordinatesToScreen({ yaw: hotspot.yaw, pitch: hotspot.pitch });
-      if (screen && typeof screen.x === 'number' && typeof screen.y === 'number' &&
-          !isNaN(screen.x) && !isNaN(screen.y)) {
-        origin = screen.x + 'px ' + screen.y + 'px';
+    Promise.all([
+      self._loadTexture(self._equirectUrl(self.currentSceneObj)),
+      self._loadTexture(self._equirectUrl(self.destinationSceneObj))
+    ]).then(function (textures) {
+      if (self._destroyed) return;
+      self.texCurrent = textures[0];
+      self.texNext = textures[1];
+      self._buildOverlay(startYaw, startPitch, startFov);
+      self._animate({
+        startYaw: startYaw, startPitch: startPitch, startFov: startFov,
+        landingYaw: landingYaw, landingPitch: landingPitch, baseFov: baseFov,
+        onLanding: onLanding
+      });
+    }).catch(function (err) {
+      self.dispose();
+      onError(err);
+    });
+  };
+
+  TourZoomBlendTransition.prototype._buildOverlay = function (yaw, pitch, fov) {
+    var rect = this.panoElement.getBoundingClientRect();
+
+    this.canvas = document.createElement('canvas');
+    this.canvas.style.position = 'absolute';
+    this.canvas.style.top = '0';
+    this.canvas.style.left = '0';
+    this.canvas.style.width = '100%';
+    this.canvas.style.height = '100%';
+    this.canvas.style.zIndex = '5';
+    this.canvas.style.pointerEvents = 'none';
+    this.panoElement.appendChild(this.canvas);
+
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setSize(rect.width, rect.height, false);
+
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(fov * 180 / Math.PI, rect.width / (rect.height || 1), 0.1, 10);
+    this._applyViewToCamera(yaw, pitch, fov);
+
+    this.geometry = new THREE.SphereGeometry(5, 60, 40);
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        texCurrent: { value: this.texCurrent },
+        texNext:    { value: this.texNext },
+        mixAmount:  { value: 0 }
+      },
+      vertexShader: [
+        'varying vec2 vUv;',
+        'void main() {',
+        '  vUv = uv;',
+        '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        'uniform sampler2D texCurrent;',
+        'uniform sampler2D texNext;',
+        'uniform float mixAmount;',
+        'varying vec2 vUv;',
+        'void main() {',
+        '  vec4 a = texture2D(texCurrent, vUv);',
+        '  vec4 b = texture2D(texNext, vUv);',
+        '  gl_FragColor = mix(a, b, mixAmount);',
+        '}'
+      ].join('\n'),
+      side: THREE.BackSide
+    });
+    this.mesh = new THREE.Mesh(this.geometry, this.material);
+    this.scene.add(this.mesh);
+  };
+
+  // Marzipano yaw/pitch are both radians: yaw rotates around the world-up
+  // (Y) axis, pitch around the local horizontal (X) axis. 'YXZ' order
+  // matches that composition.
+  TourZoomBlendTransition.prototype._applyViewToCamera = function (yaw, pitch, fov) {
+    this.camera.rotation.order = 'YXZ';
+    this.camera.rotation.y = yaw;
+    this.camera.rotation.x = pitch;
+    this.camera.fov = fov * 180 / Math.PI;
+    this.camera.updateProjectionMatrix();
+  };
+
+  TourZoomBlendTransition.prototype._animate = function (opts) {
+    var self = this;
+    var start = performance.now();
+
+    function frame(now) {
+      if (self._destroyed) return;
+      var t = Math.min(1, (now - start) / ZOOM_BLEND.durationMs);
+
+      var fov, mixAmount, yaw, pitch;
+      if (t < 0.5) {
+        var p1 = ZOOM_BLEND.easing(t / 0.5);
+        fov = opts.startFov - (opts.startFov * ZOOM_BLEND.zoomStrength) * p1;
+        mixAmount = 0;
+        yaw = lerpAngle(opts.startYaw, opts.landingYaw, p1);
+        pitch = lerpAngle(opts.startPitch, opts.landingPitch, p1);
+      } else {
+        var p2 = ZOOM_BLEND.easing((t - 0.5) / 0.5);
+        var troughFov = opts.startFov * (1 - ZOOM_BLEND.zoomStrength);
+        fov = troughFov + (opts.baseFov - troughFov) * p2;
+        mixAmount = p2;
+        yaw = opts.landingYaw;
+        pitch = opts.landingPitch;
       }
-    } catch (e) { /* keep center fallback */ }
 
-    var outgoingHotspots = currentScene.scene.hotspotContainer().domElement();
-    var incomingHotspots = null; // resolved once newScene is available in transitionUpdate
+      self._applyViewToCamera(yaw, pitch, fov);
+      self.material.uniforms.mixAmount.value = mixAmount;
+      self.renderer.render(self.scene, self.camera);
 
-    function resetPano() {
-      panoElement.style.transform = '';
-      panoElement.style.filter = '';
+      if (t < 1) {
+        self.rafId = requestAnimationFrame(frame);
+      } else {
+        self._finish(opts);
+      }
     }
+    this.rafId = requestAnimationFrame(frame);
+  };
+
+  TourZoomBlendTransition.prototype._finish = function (opts) {
+    var self = this;
+    // The overlay is still covering the canvas at this instant, so an
+    // instant (0ms) Marzipano switch has no visible seam.
+    this.destinationSceneObj.view.setParameters({
+      yaw: opts.landingYaw, pitch: opts.landingPitch, fov: opts.baseFov
+    });
+    this.destinationSceneObj.scene.switchTo({ transitionDuration: 0 }, function () {
+      self.dispose();
+      if (opts.onLanding) opts.onLanding();
+    });
+  };
+
+  TourZoomBlendTransition.prototype.dispose = function () {
+    this._destroyed = true;
+    if (this.rafId) cancelAnimationFrame(this.rafId);
+    if (this.geometry) this.geometry.dispose();
+    if (this.material) this.material.dispose();
+    if (this.texCurrent) this.texCurrent.dispose();
+    if (this.texNext) this.texNext.dispose();
+    if (this.renderer) this.renderer.dispose();
+    if (this.canvas && this.canvas.parentNode) this.canvas.parentNode.removeChild(this.canvas);
+    this.canvas = this.renderer = this.scene = this.camera = null;
+    this.material = this.geometry = this.mesh = null;
+    this.texCurrent = this.texNext = null;
+  };
+
+  // Warms the server-side equirect cache for a scene's link-hotspot
+  // targets, so the lazy /pano/tiles/<id>/equirect.jpg route's disk.exists
+  // fast path is what actually serves the next click, not a cold
+  // py360convert reprojection.
+  function prefetchNeighborEquirects(sceneObj) {
+    (sceneObj.data.linkHotspots || []).forEach(function (h) {
+      var img = new Image();
+      img.src = '/pano/tiles/' + h.target + '/equirect.jpg';
+    });
+  }
+
+  // ── startWarp: Street-View zoom-blend transition ────────────────
+  // Delegates the actual visual transition to TourZoomBlendTransition;
+  // this function only owns the surrounding contract: re-entrancy guard,
+  // autorotate/controls pause, hotspot hide/restore, and the never-strand
+  // fallback to switchScene on any failure (construction-time throw or an
+  // async texture-load error).
+  function startWarp(currentScene, newSceneObj, hotspot) {
+    var outgoingHotspots = currentScene.scene.hotspotContainer().domElement();
+    var incomingHotspots = newSceneObj.scene.hotspotContainer().domElement();
 
     function restoreHotspots() {
       outgoingHotspots.style.opacity = '';
-      if (incomingHotspots) incomingHotspots.style.opacity = '';
+      incomingHotspots.style.opacity = '';
     }
 
     try {
       warping = true;
       stopAutorotate();
       viewer.controls().disable();
-
-      // Hide both scenes' hotspots for the duration of the transition.
       outgoingHotspots.style.opacity = 0;
+      incomingHotspots.style.opacity = 0;
 
-      // Seat the destination facing the travel direction, at base FOV,
-      // before it starts fading in.
-      newSceneObj.view.setParameters({ yaw: landingYaw, pitch: landingPitch, fov: baseFov });
-
-      newSceneObj.scene.switchTo({
-        transitionDuration: WARP.durationMs,
-        transitionUpdate: function (val, newScene, oldScene) {
-          if (!incomingHotspots) {
-            incomingHotspots = newScene.hotspotContainer().domElement();
-            incomingHotspots.style.opacity = 0;
-          }
-
-          var stretchRamp = WARP.easing(clamp01(val / WARP.stretchPhase));
-          var blendRamp   = WARP.easing(clamp01((val - WARP.stretchPhase) / (1 - WARP.stretchPhase)));
-          var zoomK       = stretchRamp * (1 - blendRamp);
-
-          // Crossfade the destination (layers + its hotspots) in over the
-          // still-visible current scene.
-          newScene.listLayers().forEach(function (layer) {
-            layer.mergeEffects({ opacity: blendRamp });
-          });
-
-          // Outgoing: pan toward the arrow + ease FOV down (zoom in).
-          oldScene.view().setParameters({
-            yaw:   lerpAngle(startYaw,   hotspot.yaw,   stretchRamp),
-            pitch: lerpAngle(startPitch, hotspot.pitch, stretchRamp),
-            fov:   startFov * (1 - WARP.zoomStrength * stretchRamp)
-          });
-          // Incoming: relax its FOV back to base over the blend phase.
-          newScene.view().setFov(baseFov * (1 - WARP.zoomStrength * (1 - blendRamp)));
-
-          // Radial stretch + locked blur, applied to the single shared
-          // canvas wrapper (Marzipano has no per-scene DOM node here).
-          panoElement.style.transformOrigin = origin;
-          panoElement.style.transform = 'scale(' + (1 + WARP.zoomStrength * zoomK) + ')';
-          if (SUPPORTS_CSS_FILTER && WARP.blurPx) {
-            panoElement.style.filter = 'blur(' + (zoomK * WARP.blurPx) + 'px)';
-          }
-        }
-      }, function () {
-        // Land clean at the intended heading and base FOV.
-        newSceneObj.view.setParameters({ yaw: landingYaw, pitch: landingPitch, fov: baseFov });
-        // Reset the scene we left back to its resting view so it never
-        // lingers mid-warp if the user returns to it later.
-        currentScene.view.setParameters(currentScene.data.initialViewParameters);
-        resetPano();
+      var transition = new TourZoomBlendTransition(viewer, panoElement, currentScene, newSceneObj);
+      transition.run(hotspot, function onLanding() {
         restoreHotspots();
         viewer.controls().enable();
         warping = false;
         startAutorotate();
         updateSceneName(newSceneObj);
         updateSceneList(newSceneObj);
+        prefetchNeighborEquirects(newSceneObj);
+      }, function onError(err) {
+        // Never strand the viewer: undo transient state and hard-switch.
+        restoreHotspots();
+        try { viewer.controls().enable(); } catch (e2) {}
+        warping = false;
+        switchScene(newSceneObj);
       });
     } catch (err) {
-      // Never strand the viewer: undo transient state and hard-switch.
-      resetPano();
       restoreHotspots();
       try { viewer.controls().enable(); } catch (e2) {}
       warping = false;

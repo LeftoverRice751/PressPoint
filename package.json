@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "marzipano": "^0.10.2",
-    "pdfjs-dist": "^5.7.284"
+    "pdfjs-dist": "^5.7.284",
+    "three": "^0.149.0"
   }
 }

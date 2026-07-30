@@ -4,6 +4,7 @@ from masonite.routes import Route
 ROUTES = [
     Route.get("/api/locations", "MapController@get_locations"),
     Route.get("/api/tour-scenes", "TourController@mappings"),
+    Route.get("/pano/tiles/@scene_id/equirect.jpg", "TourController@equirect"),
 
     # Kiosk -> server: mint a QR-shared route session.
     Route.post("/api/route-sessions", "MapController@create_route_session"),
