@@ -7,14 +7,14 @@ reproject the highest-resolution cube faces into one on first request and
 cache the result next to the tiles (equirect.jpg), exactly like
 ImageDerivatives caches resized WebP variants next to originals.
 
-Portability: writes go through the Masonite disk API (disk.put / disk.exists),
-matching ImageDerivatives.py, so the public disk can move to S3 later with no
-change here. Reads of the *source* tile bytes are plain local file reads (see
-note in ImageDerivatives.py: the disk API's .get() mangles binary data in this
-Masonite version) — tiles are always local under storage/public regardless of
-where the "public" disk points, because they're pipeline output, not user
-uploads, so a direct path read is safe and simpler than routing through
-disk.get().
+Unlike ImageDerivatives.py (whose variants live under the "public" disk's
+configured path, storage/framework/public), this derivative must live next
+to the tiles it's generated from, under storage/public — the one directory
+WhiteNoise actually serves at "/" (see config/filesystem.py's STATICFILES).
+Those are two different directories that happen to share the word "public";
+routing this through the Masonite disk API would write/check the wrong one.
+So both the read (tile bytes) and the write (the generated equirect) are
+plain local file I/O against the same _TILES_ROOT.
 """
 
 import os
@@ -75,18 +75,16 @@ def _assemble_face(scene_id, level_dir, face_token, tile_size, face_px):
     return face_img
 
 
-def generate_equirect(scene_id, levels, disk, out_w=4096, out_h=2048):
+def generate_equirect(scene_id, levels, out_w=4096, out_h=2048):
     """Build storage/public/pano/tiles/<scene_id>/equirect.jpg if missing.
 
     Returns the relative disk path ("pano/tiles/<id>/equirect.jpg") on
     success, or None on any failure (caller decides how to respond, e.g.
     404/500, but this must never raise past this boundary)."""
     rel_path = f"pano/tiles/{scene_id}/equirect.jpg"
-    try:
-        if disk.exists(rel_path):
-            return rel_path
-    except Exception:
-        pass
+    full_path = os.path.join(_TILES_ROOT, scene_id, "equirect.jpg")
+    if os.path.isfile(full_path):
+        return rel_path
 
     if np is None or Image is None or py360convert is None:
         return None
@@ -112,7 +110,9 @@ def generate_equirect(scene_id, levels, disk, out_w=4096, out_h=2048):
 
         buf = BytesIO()
         equirect_img.save(buf, "JPEG", quality=88)
-        disk.put(rel_path, buf.getvalue())
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        with open(full_path, "wb") as f:
+            f.write(buf.getvalue())
         return rel_path
     except Exception:
         return None

@@ -1,7 +1,6 @@
 import os
 
 from masonite.controllers import Controller
-from masonite.filesystem import Storage
 from masonite.request import Request
 from masonite.response import Response
 
@@ -101,7 +100,7 @@ class TourController(Controller):
             name="gears.dashboard", query_params={"page": "tour-mapping"}
         ).with_success(["Scene mapping saved."])
 
-    def equirect(self, request: Request, response: Response, storage: Storage):
+    def equirect(self, request: Request, response: Response):
         """GET /pano/tiles/<scene_id>/equirect.jpg
 
         Lazily reprojects a cube-map scene's tiles into a single
@@ -116,8 +115,7 @@ class TourController(Controller):
         if not scene:
             return response.view("Not found", status=404)
 
-        disk = storage.disk("public")
-        rel_path = generate_equirect(scene_id, scene.get("levels"), disk)
+        rel_path = generate_equirect(scene_id, scene.get("levels"))
         if not rel_path:
             return response.view("Equirect unavailable", status=500)
 
