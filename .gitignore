@@ -20,3 +20,6 @@ storage/compiled
 
 #databases
 databases/seeds
+
+# git worktrees
+.worktrees
