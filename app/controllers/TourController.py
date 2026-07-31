@@ -1,19 +1,10 @@
-import os
-
 from masonite.controllers import Controller
 from masonite.request import Request
 from masonite.response import Response
 
 from app.models.Locations import Locations
 from app.models.TourScenes import TourScenes
-from app.services.EquirectGenerator import generate_equirect
 from app.services.TourScenesCatalog import TourScenesCatalog
-
-_STORAGE_PUBLIC_ROOT = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "storage",
-    "public",
-)
 
 
 class TourController(Controller):
@@ -99,29 +90,3 @@ class TourController(Controller):
         return response.redirect(
             name="gears.dashboard", query_params={"page": "tour-mapping"}
         ).with_success(["Scene mapping saved."])
-
-    def equirect(self, request: Request, response: Response):
-        """GET /pano/tiles/<scene_id>/equirect.jpg
-
-        Lazily reprojects a cube-map scene's tiles into a single
-        equirectangular JPEG on first request, caching the result next to
-        the tiles. WhiteNoise serves the cached file directly on later
-        requests without ever reaching this controller (see
-        config/filesystem.py's storage/public static mount) — this action
-        only ever runs on a cold cache.
-        """
-        scene_id = request.param("scene_id")
-        scene = TourScenesCatalog.scene_by_id(scene_id)
-        if not scene:
-            return response.view("Not found", status=404)
-
-        rel_path = generate_equirect(scene_id, scene.get("levels"))
-        if not rel_path:
-            return response.view("Equirect unavailable", status=500)
-
-        full_path = os.path.realpath(os.path.join(_STORAGE_PUBLIC_ROOT, rel_path))
-        if not full_path.startswith(_STORAGE_PUBLIC_ROOT) or not os.path.isfile(full_path):
-            return response.view("Not found", status=404)
-
-        response.header("Cache-Control", "public, max-age=31536000, immutable")
-        return response.download("equirect.jpg", full_path, force=False)

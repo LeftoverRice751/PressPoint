@@ -66,18 +66,3 @@ class TourScenesCatalog:
             for scene in scenes
             if scene.get("id")
         ]
-
-    @classmethod
-    def scene_by_id(cls, scene_id):
-        """Return the full scene dict (id, name, levels, faceSize, ...) for
-        one scene_id, or None if missing/unparsable. Unlike all_scenes(),
-        this keeps every field — callers that need `levels` (e.g. the
-        equirect generator) use this instead."""
-        payload = cls._load_payload()
-        if payload is None:
-            return None
-
-        for scene in payload.get("scenes") or []:
-            if scene.get("id") == scene_id:
-                return scene
-        return None

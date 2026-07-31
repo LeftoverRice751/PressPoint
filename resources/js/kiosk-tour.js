@@ -63,18 +63,11 @@ function ensureTourDependencies() {
       })
     );
   }
-  if (!window.THREE) {
-    // Non-fatal if this never resolves: the zoom-blend transition degrades
-    // to a hard scene switch per-click (see startWarp's onError path)
-    // rather than blocking the whole tour from loading.
-    loaders.push(loadTourScript('/pano/vendor/three.min.js').catch(function() {}));
-  }
   return Promise.all(loaders);
 }
 
 function initTour() {
   var Marzipano = window.Marzipano;
-  var THREE = window.THREE;
   var bowser = window.bowser || {};
   var screenfull = window.screenfull;
   var data = window.APP_DATA || { scenes: [], settings: {} };
@@ -360,276 +353,177 @@ function initTour() {
     }
   }
 
-  // ── TourZoomBlendTransition: Street-View zoom-blend transition ──
-  // A Three.js overlay (a textured sphere, camera seated at the exact
-  // current yaw/pitch/fov so there's no jump) covers the Marzipano canvas
-  // for the whole transition. First half: fov eases down (zoom in) while
-  // panning toward the clicked hotspot, texture mix stays at the current
-  // scene. Second half: mixAmount eases 0->1 (cross-blend to the
-  // destination's equirect) while fov eases back up to the destination's
-  // base fov. On completion, the real Marzipano scene is switched to
-  // instantly (still hidden under the overlay) and the overlay is torn
-  // down, handing control back to normal Marzipano rendering/input.
+  // ── startWarp: Street-View zoom-blend transition ────────────────
+  // The "fake it with an overlay" trick, done natively in Marzipano: the
+  // destination scene's layer is added to the stage ON TOP of the current
+  // one at opacity 0, then the FOV eases down (zoom in) while that opacity
+  // eases up to 1. Both scenes are driven by ONE identical camera each
+  // frame, which is what makes the cross-fade read as a step forward
+  // rather than a dissolve between two different headings.
+  //
+  // This costs zero extra bytes and zero server CPU: scenes are created
+  // with `pinFirstLevel: true`, so every scene's lowest level is already
+  // resident and the blend has real imagery on frame 1.
+  //
+  // Ordering that must not change: the temp layer has to come OFF the
+  // stage BEFORE switchTo(), or Marzipano throws 'Stage not in sync with
+  // viewer' — and a leaked layer breaks every FUTURE scene switch, not
+  // just this one. removeTempLayers() is idempotent and runs on every
+  // exit path, including errors.
   function easeInOutCubic(t) {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   }
 
-  var ZOOM_BLEND = {
-    durationMs:   1350,  // spec: 1200-1500ms
-    zoomStrength: 0.55,  // fraction of live fov shed at the phase midpoint
+  var WARP = {
+    blendMs:      700,   // zoom-in while the destination fades 0 -> 1
+    settleMs:     400,   // after the instant switch: FOV back out to base
+    zoomStrength: 0.38,  // fraction of the live FOV shed at the deepest point
     easing:       easeInOutCubic
   };
 
-  function TourZoomBlendTransition(viewerRef, panoEl, currentSceneObj, destinationSceneObj) {
-    this.viewer = viewerRef;
-    this.panoElement = panoEl;
-    this.currentSceneObj = currentSceneObj;
-    this.destinationSceneObj = destinationSceneObj;
-    this.canvas = null;
-    this.renderer = null;
-    this.scene = null;
-    this.camera = null;
-    this.material = null;
-    this.geometry = null;
-    this.mesh = null;
-    this.texCurrent = null;
-    this.texNext = null;
-    this.rafId = null;
-    this._destroyed = false;
-  }
-
-  TourZoomBlendTransition.prototype._equirectUrl = function (sceneObj) {
-    return '/pano/tiles/' + sceneObj.data.id + '/equirect.jpg';
-  };
-
-  TourZoomBlendTransition.prototype._loadTexture = function (url) {
-    return new Promise(function (resolve, reject) {
-      new THREE.TextureLoader().load(
-        url,
-        function (tex) {
-          tex.encoding = THREE.sRGBEncoding;
-          resolve(tex);
-        },
-        undefined,
-        function (err) { reject(err || new Error('texture load failed: ' + url)); }
-      );
-    });
-  };
-
-  TourZoomBlendTransition.prototype.run = function (hotspot, onLanding, onError) {
-    var self = this;
-    if (!THREE) { onError(new Error('THREE unavailable')); return; }
-
-    var startView  = this.currentSceneObj.view;
-    var startYaw   = startView.yaw();
-    var startPitch = startView.pitch();
-    var startFov   = startView.fov();
-
-    var initial   = this.destinationSceneObj.data.initialViewParameters || {};
-    var baseFov   = typeof initial.fov === 'number' ? initial.fov : startFov;
-    var landingYaw   = typeof hotspot.targetYaw === 'number' ? hotspot.targetYaw : hotspot.yaw;
-    var landingPitch = typeof initial.pitch === 'number' ? initial.pitch : 0;
-
-    Promise.all([
-      self._loadTexture(self._equirectUrl(self.currentSceneObj)),
-      self._loadTexture(self._equirectUrl(self.destinationSceneObj))
-    ]).then(function (textures) {
-      if (self._destroyed) return;
-      self.texCurrent = textures[0];
-      self.texNext = textures[1];
-      self._buildOverlay(startYaw, startPitch, startFov);
-      self._animate({
-        startYaw: startYaw, startPitch: startPitch, startFov: startFov,
-        landingYaw: landingYaw, landingPitch: landingPitch, baseFov: baseFov,
-        onLanding: onLanding
-      });
-    }).catch(function (err) {
-      self.dispose();
-      onError(err);
-    });
-  };
-
-  TourZoomBlendTransition.prototype._buildOverlay = function (yaw, pitch, fov) {
-    var rect = this.panoElement.getBoundingClientRect();
-
-    this.canvas = document.createElement('canvas');
-    this.canvas.style.position = 'absolute';
-    this.canvas.style.top = '0';
-    this.canvas.style.left = '0';
-    this.canvas.style.width = '100%';
-    this.canvas.style.height = '100%';
-    this.canvas.style.zIndex = '5';
-    this.canvas.style.pointerEvents = 'none';
-    this.panoElement.appendChild(this.canvas);
-
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer.setSize(rect.width, rect.height, false);
-
-    this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(fov * 180 / Math.PI, rect.width / (rect.height || 1), 0.1, 10);
-    this._applyViewToCamera(yaw, pitch, fov);
-
-    this.geometry = new THREE.SphereGeometry(5, 60, 40);
-    this.material = new THREE.ShaderMaterial({
-      uniforms: {
-        texCurrent: { value: this.texCurrent },
-        texNext:    { value: this.texNext },
-        mixAmount:  { value: 0 }
-      },
-      vertexShader: [
-        'varying vec2 vUv;',
-        'void main() {',
-        '  vUv = uv;',
-        '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
-        '}'
-      ].join('\n'),
-      fragmentShader: [
-        'uniform sampler2D texCurrent;',
-        'uniform sampler2D texNext;',
-        'uniform float mixAmount;',
-        'varying vec2 vUv;',
-        'void main() {',
-        '  vec4 a = texture2D(texCurrent, vUv);',
-        '  vec4 b = texture2D(texNext, vUv);',
-        '  gl_FragColor = mix(a, b, mixAmount);',
-        '}'
-      ].join('\n'),
-      side: THREE.BackSide
-    });
-    this.mesh = new THREE.Mesh(this.geometry, this.material);
-    this.scene.add(this.mesh);
-  };
-
-  // Marzipano yaw/pitch are both radians: yaw rotates around the world-up
-  // (Y) axis, pitch around the local horizontal (X) axis. 'YXZ' order
-  // matches that composition.
-  TourZoomBlendTransition.prototype._applyViewToCamera = function (yaw, pitch, fov) {
-    this.camera.rotation.order = 'YXZ';
-    this.camera.rotation.y = yaw;
-    this.camera.rotation.x = pitch;
-    this.camera.fov = fov * 180 / Math.PI;
-    this.camera.updateProjectionMatrix();
-  };
-
-  TourZoomBlendTransition.prototype._animate = function (opts) {
-    var self = this;
-    var start = performance.now();
-
-    function frame(now) {
-      if (self._destroyed) return;
-      var t = Math.min(1, (now - start) / ZOOM_BLEND.durationMs);
-
-      var fov, mixAmount, yaw, pitch;
-      if (t < 0.5) {
-        var p1 = ZOOM_BLEND.easing(t / 0.5);
-        fov = opts.startFov - (opts.startFov * ZOOM_BLEND.zoomStrength) * p1;
-        mixAmount = 0;
-        yaw = lerpAngle(opts.startYaw, opts.landingYaw, p1);
-        pitch = lerpAngle(opts.startPitch, opts.landingPitch, p1);
-      } else {
-        var p2 = ZOOM_BLEND.easing((t - 0.5) / 0.5);
-        var troughFov = opts.startFov * (1 - ZOOM_BLEND.zoomStrength);
-        fov = troughFov + (opts.baseFov - troughFov) * p2;
-        mixAmount = p2;
-        yaw = opts.landingYaw;
-        pitch = opts.landingPitch;
-      }
-
-      self._applyViewToCamera(yaw, pitch, fov);
-      self.material.uniforms.mixAmount.value = mixAmount;
-      self.renderer.render(self.scene, self.camera);
-
-      if (t < 1) {
-        self.rafId = requestAnimationFrame(frame);
-      } else {
-        self._finish(opts);
-      }
-    }
-    this.rafId = requestAnimationFrame(frame);
-  };
-
-  TourZoomBlendTransition.prototype._finish = function (opts) {
-    var self = this;
-    // The overlay is still covering the canvas at this instant, so an
-    // instant (0ms) Marzipano switch has no visible seam.
-    this.destinationSceneObj.view.setParameters({
-      yaw: opts.landingYaw, pitch: opts.landingPitch, fov: opts.baseFov
-    });
-    this.destinationSceneObj.scene.switchTo({ transitionDuration: 0 }, function () {
-      self.dispose();
-      if (opts.onLanding) opts.onLanding();
-    });
-  };
-
-  TourZoomBlendTransition.prototype.dispose = function () {
-    this._destroyed = true;
-    if (this.rafId) cancelAnimationFrame(this.rafId);
-    if (this.geometry) this.geometry.dispose();
-    if (this.material) this.material.dispose();
-    if (this.texCurrent) this.texCurrent.dispose();
-    if (this.texNext) this.texNext.dispose();
-    if (this.renderer) this.renderer.dispose();
-    if (this.canvas && this.canvas.parentNode) this.canvas.parentNode.removeChild(this.canvas);
-    this.canvas = this.renderer = this.scene = this.camera = null;
-    this.material = this.geometry = this.mesh = null;
-    this.texCurrent = this.texNext = null;
-  };
-
-  // Warms the server-side equirect cache for a scene's link-hotspot
-  // targets, so the lazy /pano/tiles/<id>/equirect.jpg route's disk.exists
-  // fast path is what actually serves the next click, not a cold
-  // py360convert reprojection.
-  function prefetchNeighborEquirects(sceneObj) {
-    (sceneObj.data.linkHotspots || []).forEach(function (h) {
-      var img = new Image();
-      img.src = '/pano/tiles/' + h.target + '/equirect.jpg';
-    });
-  }
-
-  // ── startWarp: Street-View zoom-blend transition ────────────────
-  // Delegates the actual visual transition to TourZoomBlendTransition;
-  // this function only owns the surrounding contract: re-entrancy guard,
-  // autorotate/controls pause, hotspot hide/restore, and the never-strand
-  // fallback to switchScene on any failure (construction-time throw or an
-  // async texture-load error).
   function startWarp(currentScene, newSceneObj, hotspot) {
     var outgoingHotspots = currentScene.scene.hotspotContainer().domElement();
     var incomingHotspots = newSceneObj.scene.hotspotContainer().domElement();
+    var stage      = viewer.stage();
+    var fromView   = currentScene.view;
+    var toView     = newSceneObj.view;
+    var destLayers = [];
+    var rafId      = null;
 
     function restoreHotspots() {
       outgoingHotspots.style.opacity = '';
       incomingHotspots.style.opacity = '';
     }
 
+    function cancelTween() {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    }
+
+    // Idempotent (destLayers is emptied), and the one thing that must
+    // never fail — see the ordering note above.
+    function removeTempLayers() {
+      destLayers.forEach(function (layer) {
+        try { if (stage.hasLayer(layer)) stage.removeLayer(layer); } catch (e) {}
+        try { layer.mergeEffects({ opacity: 1 }); } catch (e) {}
+      });
+      destLayers = [];
+    }
+
+    function bail() {
+      cancelTween();
+      removeTempLayers();
+      restoreHotspots();
+      try { viewer.controls().enable(); } catch (e) {}
+      warping = false;
+      switchScene(newSceneObj);
+    }
+
+    // rAF tween over `duration` ms; step(p) receives eased 0..1 progress.
+    // Tracked via the shared rafId so a half-finished tween can be cancelled.
+    function tween(duration, step, done) {
+      var start = performance.now();
+      function frame(now) {
+        var t = Math.min(1, (now - start) / duration);
+        try {
+          step(WARP.easing(t));
+        } catch (e) {
+          bail();
+          return;
+        }
+        if (t < 1) {
+          rafId = requestAnimationFrame(frame);
+        } else {
+          rafId = null;
+          done();
+        }
+      }
+      rafId = requestAnimationFrame(frame);
+    }
+
     try {
       warping = true;
       stopAutorotate();
       viewer.controls().disable();
+      // Kill any lookTo movement still running from moveToScene's pre-turn:
+      // it rewrites every view param (including fov) each frame and would
+      // fight our tween.
+      if (typeof viewer.stopMovement === 'function') viewer.stopMovement();
+
       outgoingHotspots.style.opacity = 0;
       incomingHotspots.style.opacity = 0;
 
-      var transition = new TourZoomBlendTransition(viewer, panoElement, currentScene, newSceneObj);
-      transition.run(hotspot, function onLanding() {
-        restoreHotspots();
-        viewer.controls().enable();
-        warping = false;
-        startAutorotate();
-        updateSceneName(newSceneObj);
-        updateSceneList(newSceneObj);
-        prefetchNeighborEquirects(newSceneObj);
-      }, function onError(err) {
-        // Never strand the viewer: undo transient state and hard-switch.
-        restoreHotspots();
-        try { viewer.controls().enable(); } catch (e2) {}
-        warping = false;
-        switchScene(newSceneObj);
+      var startYaw   = fromView.yaw();
+      var startPitch = fromView.pitch();
+      var startFov   = fromView.fov();
+      var troughFov  = startFov * (1 - WARP.zoomStrength);
+
+      var initial      = newSceneObj.data.initialViewParameters || {};
+      var baseFov      = typeof initial.fov === 'number' ? initial.fov : startFov;
+      var landingYaw   = typeof hotspot.targetYaw === 'number' ? hotspot.targetYaw : hotspot.yaw;
+      var landingPitch = typeof initial.pitch === 'number' ? initial.pitch : 0;
+
+      // Destination goes on top of the stage, invisible to start.
+      destLayers = newSceneObj.scene.listLayers();
+      destLayers.forEach(function (layer) {
+        layer.mergeEffects({ opacity: 0 });
+        stage.addLayer(layer);
+      });
+
+      // ── Phase A: zoom in while the destination fades up over it.
+      tween(WARP.blendMs, function (p) {
+        var params = {
+          yaw:   lerpAngle(startYaw,   hotspot.yaw,   p),
+          pitch: lerpAngle(startPitch, hotspot.pitch, p),
+          fov:   lerp(startFov, troughFov, p)
+        };
+        // One camera, both panoramas.
+        fromView.setParameters(params);
+        toView.setParameters(params);
+        destLayers.forEach(function (layer) {
+          layer.mergeEffects({ opacity: p });
+        });
+      }, function () {
+        // ── Handoff: temp layers off the stage FIRST, then switch with no
+        // transition. The destination is already fully opaque at this exact
+        // camera, so the swap is an invisible frame.
+        var handoff = { yaw: hotspot.yaw, pitch: hotspot.pitch, fov: troughFov };
+        removeTempLayers();
+        toView.setParameters(handoff);
+
+        newSceneObj.scene.switchTo({
+          transitionDuration: 0,
+          // Marzipano's default update would drive opacity from 0 for one
+          // frame; pin it at 1 so there is no flicker at the swap.
+          transitionUpdate: function (val, newScene) {
+            newScene.listLayers().forEach(function (layer) {
+              layer.mergeEffects({ opacity: 1 });
+            });
+          }
+        }, function () {
+          // Leave the departed scene at rest so it isn't still zoomed in if
+          // the visitor returns to it later.
+          currentScene.view.setParameters(currentScene.data.initialViewParameters);
+          updateSceneName(newSceneObj);
+          updateSceneList(newSceneObj);
+
+          // ── Phase B: settle back out to the destination's normal FOV.
+          // This is the arrival, and it's what removes the zoom pop.
+          tween(WARP.settleMs, function (p) {
+            toView.setParameters({
+              yaw:   lerpAngle(handoff.yaw,   landingYaw,   p),
+              pitch: lerpAngle(handoff.pitch, landingPitch, p),
+              fov:   lerp(troughFov, baseFov, p)
+            });
+          }, function () {
+            restoreHotspots();
+            viewer.controls().enable();
+            warping = false;
+            startAutorotate();
+          });
+        });
       });
     } catch (err) {
-      restoreHotspots();
-      try { viewer.controls().enable(); } catch (e2) {}
-      warping = false;
-      switchScene(newSceneObj);
+      bail();
     }
   }
 
