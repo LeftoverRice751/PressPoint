@@ -16,7 +16,7 @@ from app.events.NewNews import NewNews
 from app.models.News import News
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.DashboardContext import group_news_slots
-from app.services.ImageDerivatives import generate_variants, variant_path
+from app.services.ImageDerivatives import generate_variants, variant_path, variant_relpath
 from app.services.StorageRouter import absolute_path, is_safe_path
 
 
@@ -63,6 +63,31 @@ def _normalize_news_status(raw_status, default="approved"):
     if status not in _NEWS_ALLOWED_STATUSES:
         return default or "approved"
     return status
+
+
+def _apply_scheduling(status, published_at):
+    """Upgrade a default publish-intent status to 'scheduled' when the
+    given published_at is still in the future.
+
+    The composer's hidden status field is hardcoded to "published" today
+    (frontend work lands in later tasks), so without this the "schedule for
+    later" flow silently published immediately. Only the default
+    publish-intent statuses ("approved"/"published") are eligible — an
+    editor who explicitly chose "draft"/"review"/"archived" is left alone,
+    and an already-"scheduled" status is left alone too. _news_is_public's
+    gate (scheduled goes live once published_at <= now) is untouched."""
+    if not published_at or status not in ("approved", "published"):
+        return status
+
+    now_reference = (
+        datetime.now(published_at.tzinfo) if getattr(published_at, "tzinfo", None) else datetime.now()
+    )
+    if published_at > now_reference:
+        return "scheduled"
+    return status
+
+
+_NEWS_LAYOUT_TYPES = {"main", "secondary", "widget", "unassigned"}
 
 
 def _news_is_public(news_item):
@@ -286,6 +311,8 @@ class NewsController(Controller):
             except ValueError:
                 return _err(["Published at must be a valid date and time."])
 
+        status = _apply_scheduling(status, published_at)
+
         image_path = None
         if image_file:
             if not hasattr(image_file, "get_content") or not hasattr(image_file, "extension"):
@@ -374,6 +401,139 @@ class NewsController(Controller):
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return _err(["Could not save the news item. Please try again."])
 
+    def layout(self, request: Request, response: Response):
+        """Bulk slot/order save — writes ONLY layout_type and priority for
+        many rows in one request. This is what drag-reorder and slot
+        assignment call; it must never touch body/title/status/published_at.
+
+        Payload: JSON body `{"items": [{"id": 1, "layout_type": "main",
+        "priority": 0}, ...]}`. Read via request.all() rather than
+        request.input("items") — Masonite's InputBag.get() silently
+        unwraps a length-1 list to its single element, which would corrupt
+        a single-card reorder; request.all() returns the raw parsed value
+        with no such unwrapping.
+        """
+        is_ajax = wants_json(request)
+
+        def _err(messages, status=422):
+            if is_ajax:
+                return json_errors(response, messages, status=status)
+            return response.back().with_errors(messages)
+
+        items = (request.all() or {}).get("items")
+        if not isinstance(items, list) or not items:
+            return _err(["No layout changes were provided."])
+
+        updates = []
+        for raw in items:
+            if not isinstance(raw, dict):
+                return _err(["Invalid layout payload."])
+
+            try:
+                item_id = int(raw.get("id"))
+            except (TypeError, ValueError):
+                return _err(["Invalid layout payload."])
+
+            layout_type = str(raw.get("layout_type") or "").strip().lower()
+            if layout_type not in _NEWS_LAYOUT_TYPES:
+                return _err(["Invalid layout type."])
+
+            try:
+                priority = int(raw.get("priority") or 0)
+            except (TypeError, ValueError):
+                return _err(["Invalid priority."])
+
+            updates.append((item_id, layout_type, priority))
+
+        try:
+            updated_ids = []
+            for item_id, layout_type, priority in updates:
+                record = News.where("id", item_id).first()
+                if not record:
+                    continue
+                record.layout_type = layout_type
+                record.priority = priority
+                record.save()
+                updated_ids.append(item_id)
+
+            Cache.forget(_NEWS_CACHE_KEY)
+
+            if is_ajax:
+                return json_success(
+                    response,
+                    payload={"updated": updated_ids},
+                    messages=["Layout saved."],
+                )
+            return response.redirect(name="gears.dashboard").with_success(["Layout saved."])
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return _err(["Could not save layout changes. Please try again."])
+
+    def body(self, request: Request, response: Response):
+        """Saves ONLY the sanitized article body (`description`)."""
+        is_ajax = wants_json(request)
+
+        def _err(messages, status=422):
+            if is_ajax:
+                return json_errors(response, messages, status=status)
+            return response.back().with_errors(messages)
+
+        record = News.where("id", request.param("id")).first()
+        if not record:
+            return _err(["Article not found."], status=404)
+
+        sanitized = _sanitize_news_html((request.input("description") or "").strip())
+        if not _html_to_text(sanitized):
+            return _err(["Description is required."])
+
+        try:
+            record.description = sanitized
+            record.save()
+
+            Cache.forget(_NEWS_CACHE_KEY)
+
+            if is_ajax:
+                return json_success(
+                    response,
+                    payload={"id": record.id, "description": sanitized},
+                    messages=["Body saved."],
+                )
+            return response.redirect(name="gears.dashboard").with_success(["Body saved."])
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return _err(["Could not save the body. Please try again."])
+
+    def unassign(self, request: Request, response: Response):
+        """Sets layout_type = "unassigned". Does not delete the story and
+        does not change its status."""
+        is_ajax = wants_json(request)
+
+        def _err(messages, status=422):
+            if is_ajax:
+                return json_errors(response, messages, status=status)
+            return response.back().with_errors(messages)
+
+        record = News.where("id", request.param("id")).first()
+        if not record:
+            return _err(["Article not found."], status=404)
+
+        try:
+            record.layout_type = "unassigned"
+            record.save()
+
+            Cache.forget(_NEWS_CACHE_KEY)
+
+            if is_ajax:
+                return json_success(
+                    response,
+                    payload={"id": record.id, "layout_type": "unassigned"},
+                    messages=["Story unassigned."],
+                )
+            return response.redirect(name="gears.dashboard").with_success(["Story unassigned."])
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return _err(["Could not unassign the story. Please try again."])
+
     def destroy(self, request: Request, response: Response):
         is_ajax = wants_json(request)
 
@@ -395,6 +555,18 @@ class NewsController(Controller):
                     os.remove(full_path)
             except OSError:
                 pass
+
+            # Also remove the .large.webp / .thumb.webp derivatives that
+            # ImageDerivatives.generate_variants wrote alongside the
+            # original — otherwise they orphan on disk forever.
+            for variant in ("large", "thumb"):
+                variant_rel = variant_relpath(image_path, variant)
+                try:
+                    variant_full = absolute_path(variant_rel)
+                    if is_safe_path(variant_rel) and os.path.isfile(variant_full):
+                        os.remove(variant_full)
+                except OSError:
+                    pass
 
         try:
             record.delete()
