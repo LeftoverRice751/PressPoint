@@ -221,6 +221,7 @@ class NewsController(Controller):
         published_at_value = (request.input("published_at") or "").strip()
         priority_value = request.input("priority")
         image_file = request.input("image")
+        article_id = (request.input("article_id") or "").strip()
 
         if isinstance(image_file, list):
             image_file = image_file[0] if image_file else None
@@ -265,6 +266,19 @@ class NewsController(Controller):
         except (TypeError, ValueError):
             return _err(["Priority must be a valid number."])
 
+        # Ascending priority now means "lower number = earlier slot" (see
+        # DashboardContext.group_news_slots). A brand-new story with no
+        # explicit priority — the composer always posts priority=0 today —
+        # would otherwise land below zero, i.e. ahead of every existing
+        # story, and instantly steal the lead slot. Append it to the end of
+        # the current order instead; editors can still reposition it later.
+        if not article_id and priority == 0:
+            current_max = News.max("priority").get()
+            current_max_priority = (
+                getattr(current_max[0], "priority", None) if current_max else None
+            )
+            priority = int(current_max_priority or 0) + 1
+
         published_at = None
         if published_at_value:
             try:
@@ -282,8 +296,6 @@ class NewsController(Controller):
 
             if file_extension not in allowed_extensions:
                 return _err(["Please upload a valid image file."])
-
-        article_id = (request.input("article_id") or "").strip()
 
         try:
             if image_file:

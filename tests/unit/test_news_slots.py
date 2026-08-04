@@ -28,21 +28,76 @@ class NewsSlotsTestCase(TestCase):
         self.assertEqual([item.id for item in slots["secondary_news"]], [2, 3])
 
     def test_unassigned_excluded_from_all_buckets(self):
-        main = _Story(id=1, priority=1, layout_type="main")
-        unassigned_secondary = _Story(id=2, priority=2, layout_type="unassigned")
-        secondary = _Story(id=3, priority=3, layout_type="secondary")
+        # An "unassigned" story with layout_type == "unassigned" trivially
+        # fails the `== "secondary"` / `== "widget"` equality checks on its
+        # own, so a naive version of this test (assertNotIn on the
+        # unassigned item) would still pass even with the exclusion filter
+        # deleted from DashboardContext.group_news_slots — it wouldn't be
+        # pinning anything. To make the filter's removal actually observable
+        # here, there is no explicit "main" story and the unassigned item
+        # has the LOWEST priority: with the filter in place it is skipped
+        # and `secondary_a` becomes main_news, freeing `secondary_b` to be
+        # the only story left in the secondary bucket. Without the filter,
+        # the unassigned item would win the main-fallback slot instead,
+        # which frees `secondary_a` into the bucket too — changing both the
+        # count and the membership of secondary_news. (Verified empirically:
+        # deleting the `assignable_items` filter at DashboardContext.py and
+        # reverting `main_news`/`secondary_news`/`widget_news` to read from
+        # `sorted_items` makes this test fail, asserting
+        # `[secondary_b.id]` against an actual `[secondary_a.id,
+        # secondary_b.id]` — see fix-round report for the full transcript.)
+        unassigned = _Story(id=1, priority=1, layout_type="unassigned")
+        secondary_a = _Story(id=2, priority=2, layout_type="secondary")
+        secondary_b = _Story(id=3, priority=3, layout_type="secondary")
         unassigned_widget = _Story(id=4, priority=4, layout_type="unassigned")
         widget = _Story(id=5, priority=5, layout_type="widget")
 
         slots = group_news_slots(
-            [main, unassigned_secondary, secondary, unassigned_widget, widget]
+            [unassigned, secondary_a, secondary_b, unassigned_widget, widget]
         )
 
-        self.assertIs(slots["main_news"], main)
-        self.assertNotIn(unassigned_secondary, slots["secondary_news"])
+        self.assertIs(slots["main_news"], secondary_a)
+        self.assertNotIn(unassigned, slots["secondary_news"])
         self.assertNotIn(unassigned_widget, slots["widget_news"])
-        self.assertEqual([item.id for item in slots["secondary_news"]], [3])
-        self.assertEqual([item.id for item in slots["widget_news"]], [5])
+        self.assertEqual([item.id for item in slots["secondary_news"]], [secondary_b.id])
+        self.assertEqual([item.id for item in slots["widget_news"]], [widget.id])
+
+    def test_id_tiebreak_direction_is_ascending(self):
+        # Equal priority: the OLD key (-priority, -id) broke ties on
+        # descending id (newest first). The NEW key (priority, id) breaks
+        # ties on ASCENDING id (oldest first) — this is exactly the
+        # direction that silently flipped a real newsroom's story order
+        # (see fix-round report, B-2). Pin it explicitly.
+        older = _Story(id=5, priority=2, layout_type="secondary")
+        newer = _Story(id=9, priority=2, layout_type="secondary")
+        main = _Story(id=1, priority=1, layout_type="main")
+
+        slots = group_news_slots([newer, older, main])
+
+        self.assertEqual([item.id for item in slots["secondary_news"]], [5, 9])
+
+    def test_priority_none_normalizes_to_zero(self):
+        none_priority = _Story(id=2, priority=None, layout_type="secondary")
+        zero_priority = _Story(id=3, priority=0, layout_type="secondary")
+        main = _Story(id=1, priority=1, layout_type="main")
+
+        # Should not raise, and priority=None must sort identically to 0
+        # (i.e. ahead of priority=1), tie-broken by ascending id.
+        slots = group_news_slots([main, zero_priority, none_priority])
+
+        self.assertEqual([item.id for item in slots["secondary_news"]], [2, 3])
+
+    def test_layout_type_is_case_insensitive(self):
+        main = _Story(id=1, priority=1, layout_type="MAIN")
+        secondary = _Story(id=2, priority=2, layout_type="Secondary")
+        widget = _Story(id=3, priority=3, layout_type="WIDGET")
+        unassigned = _Story(id=4, priority=0, layout_type="Unassigned")
+
+        slots = group_news_slots([unassigned, main, secondary, widget])
+
+        self.assertIs(slots["main_news"], main)
+        self.assertEqual([item.id for item in slots["secondary_news"]], [2])
+        self.assertEqual([item.id for item in slots["widget_news"]], [3])
 
     def test_unassigned_never_wins_main_fallback(self):
         # Lowest priority is "unassigned" — it must be skipped in favor of
