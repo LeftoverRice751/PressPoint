@@ -1,0 +1,22 @@
+          {% for news in news_items[:8] %}
+          {% set _slot_label = {'main': 'Lead', 'secondary': 'Side', 'widget': 'Widget'}.get(news.layout_type, 'Side') %}
+          {% set _story_status = (news.status if news.status else 'approved') %}
+          <article class="news-story-card" data-news-library-item data-news-library-id="{{ news.id }}" data-news-library-title="{{ news.title | e }}" data-news-library-description="{{ news.description | default('', true) | e }}" data-news-library-source="{{ news.source | default('', true) | e }}" data-news-library-location="{{ news.location | default('', true) | e }}" data-news-library-layout="{{ news.layout_type | default('secondary', true) | e }}" data-news-library-status="{{ _story_status | e }}" data-news-library-priority="{{ news.priority if news.priority is not none else 0 }}" data-news-library-image="{{ news.image | default('', true) | e }}" data-news-library-dek="{{ news.dek | default('', true) | e }}" data-news-library-caption="{{ news.image_caption | default('', true) | e }}" data-news-library-credit="{{ news.image_credit | default('', true) | e }}">
+            <div class="news-story-card__topline">
+              <span class="news-story-card__slot">{{ _slot_label }}</span>
+              <span class="news-story-card__status news-story-card__status--{{ _story_status | lower }}">{{ _story_status | capitalize }}</span>
+            </div>
+            <div class="news-story-card__title">{{ news.title }}</div>
+            <div class="news-story-card__copy">{{ news.description[:140] if news.description else 'No summary available.' }}</div>
+            <div class="news-story-card__meta">
+              <span>{{ news.source if news.source else 'Unspecified' }}</span>
+              <span>Order {{ news.priority if news.priority is not none else 0 }}</span>
+            </div>
+            <div class="news-story-card__actions">
+              <button type="button" class="ghost-button" data-news-load-story>Edit in front page</button>
+            </div>
+          </article>
+          {% else %}
+          <div class="empty-state empty-state--embedded">No data available.</div>
+          {% endfor %}
+        

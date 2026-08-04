@@ -351,7 +351,9 @@ import Sortable from 'sortablejs';
           toast((json.messages && json.messages[0]) || 'Removed from the front page.', false);
           if (f.layout) f.layout.value = 'unassigned';
           setSlot('unassigned');
-          setLayoutDirty(false);
+          // Unassign only writes layout_type — any unrelated field edits
+          // still sitting in the hidden form are NOT persisted by this
+          // call, so the dirty badge must not be cleared here (F1).
           if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
         }
         else { toast((json && json.errors && json.errors[0]) || 'Could not remove from the front page.', true); }
@@ -386,7 +388,9 @@ import Sortable from 'sortablejs';
         .then(function (json) {
           if (json && json.ok) {
             toast('Story deleted.', false);
-            setLayoutDirty(false);
+            // Delete removes the row entirely — it doesn't persist any
+            // pending field edits either, so the dirty badge stays as-is
+            // (F1, same reasoning as unassign above).
             if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
           }
           else { toast((json && json.errors && json.errors[0]) || 'Could not delete.', true); }

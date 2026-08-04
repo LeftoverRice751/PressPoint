@@ -1,0 +1,38 @@
+          {% for video in videos %}
+          <article class="video-card{% if video.show_when_idle %} video-card--idle-active{% endif %}" data-video-card data-video-src="/storage/{{ video.file_path | replace('\\', '/') }}" data-video-title="{{ video.title | e }}">
+            <button type="button" class="video-card__body" data-video-preview-trigger>
+              <span class="video-card__thumb" aria-hidden="true">▶</span>
+              <span class="video-card__copy">
+                <span class="video-card__title">{{ video.title }}</span>
+                <span class="video-card__meta">{{ video.file_path }}</span>
+                {% if video.show_when_idle %}
+                <span class="video-card__badge">★ Idle attract</span>
+                {% endif %}
+              </span>
+            </button>
+
+            <div class="video-card__actions">
+              <button type="button" class="secondary-button" data-video-push-trigger data-src="/storage/{{ video.file_path | replace('\\', '/') }}" data-title="{{ video.title | e }}">
+                Show on screen now
+              </button>
+              <button type="button"
+                      class="secondary-button video-card__idle-toggle{% if video.show_when_idle %} is-active{% endif %}"
+                      data-video-idle-trigger
+                      data-video-id="{{ video.id }}"
+                      data-video-title="{{ video.title | e }}"
+                      data-idle-active="{{ 'true' if video.show_when_idle else 'false' }}">
+                {% if video.show_when_idle %}★ Showing on idle{% else %}Display this on idle{% endif %}
+              </button>
+              <button type="button" class="ghost-button" data-video-delete-trigger data-video-id="{{ video.id }}" data-video-title="{{ video.title | e }}"
+                      data-confirm="Permanently remove “{{ video.title | e }}” from the kiosk library. This cannot be undone."
+                      data-confirm-title="Delete video?"
+                      data-confirm-label="Delete video"
+                      data-confirm-danger>
+                Delete
+              </button>
+            </div>
+          </article>
+          {% else %}
+          <div class="empty-state empty-state--embedded">No data available.</div>
+          {% endfor %}
+        

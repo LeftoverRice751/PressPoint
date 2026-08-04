@@ -1,0 +1,33 @@
+            {% for archive in archives %}
+            <article class="archive-card">
+              {% if archive.cover_url %}
+              <img class="archive-card__cover" src="{{ archive.cover_url }}" alt="{{ archive.name | e }} cover">
+              {% else %}
+              <div class="archive-card__cover archive-card__cover--fallback" aria-hidden="true">
+                <span class="archive-card__cover-text">No cover generated</span>
+              </div>
+              {% endif %}
+
+              <div class="archive-card__body">
+                <div class="archive-card__title">{{ archive.name }}</div>
+                <div class="archive-card__meta">
+                  <span>{{ archive.type }}</span>
+                  <span>Year {{ archive.year if archive.year else 'Not set' }}</span>
+                </div>
+                <div class="archive-card__year">{{ archive.year if archive.year else 'Undated' }}</div>
+                <div class="archive-card__path">{{ archive.file_path }}</div>
+                <form action="{{ route('archives.destroy', {'id': archive.id}, False) }}" method="post" class="inline-form" data-live-delete="archives">
+                  {{ csrf_field | safe }}
+                  <input type="hidden" name="__method" value="DELETE">
+                  <button type="submit" class="ghost-button"
+                          data-confirm="Permanently delete the {{ archive.name | e }} archive? Visitors will no longer see it on the kiosk."
+                          data-confirm-title="Delete archive?"
+                          data-confirm-label="Delete archive"
+                          data-confirm-danger>Delete</button>
+                </form>
+              </div>
+            </article>
+            {% else %}
+            <div class="empty-state empty-state--embedded">No data available.</div>
+            {% endfor %}
+          

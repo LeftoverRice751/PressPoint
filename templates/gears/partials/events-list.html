@@ -1,0 +1,27 @@
+          <table class="events-table" aria-label="Events table">
+            <thead>
+              <tr>
+                <th scope="col">Title</th>
+                <th scope="col">Description</th>
+                <th scope="col">Event date</th>
+                <th scope="col">Location</th>
+                <th scope="col">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for event in events %}
+              <tr>
+                <td>{{ event.title }}</td>
+                <td>{{ event.description if event.description else 'No summary available.' }}</td>
+                <td>{{ event.event_date.strftime('%m-%d-%Y') if event.event_date else 'Not set' }}</td>
+                <td>{{ location_lookup.get(event.location_id, 'Unassigned') if location_lookup else 'Unassigned' }}</td>
+                <td>{{ 'Archive' if event.is_archive else 'Manual' }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5" class="empty-state empty-state--embedded">No data available.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        
