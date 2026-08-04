@@ -241,6 +241,42 @@
     margin-bottom: 1.5rem;
 }
 
+/* ── Composer top toolbar ────────────────────────── */
+.news-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.news-toolbar__live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 9999px;
+    border: 1px solid var(--ink-rule-strong);
+    background: var(--ink-cream);
+    color: var(--ink-soot);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.news-toolbar__live .live-status-card__dot--inline {
+    margin-top: 0;
+}
+
+.news-toolbar__live-text {
+    white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .news-toolbar__live-text {
+        white-space: normal;
+    }
+}
+
 .news-slot-pill,
 .news-story-card__status,
 .news-story-card__slot {
@@ -406,13 +442,13 @@
 }
 
 /* ── News composer brand fonts ──────────────────── */
-.news-composer input,
-.news-composer textarea,
-.news-composer select {
+.news-layout-editor--composer input,
+.news-layout-editor--composer textarea,
+.news-layout-editor--composer select {
     font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
 }
 
-.news-composer .field__label,
+.news-layout-editor--composer .field__label,
 .news-slot-choice {
     font-family: var(--kiosk-font-ui, "Gilroy", "Century Gothic", sans-serif);
 }
@@ -734,4 +770,272 @@
 .ghost-button--full {
     width: 100%;
     justify-content: center;
+}
+
+/* ── Inspector action hierarchy: disclosures ─────── */
+.news-disclosure__summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    list-style: none;
+    cursor: pointer;
+}
+
+.news-disclosure__summary::-webkit-details-marker {
+    display: none;
+}
+
+.news-disclosure__summary::after {
+    content: "\25BE";
+    margin-left: 0.5rem;
+    font-size: 0.7rem;
+    transition: transform 0.15s ease;
+}
+
+.news-disclosure[open] > .news-disclosure__summary::after {
+    transform: rotate(180deg);
+}
+
+.news-disclosure__panel {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.65rem;
+}
+
+.news-disclosure--danger {
+    border-radius: var(--radius-sm);
+}
+
+.news-disclosure--danger .news-disclosure__copy {
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.news-prop-section--danger {
+    border-top: 2px solid var(--ink-rule-strong);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   In-place editor — the real kiosk front page as the surface.
+   kiosk-news.css styles the .feature-story/.paper-slot markup;
+   these rules adapt it to the dashboard panel + wire the editor
+   affordances (Quill, image drop, brand fonts).
+   ═══════════════════════════════════════════════════════════ */
+
+.news-editor {
+    --paper-bg: #fbf8f1;
+    margin-top: 1rem;
+    padding: clamp(0.75rem, 2vw, 1.5rem);
+    background: var(--kiosk-paper, #fbf8f1);
+    border: 1px solid var(--kiosk-rule, rgba(31, 15, 12, 0.18));
+    border-radius: 10px;
+}
+
+/* The kiosk page is a full-viewport grid; inside the panel it's a
+   single readable column. */
+.news-editor.paper-grid {
+    display: block;
+    max-width: 780px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.news-editor .feature-story__copy,
+.news-editor .secondary-story__copy,
+.news-editor .info-card__copy,
+.news-editor .ql-editor {
+    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
+}
+
+.news-editor .feature-story__title,
+.news-editor .secondary-story__title,
+.news-editor .info-card__title,
+.news-editor .ql-editor h2,
+.news-editor .ql-editor h3 {
+    font-family: var(--kiosk-font-display, "Columna", "Times New Roman", serif);
+}
+
+/* The kiosk sets the lead body in two columns; inside the 780px editor
+   panel that fights Quill's cursor and selection. Single column here. */
+.news-editor .feature-story__copy {
+    columns: 1;
+    column-rule: none;
+    max-height: none;
+    overflow: visible;
+}
+
+/* Kiosk headline sizes are tuned for a 768px screen read standing up —
+   scale them down to panel proportions. */
+.news-editor .feature-story__title {
+    font-size: 1.9rem;
+}
+
+.news-editor .secondary-story__title {
+    font-size: 1.15rem;
+}
+
+.news-editor .secondary-story__thumb,
+.news-editor .secondary-story__thumb--fallback {
+    height: 120px;
+}
+
+/* The kicker mirrors the location field; it's read-only chrome here, so
+   keep it quiet enough not to compete with the editable title. */
+.news-editor .feature-story__kicker {
+    font-size: 0.68rem;
+    opacity: 0.75;
+}
+
+/* The kiosk boxes widget slots as a "Bulletin"; in the editor each slot
+   is a drop target and the heavy border reads as a modal edge. */
+.news-editor .paper-slot--widget {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+/* Editable affordances */
+.news-editor [data-news-edit="title"][contenteditable],
+.news-editor [data-news-edit="source"][contenteditable],
+.news-editor [data-news-edit="location"][contenteditable],
+.news-editor [data-news-edit="dek"][contenteditable],
+.news-editor [data-news-edit="caption"][contenteditable],
+.news-editor [data-news-edit="credit"][contenteditable] {
+    outline: none;
+    border-radius: 4px;
+    transition: box-shadow 0.15s ease, background 0.15s ease;
+}
+.news-editor [data-news-edit="title"][contenteditable]:hover,
+.news-editor [data-news-edit="source"][contenteditable]:hover,
+.news-editor [data-news-edit="location"][contenteditable]:hover,
+.news-editor [data-news-edit="dek"][contenteditable]:hover,
+.news-editor [data-news-edit="caption"][contenteditable]:hover,
+.news-editor [data-news-edit="credit"][contenteditable]:hover {
+    background: rgba(227, 108, 34, 0.08);
+}
+.news-editor [data-news-edit="title"][contenteditable]:focus,
+.news-editor [data-news-edit="source"][contenteditable]:focus,
+.news-editor [data-news-edit="location"][contenteditable]:focus,
+.news-editor [data-news-edit="dek"][contenteditable]:focus,
+.news-editor [data-news-edit="caption"][contenteditable]:focus,
+.news-editor [data-news-edit="credit"][contenteditable]:focus {
+    box-shadow: 0 0 0 2px var(--kiosk-terracotta, #cc5a1f);
+    background: #fff;
+}
+
+/* Empty editable caption/dek regions still need a click target. */
+.news-editor [data-news-edit="dek"][contenteditable],
+.news-editor [data-news-edit="caption"][contenteditable] {
+    min-height: 1.4em;
+}
+.news-editor [data-news-edit="caption"][contenteditable] {
+    flex: 1 1 auto;
+}
+.news-editor [data-news-edit="credit"][contenteditable] {
+    display: inline-block;
+    min-width: 8ch;
+}
+
+.news-editor .feature-story__image.is-editable {
+    cursor: pointer;
+    position: relative;
+}
+.news-editor .feature-story__image.is-editable::after {
+    content: "Click or drop an image";
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 0.35rem 0.5rem;
+    font-family: var(--kiosk-font-ui, sans-serif);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #fff;
+    background: rgba(31, 15, 12, 0.55);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+.news-editor .feature-story__image.is-editable:hover::after {
+    opacity: 1;
+}
+.news-editor .feature-story__image.is-drop {
+    box-shadow: inset 0 0 0 3px var(--kiosk-terracotta, #cc5a1f);
+}
+
+.news-editor__add {
+    max-width: 780px;
+    margin: 0.85rem auto 0;
+    text-align: center;
+}
+
+/* Quill toolbar/content in the Gears palette */
+.news-editor .ql-toolbar.ql-snow,
+.news-editor .ql-container.ql-snow {
+    border-color: var(--kiosk-rule, rgba(31, 15, 12, 0.18));
+}
+.news-editor .ql-toolbar.ql-snow {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    background: rgba(31, 15, 12, 0.03);
+}
+.news-editor .ql-container.ql-snow {
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+.news-editor .ql-editor {
+    min-height: 160px;
+    font-size: 1rem;
+    line-height: 1.7;
+}
+.news-editor .ql-snow .ql-stroke { stroke: var(--kiosk-espresso, #1f0f0c); }
+.news-editor .ql-snow .ql-fill { fill: var(--kiosk-espresso, #1f0f0c); }
+.news-editor .ql-snow.ql-toolbar button:hover .ql-stroke,
+.news-editor .ql-snow.ql-toolbar button.ql-active .ql-stroke {
+    stroke: var(--kiosk-terracotta, #cc5a1f);
+}
+.news-editor .ql-snow.ql-toolbar button:hover .ql-fill,
+.news-editor .ql-snow.ql-toolbar button.ql-active .ql-fill {
+    fill: var(--kiosk-terracotta, #cc5a1f);
+}
+
+/* Active-story label in the properties panel */
+.news-prop-active {
+    margin: 0;
+    font-family: var(--kiosk-font-body, sans-serif);
+    font-size: 0.85rem;
+    color: var(--kiosk-ink-muted, rgba(31, 15, 12, 0.62));
+}
+
+/* Empty-slot placeholders (editor-only; kiosk never renders these). Built
+   on .paper-empty/.paper-empty--compact (kiosk-news.css); this modifier
+   turns the plain div-based empty state into a clickable button that
+   Task 4's story drawer opens against (data-news-assign-slot). */
+.news-editor .paper-empty--action {
+    width: 100%;
+    background: transparent;
+    font: inherit;
+    font-family: var(--kiosk-font-ui, "Gilroy", "Century Gothic", sans-serif);
+    font-weight: 700;
+    color: var(--ink-terracotta);
+    border: 1px dashed var(--kiosk-rule, rgba(31, 15, 12, 0.3));
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.news-editor .paper-empty--action:hover,
+.news-editor .paper-empty--action:focus-visible {
+    background: rgba(227, 108, 34, 0.08);
+    border-color: var(--ink-terracotta);
+    color: var(--ink-oxblood);
+    outline: none;
+}
+
+/* Reorder affordance */
+.news-editor .secondary-story {
+    cursor: grab;
+}
+.news-editor .secondary-story.sortable-chosen {
+    cursor: grabbing;
+    box-shadow: 0 0 0 2px var(--kiosk-terracotta, #cc5a1f);
 }

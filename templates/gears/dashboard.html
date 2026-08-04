@@ -3,11 +3,13 @@
 
 {% block head %}
 <link rel="stylesheet" href="/assets/css/gears-dashboard.css" />
+<link rel="stylesheet" href="/assets/css/kiosk-tokens.css" />
+<link rel="stylesheet" href="/assets/css/kiosk-news.css" />
+<link rel="stylesheet" href="/assets/css/quill.snow.css" />
 <link rel="stylesheet" href="/assets/css/news-dashboard.css" />
 <link rel="stylesheet" href="/assets/css/dropzone.css" />
 <link rel="stylesheet" href="/assets/css/upload-meter.css" />
 <link rel="stylesheet" href="/assets/css/confirm-modal.css" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.snow.css">
 {% endblock %}
 
 {% block content %}
@@ -16,31 +18,9 @@
   data-dashboard-shell
   data-default-page="{{ default_page if default_page else 'dashboard' }}"
   data-video-push-url="{{ route('video.push', {}, False) }}"
-  data-org-board-reorder-url="{{ route('org-board.reorder', {}, False) }}"
   data-open-events-modal="{{ 'true' if bag().any() and (default_page or 'dashboard') == 'events' else 'false' }}"
   data-open-news-modal="false"
 >
-  {% macro render_org_board_member(member, department_id) %}
-  <div class="org-board-node">
-    <div class="org-board-dropzone org-board-dropzone--before" data-org-board-dropzone="before" data-anchor-id="{{ member.id }}" data-department-id="{{ department_id }}">Drop before</div>
-    <article class="org-board-member" draggable="true" data-org-board-member data-member-id="{{ member.id }}">
-      <div class="org-board-member__handle" data-org-board-drag-handle aria-label="Drag member" title="Drag member">⋮⋮</div>
-      <div class="org-board-member__body">
-        <div class="org-board-member__name">{{ member.name }}</div>
-        <div class="org-board-member__meta">{{ member.position if member.position else 'No position' }}</div>
-      </div>
-      <span class="status-pill status-pill--neutral">{{ 'Photo' if member.photo_path else 'Text' }}</span>
-    </article>
-    <div class="org-board-member__children">
-      <div class="org-board-dropzone org-board-dropzone--child" data-org-board-dropzone="child" data-anchor-id="{{ member.id }}" data-department-id="{{ department_id }}">Drop here to nest under this member</div>
-      {% for child in member.children %}
-      {{ render_org_board_member(child, department_id) }}
-      {% endfor %}
-    </div>
-    <div class="org-board-dropzone org-board-dropzone--after" data-org-board-dropzone="after" data-anchor-id="{{ member.id }}" data-department-id="{{ department_id }}">Drop after</div>
-  </div>
-  {% endmacro %}
-
   <aside class="gears-sidebar">
     <div class="gears-sidebar__brand">
       <div class="gears-sidebar__mark" aria-hidden="true"><img src="/gears.png" alt="Gears logo"></div>
@@ -63,6 +43,10 @@
       <button type="button" class="dashboard-nav__link" data-page-link="news" id="nav-news" role="tab" aria-controls="panel-news" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">◫</span>
         <span>News</span>
+      </button>
+      <button type="button" class="dashboard-nav__link" data-page-link="archives" id="nav-archives" role="tab" aria-controls="panel-archives" aria-selected="false" tabindex="-1">
+        <span class="dashboard-nav__icon" aria-hidden="true">◧</span>
+        <span>Archives</span>
       </button>
       <button type="button" class="dashboard-nav__link" data-page-link="locations" id="nav-locations" role="tab" aria-controls="panel-locations" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">⌖</span>
@@ -93,13 +77,6 @@
     </nav>
 
     <div class="gears-sidebar__footer">
-      <div class="live-status-card">
-        <span class="live-status-card__dot" aria-hidden="true"></span>
-        <div>
-          <div class="live-status-card__title">LIVE UPDATES ON</div>
-          <div class="live-status-card__text">Changes appear on kiosk instantly</div>
-        </div>
-      </div>
       <form method="POST" action="{{ route('auth.logout') }}" class="gears-sidebar__logout-form">
         {{ csrf | safe }}
         <button type="submit"
@@ -119,6 +96,7 @@
         <h1 class="gears-hero__title" data-hero-title>Real-time overview of your kiosk content</h1>
         <p class="gears-hero__subtitle" data-hero-subtitle>Manage events, news, campus locations, kiosk videos, and screen control from one place.</p>
       </div>
+      <span class="gears-hero__chip gears-hero__chip--live" data-news-state-badge>Live layout</span>
     </header>
 
     <section class="gears-page is-visible" data-page-panel="dashboard" id="panel-dashboard" role="tabpanel" aria-labelledby="nav-dashboard" data-hero-eyebrow="Dashboard" data-hero-title="Real-time overview of your kiosk content" data-hero-subtitle="Manage events, news, campus locations, kiosk videos, and screen control from one place.">
@@ -223,7 +201,7 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="events" id="panel-events" role="tabpanel" aria-labelledby="nav-events" data-hero-eyebrow="Content" data-hero-title="Events and campus calendar" data-hero-subtitle="Publish event listings for the kiosk schedule and lobby screens." hidden>
+    <section class="gears-page" data-page-panel="events" data-live-section="events" id="panel-events" role="tabpanel" aria-labelledby="nav-events" data-hero-eyebrow="Content" data-hero-title="Events and campus calendar" data-hero-subtitle="Publish event listings for the kiosk schedule and lobby screens." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
@@ -250,46 +228,13 @@
           <p class="empty-state__text">Create events to populate this section.</p>
         </div>
 
-        <div class="table-responsive" data-section-content>
-          <table class="events-table" aria-label="Events table">
-            <thead>
-              <tr>
-                <th scope="col">Title</th>
-                <th scope="col">Description</th>
-                <th scope="col">Event date</th>
-                <th scope="col">Location</th>
-                <th scope="col">Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for event in events %}
-              <tr>
-                <td>{{ event.title }}</td>
-                <td>{{ event.description if event.description else 'No summary available.' }}</td>
-                <td>{{ event.event_date.strftime('%m-%d-%Y') if event.event_date else 'Not set' }}</td>
-                <td>{{ location_lookup.get(event.location_id, 'Unassigned') if location_lookup else 'Unassigned' }}</td>
-                <td>{{ 'Archive' if event.is_archive else 'Manual' }}</td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="5" class="empty-state empty-state--embedded">No data available.</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <div class="table-responsive" data-section-content data-live-target>
+{% include "gears/partials/events-list.html" %}
         </div>
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="news" id="panel-news" role="tabpanel" aria-labelledby="nav-news" data-hero-eyebrow="Content" data-hero-title="Newsroom composer" data-hero-subtitle="Compose the kiosk page visually: place stories into slots, edit the copy inline, and keep the publication flow moving." hidden>
-      <div class="section-head">
-        <div>
-          <p class="section-head__eyebrow">Content</p>
-          <h2 class="section-head__title">News</h2>
-        </div>
-        <p class="section-head__subtitle">Build the page like an editor's desk: slot the lead story, balance the side stories, and keep the status of each piece visible.</p>
-      </div>
-
+    <section class="gears-page" data-page-panel="news" data-live-section="news" id="panel-news" role="tabpanel" aria-labelledby="nav-news" data-hero-eyebrow="Content" data-hero-title="Newsroom composer" data-hero-subtitle="Compose the kiosk page visually: place stories into slots, edit the copy inline, and keep the publication flow moving." hidden>
       {% if bag().any() %}
       <div class="dashboard-alert">
         <ul class="dashboard-alert__list">
@@ -299,6 +244,13 @@
         </ul>
       </div>
       {% endif %}
+
+      <div class="news-toolbar" data-news-toolbar>
+        <div class="news-toolbar__live" title="Changes appear on the kiosk instantly">
+          <span class="live-status-card__dot live-status-card__dot--inline" aria-hidden="true"></span>
+          <span class="news-toolbar__live-text">Live updates on &mdash; changes appear on kiosk instantly</span>
+        </div>
+      </div>
 
       <div class="news-layout-editor news-layout-editor--composer" data-news-composer>
 
@@ -310,6 +262,9 @@
           <input type="hidden" name="description"  data-news-field="description">
           <input type="hidden" name="source"       data-news-field="source">
           <input type="hidden" name="location"     data-news-field="location">
+          <input type="hidden" name="dek"           data-news-field="dek">
+          <input type="hidden" name="image_caption" data-news-field="caption">
+          <input type="hidden" name="image_credit"  data-news-field="credit">
           <input type="hidden" name="layout_type"  value="main" data-news-layout-field>
           <input type="hidden" name="status"       value="published">
           <input type="hidden" name="priority"     value="0" data-news-field="priority">
@@ -319,10 +274,10 @@
                  class="news-canvas__file-input" aria-hidden="true" tabindex="-1">
         </form>
 
-        <!-- ── Editable newspaper canvas ─────────────────────── -->
+        <!-- ── Real kiosk front page = the editing surface ──── -->
         <div class="news-canvas page-card" data-news-canvas>
 
-          <!-- Static masthead -->
+          <!-- Masthead (editorial context; matches kiosk chrome) -->
           <div class="news-canvas__masthead">
             <div class="news-canvas__masthead-top">
               <span>ESTABLISHED 2026</span>
@@ -333,106 +288,27 @@
             <div class="news-canvas__rule"></div>
           </div>
 
-          <!-- Slot layout — swapped by JS via data-canvas-slot -->
-          <div class="news-canvas__body" data-canvas-slot="main">
+          <!-- The exact kiosk slots. news-dashboard.js makes each slot
+               editable in place (Quill body, inline title/source/location,
+               drop-to-attach image) and reorderable. -->
+          {% set main_story = main_news %}
+          {% set secondary_stories = secondary_news %}
+          {% set news_editor = true %}
+          <div class="paper-grid news-editor" data-news-editor>
+            {% include 'kiosk/_news_slots.html' %}
+          </div>
 
-            <!-- MAIN slot layout -->
-            <div class="news-canvas__slot news-canvas__slot--main" data-canvas-layout="main">
-              <div class="news-canvas__slot-eyebrow">LEAD STORY</div>
-
-              <div class="news-canvas__image-zone" data-news-image-zone>
-                <img class="news-canvas__cover" data-news-canvas-image
-                     src="" alt="" style="display:none">
-                <div class="news-canvas__cover-fallback" data-news-image-fallback>
-                  <span class="news-canvas__cover-icon" aria-hidden="true">+</span>
-                  <span>Click to add cover image</span>
-                </div>
-              </div>
-
-              <h2 class="news-canvas__title" data-news-canvas-title
-                  contenteditable="true" role="textbox"
-                  aria-label="Headline" spellcheck="true"
-                  data-placeholder="Click to write headline…"></h2>
-
-              <div class="news-canvas__byline">
-                <span>— </span>
-                <span class="news-canvas__byline-source" data-news-canvas-source
-                      contenteditable="true" role="textbox"
-                      aria-label="Source" data-placeholder="Editorial Desk"></span>
-                <span>, </span>
-                <span class="news-canvas__byline-loc" data-news-canvas-location
-                      contenteditable="true" role="textbox"
-                      aria-label="Location" data-placeholder="Campus"></span>
-              </div>
-
-              <p class="news-canvas__copy" data-news-canvas-copy
-                 contenteditable="true" role="textbox"
-                 aria-label="Story body" spellcheck="true"
-                 data-placeholder="Write your story summary here…"></p>
-            </div>
-
-            <!-- SECONDARY slot layout -->
-            <div class="news-canvas__slot news-canvas__slot--secondary" data-canvas-layout="secondary" hidden>
-              <div class="news-canvas__slot-eyebrow">SIDE STORY</div>
-              <div class="news-canvas__secondary-card">
-                <div class="news-canvas__image-zone news-canvas__image-zone--thumb" data-news-image-zone>
-                  <img class="news-canvas__thumb" data-news-canvas-image
-                       src="" alt="" style="display:none">
-                  <div class="news-canvas__cover-fallback news-canvas__cover-fallback--thumb" data-news-image-fallback>
-                    <span class="news-canvas__cover-icon" aria-hidden="true">+</span>
-                    <span>Add thumbnail</span>
-                  </div>
-                </div>
-                <div class="news-canvas__secondary-body">
-                  <h3 class="news-canvas__secondary-title" data-news-canvas-title
-                      contenteditable="true" role="textbox"
-                      aria-label="Headline" data-placeholder="Headline…"></h3>
-                  <p class="news-canvas__secondary-copy" data-news-canvas-copy
-                     contenteditable="true" role="textbox"
-                     aria-label="Summary" data-placeholder="Short summary…"></p>
-                </div>
-              </div>
-
-              <div class="news-canvas__byline news-canvas__byline--secondary">
-                <span>— </span>
-                <span class="news-canvas__byline-source" data-news-canvas-source
-                      contenteditable="true" role="textbox"
-                      aria-label="Source" data-placeholder="Editorial Desk"></span>
-                <span>, </span>
-                <span class="news-canvas__byline-loc" data-news-canvas-location
-                      contenteditable="true" role="textbox"
-                      aria-label="Location" data-placeholder="Campus"></span>
-              </div>
-            </div>
-
-            <!-- WIDGET slot layout -->
-            <div class="news-canvas__slot news-canvas__slot--widget" data-canvas-layout="widget" hidden>
-              <div class="news-canvas__slot-eyebrow">WIDGET CARD</div>
-              <div class="news-canvas__widget-card">
-                <h3 class="news-canvas__widget-title" data-news-canvas-title
-                    contenteditable="true" role="textbox"
-                    aria-label="Widget title" data-placeholder="Widget title…"></h3>
-                <p class="news-canvas__widget-copy" data-news-canvas-copy
-                   contenteditable="true" role="textbox"
-                   aria-label="Widget body" data-placeholder="Short description…"></p>
-              </div>
-              <div class="news-canvas__byline news-canvas__byline--widget">
-                <span>— </span>
-                <span class="news-canvas__byline-source" data-news-canvas-source
-                      contenteditable="true" role="textbox"
-                      aria-label="Source" data-placeholder="Editorial Desk"></span>
-                <span>, </span>
-                <span class="news-canvas__byline-loc" data-news-canvas-location
-                      contenteditable="true" role="textbox"
-                      aria-label="Location" data-placeholder="Campus"></span>
-              </div>
-            </div>
-
-          </div><!-- /.news-canvas__body -->
+          <div class="news-editor__add">
+            <button type="button" class="ghost-button" data-news-add-secondary>+ Add a story</button>
+          </div>
         </div><!-- /.news-canvas -->
 
-        <!-- ── Properties panel ───────────────────────────── -->
+        <!-- ── Properties (apply to the story you're editing) ── -->
         <aside class="news-properties page-card" data-news-properties>
+          <div class="news-prop-section">
+            <div class="news-prop-section__label">Editing</div>
+            <p class="news-prop-active" data-news-active-label>New story</p>
+          </div>
 
           <div class="news-prop-section">
             <div class="news-prop-section__label">Slot</div>
@@ -446,31 +322,34 @@
             </div>
           </div>
 
-          <div class="news-prop-section">
-            <label class="news-prop-section__label" for="np-priority">
-              Order <span class="news-prop-section__hint">(lower = first)</span>
-            </label>
-            <input type="range" id="np-priority" class="news-composer-range"
-                   min="0" max="10" step="1" value="0" data-news-prop="priority">
-          </div>
-
-          <div class="news-prop-section">
-            <label class="news-prop-section__label" for="np-published-at">Publish date</label>
-            <input type="datetime-local" id="np-published-at"
-                   class="field__input news-prop-field" data-news-prop="published_at">
-          </div>
-
           <div class="news-prop-section news-prop-section--actions">
-            <button type="button" class="ghost-button" data-news-canvas-discard>Discard</button>
-            <button type="button" class="primary-button" data-news-canvas-save>Publish</button>
+            <button type="button" class="primary-button" data-news-canvas-save>Publish Page Layout</button>
           </div>
 
-          <div class="news-prop-section news-prop-section--open-modal">
-            <button type="button" class="ghost-button ghost-button--full" data-news-modal-open>
-              Full editor ↗
-            </button>
+          <div class="news-prop-section">
+            <details class="news-disclosure" data-news-schedule-disclosure>
+              <summary class="news-disclosure__summary ghost-button ghost-button--full">Schedule for Later</summary>
+              <div class="news-disclosure__panel">
+                <label class="news-prop-section__label" for="np-published-at">Publish date</label>
+                <input type="datetime-local" id="np-published-at"
+                       class="field__input news-prop-field" data-news-prop="published_at">
+              </div>
+            </details>
           </div>
 
+          <div class="news-prop-section">
+            <button type="button" class="ghost-button ghost-button--full" data-news-unassign>Remove from Front Page</button>
+          </div>
+
+          <div class="news-prop-section news-prop-section--danger">
+            <details class="news-disclosure news-disclosure--danger" data-news-danger-menu>
+              <summary class="news-disclosure__summary ghost-button ghost-button--danger ghost-button--full">Danger zone</summary>
+              <div class="news-disclosure__panel">
+                <p class="news-disclosure__copy">Permanently deletes this story and its image. This cannot be undone.</p>
+                <button type="button" class="danger-button ghost-button--full" data-news-delete-active>Delete Story</button>
+              </div>
+            </details>
+          </div>
         </aside>
 
       </div><!-- /.news-layout-editor -->
@@ -489,28 +368,8 @@
           <p class="empty-state__text">Create a story to start building your newsroom library.</p>
         </div>
 
-        <div class="news-story-library__grid" data-section-content>
-          {% for news in news_items[:8] %}
-          {% set _slot_label = {'main': 'Lead', 'secondary': 'Side', 'widget': 'Widget'}.get(news.layout_type, 'Side') %}
-          {% set _story_status = (news.status if news.status else 'approved') %}
-          <article class="news-story-card" data-news-library-item data-news-library-id="{{ news.id }}" data-news-library-title="{{ news.title | e }}" data-news-library-description="{{ news.description | default('', true) | e }}" data-news-library-source="{{ news.source | default('', true) | e }}" data-news-library-location="{{ news.location | default('', true) | e }}" data-news-library-layout="{{ news.layout_type | default('secondary', true) | e }}" data-news-library-status="{{ _story_status | e }}" data-news-library-priority="{{ news.priority if news.priority is not none else 0 }}" data-news-library-image="{{ news.image | default('', true) | e }}">
-            <div class="news-story-card__topline">
-              <span class="news-story-card__slot">{{ _slot_label }}</span>
-              <span class="news-story-card__status news-story-card__status--{{ _story_status | lower }}">{{ _story_status | capitalize }}</span>
-            </div>
-            <div class="news-story-card__title">{{ news.title }}</div>
-            <div class="news-story-card__copy">{{ news.description[:140] if news.description else 'No summary available.' }}</div>
-            <div class="news-story-card__meta">
-              <span>{{ news.source if news.source else 'Unspecified' }}</span>
-              <span>Order {{ news.priority if news.priority is not none else 0 }}</span>
-            </div>
-            <div class="news-story-card__actions">
-              <button type="button" class="ghost-button" data-news-load-story>Load into composer</button>
-            </div>
-          </article>
-          {% else %}
-          <div class="empty-state empty-state--embedded">No data available.</div>
-          {% endfor %}
+        <div class="news-story-library__grid" data-section-content data-live-target>
+{% include "gears/partials/news-slots.html" %}
         </div>
       </div>
     </section>
@@ -525,7 +384,7 @@
           <button type="button" class="article-modal__close" data-events-modal-close>Close</button>
         </div>
 
-        <form action="{{ route('events.store', {}, False) }}" method="POST" class="form-stack">
+        <form action="{{ route('events.store', {}, False) }}" method="POST" class="form-stack" data-events-form>
           {{ csrf_field | safe }}
 
           <label class="field" for="event-title">
@@ -561,83 +420,7 @@
       </div>
     </dialog>
 
-    <dialog class="article-modal news-modal" data-news-modal>
-      <div class="article-modal__panel">
-        <div class="article-modal__header">
-          <div>
-            <h3 class="article-modal__title">Add a story</h3>
-            <p class="article-modal__subtitle">Fill in the title, summary, image, source, and date so the kiosk can show it.</p>
-          </div>
-          <button type="button" class="article-modal__close" data-news-modal-close>Close</button>
-        </div>
-
-        <form action="{{ route('news.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-label="news photo">
-          {{ csrf_field | safe }}
-
-          <label class="field" for="news-modal-title">
-            <span class="field__label">Headline</span>
-            <input type="text" name="title" id="news-modal-title" class="field__input" placeholder="News headline" required>
-          </label>
-
-          <label class="field" for="news-modal-description">
-            <span class="field__label">Story body</span>
-            <textarea name="description" id="news-modal-description" class="field__input field__textarea" placeholder="News article summary" required></textarea>
-          </label>
-
-          <div class="field">
-            <span class="field__label">Cover image</span>
-            <label class="dropzone" data-dropzone>
-              <input type="file" name="image" id="news-image-modal" class="dropzone__input" accept="image/*">
-              <span class="dropzone__empty">
-                <span class="dropzone__icon" aria-hidden="true">↑</span>
-                <span class="dropzone__title">Drop an image here, or tap to choose</span>
-                <span class="dropzone__hint">PNG, JPG, GIF, or WEBP</span>
-              </span>
-              <span class="dropzone__filled" hidden>
-                <span class="dropzone__filename" data-dropzone-name></span>
-                <span class="dropzone__size" data-dropzone-size></span>
-                <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
-              </span>
-            </label>
-          </div>
-
-          <label class="field" for="news-modal-published-at">
-            <span class="field__label">Published at</span>
-            <input type="datetime-local" name="published_at" id="news-modal-published-at" class="field__input">
-          </label>
-
-          <label class="field" for="news-modal-source">
-            <span class="field__label">Source</span>
-            <input type="text" name="source" id="news-modal-source" class="field__input" placeholder="Campus affairs, editorial, or outlet name">
-          </label>
-
-          <label class="field" for="news-modal-location">
-            <span class="field__label">Location</span>
-            <input type="text" name="location" id="news-modal-location" class="field__input" placeholder="Building, department, or city">
-          </label>
-
-          <label class="field" for="news-modal-status">
-            <span class="field__label">Status</span>
-            <select name="status" id="news-modal-status" class="field__input field__input--select">
-              <option value="approved" selected>Approved</option>
-              <option value="review">Review</option>
-              <option value="draft">Draft</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
-            </select>
-          </label>
-
-          <div class="article-modal__footer">
-            <button type="button" class="ghost-button" data-news-modal-close>Cancel</button>
-            <button type="submit" class="primary-button">Save story</button>
-          </div>
-        </form>
-      </div>
-    </dialog>
-    </section>
-
-    <section class="gears-page" data-page-panel="archives" id="panel-archives" role="tabpanel" aria-labelledby="nav-archives" data-hero-eyebrow="Content" data-hero-title="Archive library" data-hero-subtitle="Upload PDF archives and publish them by year." hidden>
+    <section class="gears-page" data-page-panel="archives" data-live-section="archives" id="panel-archives" role="tabpanel" aria-labelledby="nav-archives" data-hero-eyebrow="Content" data-hero-title="Archive library" data-hero-subtitle="Upload PDF archives and publish them by year." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
@@ -665,7 +448,7 @@
             </div>
           </div>
 
-          <form action="{{ route('archives.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-label="archive PDF">
+          <form action="{{ route('archives.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-reload="false" data-upload-label="archive PDF" data-live-form="archives">
             {{ csrf_field | safe }}
 
             <label class="field" for="archive-name">
@@ -724,40 +507,9 @@
             <p class="empty-state__text">Upload PDF archives to populate the kiosk archive page.</p>
           </div>
 
-          <div class="archive-admin-card-grid archive-admin-card-grid--scroll" data-section-content>
-            {% for archive in archives %}
-            <article class="archive-card">
-              {% if archive.cover_url %}
-              <img class="archive-card__cover" src="{{ archive.cover_url }}" alt="{{ archive.name | e }} cover">
-              {% else %}
-              <div class="archive-card__cover archive-card__cover--fallback" aria-hidden="true">
-                <span class="archive-card__cover-text">No cover generated</span>
-              </div>
-              {% endif %}
-
-              <div class="archive-card__body">
-                <div class="archive-card__title">{{ archive.name }}</div>
-                <div class="archive-card__meta">
-                  <span>{{ archive.type }}</span>
-                  <span>Year {{ archive.year if archive.year else 'Not set' }}</span>
-                </div>
-                <div class="archive-card__year">{{ archive.year if archive.year else 'Undated' }}</div>
-                <div class="archive-card__path">{{ archive.file_path }}</div>
-                <form action="{{ route('archives.destroy', {'id': archive.id}, False) }}" method="post" class="inline-form">
-                  {{ csrf_field | safe }}
-                  <input type="hidden" name="__method" value="DELETE">
-                  <button type="submit" class="ghost-button"
-                          data-confirm="Permanently delete the {{ archive.name | e }} archive? Visitors will no longer see it on the kiosk."
-                          data-confirm-title="Delete archive?"
-                          data-confirm-label="Delete archive"
-                          data-confirm-danger>Delete</button>
-                </form>
-              </div>
-            </article>
-            {% else %}
-            <div class="empty-state empty-state--embedded">No data available.</div>
-            {% endfor %}
-          </div>
+          <div class="archive-admin-card-grid archive-admin-card-grid--scroll" data-section-content data-live-target>
+{% include "gears/partials/archives-list.html" %}
+        </div>
         </article>
       </div>
     </section>
@@ -796,13 +548,13 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="org-board" id="panel-org-board" role="tabpanel" aria-labelledby="nav-org-board" data-hero-eyebrow="Content" data-hero-title="Organization board" data-hero-subtitle="Drag members to nest them under a leader or move them between departments." hidden>
+    <section class="gears-page" data-page-panel="org-board" id="panel-org-board" role="tabpanel" aria-labelledby="nav-org-board" data-hero-eyebrow="Content" data-hero-title="Organization board" data-hero-subtitle="Arrange each department's chart on the canvas: drag a card onto another to nest it, or anywhere to position it freely." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
           <h2 class="section-head__title">Org Board</h2>
         </div>
-        <p class="section-head__subtitle">Drop a card onto a member to nest it, or use the lanes between cards to change the order.</p>
+        <p class="section-head__subtitle">The kiosk shows exactly the arrangement you build here.</p>
       </div>
 
       {% if bag().any() %}
@@ -815,7 +567,16 @@
       </div>
       {% endif %}
 
-      <div class="org-board-layout">
+      <div
+        class="org-board-layout"
+        data-org-board-editor
+        data-ob-data-url="{{ route('org-board.data', {}, False) }}"
+        data-ob-move-url="{{ route('org-board.move', {}, False) }}"
+        data-ob-update-url="{{ route('org-board.update', {}, False) }}"
+        data-ob-photo-url="{{ route('org-board.photo', {}, False) }}"
+        data-ob-delete-url="{{ route('org-board.destroy', {}, False) }}"
+        data-ob-reset-url="{{ route('org-board.reset-layout', {}, False) }}"
+      >
         <article class="page-card org-board-form-card">
           <div class="panel-header panel-header--compact">
             <div>
@@ -824,9 +585,9 @@
             </div>
           </div>
 
-          <p class="panel-header__subtitle">Editors can add members here first, then arrange the hierarchy with drag and drop.</p>
+          <p class="panel-header__subtitle">Editors can add members here first, then arrange the chart by dragging cards on the canvas.</p>
 
-          <form action="{{ route('org-board.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-label="member photo">
+          <form action="{{ route('org-board.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-reload="false" data-upload-label="member photo" data-ob-add-form>
             {{ csrf_field | safe }}
 
             <label class="field" for="org-board-name">
@@ -870,33 +631,93 @@
           </form>
         </article>
 
-        <div class="org-board-board" data-org-board-board>
-          {% for department in org_board_departments %}
-          <article class="org-board-column" data-org-board-column data-department-id="{{ department.id }}">
-            <div class="org-board-column__header">
-              <div>
-                <div class="org-board-column__title">{{ department.name }}</div>
-                <div class="org-board-column__meta">{{ department.location_name if department.location_name else 'Linked location not set' }}</div>
-                {% if department.location_type %}
-                <div class="org-board-column__meta">{{ department.location_type }}</div>
-                {% endif %}
+        <div class="org-board-board">
+          {% if org_board_departments %}
+          <div class="org-board-toolbar">
+            <label class="field field--inline" for="org-board-canvas-department">
+              <span class="field__label">Department</span>
+              <select id="org-board-canvas-department" class="field__input field__input--select" data-ob-department>
+                {% for department in org_board_departments %}
+                <option value="{{ department.id }}">{{ department.name }}</option>
+                {% endfor %}
+              </select>
+            </label>
+
+            <div class="org-board-toolbar__actions">
+              <button type="button" class="ghost-button" data-ob-zoom-out aria-label="Zoom out">&minus;</button>
+              <button type="button" class="ghost-button" data-ob-zoom-in aria-label="Zoom in">+</button>
+              <button type="button" class="ghost-button" data-ob-fit>Fit</button>
+              <button type="button" class="ghost-button" data-ob-reset-layout>Reset layout</button>
+            </div>
+          </div>
+
+          <p class="org-board-hint">
+            Drag a card onto another to make them report to it. Drag it onto empty space to place it exactly where you want.
+            Drop an image file onto a card to set that member&rsquo;s photo, or click a card to edit it.
+          </p>
+
+          <div class="org-board-canvas" data-ob-canvas>
+            <div class="org-board-stage" data-ob-stage>
+              <svg class="org-board-edges" data-ob-edges xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
+              <div class="org-board-cards" data-ob-cards></div>
+            </div>
+
+            <div class="empty-state empty-state--embedded org-board-empty" data-ob-empty hidden>
+              No members in this department yet. Add one with the form beside this canvas.
+            </div>
+          </div>
+
+          <aside class="org-board-panel" data-ob-panel hidden>
+            <div class="org-board-panel__header">
+              <h3 class="panel-header__title">Edit member</h3>
+              <button type="button" class="ghost-button" data-ob-panel-close aria-label="Close editor">&times;</button>
+            </div>
+
+            <div class="org-board-panel__preview" data-ob-panel-preview></div>
+
+            <p class="org-board-panel__note" data-ob-pin-note hidden>
+              This card is positioned by hand. &ldquo;Reset layout&rdquo; returns the whole department to the automatic arrangement.
+            </p>
+
+            <form class="form-stack" data-ob-panel-form>
+              <label class="field" for="org-board-edit-name">
+                <span class="field__label">Name</span>
+                <input type="text" id="org-board-edit-name" class="field__input" data-ob-field="name" required>
+              </label>
+
+              <label class="field" for="org-board-edit-position">
+                <span class="field__label">Position</span>
+                <input type="text" id="org-board-edit-position" class="field__input" data-ob-field="position" required>
+              </label>
+
+              <label class="field" for="org-board-edit-department">
+                <span class="field__label">Department</span>
+                <select id="org-board-edit-department" class="field__input field__input--select" data-ob-field="department_id">
+                  {% for department in org_board_departments %}
+                  <option value="{{ department.id }}">{{ department.name }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="field" for="org-board-edit-parent">
+                <span class="field__label">Reports to</span>
+                <select id="org-board-edit-parent" class="field__input field__input--select" data-ob-field="parent_id"></select>
+              </label>
+
+              <label class="field" for="org-board-edit-photo">
+                <span class="field__label">Replace photo</span>
+                <input type="file" id="org-board-edit-photo" class="field__input" accept="image/*" data-ob-field="photo_path">
+              </label>
+
+              <div class="org-board-panel__actions">
+                <button type="submit" class="primary-button">Save changes</button>
+                <button type="button" class="ghost-button ghost-button--danger" data-ob-panel-delete>Remove member</button>
               </div>
-              <span class="status-pill status-pill--neutral">{{ department.members|length }} members</span>
-            </div>
-
-            <div class="org-board-dropzone org-board-dropzone--root" data-org-board-dropzone="root" data-department-id="{{ department.id }}">Drop here to add to this department</div>
-
-            <div class="org-board-column__members">
-              {% for member in department.members %}
-              {{ render_org_board_member(member, department.id) }}
-              {% else %}
-              <div class="empty-state empty-state--embedded org-board-empty">No members yet. Add one or drag a card here.</div>
-              {% endfor %}
-            </div>
-          </article>
+            </form>
+          </aside>
           {% else %}
           <div class="empty-state empty-state--embedded">No departments found.</div>
-          {% endfor %}
+          {% endif %}
         </div>
       </div>
     </section>
@@ -1398,7 +1219,7 @@
       </div><!-- /.about-section-switcher -->
     </section>
 
-    <section class="gears-page" data-page-panel="video-manager" id="panel-video-manager" role="tabpanel" aria-labelledby="nav-video-manager" data-hero-eyebrow="System Tools" data-hero-title="Videos for the kiosk" data-hero-subtitle="Upload a video, preview it, then show it on the kiosk screen." hidden>
+    <section class="gears-page" data-page-panel="video-manager" data-live-section="videos" id="panel-video-manager" role="tabpanel" aria-labelledby="nav-video-manager" data-hero-eyebrow="System Tools" data-hero-title="Videos for the kiosk" data-hero-subtitle="Upload a video, preview it, then show it on the kiosk screen." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">System Tools</p>
@@ -1426,7 +1247,7 @@
             </div>
           </div>
 
-          <form action="{{ route('video.upload', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-label="video">
+          <form action="{{ route('video.upload', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-reload="false" data-upload-label="video" data-live-form="videos">
             {{ csrf_field | safe }}
             <label class="field">
               <span class="field__label">Video name</span>
@@ -1490,44 +1311,8 @@
           <p class="empty-state__text">Upload your first video to populate the library.</p>
         </div>
 
-        <div class="video-library" data-section-content>
-          {% for video in videos %}
-          <article class="video-card{% if video.show_when_idle %} video-card--idle-active{% endif %}" data-video-card data-video-src="/storage/{{ video.file_path | replace('\\', '/') }}" data-video-title="{{ video.title | e }}">
-            <button type="button" class="video-card__body" data-video-preview-trigger>
-              <span class="video-card__thumb" aria-hidden="true">▶</span>
-              <span class="video-card__copy">
-                <span class="video-card__title">{{ video.title }}</span>
-                <span class="video-card__meta">{{ video.file_path }}</span>
-                {% if video.show_when_idle %}
-                <span class="video-card__badge">★ Idle attract</span>
-                {% endif %}
-              </span>
-            </button>
-
-            <div class="video-card__actions">
-              <button type="button" class="secondary-button" data-video-push-trigger data-src="/storage/{{ video.file_path | replace('\\', '/') }}" data-title="{{ video.title | e }}">
-                Show on screen now
-              </button>
-              <button type="button"
-                      class="secondary-button video-card__idle-toggle{% if video.show_when_idle %} is-active{% endif %}"
-                      data-video-idle-trigger
-                      data-video-id="{{ video.id }}"
-                      data-video-title="{{ video.title | e }}"
-                      data-idle-active="{{ 'true' if video.show_when_idle else 'false' }}">
-                {% if video.show_when_idle %}★ Showing on idle{% else %}Display this on idle{% endif %}
-              </button>
-              <button type="button" class="ghost-button" data-video-delete-trigger data-video-id="{{ video.id }}" data-video-title="{{ video.title | e }}"
-                      data-confirm="Permanently remove “{{ video.title | e }}” from the kiosk library. This cannot be undone."
-                      data-confirm-title="Delete video?"
-                      data-confirm-label="Delete video"
-                      data-confirm-danger>
-                Delete
-              </button>
-            </div>
-          </article>
-          {% else %}
-          <div class="empty-state empty-state--embedded">No data available.</div>
-          {% endfor %}
+        <div class="video-library" data-section-content data-live-target>
+{% include "gears/partials/videos-list.html" %}
         </div>
       </div>
     </section>
@@ -1576,187 +1361,9 @@
 <script src="/assets/js/confirm-modal.js" defer></script>
 <script src="/assets/js/upload-meter.js" defer></script>
 <script src="/assets/js/gears-dashboard.js" defer></script>
+<script src="/assets/js/dashboard-live.js" defer></script>
 <script src="/assets/js/news-dashboard.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.js" defer></script>
 <script src="/assets/js/about-lspu-editor.js" defer></script>
-<script>
-(function () {
-  var dashboardRoot = document.querySelector('[data-dashboard-shell]');
-
-  if (!dashboardRoot) {
-    return;
-  }
-
-  var board = dashboardRoot.querySelector('[data-org-board-board]');
-
-  if (!board) {
-    return;
-  }
-
-  var tokenMeta = document.querySelector('meta[name="csrf-token"]');
-  var token = tokenMeta ? tokenMeta.getAttribute('content') : '';
-  var reorderUrl = dashboardRoot.getAttribute('data-org-board-reorder-url') || '/org-board/dashboard/reorder';
-  var draggedMemberId = '';
-  var activeDropzone = null;
-  var orgBoardTab = dashboardRoot.querySelector('[data-page-link="org-board"]');
-
-  function syncOrgBoardUrl() {
-    try {
-      var url = new URL(window.location.href);
-      url.searchParams.set('page', 'org-board');
-      window.history.replaceState({}, '', url.toString());
-    } catch (error) {
-      // Ignore browsers that cannot construct the URL helper here.
-    }
-  }
-
-  if (orgBoardTab) {
-    orgBoardTab.addEventListener('click', function () {
-      window.requestAnimationFrame(syncOrgBoardUrl);
-    });
-  }
-
-  function clearActiveDropzone() {
-    if (!activeDropzone) {
-      return;
-    }
-
-    activeDropzone.classList.remove('is-active');
-    activeDropzone = null;
-  }
-
-  function setActiveDropzone(dropzone) {
-    if (activeDropzone === dropzone) {
-      return;
-    }
-
-    clearActiveDropzone();
-
-    activeDropzone = dropzone;
-    if (activeDropzone) {
-      activeDropzone.classList.add('is-active');
-    }
-  }
-
-  function moveMember(payload) {
-    var formData = new FormData();
-    formData.append('__token', token);
-
-    Object.keys(payload).forEach(function (key) {
-      var value = payload[key];
-      if (value !== undefined && value !== null && value !== '') {
-        formData.append(key, String(value));
-      }
-    });
-
-    return fetch(reorderUrl, {
-      method: 'POST',
-      headers: {
-        'X-CSRF-TOKEN': token,
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      body: formData,
-      credentials: 'same-origin'
-    }).then(function (response) {
-      if (!response.ok) {
-        throw new Error('Request failed');
-      }
-
-      return response;
-    });
-  }
-
-  board.addEventListener('dragstart', function (event) {
-    var memberCard = event.target.closest('[data-org-board-member]');
-
-    if (!memberCard || !board.contains(memberCard)) {
-      return;
-    }
-
-    draggedMemberId = memberCard.getAttribute('data-member-id') || '';
-    if (!draggedMemberId) {
-      return;
-    }
-
-    memberCard.classList.add('is-dragging');
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', draggedMemberId);
-  });
-
-  board.addEventListener('dragend', function (event) {
-    var memberCard = event.target.closest('[data-org-board-member]');
-
-    if (memberCard) {
-      memberCard.classList.remove('is-dragging');
-    }
-
-    draggedMemberId = '';
-    clearActiveDropzone();
-  });
-
-  board.addEventListener('dragover', function (event) {
-    var dropzone = event.target.closest('[data-org-board-dropzone]');
-
-    if (!dropzone || !board.contains(dropzone)) {
-      return;
-    }
-
-    event.preventDefault();
-    setActiveDropzone(dropzone);
-  });
-
-  board.addEventListener('dragleave', function (event) {
-    var dropzone = event.target.closest('[data-org-board-dropzone]');
-
-    if (!dropzone || dropzone !== activeDropzone) {
-      return;
-    }
-
-    if (dropzone.contains(event.relatedTarget)) {
-      return;
-    }
-
-    clearActiveDropzone();
-  });
-
-  board.addEventListener('drop', function (event) {
-    var dropzone = event.target.closest('[data-org-board-dropzone]');
-
-    if (!dropzone || !board.contains(dropzone)) {
-      return;
-    }
-
-    event.preventDefault();
-
-    if (!draggedMemberId) {
-      return;
-    }
-
-    if (draggedMemberId === (dropzone.getAttribute('data-anchor-id') || '')) {
-      return;
-    }
-
-    moveMember({
-      member_id: draggedMemberId,
-      dropzone: dropzone.getAttribute('data-org-board-dropzone') || '',
-      anchor_id: dropzone.getAttribute('data-anchor-id') || '',
-      department_id: dropzone.getAttribute('data-department-id') || ''
-    })
-      .then(function () {
-        syncOrgBoardUrl();
-        window.location.reload();
-      })
-      .catch(function () {
-        if (window.UploadMeter && window.UploadMeter.makeToast) {
-          var t = window.UploadMeter.makeToast({ filename: 'Could not move the member.', total: 0, label: 'org board' });
-          t.error('Could not move the member.');
-        }
-      })
-      .finally(function () {
-        draggedMemberId = '';
-        clearActiveDropzone();
-      });
-  });
-})();
-</script>
+<script src="/assets/js/org-chart-layout.js" defer></script>
+<script src="/assets/js/org-board-editor.js" defer></script>
 {% endblock %}

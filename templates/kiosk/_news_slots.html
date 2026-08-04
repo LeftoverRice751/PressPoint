@@ -1,0 +1,126 @@
+{# Shared newspaper slot markup — included by kiosk/news.html (viewer) and the
+   Gears dashboard news editor (editing surface). The data-news-* hooks are
+   inert on the kiosk (no editor JS there); the dashboard attaches Quill,
+   drag-drop, and per-story controls to them.
+
+   `news_editor` is set to true by templates/gears/dashboard.html before the
+   include. It gates the two surfaces apart:
+     - editor-only: slot labels stay visible, empty placeholders still render
+     - kiosk-only:  datelines and the "Continue reading" trigger
+
+   Datelines use `published_label`, which only the kiosk payload carries
+   (NewsController._news_item_to_dict); the editor has its own published_at
+   field in the properties panel. #}
+<section class="paper-feature paper-slot paper-slot--main" aria-label="Main headline slot" data-news-slot="main">
+  <div class="paper-slot__label">Main Headline Slot</div>
+  {% if main_story %}
+  <article class="feature-story" data-news-id="{{ main_story.id }}">
+    <figure class="feature-story__figure">
+      {% if main_story.image %}
+      <img class="feature-story__image" data-news-edit="image" src="/storage/{{ main_story | news_image('large') }}" alt="{{ main_story.title }}" decoding="async" fetchpriority="high">
+      {% else %}
+      <div class="feature-story__image feature-story__image--fallback" data-news-edit="image" aria-hidden="true"></div>
+      {% endif %}
+      {# Cutline: caption + photo credit. The kiosk renders it only when
+         there is something to say; the editor always keeps both regions
+         so they stay clickable/editable. #}
+      {% if news_editor or main_story.image_caption or main_story.image_credit %}
+      <figcaption class="feature-story__cutline">
+        <span class="feature-story__caption" data-news-edit="caption">{{ main_story.image_caption | default('', true) }}</span>
+        {% if news_editor or main_story.image_credit %}
+        <span class="feature-story__credit"><span class="feature-story__credit-label" aria-hidden="true">Photo:</span> <span data-news-edit="credit">{{ main_story.image_credit | default('', true) }}</span></span>
+        {% endif %}
+      </figcaption>
+      {% endif %}
+    </figure>
+    <div class="feature-story__content">
+      <span class="feature-story__kicker">{{ main_story.location | default('Campus', true) }}</span>
+      <h2 class="feature-story__title" data-news-edit="title">{{ main_story.title }}</h2>
+      {% if news_editor or main_story.dek %}
+      <p class="feature-story__dek" data-news-edit="dek">{{ main_story.dek | default('', true) }}</p>
+      {% endif %}
+      {# `default(x, true)` — boolean mode also catches NULL columns, which
+         plain `default` leaves as the literal "None". Location lives in the
+         kicker only — repeating it here printed "Campus · Campus". #}
+      <div class="feature-story__meta">By <span data-news-edit="source">{{ main_story.source | default('Editorial Desk', true) }}</span>{% if news_editor %} &middot; <span data-news-edit="location">{{ main_story.location | default('Campus', true) }}</span>{% endif %}{% if not news_editor and main_story.published_label %} &middot; <time datetime="{{ main_story.published_iso }}">{{ main_story.published_label }}</time>{% endif %}</div>
+      <div class="feature-story__copy drop-cap" data-news-edit="body">{{ main_story.description | safe }}</div>
+    </div>
+    {% if not news_editor %}
+    <button type="button" class="feature-story__more" data-news-more>
+      <span>Continue reading</span>
+      <span aria-hidden="true">&rarr;</span>
+    </button>
+    {% endif %}
+  </article>
+  {% else %}
+  <div class="paper-empty">No stories have been published yet.</div>
+  {% endif %}
+</section>
+
+<section class="paper-slot paper-slot--secondary" aria-label="Secondary stories" data-news-slot="secondary">
+  <div class="paper-slot__label">Secondary Slot</div>
+  {% if not news_editor and secondary_stories %}
+  <h2 class="paper-section-head">Also in this issue</h2>
+  {% endif %}
+  <div class="secondary-grid">
+    {% for news in secondary_stories %}
+    <article class="secondary-story" data-news-id="{{ news.id }}">
+      {% if news.image %}
+      <img class="secondary-story__thumb" data-news-edit="image" src="/storage/{{ news | news_image('thumb') }}" alt="{{ news.title }}" loading="lazy" decoding="async">
+      {% else %}
+      <div class="secondary-story__thumb secondary-story__thumb--fallback" data-news-edit="image" aria-hidden="true"></div>
+      {% endif %}
+      <div class="secondary-story__body">
+        <h3 class="secondary-story__title" data-news-edit="title">{{ news.title }}</h3>
+        {# Brief-style lead-in: the dateline opens the summary, newspaper
+           wire style, instead of trailing it like a card footer. #}
+        <p class="secondary-story__copy">{% if not news_editor and news.published_label %}<time class="secondary-story__date" datetime="{{ news.published_iso }}">{{ news.published_label }}</time> &mdash; {% endif %}{{ (news.description | striptags | truncate(150)) if news.description else 'No summary available.' }}</p>
+      </div>
+    </article>
+    {% endfor %}
+    {# Editor-only: dashed-border placeholders for each unfilled secondary
+       position, up to the 4-slot cap. Buttons (not the kiosk's static
+       .paper-empty div) carrying data-news-* hooks so Task 4's library
+       drawer can open pre-scoped to a specific slot + position. Never
+       rendered when news_editor is false — kiosk viewers never see them. #}
+    {% if news_editor %}
+    {% set secondary_filled = secondary_stories|length if secondary_stories else 0 %}
+    {% for position in range(secondary_filled + 1, 5) %}
+    <button type="button" class="paper-empty paper-empty--compact paper-empty--action"
+            data-news-assign-slot data-news-slot-type="secondary" data-news-slot-position="{{ position }}">
+      + Assign story to Secondary slot {{ position }}
+    </button>
+    {% endfor %}
+    {% elif not secondary_stories %}
+    <div class="paper-empty paper-empty--compact">Secondary story slots are waiting for content.</div>
+    {% endif %}
+  </div>
+</section>
+
+{% set widget_filled = widget_news|length if widget_news else 0 %}
+{% for widget in widget_news %}
+<section class="paper-slot paper-slot--widget" aria-label="Widget story" data-news-slot="widget">
+  <div class="paper-slot__label">Widget Slot</div>
+  {% if not news_editor %}
+  <span class="paper-slot__eyebrow">Bulletin</span>
+  {% endif %}
+  <article class="info-card" data-news-id="{{ widget.id }}">
+    <h3 class="info-card__title" data-news-edit="title">{{ widget.title }}</h3>
+    <p class="info-card__copy">{{ (widget.description | striptags | truncate(200)) if widget.description else '' }}</p>
+  </article>
+</section>
+{% endfor %}
+{# Editor-only: dashed-border placeholders for each unfilled widget
+   position, up to the 2-slot cap. The kiosk renders nothing for an empty
+   widget slot — "Assign story" is CMS vocabulary, not news. #}
+{% if news_editor %}
+{% for position in range(widget_filled + 1, 3) %}
+<section class="paper-slot paper-slot--widget" aria-label="Widget slot (empty)" data-news-slot="widget">
+  <div class="paper-slot__label">Widget Slot</div>
+  <button type="button" class="paper-empty paper-empty--compact paper-empty--action"
+          data-news-assign-slot data-news-slot-type="widget" data-news-slot-position="{{ position }}">
+    + Assign story to Widget slot {{ position }}
+  </button>
+</section>
+{% endfor %}
+{% endif %}
