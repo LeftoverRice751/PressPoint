@@ -12,8 +12,12 @@ class News(Model):
         "published_at", 
         "source", 
         "location", 
-        "layout_type", 
-        "priority", 
-        "status"
+        "layout_type",
+        "priority",
+        "status",
+        "dek",
+        "image_caption",
+        "image_credit",
+        "excerpt"
         ]
     pass

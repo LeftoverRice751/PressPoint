@@ -2,10 +2,12 @@ from datetime import datetime
 import os
 import traceback
 
+import bleach
+
 from masonite.controllers import Controller
 from masonite.configuration import config
 from masonite.filesystem import Storage
-from masonite.facades import Broadcast
+from masonite.facades import Broadcast, Cache, Storage as StorageFacade
 from masonite.request import Request
 from masonite.response import Response
 from masonite.views import View
@@ -13,6 +15,36 @@ from masonite.views import View
 from app.events.NewNews import NewNews
 from app.models.News import News
 from app.services.AjaxResponses import wants_json, json_success, json_errors
+from app.services.DashboardContext import group_news_slots
+from app.services.ImageDerivatives import generate_variants, variant_path
+from app.services.StorageRouter import absolute_path, is_safe_path
+
+
+# The story body is authored in a rich-text editor (Quill) and rendered as HTML
+# on the kiosk news page, so it MUST be sanitized on write. Only this small,
+# formatting-only allowlist survives; everything else (scripts, event handlers,
+# style, iframes, etc.) is stripped.
+_ALLOWED_TAGS = ["p", "br", "strong", "em", "u", "s", "h2", "h3", "blockquote", "ul", "ol", "li", "a"]
+_ALLOWED_ATTRS = {"a": ["href", "title", "rel", "target"]}
+
+
+def _sanitize_news_html(raw_html):
+    """Return a safe HTML subset of the given rich-text body."""
+    cleaned = bleach.clean(
+        raw_html or "",
+        tags=_ALLOWED_TAGS,
+        attributes=_ALLOWED_ATTRS,
+        protocols=["http", "https", "mailto"],
+        strip=True,
+    )
+    # Force external links to open safely.
+    return bleach.linkify(cleaned, callbacks=[bleach.callbacks.nofollow]) if cleaned else cleaned
+
+
+def _html_to_text(html):
+    """Plain-text projection of the body — used for the 'required' check so an
+    editor can't publish a visually-empty body like Quill's '<p><br></p>'."""
+    return bleach.clean(html or "", tags=[], strip=True).strip()
 
 
 _NEWS_STATUS_ALIASES = {
@@ -59,6 +91,49 @@ def _pusher_configured():
     )
 
 
+# Public kiosk index is read constantly — templates/kiosk/news.html auto-
+# reloads every 30s per device — but written rarely (an editor publishing/
+# deleting a story), so it's cached and explicitly invalidated on write
+# rather than re-scanning the whole table on every single request.
+_NEWS_CACHE_KEY = "kiosk:news:index:v3"  # bump on projection changes to drop stale entries
+_NEWS_CACHE_TTL = 300  # seconds — safety net only; writes invalidate explicitly.
+
+
+def _news_item_to_dict(item, disk=None):
+    """Plain, JSON-safe projection of a News model instance — the file
+    cache driver json.dumps()s dict values, which a masoniteorm Model
+    instance is not. Jinja2's `.` operator falls back to item access on
+    dicts, so templates render this identically to the model instance."""
+    published_at = getattr(item, "published_at", None)
+    fallback_at = published_at or getattr(item, "created_at", None)
+    image = getattr(item, "image", None)
+    # Resolve the fast WebP variants once here (behind the projection cache),
+    # not per request. variant_path falls back to the original if missing.
+    image_large = variant_path(image, "large", disk) if (image and disk) else image
+    image_thumb = variant_path(image, "thumb", disk) if (image and disk) else image
+    return {
+        "id": getattr(item, "id", None),
+        "title": getattr(item, "title", None),
+        "description": getattr(item, "description", None),
+        "image": image,
+        "image_large": image_large,
+        "image_thumb": image_thumb,
+        "source": getattr(item, "source", None),
+        "location": getattr(item, "location", None),
+        "dek": getattr(item, "dek", None),
+        "image_caption": getattr(item, "image_caption", None),
+        "image_credit": getattr(item, "image_credit", None),
+        "layout_type": getattr(item, "layout_type", None),
+        "priority": getattr(item, "priority", None),
+        "status": getattr(item, "status", None),
+        "published_at": published_at.isoformat() if hasattr(published_at, "isoformat") else None,
+        # Pre-formatted for the kiosk dateline/folio — Jinja2 can't strftime an
+        # ISO string, and the cache driver can't store a datetime.
+        "published_label": fallback_at.strftime("%b %d, %Y") if hasattr(fallback_at, "strftime") else None,
+        "published_iso": fallback_at.strftime("%Y-%m-%d") if hasattr(fallback_at, "strftime") else None,
+    }
+
+
 def _build_flash_payload(news_item):
     reference_at = getattr(news_item, "published_at", None) or getattr(news_item, "created_at", None)
     return {
@@ -72,58 +147,75 @@ def _build_flash_payload(news_item):
 
 
 class NewsController(Controller):
-    def _group_news_slots(self, news_items):
-        sorted_items = sorted(
-            list(news_items or []),
-            key=lambda item: (
-                -int(getattr(item, "priority", 0) or 0),
-                -int(getattr(item, "id", 0) or 0),
-            ),
-        )
+    def _build_news_payload(self):
+        # Filtering/grouping stays on the real Model instances (unchanged
+        # logic, getattr-based) — dict conversion happens last, only for
+        # what actually goes into the cache. Converting earlier would
+        # silently break group_news_slots/_news_is_public: getattr() on a
+        # plain dict always returns the default, since dicts don't expose
+        # their keys as attributes.
+        news_items = [item for item in News.order_by("id", "desc").get() if _news_is_public(item)]
+        slots = group_news_slots(news_items)
 
-        main_news = next(
-            (item for item in sorted_items if (getattr(item, "layout_type", "") or "").lower() == "main"),
-            sorted_items[0] if sorted_items else None,
-        )
+        # Resolve the public disk once; _news_item_to_dict uses it to pick the
+        # WebP variant that exists on disk. This whole payload is cached, so
+        # the existence checks run once per cache period, not per request.
+        try:
+            disk = StorageFacade.disk("public")
+        except Exception:
+            disk = None
 
-        secondary_news = [
-            item for item in sorted_items
-            if item is not main_news and (getattr(item, "layout_type", "secondary") or "secondary").lower() == "secondary"
-        ][:4]
-
-        widget_news = [
-            item for item in sorted_items
-            if item is not main_news and (getattr(item, "layout_type", "") or "").lower() == "widget"
-        ][:2]
+        # Folio issue numbering, derived from the lead story's date (no
+        # schema): Vol. counts publication years since founding (2026 → 1),
+        # No. is the day-of-year — a plausible daily issue number that
+        # changes with each edition date.
+        issue_vol = None
+        issue_no = None
+        lead = slots["main_news"]
+        lead_at = getattr(lead, "published_at", None) or getattr(lead, "created_at", None)
+        if hasattr(lead_at, "timetuple"):
+            issue_vol = max(1, lead_at.year - 2025)
+            issue_no = lead_at.timetuple().tm_yday
 
         return {
-            "main_news": main_news,
-            "secondary_news": secondary_news,
-            "widget_news": widget_news,
+            "news_items": [_news_item_to_dict(item, disk) for item in news_items],
+            "main_news": _news_item_to_dict(slots["main_news"], disk) if slots["main_news"] else None,
+            "secondary_news": [_news_item_to_dict(item, disk) for item in slots["secondary_news"]],
+            "widget_news": [_news_item_to_dict(item, disk) for item in slots["widget_news"]],
+            "issue_vol": issue_vol,
+            "issue_no": issue_no,
         }
 
     def show(self, view: View):
-        news_items = [item for item in sorted(list(News.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True) if _news_is_public(item)]
-        news_slots = self._group_news_slots(news_items)
+        payload = Cache.remember(_NEWS_CACHE_KEY, lambda cache: cache.put(
+            _NEWS_CACHE_KEY, self._build_news_payload(), seconds=_NEWS_CACHE_TTL
+        ))
 
         return view.render(
             "kiosk/news",
             {
-                "news_items": news_items,
-                "featured_news": news_slots["main_news"],
-                "recent_news": news_slots["secondary_news"],
-                "main_news": news_slots["main_news"],
-                "secondary_news": news_slots["secondary_news"],
-                "widget_news": news_slots["widget_news"],
+                "news_items": payload["news_items"],
+                "featured_news": payload["main_news"],
+                "recent_news": payload["secondary_news"],
+                "main_news": payload["main_news"],
+                "secondary_news": payload["secondary_news"],
+                "widget_news": payload["widget_news"],
+                "issue_vol": payload.get("issue_vol"),
+                "issue_no": payload.get("issue_no"),
                 "active_nav": "news",
             },
         )
 
     def store(self, request: Request, storage: Storage, response: Response):
         title = (request.input("title") or "").strip()
-        description = (request.input("description") or "").strip()
+        description = _sanitize_news_html((request.input("description") or "").strip())
         source = (request.input("source") or "").strip()
         location = (request.input("location") or "").strip()
+        # Editorial extras are plain text (like source/location) — strip any
+        # markup that leaks in from the contenteditable regions.
+        dek = _html_to_text(request.input("dek") or "").strip()
+        image_caption = _html_to_text(request.input("image_caption") or "").strip()
+        image_credit = _html_to_text(request.input("image_credit") or "").strip()
         layout_type = (request.input("layout_type") or "secondary").strip().lower() or "secondary"
         status = _normalize_news_status(request.input("status"), default="approved")
         published_at_value = (request.input("published_at") or "").strip()
@@ -165,7 +257,7 @@ class NewsController(Controller):
                 return json_errors(response, messages)
             return response.back().with_errors(messages)
 
-        if not title or not description:
+        if not title or not _html_to_text(description):
             return _err(["Title and description are required."])
 
         try:
@@ -195,7 +287,16 @@ class NewsController(Controller):
 
         try:
             if image_file:
-                image_path = storage.disk("public").put_file("news", image_file)
+                public_disk = storage.disk("public")
+                image_path = public_disk.put_file("news", image_file)
+
+                # Generate fast WebP variants from the bytes already in memory
+                # (no re-read). Never blocks publishing — serving falls back to
+                # the original if this fails. See app/services/ImageDerivatives.
+                try:
+                    generate_variants(image_file.get_content(), image_path, public_disk)
+                except Exception:
+                    pass
 
             if article_id:
                 existing = News.where("id", article_id).first()
@@ -205,6 +306,9 @@ class NewsController(Controller):
                 existing.description = description
                 existing.source = source or None
                 existing.location = location or None
+                existing.dek = dek or None
+                existing.image_caption = image_caption or None
+                existing.image_credit = image_credit or None
                 existing.layout_type = layout_type
                 existing.priority = priority
                 existing.status = status
@@ -223,6 +327,9 @@ class NewsController(Controller):
                     published_at=published_at,
                     source=source or None,
                     location=location or None,
+                    dek=dek or None,
+                    image_caption=image_caption or None,
+                    image_credit=image_credit or None,
                     layout_type=layout_type,
                     priority=priority,
                     status=status,
@@ -233,6 +340,8 @@ class NewsController(Controller):
                 NewNews(saved_news).fire()
             except Exception:
                 pass
+
+            Cache.forget(_NEWS_CACHE_KEY)
 
             if is_ajax:
                 return json_success(response, payload={
@@ -252,3 +361,39 @@ class NewsController(Controller):
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return _err(["Could not save the news item. Please try again."])
+
+    def destroy(self, request: Request, response: Response):
+        is_ajax = wants_json(request)
+
+        def _err(messages):
+            if is_ajax:
+                return json_errors(response, messages)
+            return response.back().with_errors(messages)
+
+        record = News.where("id", request.param("id")).first()
+        if not record:
+            return _err(["Article not found."])
+
+        # Remove the uploaded image too, guarding against path traversal.
+        image_path = getattr(record, "image", None)
+        if image_path:
+            try:
+                full_path = absolute_path(image_path)
+                if is_safe_path(image_path) and os.path.isfile(full_path):
+                    os.remove(full_path)
+            except OSError:
+                pass
+
+        try:
+            record.delete()
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return _err(["Could not delete the news item. Please try again."])
+
+        Cache.forget(_NEWS_CACHE_KEY)
+
+        if is_ajax:
+            return json_success(response, payload={"id": request.param("id")}, messages=["News deleted."])
+        return response.redirect(name="gears.dashboard", query_params={"page": "news"}).with_success([
+            "News deleted.",
+        ])
