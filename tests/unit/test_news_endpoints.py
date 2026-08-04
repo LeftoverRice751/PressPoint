@@ -7,13 +7,21 @@ from app.services.StorageRouter import public_base
 from tests import TestCase
 
 
-def _mock_request(inputs=None, params=None):
+def _mock_request(inputs=None, params=None, ajax=False):
     inputs = inputs or {}
     params = params or {}
     request = Mock()
     request.input.side_effect = lambda key, default="": inputs.get(key, default)
     request.param.side_effect = lambda key, default="": params.get(key, default)
-    request.header.return_value = None
+    if ajax:
+        # Mirrors wants_json()'s header lookup: only the exact-cased
+        # X-Requested-With: XMLHttpRequest header is honored here, matching
+        # what a real fetch() client sends.
+        request.header.side_effect = lambda name: (
+            "XMLHttpRequest" if name == "X-Requested-With" else None
+        )
+    else:
+        request.header.return_value = None
     request.all.return_value = inputs.get("__all__", {})
     return request
 
@@ -124,6 +132,131 @@ class NewsLayoutEndpointTestCase(TestCase):
         cache_mock.forget.assert_not_called()
         response.back.assert_called_once()
 
+    def test_layout_mid_batch_failure_rolls_back_and_skips_cache_invalidation(self):
+        """I1: if item 4 of 7 raises, items 1-3 must not be left committed
+        with a stale (un-invalidated) cache. The endpoint wraps the whole
+        batch in `with DB.transaction():`, so a mid-loop exception rolls
+        every row in this request back — meaning the cache doesn't need
+        invalidating on the error path, because nothing in the database
+        actually changed. This drives a REAL `DB.transaction()` (against
+        the sqlite test database from .env.testing, never MySQL) so the
+        control flow is proven, not just mocked away."""
+        controller = NewsController()
+
+        record_ok = Mock(id=1, layout_type="secondary", priority=5)
+        record_ok.save = Mock()
+        record_bad = Mock(id=2, layout_type="widget", priority=9)
+        record_bad.save = Mock(side_effect=RuntimeError("simulated write failure"))
+        records = {1: record_ok, 2: record_bad}
+
+        items = [
+            {"id": 1, "layout_type": "main", "priority": 0},
+            {"id": 2, "layout_type": "secondary", "priority": 1},
+        ]
+        request = _mock_request(ajax=True)
+        request.all.return_value = {"items": items}
+        response = _mock_response()
+
+        with patch(
+            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.NewsController.Cache") as cache_mock:
+            controller.layout(request, response)
+
+        # The batch failed -> the write path's error branch ran, not the
+        # success branch that calls Cache.forget().
+        cache_mock.forget.assert_not_called()
+        response.json.assert_called_once()
+        body, kwargs = response.json.call_args
+        self.assertFalse(body[0]["ok"])
+        self.assertEqual(kwargs["status"], 422)
+
+    def test_layout_uses_request_all_not_input_for_single_item_payload(self):
+        """I3: pins the reason `layout()` reads `request.all().get("items")`
+        instead of `request.input("items")`. Masonite's real
+        InputBag.get() unwraps a length-1 list to its bare element before
+        returning it — so a single dragged card would hand
+        `request.input("items")` back a dict, not a [dict]. This mock
+        reproduces exactly that unwrap on `.input()` while leaving `.all()`
+        as the raw parsed value (mirroring InputBag.all_as_values(), which
+        does no such unwrapping). If `layout()` is ever changed back to
+        `request.input("items")`, this test fails: `isinstance(items, list)`
+        goes False on the unwrapped dict, the row is never saved, and the
+        assertions below break.
+        """
+        controller = NewsController()
+
+        record = Mock(id=1, layout_type="secondary", priority=5)
+        record.save = Mock()
+        records = {1: record}
+
+        items = [{"id": 1, "layout_type": "main", "priority": 0}]
+
+        request = Mock()
+        request.all.return_value = {"items": items}
+        request.input.side_effect = lambda key, default="": (
+            items[0] if key == "items" else default
+        )
+        request.header.return_value = None
+        request.param.side_effect = lambda key, default="": default
+        response = _mock_response()
+
+        with patch(
+            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.NewsController.Cache") as cache_mock:
+            controller.layout(request, response)
+
+        record.save.assert_called_once()
+        self.assertEqual(record.layout_type, "main")
+        self.assertEqual(record.priority, 0)
+        cache_mock.forget.assert_called_once()
+
+    def test_layout_json_success_payload_shape(self):
+        """I2: exercises the actual AJAX branch Task 6 codes against —
+        every other layout test sets ajax=False and only reaches the
+        redirect branch."""
+        controller = NewsController()
+
+        record = Mock(id=1, layout_type="secondary", priority=5)
+        record.save = Mock()
+        records = {1: record}
+
+        items = [{"id": 1, "layout_type": "main", "priority": 0}]
+        request = _mock_request(ajax=True)
+        request.all.return_value = {"items": items}
+        response = _mock_response()
+
+        with patch(
+            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.NewsController.Cache"):
+            controller.layout(request, response)
+
+        response.json.assert_called_once()
+        body, kwargs = response.json.call_args
+        payload = body[0]
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["updated"], [1])
+        self.assertEqual(payload["messages"], ["Layout saved."])
+        self.assertEqual(kwargs["status"], 200)
+
+    def test_layout_json_validation_error_shape(self):
+        controller = NewsController()
+
+        items = [{"id": 1, "layout_type": "not-a-real-slot", "priority": 0}]
+        request = _mock_request(ajax=True)
+        request.all.return_value = {"items": items}
+        response = _mock_response()
+
+        with patch("app.controllers.NewsController.Cache") as cache_mock:
+            controller.layout(request, response)
+
+        cache_mock.forget.assert_not_called()
+        response.json.assert_called_once()
+        body, kwargs = response.json.call_args
+        payload = body[0]
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["errors"], ["Invalid layout type."])
+        self.assertEqual(kwargs["status"], 422)
+
 
 class NewsBodyEndpointTestCase(TestCase):
     def test_body_save_sanitizes_script_tag(self):
@@ -161,6 +294,51 @@ class NewsBodyEndpointTestCase(TestCase):
 
         response.back.assert_called_once()
 
+    def test_body_json_success_payload_shape(self):
+        controller = NewsController()
+
+        record = Mock(id=7, description="old body")
+        record.save = Mock()
+        records = {7: record}
+
+        request = _mock_request(
+            inputs={"description": "<p>Safe</p>"}, params={"id": "7"}, ajax=True
+        )
+        response = _mock_response()
+
+        with patch(
+            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.NewsController.Cache"):
+            controller.body(request, response)
+
+        response.json.assert_called_once()
+        body, kwargs = response.json.call_args
+        payload = body[0]
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["id"], 7)
+        self.assertEqual(payload["description"], "<p>Safe</p>")
+        self.assertEqual(payload["messages"], ["Body saved."])
+        self.assertEqual(kwargs["status"], 200)
+
+    def test_body_json_not_found_returns_404(self):
+        controller = NewsController()
+        request = _mock_request(
+            inputs={"description": "<p>Hi</p>"}, params={"id": "404"}, ajax=True
+        )
+        response = _mock_response()
+
+        with patch(
+            "app.controllers.NewsController.News.where", side_effect=_where_side_effect({})
+        ):
+            controller.body(request, response)
+
+        response.json.assert_called_once()
+        body, kwargs = response.json.call_args
+        payload = body[0]
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["errors"], ["Article not found."])
+        self.assertEqual(kwargs["status"], 404)
+
 
 class NewsUnassignEndpointTestCase(TestCase):
     def test_unassign_sets_value_without_deleting_or_changing_status(self):
@@ -184,6 +362,48 @@ class NewsUnassignEndpointTestCase(TestCase):
         record.save.assert_called_once()
         record.delete.assert_not_called()
         cache_mock.forget.assert_called_once()
+
+    def test_unassign_json_success_payload_shape(self):
+        controller = NewsController()
+
+        record = Mock(id=3, layout_type="secondary", status="approved")
+        record.save = Mock()
+        record.delete = Mock()
+        records = {3: record}
+
+        request = _mock_request(params={"id": "3"}, ajax=True)
+        response = _mock_response()
+
+        with patch(
+            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.NewsController.Cache"):
+            controller.unassign(request, response)
+
+        response.json.assert_called_once()
+        body, kwargs = response.json.call_args
+        payload = body[0]
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["id"], 3)
+        self.assertEqual(payload["layout_type"], "unassigned")
+        self.assertEqual(payload["messages"], ["Story unassigned."])
+        self.assertEqual(kwargs["status"], 200)
+
+    def test_unassign_json_not_found_returns_404(self):
+        controller = NewsController()
+        request = _mock_request(params={"id": "404"}, ajax=True)
+        response = _mock_response()
+
+        with patch(
+            "app.controllers.NewsController.News.where", side_effect=_where_side_effect({})
+        ):
+            controller.unassign(request, response)
+
+        response.json.assert_called_once()
+        body, kwargs = response.json.call_args
+        payload = body[0]
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["errors"], ["Article not found."])
+        self.assertEqual(kwargs["status"], 404)
 
 
 class NewsDestroyDerivativeCleanupTestCase(TestCase):

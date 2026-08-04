@@ -12,6 +12,8 @@ from masonite.request import Request
 from masonite.response import Response
 from masonite.views import View
 
+from config.database import DB
+
 from app.events.NewNews import NewNews
 from app.models.News import News
 from app.services.AjaxResponses import wants_json, json_success, json_errors
@@ -446,15 +448,24 @@ class NewsController(Controller):
             updates.append((item_id, layout_type, priority))
 
         try:
+            # All-or-nothing: without this, a mid-batch failure (item 4 of 7
+            # raises) would leave items 1-3 committed while the cache is
+            # never invalidated below — the kiosk keeps serving the
+            # pre-change layout for up to _NEWS_CACHE_TTL seconds while the
+            # table itself holds a half-applied order. Sharing one
+            # transaction across every row means a failure rolls the whole
+            # batch back, so the (unchanged) cache stays correct with no
+            # invalidation needed on the error path.
             updated_ids = []
-            for item_id, layout_type, priority in updates:
-                record = News.where("id", item_id).first()
-                if not record:
-                    continue
-                record.layout_type = layout_type
-                record.priority = priority
-                record.save()
-                updated_ids.append(item_id)
+            with DB.transaction():
+                for item_id, layout_type, priority in updates:
+                    record = News.where("id", item_id).first()
+                    if not record:
+                        continue
+                    record.layout_type = layout_type
+                    record.priority = priority
+                    record.save()
+                    updated_ids.append(item_id)
 
             Cache.forget(_NEWS_CACHE_KEY)
 
