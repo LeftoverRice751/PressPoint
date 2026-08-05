@@ -246,6 +246,7 @@
       {% endif %}
 
       <div class="news-toolbar" data-news-toolbar>
+        <button type="button" class="ghost-button" data-news-library-open>Story Library</button>
         <div class="news-toolbar__live" title="Changes appear on the kiosk instantly">
           <span class="live-status-card__dot live-status-card__dot--inline" aria-hidden="true"></span>
           <span class="news-toolbar__live-text">Live updates on &mdash; changes appear on kiosk instantly</span>
@@ -354,24 +355,37 @@
 
       </div><!-- /.news-layout-editor -->
 
-      <div class="news-story-library page-card" data-section-count="{{ news_items|length }}">
-        <div class="panel-header panel-header--compact news-table__header">
-          <div>
-            <p class="panel-header__eyebrow">Story library</p>
-            <h3 class="panel-header__title">Reusable stories</h3>
+      <dialog class="article-modal news-library-drawer" data-news-library-drawer aria-labelledby="news-library-drawer-title">
+        <div class="article-modal__panel news-library-drawer__panel">
+          <div class="article-modal__header">
+            <div>
+              <h3 class="article-modal__title" id="news-library-drawer-title">Story Library</h3>
+              <p class="article-modal__subtitle" data-news-library-subtitle>Reuse a published story, or place it on the front page.</p>
+            </div>
+            <button type="button" class="article-modal__close" data-news-library-close>Close</button>
           </div>
-          <p class="panel-header__subtitle">Reuse a published story, move it to a different slot, or load it back into the composer.</p>
-        </div>
 
-        <div class="empty-state" data-empty-state>
-          <div class="empty-state__title">No stories in the library yet</div>
-          <p class="empty-state__text">Create a story to start building your newsroom library.</p>
-        </div>
+          <div class="news-library-drawer__filters" role="group" aria-label="Filter stories">
+            <button type="button" class="news-slot-choice is-active" data-news-library-filter="all" aria-pressed="true">All</button>
+            <button type="button" class="news-slot-choice" data-news-library-filter="draft" aria-pressed="false">Drafts</button>
+            <button type="button" class="news-slot-choice" data-news-library-filter="scheduled" aria-pressed="false">Scheduled</button>
+            <button type="button" class="news-slot-choice" data-news-library-filter="unassigned" aria-pressed="false">Unassigned</button>
+          </div>
 
-        <div class="news-story-library__grid" data-section-content data-live-target>
+          <div class="news-library-drawer__body page-card" data-section-count="{{ news_items|length }}">
+            <div class="empty-state" data-empty-state>
+              <div class="empty-state__title">No stories in the library yet</div>
+              <p class="empty-state__text">Create a story to start building your newsroom library.</p>
+            </div>
+
+            <p class="news-library-drawer__no-match" data-news-library-no-match hidden>No stories match this filter.</p>
+
+            <div class="news-story-library__grid news-library-drawer__grid" data-section-content data-live-target>
 {% include "gears/partials/news-slots.html" %}
+            </div>
+          </div>
         </div>
-      </div>
+      </dialog>
     </section>
 
     <dialog class="article-modal" data-events-modal>

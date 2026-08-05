@@ -1,6 +1,8 @@
+from unittest.mock import patch
+
 from tests import TestCase
 
-from app.services.DashboardContext import group_news_slots
+from app.services.DashboardContext import group_news_slots, news_canvas_context
 
 
 class _Story:
@@ -150,3 +152,28 @@ class NewsSlotsTestCase(TestCase):
         self.assertIsNone(slots["main_news"])
         self.assertEqual(slots["secondary_news"], [])
         self.assertEqual(slots["widget_news"], [])
+
+
+class NewsCanvasContextTestCase(TestCase):
+    """Task 4's stale-canvas fix re-renders kiosk/_news_slots.html from a
+    fragment endpoint. That partial expects `main_story` / `secondary_stories`
+    / `widget_news` / `news_editor` — different key names than news_context()
+    returns (`main_news` / `secondary_news`) — so pin the renaming here rather
+    than relying on the fragment route to catch a typo."""
+
+    def test_renames_slot_buckets_for_the_canvas_partial(self):
+        main = _Story(id=1, priority=1, layout_type="main")
+        secondary = _Story(id=2, priority=2, layout_type="secondary")
+        widget = _Story(id=3, priority=3, layout_type="widget")
+
+        with patch("app.services.DashboardContext.News") as mock_news:
+            mock_news.all.return_value = [main, secondary, widget]
+            context = news_canvas_context()
+
+        self.assertIs(context["main_story"], main)
+        self.assertEqual(context["secondary_stories"], [secondary])
+        self.assertEqual(context["widget_news"], [widget])
+        self.assertIs(context["news_editor"], True)
+        # news_context() sorts news_items by id descending (newest first) —
+        # unrelated to the slot buckets above, which sort by priority.
+        self.assertEqual(context["news_items"], [widget, secondary, main])

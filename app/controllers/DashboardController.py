@@ -26,6 +26,13 @@ FRAGMENTS = {
     "archives": (DashboardContext.archives_context, "gears/partials/archives-list", "archives"),
     "videos": (DashboardContext.videos_context, "gears/partials/videos-list", "videos"),
     "news": (DashboardContext.news_context, "gears/partials/news-slots", "news_items"),
+    # Re-renders the composer canvas (kiosk/_news_slots.html in editor mode) so
+    # the story-library drawer can refresh the secondary/widget placeholders
+    # after an assignment without a full page reload. Never wired into the
+    # 20s poll (no matching `data-live-section` in the DOM) — only fetched
+    # directly, right after a drawer assignment succeeds. See
+    # resources/js/news-dashboard.js `refreshCanvasFragment()`.
+    "news-canvas": (DashboardContext.news_canvas_context, "kiosk/_news_slots", "news_items"),
 }
 
 #: section -> model to read the change stamp from
@@ -34,6 +41,7 @@ STAMP_MODELS = {
     "archives": Archives,
     "videos": Video,
     "news": News,
+    "news-canvas": News,
 }
 
 

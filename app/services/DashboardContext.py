@@ -172,6 +172,34 @@ def news_context():
     }
 
 
+def news_canvas_context():
+    """Context for re-rendering `kiosk/_news_slots.html` from the dashboard
+    fragment endpoint (Task 4's stale-canvas fix).
+
+    `news_context()` returns the slot buckets under the `main_news` /
+    `secondary_news` / `widget_news` keys (matching the story-library
+    fragment's naming). The canvas include expects the composer's own
+    variable names instead — `templates/gears/dashboard.html` sets these via
+    `{% set %}` before including the shared partial:
+        main_story = main_news
+        secondary_stories = secondary_news
+        widget_news = widget_news   (already matches)
+        news_editor = true
+    Rebuilding those here keeps the fragment's `view.render()` call a plain
+    template + context pair, with no `{% set %}` needed on the fragment path.
+    """
+    news = news_context()
+    return {
+        "main_story": news["main_news"],
+        "secondary_stories": news["secondary_news"],
+        "widget_news": news["widget_news"],
+        "news_editor": True,
+        # Kept so DashboardController.fragment() can still report a row
+        # count for this section the same way every other fragment does.
+        "news_items": news["news_items"],
+    }
+
+
 def locations_context():
     locations = sorted(list(Locations.all() or []), key=_by_id_desc)
 

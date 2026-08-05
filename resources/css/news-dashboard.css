@@ -369,7 +369,7 @@
     padding: 1rem;
     border-radius: var(--radius-sm);
     border: 1px solid var(--ink-rule);
-    background: linear-gradient(180deg, rgba(251, 248, 241, 0.96), rgba(241, 236, 227, 0.76));
+    background: var(--ink-cream);
     box-shadow: 0 12px 32px rgba(31, 23, 22, 0.05);
 }
 
@@ -1038,4 +1038,75 @@
 .news-editor .secondary-story.sortable-chosen {
     cursor: grabbing;
     box-shadow: 0 0 0 2px var(--kiosk-terracotta, #cc5a1f);
+}
+
+/* ── Story Library slide-over drawer (Task 4) ──────────
+   Extends .article-modal (gears-dashboard.css) the same way confirm-modal.css
+   does: same <dialog> primitive, own panel/backdrop treatment. Docked to the
+   right edge instead of centered, full viewport height, scrolls its own body
+   so the filters/header stay put while the card grid scrolls. */
+.news-library-drawer {
+    position: fixed;
+    inset: 0 0 0 auto;
+    margin: 0;
+    width: min(480px, 100vw);
+    height: 100vh;
+    max-height: 100vh;
+    border: 0;
+    border-left: 1px solid var(--ink-oxblood);
+    border-radius: 0;
+    background: transparent;
+}
+
+.news-library-drawer::backdrop {
+    background: rgba(31, 23, 22, 0.55);
+}
+
+.news-library-drawer__panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: 100%;
+    padding: 1.5rem;
+    border-radius: 0;
+    box-shadow: -24px 0 48px rgba(31, 23, 22, 0.25);
+}
+
+.news-library-drawer__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.1rem;
+}
+
+.news-library-drawer__filters .news-slot-choice {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.72rem;
+}
+
+.news-library-drawer__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.news-library-drawer__grid {
+    grid-template-columns: 1fr;
+}
+
+.news-library-drawer__no-match {
+    margin: 0.5rem 0 0;
+    color: var(--ink-muted);
+    font-size: 0.9rem;
+}
+
+@media (max-width: 720px) {
+    .news-library-drawer {
+        width: 100vw;
+        border-left: 0;
+    }
 }

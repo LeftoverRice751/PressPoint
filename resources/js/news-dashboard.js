@@ -41,7 +41,9 @@ import Sortable from 'sortablejs';
   // Reflects whether the composer holds edits that haven't been persisted
   // yet. Publishing, unassigning, or deleting all write through immediately
   // and clear it back to "Live layout"; any in-progress edit sets it dirty.
+  var layoutDirty = false;
   function setLayoutDirty(isDirty) {
+    layoutDirty = !!isDirty;
     if (!stateBadge) return;
     stateBadge.textContent = isDirty ? 'Unpublished changes' : 'Live layout';
     stateBadge.classList.toggle('gears-hero__chip--dirty', !!isDirty);
@@ -400,15 +402,55 @@ import Sortable from 'sortablejs';
     });
   }
 
-  // ── Library: load / add ───────────────────────────────
-  // Delegated from the dashboard root, for two reasons: the story library sits
-  // outside [data-news-composer] in the markup, and a live refresh replaces the
-  // library grid, so freshly injected cards must stay clickable.
+  // ── Library: open drawer / place on front page / add ──
+  // Delegated from the dashboard root: the drawer's card grid and the
+  // canvas's empty-slot placeholders both sit outside [data-news-composer],
+  // and both get their innerHTML replaced (library refresh, canvas refresh)
+  // — a direct listener on either would go silently dead after the first swap.
   root.addEventListener('click', function (event) {
-    var btn = event.target.closest('[data-news-load-story]');
-    if (!btn || !root.contains(btn)) return;
-    var card = btn.closest('[data-news-library-item]');
-    if (card) loadStory(cardData(card));
+    var openBtn = event.target.closest('[data-news-library-open]');
+    if (openBtn && root.contains(openBtn)) {
+      openLibraryDrawer(openBtn, null);
+      return;
+    }
+
+    var slotBtn = event.target.closest('[data-news-assign-slot]');
+    if (slotBtn && root.contains(slotBtn)) {
+      var slotType = slotBtn.getAttribute('data-news-slot-type');
+      var slotPosition = parseInt(slotBtn.getAttribute('data-news-slot-position'), 10) || 1;
+      openLibraryDrawer(slotBtn, { type: slotType, priority: slotPosition });
+      return;
+    }
+
+    var placeBtn = event.target.closest('[data-news-place-story]');
+    if (placeBtn && libraryDrawer && libraryDrawer.contains(placeBtn)) {
+      var card = placeBtn.closest('[data-news-library-item]');
+      if (!card) return;
+      var id = card.getAttribute('data-news-library-id');
+      var target = drawerTarget || firstFreeTarget();
+      if (!target) {
+        toast('Every front-page slot is full — remove a story first.', true);
+        return;
+      }
+      placeBtn.disabled = true;
+      assignStory(id, target)
+        .then(function (json) {
+          placeBtn.disabled = false;
+          if (json && json.ok && json.updated && json.updated.length) {
+            toast((json.messages && json.messages[0]) || 'Story placed on the front page.', false);
+            if (libraryDrawer.close) libraryDrawer.close();
+            if (window.DashboardLive) window.DashboardLive.refresh('news');
+            refreshCanvasFragment();
+          } else {
+            toast((json && json.errors && json.errors[0]) || 'Could not place that story.', true);
+          }
+        })
+        .catch(function () {
+          placeBtn.disabled = false;
+          toast('Request failed — please try again.', true);
+        });
+      return;
+    }
   });
 
   var addBtn = composer.querySelector('[data-news-add-secondary]');
@@ -460,14 +502,202 @@ import Sortable from 'sortablejs';
       }).catch(function () {});
     });
   }
-  var secondaryGrid = editor.querySelector('.secondary-grid');
-  if (secondaryGrid) {
-    Sortable.create(secondaryGrid, {
+  function initSecondarySortable() {
+    var grid = editor.querySelector('.secondary-grid');
+    if (!grid) return;
+    Sortable.create(grid, {
       animation: 150,
       handle: '.secondary-story',
       draggable: '.secondary-story',
-      onEnd: function () { persistOrder(secondaryGrid); toast('Order updated.', false); }
+      onEnd: function () { persistOrder(grid); toast('Order updated.', false); }
     });
+  }
+  initSecondarySortable();
+
+  // ── Story Library drawer (Task 4) ─────────────────────
+  // Replaces the old below-the-fold grid with an on-demand <dialog> built on
+  // the .article-modal pattern (resources/css/gears-dashboard.css). Opens from
+  // the toolbar button (data-news-library-open, no target slot) or from an
+  // empty-slot placeholder in the canvas (data-news-assign-slot, which carries
+  // the exact layout_type + position to assign into). "Place on Front Page"
+  // inside the drawer persists via the Task 2 news.layout endpoint instead of
+  // loading the story into the feature editing surface.
+  var libraryDrawer = root.querySelector('[data-news-library-drawer]');
+  var librarySubtitle = libraryDrawer ? libraryDrawer.querySelector('[data-news-library-subtitle]') : null;
+  var libraryNoMatch = libraryDrawer ? libraryDrawer.querySelector('[data-news-library-no-match]') : null;
+  var libraryFilterBtns = libraryDrawer
+    ? Array.prototype.slice.call(libraryDrawer.querySelectorAll('[data-news-library-filter]'))
+    : [];
+  var currentLibraryFilter = 'all';
+  var drawerTarget = null;   // { type: 'secondary'|'widget', priority: N } or null (generic open)
+  var drawerTrigger = null;  // element focus returns to on close
+
+  var DEFAULT_LIBRARY_SUBTITLE = 'Reuse a published story, or place it on the front page.';
+
+  function matchesLibraryFilter(card, filter) {
+    if (filter === 'all') return true;
+    var status = (card.getAttribute('data-news-library-status') || '').toLowerCase();
+    var layout = (card.getAttribute('data-news-library-layout') || '').toLowerCase();
+    if (filter === 'draft') return status === 'draft';
+    if (filter === 'scheduled') return status === 'scheduled';
+    if (filter === 'unassigned') return layout === 'unassigned';
+    return true;
+  }
+
+  function applyLibraryFilter() {
+    if (!libraryDrawer) return;
+    var cards = Array.prototype.slice.call(libraryDrawer.querySelectorAll('[data-news-library-item]'));
+    var visible = 0;
+    cards.forEach(function (card) {
+      var show = matchesLibraryFilter(card, currentLibraryFilter);
+      card.hidden = !show;
+      if (show) visible += 1;
+    });
+    if (libraryNoMatch) libraryNoMatch.hidden = !(cards.length && visible === 0);
+  }
+
+  function setLibraryFilter(filter) {
+    currentLibraryFilter = filter || 'all';
+    libraryFilterBtns.forEach(function (btn) {
+      var active = btn.getAttribute('data-news-library-filter') === currentLibraryFilter;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
+    applyLibraryFilter();
+  }
+
+  var SLOT_LABELS = { main: 'Lead', secondary: 'Secondary', widget: 'Widget' };
+  function updateLibrarySubtitle() {
+    if (!librarySubtitle) return;
+    if (drawerTarget) {
+      librarySubtitle.textContent = 'Choose a story to place in ' +
+        (SLOT_LABELS[drawerTarget.type] || drawerTarget.type) + ' slot ' + drawerTarget.priority + '.';
+    } else {
+      librarySubtitle.textContent = DEFAULT_LIBRARY_SUBTITLE;
+    }
+  }
+
+  function openLibraryDrawer(trigger, target) {
+    if (!libraryDrawer) return;
+    drawerTarget = target || null;
+    drawerTrigger = trigger || null;
+    updateLibrarySubtitle();
+    setLibraryFilter('all');
+    if (typeof libraryDrawer.showModal === 'function') {
+      libraryDrawer.showModal();
+    } else {
+      libraryDrawer.setAttribute('open', '');
+    }
+    var closeBtn = libraryDrawer.querySelector('[data-news-library-close]');
+    if (closeBtn) closeBtn.focus();
+  }
+
+  if (libraryDrawer) {
+    // Fires on Escape too (native <dialog> cancel → close), so this is the
+    // single place trigger-focus-return and target reset happen.
+    libraryDrawer.addEventListener('close', function () {
+      drawerTarget = null;
+      if (drawerTrigger && drawerTrigger.focus) drawerTrigger.focus();
+      drawerTrigger = null;
+    });
+
+    var libraryCloseBtn = libraryDrawer.querySelector('[data-news-library-close]');
+    if (libraryCloseBtn) {
+      libraryCloseBtn.addEventListener('click', function () { libraryDrawer.close(); });
+    }
+
+    libraryFilterBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () { setLibraryFilter(btn.getAttribute('data-news-library-filter')); });
+    });
+
+    // The grid is [data-live-target]: a live refresh replaces its innerHTML,
+    // which would silently drop the active filter. Reapply it once the swap
+    // (and dashboard-live.js's rewire()) finishes.
+    var newsPanel = root.querySelector('[data-live-section="news"]');
+    if (newsPanel) {
+      newsPanel.addEventListener('live:refreshed', function (event) {
+        if (event.detail && event.detail.section === 'news') applyLibraryFilter();
+      });
+    }
+  }
+
+  function librarySlotCounts() {
+    var counts = { main: 0, secondary: 0, widget: 0 };
+    if (!libraryDrawer) return counts;
+    Array.prototype.forEach.call(libraryDrawer.querySelectorAll('[data-news-library-item]'), function (card) {
+      var layout = card.getAttribute('data-news-library-layout');
+      if (Object.prototype.hasOwnProperty.call(counts, layout)) counts[layout] += 1;
+    });
+    return counts;
+  }
+
+  // Generic toolbar-open decision (no target slot): fill the first free
+  // position — lead if empty, else the next open secondary slot, else the
+  // next open widget slot. Mirrors the capacities the placeholders already
+  // enforce (main 1, secondary 4, widget 2) so this path can never overfill
+  // either; if every slot is full it declines rather than bumping anything.
+  function firstFreeTarget() {
+    var counts = librarySlotCounts();
+    if (counts.main < 1) return { type: 'main', priority: 0 };
+    if (counts.secondary < 4) return { type: 'secondary', priority: counts.secondary + 1 };
+    if (counts.widget < 2) return { type: 'widget', priority: counts.widget + 1 };
+    return null;
+  }
+
+  function assignStory(id, target) {
+    return fetch('/news/dashboard/layout', {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN': csrf,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ items: [{ id: parseInt(id, 10), layout_type: target.type, priority: target.priority }] })
+    }).then(function (r) { return r.json().catch(function () { return { ok: false }; }); });
+  }
+
+  // ── Stale-canvas fix ───────────────────────────────────
+  // DashboardLive.refresh('news') only swaps the library grid; the canvas
+  // (the empty-slot placeholders and the story cards themselves) lives
+  // outside that live target and goes stale after an assignment. Re-fetch
+  // it from the same fragment mechanism dashboard-live.js uses elsewhere
+  // (DashboardController.fragment('news-canvas') → DashboardContext.
+  // news_canvas_context(), re-rendering kiosk/_news_slots.html in editor
+  // mode) rather than hand-building the new DOM from the assign response.
+  //
+  // Skipped while the composer shows "Unpublished changes": that state means
+  // there are unsaved inline edits (title/body/image/etc.) sitting only in
+  // this tab's DOM, and overwriting the canvas would silently drop them. The
+  // assignment itself has already persisted by this point either way — only
+  // the *view* of the canvas is deferred, with a toast explaining why.
+  function refreshCanvasFragment() {
+    if (layoutDirty) {
+      toast('Story placed. The canvas has unpublished edits, so refresh the page to see it there too.', false);
+      return;
+    }
+    fetch('/gears/dashboard/fragment/news-canvas', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        if (!json || !json.ok || !editor) return;
+        editor.innerHTML = json.html;
+        reinitCanvas();
+      })
+      .catch(function () { /* best-effort; next poll/reload will reconcile */ });
+  }
+
+  function reinitCanvas() {
+    featureSlot = editor.querySelector('[data-news-slot="main"]');
+    quill = null;
+    var art = ensureFeature();
+    if (art) {
+      wireInline(art);
+      wireImage(art);
+      mountQuill(art);
+    }
+    initSecondarySortable();
   }
 
   // ── Init: edit the real rendered feature story ────────
