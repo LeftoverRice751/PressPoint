@@ -896,6 +896,7 @@
 .news-editor [data-news-edit="source"][contenteditable],
 .news-editor [data-news-edit="location"][contenteditable],
 .news-editor [data-news-edit="dek"][contenteditable],
+.news-editor [data-news-edit="excerpt"][contenteditable],
 .news-editor [data-news-edit="caption"][contenteditable],
 .news-editor [data-news-edit="credit"][contenteditable] {
     outline: none;
@@ -906,6 +907,7 @@
 .news-editor [data-news-edit="source"][contenteditable]:hover,
 .news-editor [data-news-edit="location"][contenteditable]:hover,
 .news-editor [data-news-edit="dek"][contenteditable]:hover,
+.news-editor [data-news-edit="excerpt"][contenteditable]:hover,
 .news-editor [data-news-edit="caption"][contenteditable]:hover,
 .news-editor [data-news-edit="credit"][contenteditable]:hover {
     background: rgba(227, 108, 34, 0.08);
@@ -914,16 +916,82 @@
 .news-editor [data-news-edit="source"][contenteditable]:focus,
 .news-editor [data-news-edit="location"][contenteditable]:focus,
 .news-editor [data-news-edit="dek"][contenteditable]:focus,
+.news-editor [data-news-edit="excerpt"][contenteditable]:focus,
 .news-editor [data-news-edit="caption"][contenteditable]:focus,
 .news-editor [data-news-edit="credit"][contenteditable]:focus {
     box-shadow: 0 0 0 2px var(--kiosk-terracotta, #cc5a1f);
     background: #fff;
 }
 
-/* Empty editable caption/dek regions still need a click target. */
+/* Empty editable caption/dek/excerpt regions still need a click target. */
 .news-editor [data-news-edit="dek"][contenteditable],
+.news-editor [data-news-edit="excerpt"][contenteditable],
 .news-editor [data-news-edit="caption"][contenteditable] {
     min-height: 1.4em;
+}
+
+/* Front-page excerpt (Task 5): a quieter, smaller sibling of the dek —
+   it's optional editorial metadata, not a headline element. */
+.news-editor .feature-story__excerpt {
+    margin: 0.35rem 0 0;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: var(--kiosk-ink-muted, rgba(31, 15, 12, 0.62));
+}
+.news-editor .secondary-story__copy--excerpt,
+.news-editor .info-card__copy--excerpt {
+    font-style: italic;
+}
+
+/* "Edit Full Article Body" — the entry point into the focused modal
+   (Task 5). Deliberately understated: it's a utility action, not the
+   primary call to action on the card. */
+.news-editor .feature-story__edit-body-btn,
+.news-editor .secondary-story__edit-body-btn,
+.news-editor .info-card__edit-body-btn {
+    appearance: none;
+    margin-top: 0.6rem;
+    padding: 0.5rem 0.85rem;
+    font: 700 0.72rem/1 var(--kiosk-font-ui, "Gilroy", sans-serif);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-terracotta);
+    background: transparent;
+    border: 1px solid var(--kiosk-rule, rgba(31, 15, 12, 0.3));
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.news-editor .feature-story__edit-body-btn:hover,
+.news-editor .feature-story__edit-body-btn:focus-visible,
+.news-editor .secondary-story__edit-body-btn:hover,
+.news-editor .secondary-story__edit-body-btn:focus-visible,
+.news-editor .info-card__edit-body-btn:hover,
+.news-editor .info-card__edit-body-btn:focus-visible {
+    background: rgba(227, 108, 34, 0.08);
+    border-color: var(--ink-terracotta);
+    color: var(--ink-oxblood);
+    outline: none;
+}
+.news-editor .secondary-story__edit-body-btn,
+.news-editor .info-card__edit-body-btn {
+    margin-left: 0;
+}
+
+/* Selectable slot cards (Task 5, deliverable 3): every occupied slot is
+   now a valid click target to load it into the editing surface, not just
+   the lead. A subtle affordance keeps that discoverable without adding
+   visual noise to every card. */
+.news-editor .feature-story,
+.news-editor .secondary-story,
+.news-editor .info-card {
+    cursor: pointer;
+}
+.news-editor .secondary-story.is-scratch {
+    cursor: default;
+    outline: 2px dashed var(--kiosk-terracotta, #cc5a1f);
+    outline-offset: 2px;
+    border-radius: 4px;
 }
 .news-editor [data-news-edit="caption"][contenteditable] {
     flex: 1 1 auto;
@@ -1103,5 +1171,73 @@
     .news-library-drawer {
         width: 100vw;
         border-left: 0;
+    }
+}
+
+/* ── Focused article body editor modal (Task 5) ────────
+   Extends .article-modal (gears-dashboard.css), wider and roomier than the
+   default 760px — this is where long articles get written, so it deserves
+   more breathing room than a metadata dialog. Quill lives entirely inside
+   this dialog now; it's never mounted on the canvas. */
+.news-body-modal {
+    width: min(920px, calc(100vw - 2rem));
+}
+
+.news-body-modal__panel {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 4rem);
+}
+
+.news-body-modal__editor {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.news-body-modal__editor .ql-toolbar.ql-snow {
+    border-color: var(--kiosk-rule, rgba(31, 15, 12, 0.18));
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    background: rgba(31, 15, 12, 0.03);
+}
+
+.news-body-modal__editor .ql-container.ql-snow {
+    border-color: var(--kiosk-rule, rgba(31, 15, 12, 0.18));
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.news-body-modal__editor .ql-editor {
+    min-height: min(52vh, 480px);
+    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
+    font-size: 1.05rem;
+    line-height: 1.75;
+    color: var(--kiosk-espresso, #1f0f0c);
+}
+
+.news-body-modal__editor .ql-editor h2,
+.news-body-modal__editor .ql-editor h3 {
+    font-family: var(--kiosk-font-display, "Columna", "Times New Roman", serif);
+}
+
+.news-body-modal__editor .ql-snow .ql-stroke { stroke: var(--kiosk-espresso, #1f0f0c); }
+.news-body-modal__editor .ql-snow .ql-fill { fill: var(--kiosk-espresso, #1f0f0c); }
+.news-body-modal__editor .ql-snow.ql-toolbar button:hover .ql-stroke,
+.news-body-modal__editor .ql-snow.ql-toolbar button.ql-active .ql-stroke {
+    stroke: var(--kiosk-terracotta, #cc5a1f);
+}
+.news-body-modal__editor .ql-snow.ql-toolbar button:hover .ql-fill,
+.news-body-modal__editor .ql-snow.ql-toolbar button.ql-active .ql-fill {
+    fill: var(--kiosk-terracotta, #cc5a1f);
+}
+
+@media (max-width: 720px) {
+    .news-body-modal__editor .ql-editor {
+        min-height: 40vh;
     }
 }

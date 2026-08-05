@@ -148,6 +148,7 @@ def _news_item_to_dict(item, disk=None):
         "source": getattr(item, "source", None),
         "location": getattr(item, "location", None),
         "dek": getattr(item, "dek", None),
+        "excerpt": getattr(item, "excerpt", None),
         "image_caption": getattr(item, "image_caption", None),
         "image_credit": getattr(item, "image_credit", None),
         "layout_type": getattr(item, "layout_type", None),
@@ -241,6 +242,11 @@ class NewsController(Controller):
         # Editorial extras are plain text (like source/location) — strip any
         # markup that leaks in from the contenteditable regions.
         dek = _html_to_text(request.input("dek") or "").strip()
+        # Front-page excerpt (Task 1 column, wired into the composer in Task
+        # 5): plain text like dek/caption/credit — strips markup that leaks
+        # in from the contenteditable region. Optional; the front page falls
+        # back to a truncated body when it's blank (kiosk/_news_slots.html).
+        excerpt = _html_to_text(request.input("excerpt") or "").strip()
         image_caption = _html_to_text(request.input("image_caption") or "").strip()
         image_credit = _html_to_text(request.input("image_credit") or "").strip()
         layout_type = (request.input("layout_type") or "secondary").strip().lower() or "secondary"
@@ -348,6 +354,7 @@ class NewsController(Controller):
                 existing.source = source or None
                 existing.location = location or None
                 existing.dek = dek or None
+                existing.excerpt = excerpt or None
                 existing.image_caption = image_caption or None
                 existing.image_credit = image_credit or None
                 existing.layout_type = layout_type
@@ -369,6 +376,7 @@ class NewsController(Controller):
                     source=source or None,
                     location=location or None,
                     dek=dek or None,
+                    excerpt=excerpt or None,
                     image_caption=image_caption or None,
                     image_credit=image_credit or None,
                     layout_type=layout_type,

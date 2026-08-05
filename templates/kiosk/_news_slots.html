@@ -39,11 +39,26 @@
       {% if news_editor or main_story.dek %}
       <p class="feature-story__dek" data-news-edit="dek">{{ main_story.dek | default('', true) }}</p>
       {% endif %}
+      {# Editor-only: front-page excerpt (Task 1 column). Never shown on the
+         kiosk directly — it only feeds the secondary/widget summary
+         fallback below. Kept here so editors can set it while looking at
+         the lead story it belongs to. #}
+      {% if news_editor %}
+      <p class="feature-story__excerpt" data-news-edit="excerpt">{{ main_story.excerpt | default('', true) }}</p>
+      {% endif %}
       {# `default(x, true)` — boolean mode also catches NULL columns, which
          plain `default` leaves as the literal "None". Location lives in the
          kicker only — repeating it here printed "Campus · Campus". #}
       <div class="feature-story__meta">By <span data-news-edit="source">{{ main_story.source | default('Editorial Desk', true) }}</span>{% if news_editor %} &middot; <span data-news-edit="location">{{ main_story.location | default('Campus', true) }}</span>{% endif %}{% if not news_editor and main_story.published_label %} &middot; <time datetime="{{ main_story.published_iso }}">{{ main_story.published_label }}</time>{% endif %}</div>
+      {# The body is display-only on the canvas (Task 5): full-article
+         writing moved into the composer's "Edit Full Article Body" modal
+         (news-dashboard.js), so no contenteditable/Quill ever attaches to
+         this div in editor mode. Kiosk viewers see exactly the same markup
+         and content they always have. #}
       <div class="feature-story__copy drop-cap" data-news-edit="body">{{ main_story.description | safe }}</div>
+      {% if news_editor %}
+      <button type="button" class="feature-story__edit-body-btn ghost-button" data-news-edit-body>Edit Full Article Body</button>
+      {% endif %}
     </div>
     {% if not news_editor %}
     <button type="button" class="feature-story__more" data-news-more>
@@ -72,9 +87,19 @@
       {% endif %}
       <div class="secondary-story__body">
         <h3 class="secondary-story__title" data-news-edit="title">{{ news.title }}</h3>
+        {% if news_editor %}
+        {# Editor-only: the excerpt IS the summary field here — editing it
+           directly replaces the read-only truncated-body preview the kiosk
+           shows below. Blank means "fall back to a truncated body". #}
+        <p class="secondary-story__copy secondary-story__copy--excerpt" data-news-edit="excerpt">{{ news.excerpt | default('', true) }}</p>
+        <button type="button" class="secondary-story__edit-body-btn ghost-button" data-news-edit-body>Edit Full Article Body</button>
+        {% else %}
         {# Brief-style lead-in: the dateline opens the summary, newspaper
-           wire style, instead of trailing it like a card footer. #}
-        <p class="secondary-story__copy">{% if not news_editor and news.published_label %}<time class="secondary-story__date" datetime="{{ news.published_iso }}">{{ news.published_label }}</time> &mdash; {% endif %}{{ (news.description | striptags | truncate(150)) if news.description else 'No summary available.' }}</p>
+           wire style, instead of trailing it like a card footer. Prefers
+           the editorial excerpt (Task 1/5) and falls back to a truncated
+           body when it's blank. #}
+        <p class="secondary-story__copy">{% if news.published_label %}<time class="secondary-story__date" datetime="{{ news.published_iso }}">{{ news.published_label }}</time> &mdash; {% endif %}{% if news.excerpt %}{{ news.excerpt }}{% elif news.description %}{{ news.description | striptags | truncate(150) }}{% else %}No summary available.{% endif %}</p>
+        {% endif %}
       </div>
     </article>
     {% endfor %}
@@ -106,7 +131,12 @@
   {% endif %}
   <article class="info-card" data-news-id="{{ widget.id }}">
     <h3 class="info-card__title" data-news-edit="title">{{ widget.title }}</h3>
-    <p class="info-card__copy">{{ (widget.description | striptags | truncate(200)) if widget.description else '' }}</p>
+    {% if news_editor %}
+    <p class="info-card__copy info-card__copy--excerpt" data-news-edit="excerpt">{{ widget.excerpt | default('', true) }}</p>
+    <button type="button" class="info-card__edit-body-btn ghost-button" data-news-edit-body>Edit Full Article Body</button>
+    {% else %}
+    <p class="info-card__copy">{% if widget.excerpt %}{{ widget.excerpt }}{% elif widget.description %}{{ widget.description | striptags | truncate(200) }}{% endif %}</p>
+    {% endif %}
   </article>
 </section>
 {% endfor %}

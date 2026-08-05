@@ -2,13 +2,15 @@
  * In-place news editor for the Gears dashboard.
  *
  * The dashboard renders the REAL kiosk front page (templates/kiosk/_news_slots.html).
- * The feature (lead) slot is the live editing surface: a Quill rich-text body,
- * inline-editable title/source/location, and drop-to-attach cover image. Saves
- * post the existing hidden form to news.store (which sanitizes the HTML with
- * bleach) and reload to re-render the real page. The story library is a
- * slide-over drawer (see "Story Library drawer" below); "Place on Front Page"
- * assigns a story to a slot via news.layout — it no longer loads stories into
- * this editing surface.
+ * Every slot (lead, secondary, widget) is a selectable editing surface: inline
+ * title/dek/excerpt/source/location/caption/credit text and drop-to-attach cover
+ * image. Full-article body writing happens in a focused modal (Task 5) — the
+ * canvas never mounts Quill. Saves post the existing hidden form to news.store
+ * (which sanitizes the HTML with bleach) and reload to re-render the real page,
+ * except the body modal, which saves independently through news.body. The story
+ * library is a slide-over drawer (see "Story Library drawer" below); "Place on
+ * Front Page" assigns a story to a slot via news.layout — it no longer loads
+ * stories into this editing surface.
  */
 
 import Quill from 'quill';
@@ -21,7 +23,11 @@ import Sortable from 'sortablejs';
   if (!composer) return;
 
   var editor      = composer.querySelector('[data-news-editor]');
-  var featureSlot = editor ? editor.querySelector('[data-news-slot="main"]') : null;
+  // Points at the main-headline <section>, used only to read/derive slot
+  // occupancy (canvasMainId/canvasBucketIds below). NOT the editing target —
+  // that used to be hardcoded here (`featureSlot`), which is exactly why
+  // editing any story forced it into the lead surface. See selectStory().
+  var mainSlotSection = editor ? editor.querySelector('[data-news-slot="main"]') : null;
   var form        = composer.querySelector('[data-news-form]');
   var props       = composer.querySelector('[data-news-properties]');
   var activeLabel = composer.querySelector('[data-news-active-label]');
@@ -61,6 +67,7 @@ import Sortable from 'sortablejs';
     source:      field('source'),
     location:    field('location'),
     dek:         field('dek'),
+    excerpt:     field('excerpt'),
     caption:     field('caption'),
     credit:      field('credit'),
     priority:    field('priority'),
@@ -87,50 +94,54 @@ import Sortable from 'sortablejs';
     }, 3500);
   }
 
-  // ── Feature editing surface ───────────────────────────
-  // Must stay in sync with the lead-story markup in
-  // templates/kiosk/_news_slots.html, minus the kiosk-only pieces
-  // (dateline, "Continue reading") that the `news_editor` flag gates out.
-  var FEATURE_HTML =
-    '<article class="feature-story" data-news-id="">' +
-      '<figure class="feature-story__figure">' +
-        '<div class="feature-story__image feature-story__image--fallback" data-news-edit="image" aria-hidden="true"></div>' +
-        '<figcaption class="feature-story__cutline">' +
-          '<span class="feature-story__caption" data-news-edit="caption"></span>' +
-          '<span class="feature-story__credit"><span class="feature-story__credit-label" aria-hidden="true">Photo:</span> <span data-news-edit="credit"></span></span>' +
-        '</figcaption>' +
-      '</figure>' +
-      '<div class="feature-story__content">' +
-        '<span class="feature-story__kicker">Campus</span>' +
-        '<h2 class="feature-story__title" data-news-edit="title"></h2>' +
-        '<p class="feature-story__dek" data-news-edit="dek"></p>' +
-        '<div class="feature-story__meta">By <span data-news-edit="source">Editorial Desk</span> &middot; <span data-news-edit="location">Campus</span></div>' +
-        '<div class="feature-story__copy drop-cap" data-news-edit="body"></div>' +
-      '</div>' +
-    '</article>';
-
-  function ensureFeature() {
-    if (!featureSlot) return null;
-    var art = featureSlot.querySelector('.feature-story');
-    if (!art) {
-      var empty = featureSlot.querySelector('.paper-empty');
-      if (empty) empty.remove();
-      featureSlot.insertAdjacentHTML('beforeend', FEATURE_HTML);
-      art = featureSlot.querySelector('.feature-story');
+  // Reads a JSON envelope defensively: on session expiry the auth middleware
+  // 302-redirects to the login page, so fetch() resolves with an HTML body,
+  // not JSON. Parsing that as JSON throws inside a .then(r => r.json()),
+  // which previously surfaced as a generic "Request failed". Checking the
+  // content-type first lets us give a truthful, actionable message instead.
+  function readJsonEnvelope(r) {
+    var ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
+    if (ct.indexOf('json') === -1) {
+      return Promise.resolve({ ok: false, __sessionExpired: true });
     }
-    return art;
+    return r.json().catch(function () { return { ok: false }; });
   }
+
+  // ── Active story state ─────────────────────────────────
+  // Generalizes what used to be "the lead slot only": whichever story is
+  // selected — from main, secondary, or widget — becomes the active editing
+  // target. `activeArt` is that story's own DOM node (wherever it lives in
+  // the canvas); `activeSlotType` is which bucket it currently occupies.
+  var activeId = '';
+  var activeSlotType = 'main';
+  var activeArt = null;
 
   function region(art, key) { return art ? art.querySelector('[data-news-edit="' + key + '"]') : null; }
   function setText(art, key, val) { var el = region(art, key); if (el) el.textContent = val || ''; }
   function getText(art, key) { var el = region(art, key); return el ? el.textContent.trim() : ''; }
 
-  // ── Quill (rich body) ─────────────────────────────────
+  // ── Focused article body editor (modal) ───────────────
+  // Quill lives here now, not on the canvas — the canvas body region
+  // (.feature-story__copy etc.) is plain display markup, matching what the
+  // public kiosk renders. Mounted lazily, once, on first open.
+  var bodyModal        = root.querySelector('[data-news-body-modal]');
+  var bodyEditorHost    = bodyModal ? bodyModal.querySelector('[data-news-body-editor]') : null;
+  var bodyModalTitleEl  = bodyModal ? bodyModal.querySelector('[data-news-body-modal-title]') : null;
+  var bodyModalSaveBtn  = bodyModal ? bodyModal.querySelector('[data-news-body-save]') : null;
+  var bodyModalCancelBtn = bodyModal ? bodyModal.querySelector('[data-news-body-cancel]') : null;
+  var bodyModalCloseBtn = bodyModal ? bodyModal.querySelector('[data-news-body-close]') : null;
+  var bodyModalTrigger  = null;
   var quill = null;
-  function mountQuill(art) {
-    var body = region(art, 'body');
-    if (!body || quill) return;
-    quill = new Quill(body, {
+  var bodyModalDirty = false; // local to the modal session, drives the close-confirm guard only
+
+  function ensureQuill() {
+    if (quill || !bodyEditorHost) return quill;
+    // Construct first, THEN bind the change handler on the next statement —
+    // Quill fires `text-change` synchronously inside its own constructor
+    // while processing the (empty) host it was given. Binding before
+    // construction finishes would mark the modal dirty before the user has
+    // typed anything.
+    quill = new Quill(bodyEditorHost, {
       theme: 'snow',
       placeholder: 'Write the story…',
       modules: {
@@ -144,23 +155,144 @@ import Sortable from 'sortablejs';
       }
     });
     quill.on('text-change', function () {
+      bodyModalDirty = true;
       if (f.description) f.description.value = quill.root.innerHTML;
       markDirty();
     });
+    return quill;
   }
 
-  // ── Inline title/source/location ──────────────────────
+  function openBodyModal(trigger) {
+    if (!bodyModal || typeof bodyModal.showModal !== 'function') return;
+    if (!activeArt && !activeId) { toast('Select or start a story first.', true); return; }
+    ensureQuill();
+    if (quill) {
+      // Direct DOM assignment, not the Quill API — verified not to trip the
+      // text-change handler above (Parchment's MutationObserver path is
+      // suppressed by its own zero-length-diff guard), so this can safely
+      // run after the handler is already bound.
+      quill.root.innerHTML = (f.description && f.description.value) || '';
+    }
+    bodyModalDirty = false;
+    if (bodyModalTitleEl) {
+      var label = activeArt ? getText(activeArt, 'title') : '';
+      bodyModalTitleEl.textContent = 'Edit Full Article Body' + (label ? ' — ' + label : '');
+    }
+    bodyModalTrigger = trigger || document.activeElement;
+    bodyModal.showModal();
+    if (quill) quill.focus();
+  }
+
+  function closeBodyModalWithGuard() {
+    if (!bodyModal) return;
+    if (bodyModalDirty) {
+      confirmAction({
+        title: 'Discard unsaved changes?',
+        body: 'The article body has unsaved edits that will be lost.',
+        confirmLabel: 'Discard changes',
+        cancelLabel: 'Keep editing',
+        danger: true
+      }).then(function (ok) { if (ok) { bodyModalDirty = false; bodyModal.close(); } });
+      return;
+    }
+    bodyModal.close();
+  }
+
+  if (bodyModal) {
+    if (bodyModalCloseBtn) bodyModalCloseBtn.addEventListener('click', closeBodyModalWithGuard);
+    if (bodyModalCancelBtn) bodyModalCancelBtn.addEventListener('click', closeBodyModalWithGuard);
+
+    // Escape fires `cancel` (cancelable) before `close` on a native
+    // <dialog>. Routing it through the same guarded path keeps the
+    // unsaved-changes warning in effect for Escape too.
+    bodyModal.addEventListener('cancel', function (event) {
+      event.preventDefault();
+      closeBodyModalWithGuard();
+    });
+
+    bodyModal.addEventListener('close', function () {
+      var trigger = bodyModalTrigger;
+      bodyModalTrigger = null;
+      bodyModalDirty = false;
+      if (trigger && trigger.isConnected && trigger.focus) trigger.focus();
+    });
+
+    if (bodyModalSaveBtn) {
+      bodyModalSaveBtn.addEventListener('click', function () {
+        var html = quill ? quill.root.innerHTML : '';
+        // A brand-new story (no id yet — "+ Add a story", not yet
+        // Published) has no news.body endpoint to hit: the row doesn't
+        // exist in the DB. The text-change handler above already kept
+        // f.description in sync on every keystroke, so there's nothing
+        // left to persist here except closing the modal — the body goes
+        // live the same way the rest of the new story's fields do, via
+        // "Publish Page Layout".
+        if (!activeId) {
+          bodyModalDirty = false;
+          toast('Body kept — it will be saved when you Publish this new story.', false);
+          bodyModal.close();
+          return;
+        }
+        bodyModalSaveBtn.disabled = true;
+        var fd = new FormData();
+        fd.append('description', html);
+        fetch('/news/dashboard/' + encodeURIComponent(activeId) + '/body', {
+          method: 'POST',
+          headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+          body: fd
+        })
+          .then(readJsonEnvelope)
+          .then(function (json) {
+            bodyModalSaveBtn.disabled = false;
+            if (json && json.__sessionExpired) {
+              toast('Your session has expired — reload the page and sign in again.', true);
+              return;
+            }
+            if (json && json.ok) {
+              if (f.description) f.description.value = json.description || html;
+              if (activeArt) {
+                var bodyRegion = region(activeArt, 'body');
+                if (bodyRegion) bodyRegion.innerHTML = json.description || html;
+              }
+              bodyModalDirty = false;
+              toast('Article body saved.', false);
+              // Deliberately NOT clearing layoutDirty/the "Unpublished
+              // changes" badge here (same reasoning as unassign/delete
+              // below, F1): the body is now persisted, but any pending
+              // canvas metadata edits (title/dek/excerpt/image) are not —
+              // clearing the badge would claim they were too.
+              if (window.DashboardLive) window.DashboardLive.refresh('news');
+              bodyModal.close();
+            } else {
+              toast((json && json.errors && json.errors[0]) || 'Could not save the body.', true);
+            }
+          })
+          .catch(function () {
+            bodyModalSaveBtn.disabled = false;
+            toast('Request failed — please try again.', true);
+          });
+      });
+    }
+  }
+
+  // ── Inline title/source/location/dek/excerpt/caption/credit ──
   var INLINE_PLACEHOLDERS = {
     title: 'Headline…',
     source: 'Byline…',
     location: 'Location…',
     dek: 'Add a dek — one or two lines under the headline…',
+    excerpt: 'Front-page excerpt (optional) — falls back to a truncated body when blank…',
     caption: 'Photo caption…',
     credit: 'Photo credit…'
   };
+  var INLINE_KEYS = ['title', 'source', 'location', 'dek', 'excerpt', 'caption', 'credit'];
 
+  // Wires whatever of the inline-editable regions actually exist inside
+  // `art` — main, secondary, and widget markup each expose a different
+  // subset (secondary/widget don't have source/location/caption/credit
+  // regions at all), so this only touches what's really there.
   function wireInline(art) {
-    ['title', 'source', 'location', 'dek', 'caption', 'credit'].forEach(function (key) {
+    INLINE_KEYS.forEach(function (key) {
       var el = region(art, key);
       if (!el || el.getAttribute('data-wired')) return;
       el.setAttribute('contenteditable', 'true');
@@ -176,8 +308,7 @@ import Sortable from 'sortablejs';
   // ── Cover image (click or drop) ───────────────────────
   var objectUrl = null;
   function previewImage(src) {
-    var art = featureSlot && featureSlot.querySelector('.feature-story');
-    var zone = art ? region(art, 'image') : null;
+    var zone = activeArt ? region(activeArt, 'image') : null;
     if (!zone) return;
     if (objectUrl) { try { URL.revokeObjectURL(objectUrl); } catch (_) {} objectUrl = null; }
     var url = typeof src === 'string' ? src : (objectUrl = URL.createObjectURL(src));
@@ -187,7 +318,7 @@ import Sortable from 'sortablejs';
       zone.style.backgroundImage = 'url("' + url + '")';
       zone.style.backgroundSize = 'cover';
       zone.style.backgroundPosition = 'center';
-      zone.classList.remove('feature-story__image--fallback');
+      zone.classList.remove('feature-story__image--fallback', 'secondary-story__thumb--fallback');
     }
   }
 
@@ -237,44 +368,6 @@ import Sortable from 'sortablejs';
     });
   }
 
-  // ── Load a story into the feature surface ─────────────
-  function loadStory(data) {
-    var art = ensureFeature();
-    if (!art) return;
-    wireInline(art);
-    wireImage(art);
-    mountQuill(art);
-
-    art.setAttribute('data-news-id', data.id || '');
-    setText(art, 'title', data.title || '');
-    setText(art, 'source', data.source || 'Editorial Desk');
-    setText(art, 'location', data.location || 'Campus');
-    setText(art, 'dek', data.dek || '');
-    setText(art, 'caption', data.caption || '');
-    setText(art, 'credit', data.credit || '');
-    if (quill) quill.root.innerHTML = data.description || '';
-
-    if (f.title)       f.title.value = data.title || '';
-    if (f.description) f.description.value = data.description || '';
-    if (f.source)      f.source.value = data.source || '';
-    if (f.location)    f.location.value = data.location || '';
-    if (f.dek)         f.dek.value = data.dek || '';
-    if (f.caption)     f.caption.value = data.caption || '';
-    if (f.credit)      f.credit.value = data.credit || '';
-    if (f.articleId)   f.articleId.value = data.id || '';
-    if (f.priority)    f.priority.value = data.priority || '0';
-    if (propPriority)  propPriority.value = data.priority || '0';
-    setSlot(data.layout || 'main');
-
-    var zone = region(art, 'image');
-    if (zone) { zone.style.backgroundImage = ''; zone.classList.add('feature-story__image--fallback'); }
-    if (data.image) previewImage('/storage/' + String(data.image).replace(/\\/g, '/'));
-    try { if (f.image) f.image.value = ''; } catch (_) {}
-
-    if (activeLabel) activeLabel.textContent = data.id ? ('Editing: ' + (data.title || 'Untitled')) : 'New story';
-    if (editor.scrollIntoView) editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
   function cardData(card) {
     return {
       id:          card.getAttribute('data-news-library-id') || '',
@@ -283,25 +376,89 @@ import Sortable from 'sortablejs';
       source:      card.getAttribute('data-news-library-source') || '',
       location:    card.getAttribute('data-news-library-location') || '',
       dek:         card.getAttribute('data-news-library-dek') || '',
+      excerpt:     card.getAttribute('data-news-library-excerpt') || '',
       caption:     card.getAttribute('data-news-library-caption') || '',
       credit:      card.getAttribute('data-news-library-credit') || '',
       layout:      card.getAttribute('data-news-library-layout') || 'secondary',
       priority:    card.getAttribute('data-news-library-priority') || '0',
+      status:      card.getAttribute('data-news-library-status') || 'published',
       image:       card.getAttribute('data-news-library-image') || ''
     };
   }
 
+  function libraryCardById(id) {
+    return composer.querySelector('[data-news-library-item][data-news-library-id="' + id + '"]');
+  }
+
+  // ── Select any slot's story into the editing surface ──
+  // This replaces the old lead-only `loadStory`: it works for main,
+  // secondary, or widget alike. Full story data (including the body, for
+  // the modal) comes from that story's own library card — already rendered
+  // on the page in the drawer's grid — rather than a new network round trip.
+  function selectStory(id, slotType, artEl) {
+    var data;
+    if (!id) {
+      data = { id: '', title: '', description: '', source: '', location: '', dek: '', excerpt: '', caption: '', credit: '', layout: slotType || 'secondary', priority: '0', image: '' };
+    } else {
+      var card = libraryCardById(id);
+      if (!card) { toast('Could not load that story’s details.', true); return; }
+      data = cardData(card);
+    }
+
+    activeArt = artEl || null;
+    activeId = data.id || '';
+    activeSlotType = slotType || data.layout || 'main';
+
+    if (activeArt) {
+      wireInline(activeArt);
+      wireImage(activeArt);
+      setText(activeArt, 'title', data.title || '');
+      setText(activeArt, 'source', data.source || 'Editorial Desk');
+      setText(activeArt, 'location', data.location || 'Campus');
+      setText(activeArt, 'dek', data.dek || '');
+      setText(activeArt, 'excerpt', data.excerpt || '');
+      setText(activeArt, 'caption', data.caption || '');
+      setText(activeArt, 'credit', data.credit || '');
+      var bodyRegion = region(activeArt, 'body');
+      if (bodyRegion) bodyRegion.innerHTML = data.description || '';
+      var zone = region(activeArt, 'image');
+      if (zone) {
+        zone.style.backgroundImage = '';
+        zone.classList.add('feature-story__image--fallback', 'secondary-story__thumb--fallback');
+      }
+      if (data.image) previewImage('/storage/' + String(data.image).replace(/\\/g, '/'));
+    }
+
+    if (f.title)       f.title.value = data.title || '';
+    if (f.description) f.description.value = data.description || '';
+    if (f.source)      f.source.value = data.source || '';
+    if (f.location)    f.location.value = data.location || '';
+    if (f.dek)         f.dek.value = data.dek || '';
+    if (f.excerpt)     f.excerpt.value = data.excerpt || '';
+    if (f.caption)     f.caption.value = data.caption || '';
+    if (f.credit)      f.credit.value = data.credit || '';
+    if (f.articleId)   f.articleId.value = data.id || '';
+    if (f.priority)    f.priority.value = data.priority || '0';
+    if (propPriority)  propPriority.value = data.priority || '0';
+    try { if (f.image) f.image.value = ''; } catch (_) {}
+
+    setSlot(activeSlotType);
+    if (activeLabel) activeLabel.textContent = data.id ? ('Editing: ' + (data.title || 'Untitled')) : 'New story';
+  }
+
   // ── Save (Publish) ────────────────────────────────────
+  // Pulls the latest text straight off whichever DOM node is active, in
+  // case a contenteditable `input` handler hasn't fired yet for some reason
+  // (defensive; the input handlers already keep f.* in sync as you type).
   function syncFormFromSurface() {
-    var art = featureSlot && featureSlot.querySelector('.feature-story');
-    if (!art) return;
-    if (f.title)    f.title.value = getText(art, 'title');
-    if (f.source)   f.source.value = getText(art, 'source');
-    if (f.location) f.location.value = getText(art, 'location');
-    if (f.dek)      f.dek.value = getText(art, 'dek');
-    if (f.caption)  f.caption.value = getText(art, 'caption');
-    if (f.credit)   f.credit.value = getText(art, 'credit');
-    if (f.description && quill) f.description.value = quill.root.innerHTML;
+    if (!activeArt) return;
+    if (f.title)    f.title.value = getText(activeArt, 'title');
+    if (f.source)   f.source.value = getText(activeArt, 'source');
+    if (f.location) f.location.value = getText(activeArt, 'location');
+    if (f.dek)      f.dek.value = getText(activeArt, 'dek');
+    if (f.excerpt)  f.excerpt.value = getText(activeArt, 'excerpt');
+    if (f.caption)  f.caption.value = getText(activeArt, 'caption');
+    if (f.credit)   f.credit.value = getText(activeArt, 'credit');
     if (f.priority && propPriority) f.priority.value = propPriority.value;
     if (f.publishedAt && propDate) f.publishedAt.value = propDate.value;
   }
@@ -313,8 +470,12 @@ import Sortable from 'sortablejs';
       headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
       body: fd
     })
-    .then(function (r) { return r.json(); })
+    .then(readJsonEnvelope)
     .then(function (json) {
+      if (json && json.__sessionExpired) {
+        toast('Your session has expired — reload the page and sign in again.', true);
+        return;
+      }
       if (json && json.ok) { onOk(json); }
       else { toast((json && json.errors && json.errors[0]) || 'Could not save — check the fields.', true); }
     })
@@ -349,8 +510,12 @@ import Sortable from 'sortablejs';
         method: 'POST',
         headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }
       })
-      .then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }); })
+      .then(readJsonEnvelope)
       .then(function (json) {
+        if (json && json.__sessionExpired) {
+          toast('Your session has expired — reload the page and sign in again.', true);
+          return;
+        }
         if (json && json.ok) {
           toast((json.messages && json.messages[0]) || 'Removed from the front page.', false);
           if (f.layout) f.layout.value = 'unassigned';
@@ -392,8 +557,12 @@ import Sortable from 'sortablejs';
           headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
           body: fd
         })
-        .then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }); })
+        .then(readJsonEnvelope)
         .then(function (json) {
+          if (json && json.__sessionExpired) {
+            toast('Your session has expired — reload the page and sign in again.', true);
+            return;
+          }
           if (json && json.ok) {
             toast('Story deleted.', false);
             // Delete removes the row entirely — it doesn't persist any
@@ -409,11 +578,11 @@ import Sortable from 'sortablejs';
     });
   }
 
-  // ── Library: open drawer / place on front page / add ──
+  // ── Library: open drawer / place on front page / add / select / edit body ─
   // Delegated from the dashboard root: the drawer's card grid and the
-  // canvas's empty-slot placeholders both sit outside [data-news-composer],
-  // and both get their innerHTML replaced (library refresh, canvas refresh)
-  // — a direct listener on either would go silently dead after the first swap.
+  // canvas's slot content both sit outside [data-news-composer] or get their
+  // innerHTML replaced (library refresh, canvas refresh) — a direct listener
+  // on either would go silently dead after the first swap.
   root.addEventListener('click', function (event) {
     var openBtn = event.target.closest('[data-news-library-open]');
     if (openBtn && root.contains(openBtn)) {
@@ -435,15 +604,75 @@ import Sortable from 'sortablejs';
       if (card) handlePlaceStory(placeBtn, card);
       return;
     }
+
+    // "Edit Full Article Body" — appears in the inspector (no ancestor
+    // story; targets whatever is already active) and on each slot's own
+    // card (editor-only markup in kiosk/_news_slots.html). Selects that
+    // story first if it wasn't already active, then opens the modal.
+    var editBodyBtn = event.target.closest('[data-news-edit-body]');
+    if (editBodyBtn && editor && (editor.contains(editBodyBtn) || composer.contains(editBodyBtn))) {
+      var artNode = editBodyBtn.closest('[data-news-id]');
+      if (artNode) {
+        var id = artNode.getAttribute('data-news-id');
+        var slotSection = artNode.closest('[data-news-slot]');
+        var slotTypeForBtn = slotSection ? slotSection.getAttribute('data-news-slot') : activeSlotType;
+        if (id && id !== activeId) selectStory(id, slotTypeForBtn, artNode);
+      }
+      openBodyModal(editBodyBtn);
+      return;
+    }
+
+    // Selecting any slot's story loads it into the editing surface in
+    // place — main, secondary, and widget alike (Task 5's deliverable 3;
+    // previously only the lead slot was ever editable). Clicking inside the
+    // ALREADY-active story's own fields is a no-op here (id matches), so
+    // mid-edit typing/clicks never get clobbered by a reload of the same
+    // data. Only stories with a real (published) id are click-selectable —
+    // an unsaved new story stays on the surface until it's saved.
+    var selectableArt = event.target.closest('.feature-story[data-news-id], .secondary-story[data-news-id], .info-card[data-news-id]');
+    if (selectableArt && editor.contains(selectableArt)) {
+      var storyId = selectableArt.getAttribute('data-news-id');
+      if (storyId && storyId !== activeId) {
+        var section = selectableArt.closest('[data-news-slot]');
+        var storySlotType = section ? section.getAttribute('data-news-slot') : 'secondary';
+        selectStory(storyId, storySlotType, selectableArt);
+      }
+    }
   });
+
+  // A brand-new, not-yet-published story has no slot of its own to be
+  // edited "in place" in yet, so it needs a scratch card to hold its inline
+  // title/excerpt/image fields until it's saved. Deliberately appended to
+  // the secondary grid (never the lead) so "+ Add a story" can no longer
+  // clobber whatever the front page's actual lead story currently shows —
+  // that DOM-overwrite was the confusing behavior Task 5 exists to remove.
+  // Mirrors the real secondary-story markup in kiosk/_news_slots.html
+  // exactly (title + excerpt + image), minus the server-rendered id.
+  var SCRATCH_SECONDARY_HTML =
+    '<article class="secondary-story is-scratch" data-news-id="">' +
+      '<div class="secondary-story__thumb secondary-story__thumb--fallback" data-news-edit="image" aria-hidden="true"></div>' +
+      '<div class="secondary-story__body">' +
+        '<h3 class="secondary-story__title" data-news-edit="title"></h3>' +
+        '<p class="secondary-story__copy secondary-story__copy--excerpt" data-news-edit="excerpt"></p>' +
+      '</div>' +
+    '</article>';
+
+  function ensureNewStoryScratch() {
+    var grid = editor.querySelector('.secondary-grid');
+    if (!grid) return null;
+    var existing = grid.querySelector('.secondary-story[data-news-id=""]');
+    if (existing) return existing;
+    grid.insertAdjacentHTML('afterbegin', SCRATCH_SECONDARY_HTML);
+    return grid.querySelector('.secondary-story[data-news-id=""]');
+  }
 
   var addBtn = composer.querySelector('[data-news-add-secondary]');
   if (addBtn) {
     addBtn.addEventListener('click', function () {
-      loadStory({ id: '', layout: 'secondary', priority: '0' });
-      setSlot('secondary');
-      if (activeLabel) activeLabel.textContent = 'New story';
+      var art = ensureNewStoryScratch();
+      selectStory('', 'secondary', art);
       markDirty();
+      if (art && art.scrollIntoView) art.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -455,9 +684,6 @@ import Sortable from 'sortablejs';
   // ── Drag-to-reorder secondary stories ─────────────────
   // Persists by resending each moved story's FULL data (from its library card,
   // so the description isn't clobbered) with a new priority.
-  function libraryCardById(id) {
-    return composer.querySelector('[data-news-library-item][data-news-library-id="' + id + '"]');
-  }
   function persistOrder(grid) {
     Array.prototype.slice.call(grid.querySelectorAll('[data-news-id]')).forEach(function (el, index) {
       var id = el.getAttribute('data-news-id');
@@ -474,6 +700,7 @@ import Sortable from 'sortablejs';
       // Re-send the editorial extras too — store() persists `input or None`,
       // so omitting them here would wipe them on every reorder.
       fd.append('dek', d.dek);
+      fd.append('excerpt', d.excerpt);
       fd.append('image_caption', d.caption);
       fd.append('image_credit', d.credit);
       fd.append('layout_type', 'secondary');
@@ -661,8 +888,8 @@ import Sortable from 'sortablejs';
   }
 
   function canvasMainId() {
-    if (!featureSlot) return '';
-    var art = featureSlot.querySelector('.feature-story[data-news-id]');
+    if (!mainSlotSection) return '';
+    var art = mainSlotSection.querySelector('.feature-story[data-news-id]');
     return (art && art.getAttribute('data-news-id')) || '';
   }
 
@@ -797,7 +1024,7 @@ import Sortable from 'sortablejs';
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ items: items })
-    }).then(function (r) { return r.json().catch(function () { return { ok: false }; }); });
+    }).then(readJsonEnvelope);
   }
 
   // The canvas placeholder for the slot just filled holds no user data, so
@@ -845,6 +1072,10 @@ import Sortable from 'sortablejs';
       postLayout(items)
         .then(function (json) {
           placeBtn.disabled = false;
+          if (json && json.__sessionExpired) {
+            toast('Your session has expired — reload the page and sign in again.', true);
+            return;
+          }
           if (json && json.ok && json.updated && json.updated.length) {
             toast((json.messages && json.messages[0]) || 'Story placed on the front page.', false);
             applyPlacementToVirtualSlots(target, id);
@@ -935,48 +1166,51 @@ import Sortable from 'sortablejs';
       });
   }
 
-  // Seeds the hidden form + active-story label from the feature slot's
-  // current DOM. Used on first load AND after reinitCanvas() replaces that
-  // DOM — the two must seed identically, or a canvas refresh that changes
-  // which story is lead leaves `f.articleId` pointing at the OLD story while
-  // the visible surface (and syncFormFromSurface's reads) reflect the NEW
-  // one, so Publish overwrites the wrong row (fix round 1, C2).
-  function seedFormFromFeature(art) {
-    if (f.title)       f.title.value = getText(art, 'title');
-    if (f.source)      f.source.value = getText(art, 'source');
-    if (f.location)    f.location.value = getText(art, 'location');
-    if (f.dek)         f.dek.value = getText(art, 'dek');
-    if (f.caption)     f.caption.value = getText(art, 'caption');
-    if (f.credit)      f.credit.value = getText(art, 'credit');
-    if (f.description && quill) f.description.value = quill.root.innerHTML;
-    if (f.articleId)   f.articleId.value = art.getAttribute('data-news-id') || '';
-    setSlot('main');
-    if (activeLabel) {
-      var t = getText(art, 'title');
-      activeLabel.textContent = (art.getAttribute('data-news-id')) ? ('Editing: ' + (t || 'Untitled')) : 'New story';
+  // Picks what to load as the active story after the canvas DOM is
+  // (re)built: keep editing the same story if it's still visible somewhere
+  // in the refreshed canvas (it may have moved slot), otherwise fall back to
+  // the lead story, otherwise a blank "New story" state. Called from both
+  // init() and reinitCanvas() so the two seed identically — a canvas swap
+  // that skips seeding leaves `f.articleId` pointing at a stale story while
+  // the visible surface reflects a new one, so Publish would overwrite the
+  // wrong row (this was a Critical defect in Task 4's fix round 1, C2).
+  function seedActiveStory() {
+    var stillThere = activeId ? editor.querySelector('[data-news-id="' + activeId + '"]') : null;
+    if (stillThere) {
+      var section = stillThere.closest('[data-news-slot]');
+      selectStory(activeId, section ? section.getAttribute('data-news-slot') : activeSlotType, stillThere);
+      return;
     }
+    var leadArt = mainSlotSection ? mainSlotSection.querySelector('.feature-story[data-news-id]') : null;
+    if (leadArt) {
+      selectStory(leadArt.getAttribute('data-news-id'), 'main', leadArt);
+      return;
+    }
+    activeArt = null;
+    activeId = '';
+    activeSlotType = 'main';
+    if (f.articleId) f.articleId.value = '';
+    if (f.title) f.title.value = '';
+    if (f.description) f.description.value = '';
+    if (f.source) f.source.value = '';
+    if (f.location) f.location.value = '';
+    if (f.dek) f.dek.value = '';
+    if (f.excerpt) f.excerpt.value = '';
+    if (f.caption) f.caption.value = '';
+    if (f.credit) f.credit.value = '';
+    setSlot('main');
+    if (activeLabel) activeLabel.textContent = 'New story';
   }
 
   function reinitCanvas() {
-    featureSlot = editor.querySelector('[data-news-slot="main"]');
-    quill = null;
-    var art = ensureFeature();
-    if (art) {
-      wireInline(art);
-      wireImage(art);
-      mountQuill(art);
-      seedFormFromFeature(art);
-    }
+    mainSlotSection = editor.querySelector('[data-news-slot="main"]');
     initSecondarySortable();
+    seedActiveStory();
   }
 
-  // ── Init: edit the real rendered feature story ────────
+  // ── Init: edit the real rendered front page ────────────
   (function init() {
-    var art = ensureFeature();
-    if (!art) return;
-    wireInline(art);
-    wireImage(art);
-    mountQuill(art);
-    seedFormFromFeature(art);
+    mainSlotSection = editor.querySelector('[data-news-slot="main"]');
+    seedActiveStory();
   })();
 })();

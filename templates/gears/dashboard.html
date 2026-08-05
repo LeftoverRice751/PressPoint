@@ -23,7 +23,7 @@
 >
   <aside class="gears-sidebar">
     <div class="gears-sidebar__brand">
-      <div class="gears-sidebar__mark" aria-hidden="true"><img src="/gears.png" alt="Gears logo"></div>
+      <div class="gears-sidebar__mark" aria-hidden="true"><img src="{{ site_logo() }}" alt="Gears logo"></div>
       <div>
         <div class="gears-sidebar__eyebrow">The Gears Publication</div>
         <div class="gears-sidebar__title">GEARS CMS</div>
@@ -73,6 +73,10 @@
       <button type="button" class="dashboard-nav__link" data-page-link="kiosk-lock" id="nav-kiosk-lock" role="tab" aria-controls="panel-kiosk-lock" aria-selected="false" tabindex="-1">
         <span class="dashboard-nav__icon" aria-hidden="true">⟐</span>
         <span>Screen Control</span>
+      </button>
+      <button type="button" class="dashboard-nav__link" data-page-link="branding" id="nav-branding" role="tab" aria-controls="panel-branding" aria-selected="false" tabindex="-1">
+        <span class="dashboard-nav__icon" aria-hidden="true">◈</span>
+        <span>Branding</span>
       </button>
     </nav>
 
@@ -264,6 +268,7 @@
           <input type="hidden" name="source"       data-news-field="source">
           <input type="hidden" name="location"     data-news-field="location">
           <input type="hidden" name="dek"           data-news-field="dek">
+          <input type="hidden" name="excerpt"       data-news-field="excerpt">
           <input type="hidden" name="image_caption" data-news-field="caption">
           <input type="hidden" name="image_credit"  data-news-field="credit">
           <input type="hidden" name="layout_type"  value="main" data-news-layout-field>
@@ -324,6 +329,7 @@
           </div>
 
           <div class="news-prop-section news-prop-section--actions">
+            <button type="button" class="ghost-button ghost-button--full" data-news-edit-body>Edit Full Article Body</button>
             <button type="button" class="primary-button" data-news-canvas-save>Publish Page Layout</button>
           </div>
 
@@ -383,6 +389,32 @@
             <div class="news-story-library__grid news-library-drawer__grid" data-section-content data-live-target>
 {% include "gears/partials/news-slots.html" %}
             </div>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- ── Focused article body editor (Task 5) ──────────
+           Full-body writing lives here instead of inside the cramped canvas
+           slot. Opened via "Edit Full Article Body" (inspector or any
+           slot's own button); Quill mounts once, lazily, on first open —
+           construct-then-bind ordering matters here (see news-dashboard.js)
+           so the composer never opens dirty. Saves independently through
+           news.body, not the layout/publish form. -->
+      <dialog class="article-modal news-body-modal" data-news-body-modal aria-labelledby="news-body-modal-title">
+        <div class="article-modal__panel news-body-modal__panel">
+          <div class="article-modal__header">
+            <div>
+              <h3 class="article-modal__title" id="news-body-modal-title" data-news-body-modal-title>Edit Full Article Body</h3>
+              <p class="article-modal__subtitle">A distraction-free space for writing — this saves the body on its own, separate from the front-page layout.</p>
+            </div>
+            <button type="button" class="article-modal__close" data-news-body-close>Close</button>
+          </div>
+
+          <div class="news-body-modal__editor" data-news-body-editor></div>
+
+          <div class="article-modal__footer">
+            <button type="button" class="ghost-button" data-news-body-cancel>Cancel</button>
+            <button type="button" class="primary-button" data-news-body-save>Save Body</button>
           </div>
         </div>
       </dialog>
@@ -1365,6 +1397,92 @@
             Resume screen
           </button>
         </div>
+      </div>
+    </section>
+
+    <section class="gears-page" data-page-panel="branding" id="panel-branding" role="tabpanel" aria-labelledby="nav-branding" data-hero-eyebrow="System Tools" data-hero-title="Site logo" data-hero-subtitle="Upload the publication mark shown on the kiosk screens, this dashboard, and the sign-in pages." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">System Tools</p>
+          <h2 class="section-head__title">Branding</h2>
+        </div>
+        <p class="section-head__subtitle">One logo, used everywhere the publication mark appears.</p>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="page-card branding-card">
+        <div class="panel-header panel-header--compact">
+          <div>
+            <p class="panel-header__eyebrow">Current logo</p>
+            <h3 class="panel-header__title">How the mark looks today</h3>
+          </div>
+        </div>
+
+        <!-- Two swatches because the same mark sits on a pale kiosk header
+             and on the dark sidebar — a logo that reads on one can vanish
+             on the other. -->
+        <div class="branding-preview">
+          <figure class="branding-swatch branding-swatch--light">
+            <img class="branding-swatch__img" src="{{ site_logo() }}" alt="Current site logo on a light background">
+            <figcaption class="branding-swatch__caption">On kiosk pages</figcaption>
+          </figure>
+          <figure class="branding-swatch branding-swatch--dark">
+            <img class="branding-swatch__img" src="{{ site_logo() }}" alt="Current site logo on a dark background">
+            <figcaption class="branding-swatch__caption">On the sidebar</figcaption>
+          </figure>
+        </div>
+
+        <p class="branding-note">
+          Changing the logo updates the kiosk screens, this dashboard, the sign-in pages,
+          and the browser tab icon. Kiosks pick it up the next time a page loads.
+        </p>
+
+        <form class="branding-form form-stack" method="POST"
+              action="{{ route('branding.logo.upload', {}, False) }}"
+              enctype="multipart/form-data"
+              data-upload-form data-upload-label="logo">
+          {{ csrf_field | safe }}
+          <div class="field">
+            <span class="field__label">New logo</span>
+            <label class="dropzone" data-dropzone>
+              <input type="file" name="file" class="dropzone__input"
+                     accept="image/jpeg,image/png,image/webp" required>
+              <span class="dropzone__empty">
+                <span class="dropzone__icon" aria-hidden="true">↑</span>
+                <span class="dropzone__title">Drop a logo image, or tap to choose</span>
+                <span class="dropzone__hint">JPG, PNG, or WEBP · up to 4 MB · square works best</span>
+              </span>
+              <span class="dropzone__filled" hidden>
+                <span class="dropzone__filename" data-dropzone-name></span>
+                <span class="dropzone__size" data-dropzone-size></span>
+                <button type="button" class="dropzone__clear"
+                        data-dropzone-clear aria-label="Remove file">×</button>
+              </span>
+            </label>
+          </div>
+          <div class="branding-form__actions">
+            <button type="submit" class="primary-button">Upload logo</button>
+          </div>
+        </form>
+
+        <form class="branding-form branding-form--restore" method="POST"
+              action="{{ route('branding.logo.restore', {}, False) }}">
+          {{ csrf_field | safe }}
+          <button type="submit" class="ghost-button"
+                  data-confirm="Every screen goes back to the logo the app shipped with. Your uploaded file is kept, so you can upload it again later."
+                  data-confirm-title="Restore the default logo?"
+                  data-confirm-label="Restore default"
+                  data-confirm-cancel="Keep current">Restore default</button>
+        </form>
       </div>
     </section>
   </main>
