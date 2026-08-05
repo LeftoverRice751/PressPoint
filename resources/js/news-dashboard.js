@@ -3,10 +3,12 @@
  *
  * The dashboard renders the REAL kiosk front page (templates/kiosk/_news_slots.html).
  * The feature (lead) slot is the live editing surface: a Quill rich-text body,
- * inline-editable title/source/location, and drop-to-attach cover image. The
- * story library loads any story into that surface; the slot selector controls
- * where it publishes. Saves post the existing hidden form to news.store (which
- * sanitizes the HTML with bleach) and reload to re-render the real page.
+ * inline-editable title/source/location, and drop-to-attach cover image. Saves
+ * post the existing hidden form to news.store (which sanitizes the HTML with
+ * bleach) and reload to re-render the real page. The story library is a
+ * slide-over drawer (see "Story Library drawer" below); "Place on Front Page"
+ * assigns a story to a slot via news.layout — it no longer loads stories into
+ * this editing surface.
  */
 
 import Quill from 'quill';
@@ -357,6 +359,10 @@ import Sortable from 'sortablejs';
           // still sitting in the hidden form are NOT persisted by this
           // call, so the dirty badge must not be cleared here (F1).
           if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
+          // Same stale-canvas bug the drawer's assign flow was built to
+          // solve: unassigning leaves the removed story sitting visibly in
+          // its old slot until this fires (fix round 1, minor).
+          refreshCanvasFragment();
         }
         else { toast((json && json.errors && json.errors[0]) || 'Could not remove from the front page.', true); }
       })
@@ -394,6 +400,7 @@ import Sortable from 'sortablejs';
             // pending field edits either, so the dirty badge stays as-is
             // (F1, same reasoning as unassign above).
             if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
+            refreshCanvasFragment();
           }
           else { toast((json && json.errors && json.errors[0]) || 'Could not delete.', true); }
         })
@@ -425,30 +432,7 @@ import Sortable from 'sortablejs';
     var placeBtn = event.target.closest('[data-news-place-story]');
     if (placeBtn && libraryDrawer && libraryDrawer.contains(placeBtn)) {
       var card = placeBtn.closest('[data-news-library-item]');
-      if (!card) return;
-      var id = card.getAttribute('data-news-library-id');
-      var target = drawerTarget || firstFreeTarget();
-      if (!target) {
-        toast('Every front-page slot is full — remove a story first.', true);
-        return;
-      }
-      placeBtn.disabled = true;
-      assignStory(id, target)
-        .then(function (json) {
-          placeBtn.disabled = false;
-          if (json && json.ok && json.updated && json.updated.length) {
-            toast((json.messages && json.messages[0]) || 'Story placed on the front page.', false);
-            if (libraryDrawer.close) libraryDrawer.close();
-            if (window.DashboardLive) window.DashboardLive.refresh('news');
-            refreshCanvasFragment();
-          } else {
-            toast((json && json.errors && json.errors[0]) || 'Could not place that story.', true);
-          }
-        })
-        .catch(function () {
-          placeBtn.disabled = false;
-          toast('Request failed — please try again.', true);
-        });
+      if (card) handlePlaceStory(placeBtn, card);
       return;
     }
   });
@@ -523,13 +507,14 @@ import Sortable from 'sortablejs';
   // inside the drawer persists via the Task 2 news.layout endpoint instead of
   // loading the story into the feature editing surface.
   var libraryDrawer = root.querySelector('[data-news-library-drawer]');
+  var libraryOpenBtn = root.querySelector('[data-news-library-open]');
   var librarySubtitle = libraryDrawer ? libraryDrawer.querySelector('[data-news-library-subtitle]') : null;
   var libraryNoMatch = libraryDrawer ? libraryDrawer.querySelector('[data-news-library-no-match]') : null;
   var libraryFilterBtns = libraryDrawer
     ? Array.prototype.slice.call(libraryDrawer.querySelectorAll('[data-news-library-filter]'))
     : [];
   var currentLibraryFilter = 'all';
-  var drawerTarget = null;   // { type: 'secondary'|'widget', priority: N } or null (generic open)
+  var drawerTarget = null;   // { type: 'secondary'|'widget'|'main', priority: N } or null (generic open)
   var drawerTrigger = null;  // element focus returns to on close
 
   var DEFAULT_LIBRARY_SUBTITLE = 'Reuse a published story, or place it on the front page.';
@@ -578,27 +563,36 @@ import Sortable from 'sortablejs';
   }
 
   function openLibraryDrawer(trigger, target) {
-    if (!libraryDrawer) return;
+    // Native <dialog> only — no non-modal fallback. A browser without
+    // showModal() gets no focus trap, no backdrop, no Escape handling, so
+    // degrading to a plain `open` attribute would ship a broken drawer
+    // silently; declining to open is more honest.
+    if (!libraryDrawer || typeof libraryDrawer.showModal !== 'function') return;
     drawerTarget = target || null;
     drawerTrigger = trigger || null;
     updateLibrarySubtitle();
     setLibraryFilter('all');
-    if (typeof libraryDrawer.showModal === 'function') {
-      libraryDrawer.showModal();
-    } else {
-      libraryDrawer.setAttribute('open', '');
-    }
+    libraryDrawer.showModal();
     var closeBtn = libraryDrawer.querySelector('[data-news-library-close]');
     if (closeBtn) closeBtn.focus();
   }
 
   if (libraryDrawer) {
     // Fires on Escape too (native <dialog> cancel → close), so this is the
-    // single place trigger-focus-return and target reset happen.
+    // single place trigger-focus-return and target reset happen. The
+    // trigger can be a canvas placeholder that a same-tick DOM swap already
+    // removed (e.g. handlePlaceStory's removeFilledPlaceholder) — fall back
+    // to the always-present toolbar button rather than losing focus to
+    // <body>.
     libraryDrawer.addEventListener('close', function () {
+      var trigger = drawerTrigger;
       drawerTarget = null;
-      if (drawerTrigger && drawerTrigger.focus) drawerTrigger.focus();
       drawerTrigger = null;
+      if (trigger && trigger.isConnected && trigger.focus) {
+        trigger.focus();
+      } else if (libraryOpenBtn) {
+        libraryOpenBtn.focus();
+      }
     });
 
     var libraryCloseBtn = libraryDrawer.querySelector('[data-news-library-close]');
@@ -621,30 +615,116 @@ import Sortable from 'sortablejs';
     }
   }
 
-  function librarySlotCounts() {
-    var counts = { main: 0, secondary: 0, widget: 0 };
-    if (!libraryDrawer) return counts;
-    Array.prototype.forEach.call(libraryDrawer.querySelectorAll('[data-news-library-item]'), function (card) {
-      var layout = card.getAttribute('data-news-library-layout');
-      if (Object.prototype.hasOwnProperty.call(counts, layout)) counts[layout] += 1;
-    });
-    return counts;
+  // ── Bucket occupancy: read straight off the canvas ────
+  // The canvas is the exact output of DashboardContext.group_news_slots()
+  // (kiosk/_news_slots.html rendered in editor mode) — it excludes whichever
+  // story that grouping promoted to main_news from the secondary list, caps
+  // at 4/2, and reflects priority order via DOM order. Deriving occupancy
+  // from library-card `data-news-library-layout` attributes instead (fix
+  // round 1's I1) disagreed with this in ordinary states, not just under
+  // concurrency: with no explicit `layout_type="main"` row, the server's
+  // fallback main is still a "secondary"-typed row by attribute, so the
+  // library-card count read it as an extra secondary slot and read main as
+  // empty even though the canvas plainly showed a lead story.
+  var BUCKET_CAPACITY = { secondary: 4, widget: 2 };
+
+  function canvasBucketIds(type) {
+    if (type === 'secondary') {
+      var grid = editor.querySelector('.secondary-grid');
+      if (!grid) return [];
+      return Array.prototype.map.call(
+        grid.querySelectorAll('.secondary-story[data-news-id]'),
+        function (el) { return el.getAttribute('data-news-id'); }
+      ).filter(Boolean);
+    }
+    if (type === 'widget') {
+      return Array.prototype.map.call(
+        editor.querySelectorAll('.paper-slot--widget .info-card[data-news-id]'),
+        function (el) { return el.getAttribute('data-news-id'); }
+      ).filter(Boolean);
+    }
+    return [];
+  }
+
+  function canvasMainId() {
+    if (!featureSlot) return '';
+    var art = featureSlot.querySelector('.feature-story[data-news-id]');
+    return (art && art.getAttribute('data-news-id')) || '';
+  }
+
+  function canvasSlotCounts() {
+    return {
+      main: canvasMainId() ? 1 : 0,
+      secondary: canvasBucketIds('secondary').length,
+      widget: canvasBucketIds('widget').length
+    };
   }
 
   // Generic toolbar-open decision (no target slot): fill the first free
   // position — lead if empty, else the next open secondary slot, else the
-  // next open widget slot. Mirrors the capacities the placeholders already
-  // enforce (main 1, secondary 4, widget 2) so this path can never overfill
-  // either; if every slot is full it declines rather than bumping anything.
+  // next open widget slot. Reading occupancy off the canvas (not the
+  // library cards) means "main" only ever reads empty when the canvas is
+  // truly showing no lead story, so this can no longer target an occupied
+  // main slot on its own — handlePlaceStory's confirm guard below is
+  // therefore a belt-and-braces check, not the primary defense.
   function firstFreeTarget() {
-    var counts = librarySlotCounts();
+    var counts = canvasSlotCounts();
     if (counts.main < 1) return { type: 'main', priority: 0 };
     if (counts.secondary < 4) return { type: 'secondary', priority: counts.secondary + 1 };
     if (counts.widget < 2) return { type: 'widget', priority: counts.widget + 1 };
     return null;
   }
 
-  function assignStory(id, target) {
+  // Highest priority currently held by ANY story (read from the library
+  // cards' data-news-library-priority — unrelated to which bucket a card is
+  // in). A new bucket assignment always gets a priority strictly above this,
+  // so it can never become the new global minimum. That matters because
+  // group_news_slots() falls back to the globally-lowest-priority story as
+  // main_news whenever no row is explicitly layout_type="main" — which is
+  // true of the live dataset today. Reusing a low ordinal (e.g. the
+  // placeholder's on-screen position number) as the literal priority risked
+  // silently outranking that fallback and hijacking the lead (fix round 1,
+  // C1).
+  function globalMaxPriority() {
+    var max = 0;
+    if (!libraryDrawer) return max;
+    Array.prototype.forEach.call(libraryDrawer.querySelectorAll('[data-news-library-item]'), function (card) {
+      var p = parseInt(card.getAttribute('data-news-library-priority'), 10);
+      if (!isNaN(p) && p > max) max = p;
+    });
+    return max;
+  }
+
+  // Builds one fully-renumbered batch for a secondary/widget bucket: current
+  // membership comes straight off the canvas (so it matches the server's
+  // own grouping — see canvasBucketIds above), the new story is inserted at
+  // the requested ordinal (or appended, for a generic open) and the whole
+  // bucket is capped and renumbered from globalMaxPriority()+1 up. One POST
+  // to news.layout, one DB transaction, no reused priority values — so no
+  // collisions with existing rows and no unrelated story's bucket
+  // membership or order changes as a side effect (fix round 1, C1). Returns
+  // null if the bucket is already full by the time this runs (a same-tick
+  // race), so the caller can refuse rather than silently dropping the
+  // insertion off the end.
+  function buildBucketBatch(type, newId, requestedPosition) {
+    var idStr = String(newId);
+    var existing = canvasBucketIds(type).filter(function (id) { return id !== idStr; });
+    var cap = BUCKET_CAPACITY[type] || (existing.length + 1);
+    var insertAt = requestedPosition
+      ? Math.min(Math.max(requestedPosition - 1, 0), existing.length)
+      : existing.length;
+    var finalOrder = existing.slice();
+    finalOrder.splice(insertAt, 0, idStr);
+    finalOrder = finalOrder.slice(0, cap);
+    if (finalOrder.indexOf(idStr) === -1) return null;
+
+    var base = globalMaxPriority() + 1;
+    return finalOrder.map(function (id, index) {
+      return { id: parseInt(id, 10), layout_type: type, priority: base + index };
+    });
+  }
+
+  function postLayout(items) {
     return fetch('/news/dashboard/layout', {
       method: 'POST',
       headers: {
@@ -652,8 +732,75 @@ import Sortable from 'sortablejs';
         'X-Requested-With': 'XMLHttpRequest',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ items: [{ id: parseInt(id, 10), layout_type: target.type, priority: target.priority }] })
+      body: JSON.stringify({ items: items })
     }).then(function (r) { return r.json().catch(function () { return { ok: false }; }); });
+  }
+
+  // The canvas placeholder for the slot just filled holds no user data, so
+  // it's safe to reconcile immediately and unconditionally — unlike the full
+  // canvas fragment swap below, this doesn't need to wait on the dirty-edit
+  // gate (fix round 1, I2).
+  function removeFilledPlaceholder(target) {
+    if (!target || target.type === 'main' || !editor) return;
+    var selector = '[data-news-assign-slot][data-news-slot-type="' + target.type +
+      '"][data-news-slot-position="' + target.priority + '"]';
+    var placeholder = editor.querySelector(selector);
+    if (placeholder) placeholder.remove();
+  }
+
+  function handlePlaceStory(placeBtn, card) {
+    var id = card.getAttribute('data-news-library-id');
+    var target = drawerTarget || firstFreeTarget();
+    if (!target) {
+      toast('Every front-page slot is full — remove a story first.', true);
+      return;
+    }
+
+    function proceed() {
+      var items = target.type === 'main'
+        ? [{ id: parseInt(id, 10), layout_type: 'main', priority: 0 }]
+        : buildBucketBatch(target.type, id, target.priority);
+
+      if (!items) {
+        toast('That slot filled up before this could be placed — try again.', true);
+        return;
+      }
+
+      placeBtn.disabled = true;
+      postLayout(items)
+        .then(function (json) {
+          placeBtn.disabled = false;
+          if (json && json.ok && json.updated && json.updated.length) {
+            toast((json.messages && json.messages[0]) || 'Story placed on the front page.', false);
+            removeFilledPlaceholder(target);
+            if (libraryDrawer.close) libraryDrawer.close();
+            if (window.DashboardLive) window.DashboardLive.refresh('news');
+            refreshCanvasFragment();
+          } else {
+            toast((json && json.errors && json.errors[0]) || 'Could not place that story.', true);
+          }
+        })
+        .catch(function () {
+          placeBtn.disabled = false;
+          toast('Request failed — please try again.', true);
+        });
+    }
+
+    // Targeting "main" while the canvas already shows a lead story would
+    // displace it. firstFreeTarget() only resolves to main when the canvas
+    // shows none, so this only fires from a stale drawerTarget or a race —
+    // but it's cheap insurance, and Task 6 may add an explicit main
+    // placeholder that would hit this path routinely (fix round 1, I1).
+    if (target.type === 'main' && canvasMainId()) {
+      confirmAction({
+        title: 'Replace the front-page lead?',
+        body: 'This story will replace the current lead story on the front page.',
+        confirmLabel: 'Replace lead',
+        cancelLabel: 'Cancel'
+      }).then(function (ok) { if (ok) proceed(); });
+    } else {
+      proceed();
+    }
   }
 
   // ── Stale-canvas fix ───────────────────────────────────
@@ -669,10 +816,12 @@ import Sortable from 'sortablejs';
   // there are unsaved inline edits (title/body/image/etc.) sitting only in
   // this tab's DOM, and overwriting the canvas would silently drop them. The
   // assignment itself has already persisted by this point either way — only
-  // the *view* of the canvas is deferred, with a toast explaining why.
+  // the *view* of the canvas is deferred, with a toast explaining why
+  // (reloading is explicitly NOT offered as the fix here — that would lose
+  // the very edits this gate exists to protect).
   function refreshCanvasFragment() {
     if (layoutDirty) {
-      toast('Story placed. The canvas has unpublished edits, so refresh the page to see it there too.', false);
+      toast('Placed. The canvas view is behind because of unpublished edits — publish them to bring it up to date.', false);
       return;
     }
     fetch('/gears/dashboard/fragment/news-canvas', {
@@ -681,33 +830,32 @@ import Sortable from 'sortablejs';
     })
       .then(function (r) { return r.json(); })
       .then(function (json) {
-        if (!json || !json.ok || !editor) return;
+        if (!json || !json.ok || !editor) {
+          toast('Placed, but the canvas could not be refreshed — reload to see it there.', true);
+          return;
+        }
         editor.innerHTML = json.html;
         reinitCanvas();
+        // The innerHTML swap just destroyed whatever had focus if it was a
+        // canvas element (e.g. the placeholder that received focus back
+        // when the drawer closed) — recover to a stable, always-present
+        // target instead of leaving it on <body> (fix round 1, minor).
+        if (document.activeElement === document.body && libraryOpenBtn) {
+          libraryOpenBtn.focus();
+        }
       })
-      .catch(function () { /* best-effort; next poll/reload will reconcile */ });
+      .catch(function () {
+        toast('Placed, but the canvas could not be refreshed — reload to see it there.', true);
+      });
   }
 
-  function reinitCanvas() {
-    featureSlot = editor.querySelector('[data-news-slot="main"]');
-    quill = null;
-    var art = ensureFeature();
-    if (art) {
-      wireInline(art);
-      wireImage(art);
-      mountQuill(art);
-    }
-    initSecondarySortable();
-  }
-
-  // ── Init: edit the real rendered feature story ────────
-  (function init() {
-    var art = ensureFeature();
-    if (!art) return;
-    wireInline(art);
-    wireImage(art);
-    mountQuill(art);
-    // Seed the hidden form from what's already on the page.
+  // Seeds the hidden form + active-story label from the feature slot's
+  // current DOM. Used on first load AND after reinitCanvas() replaces that
+  // DOM — the two must seed identically, or a canvas refresh that changes
+  // which story is lead leaves `f.articleId` pointing at the OLD story while
+  // the visible surface (and syncFormFromSurface's reads) reflect the NEW
+  // one, so Publish overwrites the wrong row (fix round 1, C2).
+  function seedFormFromFeature(art) {
     if (f.title)       f.title.value = getText(art, 'title');
     if (f.source)      f.source.value = getText(art, 'source');
     if (f.location)    f.location.value = getText(art, 'location');
@@ -721,5 +869,28 @@ import Sortable from 'sortablejs';
       var t = getText(art, 'title');
       activeLabel.textContent = (art.getAttribute('data-news-id')) ? ('Editing: ' + (t || 'Untitled')) : 'New story';
     }
+  }
+
+  function reinitCanvas() {
+    featureSlot = editor.querySelector('[data-news-slot="main"]');
+    quill = null;
+    var art = ensureFeature();
+    if (art) {
+      wireInline(art);
+      wireImage(art);
+      mountQuill(art);
+      seedFormFromFeature(art);
+    }
+    initSecondarySortable();
+  }
+
+  // ── Init: edit the real rendered feature story ────────
+  (function init() {
+    var art = ensureFeature();
+    if (!art) return;
+    wireInline(art);
+    wireImage(art);
+    mountQuill(art);
+    seedFormFromFeature(art);
   })();
 })();

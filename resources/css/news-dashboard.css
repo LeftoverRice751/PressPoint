@@ -351,11 +351,6 @@
     line-height: 1.45;
 }
 
-.news-story-library {
-    margin-top: 1.25rem;
-    padding: 1.15rem 1.25rem 1.3rem;
-}
-
 .news-story-library__grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
