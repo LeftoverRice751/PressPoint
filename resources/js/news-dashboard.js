@@ -362,7 +362,7 @@ import Sortable from 'sortablejs';
           // Same stale-canvas bug the drawer's assign flow was built to
           // solve: unassigning leaves the removed story sitting visibly in
           // its old slot until this fires (fix round 1, minor).
-          refreshCanvasFragment();
+          refreshCanvasFragment('Removed from the front page');
         }
         else { toast((json && json.errors && json.errors[0]) || 'Could not remove from the front page.', true); }
       })
@@ -400,7 +400,7 @@ import Sortable from 'sortablejs';
             // pending field edits either, so the dirty badge stays as-is
             // (F1, same reasoning as unassign above).
             if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
-            refreshCanvasFragment();
+            refreshCanvasFragment('Deleted');
           }
           else { toast((json && json.errors && json.errors[0]) || 'Could not delete.', true); }
         })
@@ -615,7 +615,8 @@ import Sortable from 'sortablejs';
     }
   }
 
-  // ── Bucket occupancy: read straight off the canvas ────
+  // ── Bucket occupancy: read straight off the canvas, with an in-memory
+  // overlay for placements the canvas hasn't caught up to yet ────
   // The canvas is the exact output of DashboardContext.group_news_slots()
   // (kiosk/_news_slots.html rendered in editor mode) — it excludes whichever
   // story that grouping promoted to main_news from the secondary list, caps
@@ -626,7 +627,20 @@ import Sortable from 'sortablejs';
   // fallback main is still a "secondary"-typed row by attribute, so the
   // library-card count read it as an extra secondary slot and read main as
   // empty even though the canvas plainly showed a lead story.
+  //
+  // Reading the canvas DOM is only truthful when the canvas is actually
+  // current. refreshCanvasFragment() intentionally skips the DOM swap while
+  // layoutDirty (round 1, I2's first half) — which means a SECOND placement
+  // made before that gate clears was computing occupancy from a frozen,
+  // already-stale canvas (round 2, I2): it would reuse an already-filled
+  // ordinal and silently overfill the bucket once the batch reached the
+  // server's `[:4]`/`[:2]` slice. `virtualSlots`, once created, becomes the
+  // source of truth for occupancy instead of the DOM, and is kept in sync
+  // by every successful placement; it's discarded (falling back to reading
+  // the canvas again) the moment the canvas actually refreshes, since the
+  // DOM is trustworthy again at that point.
   var BUCKET_CAPACITY = { secondary: 4, widget: 2 };
+  var virtualSlots = null; // { main: id|null, secondary: [ids], widget: [ids] }
 
   function canvasBucketIds(type) {
     if (type === 'secondary') {
@@ -652,23 +666,74 @@ import Sortable from 'sortablejs';
     return (art && art.getAttribute('data-news-id')) || '';
   }
 
-  function canvasSlotCounts() {
+  // Lazily snapshots the canvas into the overlay on first use, so a run of
+  // placements made without an intervening real refresh all read/write the
+  // same evolving picture instead of each one re-reading the stale DOM.
+  function ensureVirtualSlots() {
+    if (!virtualSlots) {
+      virtualSlots = {
+        main: canvasMainId() || null,
+        secondary: canvasBucketIds('secondary'),
+        widget: canvasBucketIds('widget')
+      };
+    }
+    return virtualSlots;
+  }
+
+  function bucketMembers(type) {
+    if (virtualSlots) return (virtualSlots[type] || []).slice();
+    return canvasBucketIds(type);
+  }
+
+  function mainOccupant() {
+    if (virtualSlots) return virtualSlots.main;
+    return canvasMainId() || null;
+  }
+
+  function slotCounts() {
     return {
-      main: canvasMainId() ? 1 : 0,
-      secondary: canvasBucketIds('secondary').length,
-      widget: canvasBucketIds('widget').length
+      main: mainOccupant() ? 1 : 0,
+      secondary: bucketMembers('secondary').length,
+      widget: bucketMembers('widget').length
     };
+  }
+
+  // Records a successful placement in the overlay so the NEXT occupancy read
+  // (before the canvas has actually refreshed) already accounts for it.
+  // Approximate for the main-displacement case: the story main just bumped
+  // is not re-inserted into the secondary overlay here (replicating
+  // group_news_slots()'s full re-grouping client-side isn't worth the
+  // complexity for what's already a confirm-gated edge case) — it reappears
+  // correctly once a real canvas refresh happens, same as today.
+  function applyPlacementToVirtualSlots(target, id) {
+    var slots = ensureVirtualSlots();
+    var idStr = String(id);
+    slots.secondary = slots.secondary.filter(function (x) { return x !== idStr; });
+    slots.widget = slots.widget.filter(function (x) { return x !== idStr; });
+    if (slots.main === idStr) slots.main = null;
+
+    if (target.type === 'main') {
+      slots.main = idStr;
+      return;
+    }
+    var arr = slots[target.type] || [];
+    var insertAt = target.priority
+      ? Math.min(Math.max(target.priority - 1, 0), arr.length)
+      : arr.length;
+    arr.splice(insertAt, 0, idStr);
+    var cap = BUCKET_CAPACITY[target.type];
+    slots[target.type] = cap ? arr.slice(0, cap) : arr;
   }
 
   // Generic toolbar-open decision (no target slot): fill the first free
   // position — lead if empty, else the next open secondary slot, else the
-  // next open widget slot. Reading occupancy off the canvas (not the
-  // library cards) means "main" only ever reads empty when the canvas is
-  // truly showing no lead story, so this can no longer target an occupied
-  // main slot on its own — handlePlaceStory's confirm guard below is
-  // therefore a belt-and-braces check, not the primary defense.
+  // next open widget slot. Reading occupancy off the canvas/overlay (not the
+  // library cards) means "main" only ever reads empty when there's truly no
+  // lead story tracked, so this can no longer target an occupied main slot
+  // on its own — handlePlaceStory's confirm guard below is therefore a
+  // belt-and-braces check, not the primary defense.
   function firstFreeTarget() {
-    var counts = canvasSlotCounts();
+    var counts = slotCounts();
     if (counts.main < 1) return { type: 'main', priority: 0 };
     if (counts.secondary < 4) return { type: 'secondary', priority: counts.secondary + 1 };
     if (counts.widget < 2) return { type: 'widget', priority: counts.widget + 1 };
@@ -696,19 +761,18 @@ import Sortable from 'sortablejs';
   }
 
   // Builds one fully-renumbered batch for a secondary/widget bucket: current
-  // membership comes straight off the canvas (so it matches the server's
-  // own grouping — see canvasBucketIds above), the new story is inserted at
-  // the requested ordinal (or appended, for a generic open) and the whole
-  // bucket is capped and renumbered from globalMaxPriority()+1 up. One POST
-  // to news.layout, one DB transaction, no reused priority values — so no
-  // collisions with existing rows and no unrelated story's bucket
-  // membership or order changes as a side effect (fix round 1, C1). Returns
-  // null if the bucket is already full by the time this runs (a same-tick
-  // race), so the caller can refuse rather than silently dropping the
-  // insertion off the end.
+  // membership comes from bucketMembers() (canvas, or the overlay once one
+  // exists — round 2, I2), the new story is inserted at the requested
+  // ordinal (or appended, for a generic open) and the whole bucket is capped
+  // and renumbered from globalMaxPriority()+1 up. One POST to news.layout,
+  // one DB transaction, no reused priority values — so no collisions with
+  // existing rows and no unrelated story's bucket membership or order
+  // changes as a side effect (fix round 1, C1). Returns null if the bucket
+  // is already full by the time this runs, so the caller can refuse rather
+  // than silently dropping the insertion off the end.
   function buildBucketBatch(type, newId, requestedPosition) {
     var idStr = String(newId);
-    var existing = canvasBucketIds(type).filter(function (id) { return id !== idStr; });
+    var existing = bucketMembers(type).filter(function (id) { return id !== idStr; });
     var cap = BUCKET_CAPACITY[type] || (existing.length + 1);
     var insertAt = requestedPosition
       ? Math.min(Math.max(requestedPosition - 1, 0), existing.length)
@@ -766,16 +830,28 @@ import Sortable from 'sortablejs';
         return;
       }
 
+      // Defense in depth (round 2, I2): buildBucketBatch already caps and
+      // refuses via the null return above, but that guard is only as good
+      // as its occupancy source. Assert the hard cap here too, independent
+      // of where `items` came from, so a bucket can never be POSTed over
+      // 1/4/2 — the server itself enforces no capacity at all.
+      var cap = target.type === 'main' ? 1 : BUCKET_CAPACITY[target.type];
+      if (cap && items.length > cap) {
+        toast('That would overfill the slot — try again.', true);
+        return;
+      }
+
       placeBtn.disabled = true;
       postLayout(items)
         .then(function (json) {
           placeBtn.disabled = false;
           if (json && json.ok && json.updated && json.updated.length) {
             toast((json.messages && json.messages[0]) || 'Story placed on the front page.', false);
+            applyPlacementToVirtualSlots(target, id);
             removeFilledPlaceholder(target);
             if (libraryDrawer.close) libraryDrawer.close();
             if (window.DashboardLive) window.DashboardLive.refresh('news');
-            refreshCanvasFragment();
+            refreshCanvasFragment('Placed');
           } else {
             toast((json && json.errors && json.errors[0]) || 'Could not place that story.', true);
           }
@@ -786,12 +862,12 @@ import Sortable from 'sortablejs';
         });
     }
 
-    // Targeting "main" while the canvas already shows a lead story would
-    // displace it. firstFreeTarget() only resolves to main when the canvas
-    // shows none, so this only fires from a stale drawerTarget or a race —
-    // but it's cheap insurance, and Task 6 may add an explicit main
-    // placeholder that would hit this path routinely (fix round 1, I1).
-    if (target.type === 'main' && canvasMainId()) {
+    // Targeting "main" while a lead story is already tracked (canvas or
+    // overlay) would displace it. firstFreeTarget() only resolves to main
+    // when none is tracked, so this only fires from a stale drawerTarget or
+    // a race — but it's cheap insurance, and Task 6 may add an explicit
+    // main placeholder that would hit this path routinely (fix round 1, I1).
+    if (target.type === 'main' && mainOccupant()) {
       confirmAction({
         title: 'Replace the front-page lead?',
         body: 'This story will replace the current lead story on the front page.',
@@ -818,10 +894,17 @@ import Sortable from 'sortablejs';
   // assignment itself has already persisted by this point either way — only
   // the *view* of the canvas is deferred, with a toast explaining why
   // (reloading is explicitly NOT offered as the fix here — that would lose
-  // the very edits this gate exists to protect).
-  function refreshCanvasFragment() {
+  // the very edits this gate exists to protect). `virtualSlots` (see above)
+  // is what keeps occupancy/capacity correct for any further placements made
+  // while the view is behind.
+  //
+  // `actionLabel` (round 2, new minor) lets unassign/delete route through
+  // this same fix without the toast claiming a story was "Placed" when it
+  // was actually removed or deleted.
+  function refreshCanvasFragment(actionLabel) {
+    var label = actionLabel || 'Placed';
     if (layoutDirty) {
-      toast('Placed. The canvas view is behind because of unpublished edits — publish them to bring it up to date.', false);
+      toast(label + '. The canvas view is behind because of unpublished edits — publish them to bring it up to date.', false);
       return;
     }
     fetch('/gears/dashboard/fragment/news-canvas', {
@@ -831,11 +914,14 @@ import Sortable from 'sortablejs';
       .then(function (r) { return r.json(); })
       .then(function (json) {
         if (!json || !json.ok || !editor) {
-          toast('Placed, but the canvas could not be refreshed — reload to see it there.', true);
+          toast(label + ', but the canvas could not be refreshed — reload to see it there.', true);
           return;
         }
         editor.innerHTML = json.html;
         reinitCanvas();
+        // The canvas DOM is trustworthy again — drop the overlay so the
+        // next occupancy read goes back to reflecting it directly.
+        virtualSlots = null;
         // The innerHTML swap just destroyed whatever had focus if it was a
         // canvas element (e.g. the placeholder that received focus back
         // when the drawer closed) — recover to a stable, always-present
@@ -845,7 +931,7 @@ import Sortable from 'sortablejs';
         }
       })
       .catch(function () {
-        toast('Placed, but the canvas could not be refreshed — reload to see it there.', true);
+        toast(label + ', but the canvas could not be refreshed — reload to see it there.', true);
       });
   }
 
