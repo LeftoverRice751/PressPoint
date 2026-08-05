@@ -133,6 +133,15 @@ import Sortable from 'sortablejs';
   var bodyModalTrigger  = null;
   var quill = null;
   var bodyModalDirty = false; // local to the modal session, drives the close-confirm guard only
+  // Snapshot of f.description.value taken when the modal opens. The
+  // text-change handler below writes every keystroke straight into
+  // f.description (so Publish always has the latest body without a
+  // separate save step) — but that means a "Discard changes" confirmation
+  // did nothing to the actually-staged value: the text vanished from view
+  // while the discarded body stayed in the hidden form and got written by
+  // the next Publish (fix round 1, I1). Restoring this snapshot on a
+  // confirmed discard makes the warning true.
+  var bodyModalSnapshot = '';
 
   function ensureQuill() {
     if (quill || !bodyEditorHost) return quill;
@@ -173,6 +182,7 @@ import Sortable from 'sortablejs';
       // run after the handler is already bound.
       quill.root.innerHTML = (f.description && f.description.value) || '';
     }
+    bodyModalSnapshot = (f.description && f.description.value) || '';
     bodyModalDirty = false;
     if (bodyModalTitleEl) {
       var label = activeArt ? getText(activeArt, 'title') : '';
@@ -192,7 +202,19 @@ import Sortable from 'sortablejs';
         confirmLabel: 'Discard changes',
         cancelLabel: 'Keep editing',
         danger: true
-      }).then(function (ok) { if (ok) { bodyModalDirty = false; bodyModal.close(); } });
+      }).then(function (ok) {
+        if (!ok) return;
+        // Restore what was actually staged before the modal opened — the
+        // keystroke-by-keystroke sync into f.description otherwise leaves
+        // the discarded text there for the next Publish to write (I1).
+        if (f.description) f.description.value = bodyModalSnapshot;
+        if (activeArt) {
+          var bodyRegion = region(activeArt, 'body');
+          if (bodyRegion) bodyRegion.innerHTML = bodyModalSnapshot;
+        }
+        bodyModalDirty = false;
+        bodyModal.close();
+      });
       return;
     }
     bodyModal.close();
@@ -214,7 +236,15 @@ import Sortable from 'sortablejs';
       var trigger = bodyModalTrigger;
       bodyModalTrigger = null;
       bodyModalDirty = false;
-      if (trigger && trigger.isConnected && trigger.focus) trigger.focus();
+      // The trigger can be a canvas element a refresh already detached
+      // (editor.innerHTML swap) between open and close — fall back to the
+      // always-present toolbar button rather than losing focus to <body>,
+      // same pattern the library drawer already uses (fix round 1, minor).
+      if (trigger && trigger.isConnected && trigger.focus) {
+        trigger.focus();
+      } else if (libraryOpenBtn) {
+        libraryOpenBtn.focus();
+      }
     });
 
     if (bodyModalSaveBtn) {
@@ -287,6 +317,13 @@ import Sortable from 'sortablejs';
   };
   var INLINE_KEYS = ['title', 'source', 'location', 'dek', 'excerpt', 'caption', 'credit'];
 
+  // `excerpt` persists to a `varchar(255)` column and MySQL's `sql_mode`
+  // here includes STRICT_TRANS_TABLES, so an over-length value doesn't get
+  // silently truncated server-side — it raises "Data too long" and the
+  // whole Publish fails. Truncate client-side so that can't happen
+  // (fix round 1, minor).
+  var EXCERPT_MAX = 255;
+
   // Wires whatever of the inline-editable regions actually exist inside
   // `art` — main, secondary, and widget markup each expose a different
   // subset (secondary/widget don't have source/location/caption/credit
@@ -299,7 +336,23 @@ import Sortable from 'sortablejs';
       el.setAttribute('data-placeholder', INLINE_PLACEHOLDERS[key] || '');
       el.setAttribute('data-wired', '1');
       el.addEventListener('input', function () {
-        if (f[key]) f[key].value = el.textContent.trim();
+        var text = el.textContent;
+        if (key === 'excerpt' && text.length > EXCERPT_MAX) {
+          text = text.slice(0, EXCERPT_MAX);
+          el.textContent = text;
+          // Keep typing sane: put the caret back at the end after a
+          // programmatic truncation instead of leaving it wherever the
+          // browser's default post-mutation placement lands.
+          var sel = window.getSelection && window.getSelection();
+          if (sel) {
+            var range = document.createRange();
+            range.selectNodeContents(el);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }
+        if (f[key]) f[key].value = text.trim();
         markDirty();
       });
     });
@@ -314,6 +367,10 @@ import Sortable from 'sortablejs';
     var url = typeof src === 'string' ? src : (objectUrl = URL.createObjectURL(src));
     if (zone.tagName === 'IMG') {
       zone.src = url;
+      // Fixed alongside the C2/I2 pass (fix round 1, minor): this branch
+      // never stripped the fallback class, so a real photo could render
+      // with the "no photo" placeholder styling still applied on top of it.
+      zone.classList.remove('feature-story__image--fallback', 'secondary-story__thumb--fallback');
     } else {
       zone.style.backgroundImage = 'url("' + url + '")';
       zone.style.backgroundSize = 'cover';
@@ -337,14 +394,21 @@ import Sortable from 'sortablejs';
     if (!zone || zone.getAttribute('data-wired')) return;
     zone.setAttribute('data-wired', '1');
     zone.classList.add('is-editable');
-    zone.addEventListener('click', function () { if (f.image) f.image.click(); });
+    // Binding happens once per node and stays forever (guarded by
+    // data-wired above), but which story is ACTIVE changes over time — and
+    // previewImage()/f.image always act on `activeArt`, not on `art`.
+    // Without this guard, clicking or dropping onto a previously-selected
+    // (now inactive) story's image zone silently attached the file to
+    // whatever story happens to be active right now (fix round 1, minor).
+    zone.addEventListener('click', function () { if (art === activeArt && f.image) f.image.click(); });
     ['dragover', 'dragenter'].forEach(function (ev) {
-      zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add('is-drop'); });
+      zone.addEventListener(ev, function (e) { if (art !== activeArt) return; e.preventDefault(); zone.classList.add('is-drop'); });
     });
     ['dragleave', 'dragend', 'drop'].forEach(function (ev) {
       zone.addEventListener(ev, function () { zone.classList.remove('is-drop'); });
     });
     zone.addEventListener('drop', function (e) {
+      if (art !== activeArt) return;
       e.preventDefault();
       var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
       if (file) { setImageFile(file); markDirty(); }
@@ -386,8 +450,15 @@ import Sortable from 'sortablejs';
     };
   }
 
+  // Scoped to `root`, not `composer`: the library cards render inside the
+  // drawer <dialog> (data-news-library-drawer), which is a SIBLING of
+  // [data-news-composer] in the DOM (dashboard.html), not a descendant of
+  // it. Scoping this to `composer` meant the lookup could never find a
+  // card — every selectStory() call for a real id would fail (fix round 1,
+  // C1). Filtered-out cards stay findable too: Task 4's library filters
+  // hide cards via `card.hidden`, they don't remove them.
   function libraryCardById(id) {
-    return composer.querySelector('[data-news-library-item][data-news-library-id="' + id + '"]');
+    return root.querySelector('[data-news-library-item][data-news-library-id="' + id + '"]');
   }
 
   // ── Select any slot's story into the editing surface ──
@@ -395,13 +466,16 @@ import Sortable from 'sortablejs';
   // secondary, or widget alike. Full story data (including the body, for
   // the modal) comes from that story's own library card — already rendered
   // on the page in the drawer's grid — rather than a new network round trip.
+  // Returns true/false so callers (the per-slot Edit-body button, the canvas
+  // refresh reseed) can tell whether the selection actually took and avoid
+  // acting against a stale/wrong story (fix round 1, I2/I3).
   function selectStory(id, slotType, artEl) {
     var data;
     if (!id) {
       data = { id: '', title: '', description: '', source: '', location: '', dek: '', excerpt: '', caption: '', credit: '', layout: slotType || 'secondary', priority: '0', image: '' };
     } else {
       var card = libraryCardById(id);
-      if (!card) { toast('Could not load that story’s details.', true); return; }
+      if (!card) { toast('Could not load that story’s details.', true); return false; }
       data = cardData(card);
     }
 
@@ -424,7 +498,13 @@ import Sortable from 'sortablejs';
       var zone = region(activeArt, 'image');
       if (zone) {
         zone.style.backgroundImage = '';
+        // Stale-class cleanup on both shapes an image region can take: an
+        // <img> thumb (real photo) reverting to a blank story needs the
+        // fallback class put back too, not just background-image zones
+        // (previewImage() only ever REMOVES this class, on the non-IMG
+        // branch — fix round 1, minor).
         zone.classList.add('feature-story__image--fallback', 'secondary-story__thumb--fallback');
+        if (zone.tagName === 'IMG') zone.removeAttribute('src');
       }
       if (data.image) previewImage('/storage/' + String(data.image).replace(/\\/g, '/'));
     }
@@ -444,21 +524,31 @@ import Sortable from 'sortablejs';
 
     setSlot(activeSlotType);
     if (activeLabel) activeLabel.textContent = data.id ? ('Editing: ' + (data.title || 'Untitled')) : 'New story';
+    return true;
   }
 
   // ── Save (Publish) ────────────────────────────────────
   // Pulls the latest text straight off whichever DOM node is active, in
   // case a contenteditable `input` handler hasn't fired yet for some reason
   // (defensive; the input handlers already keep f.* in sync as you type).
+  //
+  // Only overwrites a field when its region actually exists on `activeArt`.
+  // Secondary/widget markup doesn't carry source/location/dek/caption/
+  // credit regions at all (only main does) — getText() on a missing region
+  // returns '', and unconditionally writing that into f.* blanked those
+  // real columns for any non-main selection the moment Publish ran
+  // (fix round 1, C2). An absent region means "leave the staged value
+  // (already set by selectStory() from the library card) alone", never
+  // "clear it".
   function syncFormFromSurface() {
     if (!activeArt) return;
-    if (f.title)    f.title.value = getText(activeArt, 'title');
-    if (f.source)   f.source.value = getText(activeArt, 'source');
-    if (f.location) f.location.value = getText(activeArt, 'location');
-    if (f.dek)      f.dek.value = getText(activeArt, 'dek');
-    if (f.excerpt)  f.excerpt.value = getText(activeArt, 'excerpt');
-    if (f.caption)  f.caption.value = getText(activeArt, 'caption');
-    if (f.credit)   f.credit.value = getText(activeArt, 'credit');
+    if (f.title   && region(activeArt, 'title'))    f.title.value = getText(activeArt, 'title');
+    if (f.source  && region(activeArt, 'source'))    f.source.value = getText(activeArt, 'source');
+    if (f.location && region(activeArt, 'location')) f.location.value = getText(activeArt, 'location');
+    if (f.dek     && region(activeArt, 'dek'))       f.dek.value = getText(activeArt, 'dek');
+    if (f.excerpt && region(activeArt, 'excerpt'))   f.excerpt.value = getText(activeArt, 'excerpt');
+    if (f.caption && region(activeArt, 'caption'))   f.caption.value = getText(activeArt, 'caption');
+    if (f.credit  && region(activeArt, 'credit'))    f.credit.value = getText(activeArt, 'credit');
     if (f.priority && propPriority) f.priority.value = propPriority.value;
     if (f.publishedAt && propDate) f.publishedAt.value = propDate.value;
   }
@@ -616,7 +706,14 @@ import Sortable from 'sortablejs';
         var id = artNode.getAttribute('data-news-id');
         var slotSection = artNode.closest('[data-news-slot]');
         var slotTypeForBtn = slotSection ? slotSection.getAttribute('data-news-slot') : activeSlotType;
-        if (id && id !== activeId) selectStory(id, slotTypeForBtn, artNode);
+        if (id && id !== activeId) {
+          // If this selection fails (e.g. the card lookup can't find it),
+          // do NOT fall through to opening the modal — it would open
+          // seeded with whatever was PREVIOUSLY active and Save would POST
+          // the new text to that other story's id, a wrong-row write
+          // (fix round 1, I2).
+          if (!selectStory(id, slotTypeForBtn, artNode)) return;
+        }
       }
       openBodyModal(editBodyBtn);
       return;
@@ -685,9 +782,16 @@ import Sortable from 'sortablejs';
   // Persists by resending each moved story's FULL data (from its library card,
   // so the description isn't clobbered) with a new priority.
   function persistOrder(grid) {
-    Array.prototype.slice.call(grid.querySelectorAll('[data-news-id]')).forEach(function (el, index) {
+    // Filter out the scratch "+ Add a story" card (data-news-id="") BEFORE
+    // enumerating indexes, not inside the loop: skipping it mid-forEach
+    // still consumes its index, so with a scratch card present real stories
+    // got renumbered 1..N instead of 0..N-1 — off by one on every priority
+    // written (fix round 1, minor; live the moment C1 unblocks this
+    // function at all).
+    Array.prototype.slice.call(grid.querySelectorAll('[data-news-id]'))
+      .filter(function (el) { return !!el.getAttribute('data-news-id'); })
+      .forEach(function (el, index) {
       var id = el.getAttribute('data-news-id');
-      if (!id) return;
       var card = libraryCardById(id);
       if (!card) return; // not in the library page slice; skip (order still visual)
       var d = cardData(card);
@@ -1174,18 +1278,15 @@ import Sortable from 'sortablejs';
   // that skips seeding leaves `f.articleId` pointing at a stale story while
   // the visible surface reflects a new one, so Publish would overwrite the
   // wrong row (this was a Critical defect in Task 4's fix round 1, C2).
-  function seedActiveStory() {
-    var stillThere = activeId ? editor.querySelector('[data-news-id="' + activeId + '"]') : null;
-    if (stillThere) {
-      var section = stillThere.closest('[data-news-slot]');
-      selectStory(activeId, section ? section.getAttribute('data-news-slot') : activeSlotType, stillThere);
-      return;
-    }
-    var leadArt = mainSlotSection ? mainSlotSection.querySelector('.feature-story[data-news-id]') : null;
-    if (leadArt) {
-      selectStory(leadArt.getAttribute('data-news-id'), 'main', leadArt);
-      return;
-    }
+  // Resets to an explicit, consistent "nothing active" state. Used whenever
+  // there's genuinely no story to seed (empty front page) AND as the
+  // fallback when a selectStory() call in seedActiveStory() fails — without
+  // this, a failed selection left `activeArt` pointing at a node that
+  // `editor.innerHTML = ...` had just detached from the document, while the
+  // *visible* (new) canvas was never wired at all: syncFromSurface() would
+  // read a DOM the user can't see, and the visible surface wouldn't be
+  // editable (fix round 1, I3).
+  function clearActiveStory() {
     activeArt = null;
     activeId = '';
     activeSlotType = 'main';
@@ -1200,6 +1301,23 @@ import Sortable from 'sortablejs';
     if (f.credit) f.credit.value = '';
     setSlot('main');
     if (activeLabel) activeLabel.textContent = 'New story';
+  }
+
+  function seedActiveStory() {
+    var stillThere = activeId ? editor.querySelector('[data-news-id="' + activeId + '"]') : null;
+    if (stillThere) {
+      var section = stillThere.closest('[data-news-slot]');
+      if (selectStory(activeId, section ? section.getAttribute('data-news-slot') : activeSlotType, stillThere)) return;
+      clearActiveStory();
+      return;
+    }
+    var leadArt = mainSlotSection ? mainSlotSection.querySelector('.feature-story[data-news-id]') : null;
+    if (leadArt) {
+      if (selectStory(leadArt.getAttribute('data-news-id'), 'main', leadArt)) return;
+      clearActiveStory();
+      return;
+    }
+    clearActiveStory();
   }
 
   function reinitCanvas() {
