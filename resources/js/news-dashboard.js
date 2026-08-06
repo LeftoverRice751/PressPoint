@@ -614,6 +614,12 @@ import Sortable from 'sortablejs';
           // still sitting in the hidden form are NOT persisted by this
           // call, so the dirty badge must not be cleared here (F1).
           if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
+          // H4: unassign changes canvas membership without going through
+          // the drag/move path that keeps virtualSlots in sync — drop the
+          // overlay so the next occupancy read falls back to the DOM
+          // (accurate again once refreshCanvasFragment below completes, or
+          // immediately if it's skipped by the dirty gate).
+          virtualSlots = null;
           // Same stale-canvas bug the drawer's assign flow was built to
           // solve: unassigning leaves the removed story sitting visibly in
           // its old slot until this fires (fix round 1, minor).
@@ -659,6 +665,7 @@ import Sortable from 'sortablejs';
             // pending field edits either, so the dirty badge stays as-is
             // (F1, same reasoning as unassign above).
             if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
+            virtualSlots = null; // H4, same reasoning as unassign above
             refreshCanvasFragment('Deleted');
           }
           else { toast((json && json.errors && json.errors[0]) || 'Could not delete.', true); }
@@ -674,6 +681,22 @@ import Sortable from 'sortablejs';
   // innerHTML replaced (library refresh, canvas refresh) — a direct listener
   // on either would go silently dead after the first swap.
   root.addEventListener('click', function (event) {
+    // Move Up/Down (Task 6): the keyboard/touch-accessible equivalent of
+    // dragging. Checked first and returns early so it never falls through
+    // to the "select this story into the editor" branch further down,
+    // which would otherwise also match (the button lives inside the same
+    // `[data-news-id]` card).
+    var moveBtn = event.target.closest('[data-news-move]');
+    if (moveBtn && editor && editor.contains(moveBtn)) {
+      if (moveBtn.disabled) return;
+      var cardNode = moveBtn.closest('[data-news-id]');
+      var direction = moveBtn.getAttribute('data-news-move');
+      if (cardNode && cardNode.getAttribute('data-news-id') && (direction === 'up' || direction === 'down')) {
+        moveCard(cardNode, direction);
+      }
+      return;
+    }
+
     var openBtn = event.target.closest('[data-news-library-open]');
     if (openBtn && root.contains(openBtn)) {
       openLibraryDrawer(openBtn, null);
@@ -778,56 +801,350 @@ import Sortable from 'sortablejs';
   });
   if (propDate) propDate.addEventListener('input', function () { if (f.publishedAt) f.publishedAt.value = propDate.value; markDirty(); });
 
-  // ── Drag-to-reorder secondary stories ─────────────────
-  // Persists by resending each moved story's FULL data (from its library card,
-  // so the description isn't clobbered) with a new priority.
-  function persistOrder(grid) {
-    // Filter out the scratch "+ Add a story" card (data-news-id="") BEFORE
-    // enumerating indexes, not inside the loop: skipping it mid-forEach
-    // still consumes its index, so with a scratch card present real stories
-    // got renumbered 1..N instead of 0..N-1 — off by one on every priority
-    // written (fix round 1, minor; live the moment C1 unblocks this
-    // function at all).
-    Array.prototype.slice.call(grid.querySelectorAll('[data-news-id]'))
-      .filter(function (el) { return !!el.getAttribute('data-news-id'); })
-      .forEach(function (el, index) {
-      var id = el.getAttribute('data-news-id');
-      var card = libraryCardById(id);
-      if (!card) return; // not in the library page slice; skip (order still visual)
-      var d = cardData(card);
-      var fd = new FormData();
-      fd.append('article_id', id);
-      fd.append('title', d.title);
-      fd.append('description', d.description);
-      fd.append('source', d.source);
-      fd.append('location', d.location);
-      // Re-send the editorial extras too — store() persists `input or None`,
-      // so omitting them here would wipe them on every reorder.
-      fd.append('dek', d.dek);
-      fd.append('excerpt', d.excerpt);
-      fd.append('image_caption', d.caption);
-      fd.append('image_credit', d.credit);
-      fd.append('layout_type', 'secondary');
-      fd.append('priority', String(index));
-      fd.append('status', d.status || 'published');
-      fetch(form.getAttribute('action'), {
-        method: 'POST',
-        headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
-        body: fd
-      }).catch(function () {});
+  // ── Canvas drag-and-drop + Move Up/Down + position badges (Task 6) ────
+  // The canvas is modeled as several capacity-bounded Sortable "lists" that
+  // share one drag group: the main list (cap 1), the secondary grid (cap 4,
+  // reused as-is from before), and one list PER widget position (cap 1
+  // each, so the 2-widget cap falls out of there being exactly two such
+  // lists — see `_news_slots.html`'s `data-news-slot-list="widget"`
+  // wrappers). Every persistence path below (drag end, Move Up/Down) reads
+  // the FINAL post-move DOM and resends the whole canvas' membership/order
+  // through one `news.layout` POST, renumbered from `globalMaxPriority()+1`
+  // — the same base Task 4's placement path already uses. That reconciles
+  // H6 (persistOrder used to start numbering at 0, colliding with the
+  // 1-7 range live rows already occupy): there is now exactly one
+  // numbering scheme for every write path, not two.
+  var CANVAS_LIST_SELECTOR = {
+    main: '.feature-story',
+    secondary: '.secondary-story:not(.is-scratch)',
+    widget: '.info-card'
+  };
+  var canvasSortables = [];
+
+  function realCardNodes(container, selector) {
+    if (!container) return [];
+    return Array.prototype.filter.call(
+      container.querySelectorAll(selector),
+      function (el) { return !!el.getAttribute('data-news-id'); }
+    );
+  }
+
+  function slotListContainers() {
+    return {
+      main: editor.querySelector('[data-news-slot-list="main"]'),
+      secondary: editor.querySelector('[data-news-slot-list="secondary"]'),
+      widget: Array.prototype.slice.call(editor.querySelectorAll('[data-news-slot-list="widget"]'))
+    };
+  }
+
+  function allContainersInOrder() {
+    var lists = slotListContainers();
+    var out = [];
+    if (lists.main) out.push(lists.main);
+    if (lists.secondary) out.push(lists.secondary);
+    lists.widget.forEach(function (w) { out.push(w); });
+    return out;
+  }
+
+  function bucketTypeOfContainer(container) {
+    return container ? container.getAttribute('data-news-slot-list') : null;
+  }
+
+  function selectorForContainer(container) {
+    return CANVAS_LIST_SELECTOR[bucketTypeOfContainer(container)] || '[data-news-id]';
+  }
+
+  // Every widget CONTAINER is individually capacity 1 — the 2-widget total
+  // is two such containers, not one container capped at 2 (H1: this keeps
+  // a promoted-main's displacement, or any overflow, a same-shape swap
+  // regardless of which bucket it lands in, so there's no separate
+  // "re-insert into secondary" special case to get wrong).
+  function containerCapacity(container) {
+    var type = bucketTypeOfContainer(container);
+    if (type === 'secondary') return 4;
+    return 1; // main and each widget position
+  }
+
+  function containerHasRoom(container) {
+    return realCardNodes(container, selectorForContainer(container)).length < containerCapacity(container);
+  }
+
+  function bucketRank(container) {
+    var containers = allContainersInOrder();
+    var idx = containers.indexOf(container);
+    return idx === -1 ? 999 : idx;
+  }
+
+  function flatCanvasCards() {
+    var out = [];
+    allContainersInOrder().forEach(function (c) {
+      out = out.concat(realCardNodes(c, selectorForContainer(c)));
+    });
+    return out;
+  }
+
+  // Rebuilds every bucket's "+ Assign story…" placeholders (and the main
+  // slot's plain empty-state div) from scratch after a mutation, rather
+  // than incrementally patching them — the position numbering only has to
+  // be right in one place this way. Markup matches _news_slots.html's
+  // server-rendered placeholders exactly so `data-news-assign-slot` clicks
+  // keep opening the drawer pre-scoped to the right slot.
+  function syncPlaceholders() {
+    var lists = slotListContainers();
+    if (lists.main) {
+      var mainReal = realCardNodes(lists.main, CANVAS_LIST_SELECTOR.main);
+      var mainEmpty = lists.main.querySelector('.paper-empty');
+      if (mainReal.length === 0 && !mainEmpty) {
+        lists.main.insertAdjacentHTML('beforeend', '<div class="paper-empty">No stories have been published yet.</div>');
+      } else if (mainReal.length > 0 && mainEmpty) {
+        mainEmpty.remove();
+      }
+    }
+    if (lists.secondary) {
+      Array.prototype.slice.call(lists.secondary.querySelectorAll('.paper-empty')).forEach(function (el) { el.remove(); });
+      var secReal = realCardNodes(lists.secondary, CANVAS_LIST_SELECTOR.secondary);
+      for (var p = secReal.length + 1; p <= 4; p++) {
+        lists.secondary.insertAdjacentHTML(
+          'beforeend',
+          '<button type="button" class="paper-empty paper-empty--compact paper-empty--action" ' +
+            'data-news-assign-slot data-news-slot-type="secondary" data-news-slot-position="' + p + '">' +
+            '+ Assign story to Secondary slot ' + p + '</button>'
+        );
+      }
+    }
+    lists.widget.forEach(function (w) {
+      var real = realCardNodes(w, CANVAS_LIST_SELECTOR.widget);
+      var existingBtn = w.querySelector('.paper-empty--action');
+      if (real.length === 0 && !existingBtn) {
+        var pos = w.getAttribute('data-news-slot-position') || '1';
+        w.insertAdjacentHTML(
+          'beforeend',
+          '<button type="button" class="paper-empty paper-empty--compact paper-empty--action" ' +
+            'data-news-assign-slot data-news-slot-type="widget" data-news-slot-position="' + pos + '">' +
+            '+ Assign story to Widget slot ' + pos + '</button>'
+        );
+      } else if (real.length > 0 && existingBtn) {
+        existingBtn.remove();
+      }
     });
   }
-  function initSecondarySortable() {
-    var grid = editor.querySelector('.secondary-grid');
-    if (!grid) return;
-    Sortable.create(grid, {
-      animation: 150,
-      handle: '.secondary-story',
-      draggable: '.secondary-story',
-      onEnd: function () { persistOrder(grid); toast('Order updated.', false); }
+
+  function renumberPositionBadges() {
+    var cards = flatCanvasCards();
+    cards.forEach(function (card, i) {
+      var badge = card.querySelector('[data-news-position-badge]');
+      if (badge) badge.textContent = 'Position #' + (i + 1);
+    });
+    updateMoveButtonStates(cards);
+  }
+
+  function updateMoveButtonStates(cards) {
+    var containers = allContainersInOrder();
+    cards.forEach(function (card, i) {
+      var upBtn = card.querySelector('[data-news-move="up"]');
+      var downBtn = card.querySelector('[data-news-move="down"]');
+      var srcRank = bucketRank(card.parentNode);
+      if (upBtn) {
+        var canUp = i > 0 || containers.some(function (c) { return bucketRank(c) < srcRank && containerHasRoom(c); });
+        upBtn.disabled = !canUp;
+      }
+      if (downBtn) {
+        var canDown = i < cards.length - 1 || containers.some(function (c) { return bucketRank(c) > srcRank && containerHasRoom(c); });
+        downBtn.disabled = !canDown;
+      }
     });
   }
-  initSecondarySortable();
+
+  // Generic adjacent-node swap: exchanges two cards' DOM positions
+  // (including across different parent containers) in one pass. Used for
+  // both the common in-bucket reorder and cross-bucket-boundary moves —
+  // because it's always a 1-for-1 exchange, no bucket's membership COUNT
+  // can ever change, so capacity can never be violated by a swap.
+  function swapNodes(a, b) {
+    if (!a || !b || a === b) return;
+    var aParent = a.parentNode, aNext = a.nextSibling;
+    var bParent = b.parentNode, bNext = b.nextSibling;
+    if (aNext === b) { bParent.insertBefore(a, b); return; }
+    if (bNext === a) { aParent.insertBefore(b, a); return; }
+    bParent.insertBefore(a, b);
+    aParent.insertBefore(b, aNext);
+  }
+
+  // Relocating into open room (no swap partner) is always safe by
+  // construction: it only fires when `containerHasRoom()` is already true,
+  // so the destination bucket can never exceed its cap.
+  function relocateToNextEmptySlot(cardNode) {
+    var containers = allContainersInOrder();
+    var srcRank = bucketRank(cardNode.parentNode);
+    for (var i = 0; i < containers.length; i++) {
+      if (bucketRank(containers[i]) > srcRank && containerHasRoom(containers[i])) {
+        containers[i].appendChild(cardNode);
+        return true;
+      }
+    }
+    return false;
+  }
+  function relocateToPrevEmptySlot(cardNode) {
+    var containers = allContainersInOrder();
+    var srcRank = bucketRank(cardNode.parentNode);
+    for (var i = containers.length - 1; i >= 0; i--) {
+      if (bucketRank(containers[i]) < srcRank && containerHasRoom(containers[i])) {
+        containers[i].appendChild(cardNode);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Reads the FINAL (post-move, post-capacity-fixup) canvas DOM and builds
+  // one news.layout batch covering every real card currently on the
+  // canvas — main, secondary, and both widget positions — renumbered
+  // consecutively from globalMaxPriority()+1 in render order. Resending the
+  // whole canvas rather than just the moved card keeps this one coherent
+  // transaction (H6) instead of drag and placement fighting over what the
+  // "next" priority is.
+  function currentCanvasBatch() {
+    var lists = slotListContainers();
+    var items = [];
+    var base = globalMaxPriority() + 1;
+    var idx = 0;
+    function push(type, els) {
+      els.forEach(function (el) {
+        var id = parseInt(el.getAttribute('data-news-id'), 10);
+        if (!id) return;
+        items.push({ id: id, layout_type: type, priority: base + idx });
+        idx += 1;
+      });
+    }
+    if (lists.main) push('main', realCardNodes(lists.main, CANVAS_LIST_SELECTOR.main));
+    if (lists.secondary) push('secondary', realCardNodes(lists.secondary, CANVAS_LIST_SELECTOR.secondary));
+    lists.widget.forEach(function (w) { push('widget', realCardNodes(w, CANVAS_LIST_SELECTOR.widget)); });
+    return items;
+  }
+
+  function persistCanvasOrder() {
+    var items = currentCanvasBatch();
+    if (!items.length) return;
+    postLayout(items).then(function (json) {
+      if (json && json.__sessionExpired) {
+        toast('Your session has expired — reload the page and sign in again.', true);
+        return;
+      }
+      if (json && json.ok) {
+        toast('Order updated.', false);
+      } else {
+        toast((json && json.errors && json.errors[0]) || 'Could not save the new order — reload to check.', true);
+      }
+    }).catch(function () {
+      toast('Request failed while saving order — reload to check.', true);
+    });
+  }
+
+  // Runs after every canvas mutation (drag end or Move Up/Down): fix up
+  // any capacity overflow left by Sortable's raw DOM move, rebuild
+  // placeholders, drop the stale occupancy overlay (H4/H5 — the DOM itself
+  // is authoritative again immediately after this), persist, renumber
+  // badges, and mark the layout dirty (deliverable 5).
+  function afterCanvasMutation() {
+    syncPlaceholders();
+    virtualSlots = null;
+    persistCanvasOrder();
+    renumberPositionBadges();
+    markDirty();
+  }
+
+  // Sortable already performed the raw DOM move by the time onEnd fires,
+  // which can leave the destination list one over capacity (e.g. dropping
+  // onto an already-occupied main, or a full secondary/widget list).
+  // Capacity is entirely the client's responsibility (the server writes
+  // whatever it's sent) — this is that responsibility, for every drag.
+  // - A capacity-1 destination (main, or a single widget position) always
+  //   evicts the PRE-EXISTING occupant, not the just-dropped card: dropping
+  //   a story onto an occupied slot means "replace it", not "bounce off
+  //   it" — the evicted occupant swaps back into wherever the dropped card
+  //   came from.
+  // - A capacity-N destination (secondary) evicts whichever card now sits
+  //   beyond the Nth position — ordinarily a previous occupant pushed out
+  //   by the insertion, but if the dropped card itself lands past the cap
+  //   (e.g. appended to an already-full list), it is the one evicted,
+  //   which reads as a clean reject/bounce-back.
+  function fixOverflow(toContainer, fromContainer, draggedNode) {
+    if (!toContainer) return;
+    var cap = containerCapacity(toContainer);
+    var members = realCardNodes(toContainer, selectorForContainer(toContainer));
+    if (members.length <= cap) return;
+    var evicted;
+    if (cap === 1) {
+      evicted = members.filter(function (m) { return m !== draggedNode; })[0] || draggedNode;
+    } else {
+      evicted = members[cap] || draggedNode;
+    }
+    if (evicted && fromContainer && fromContainer !== toContainer) {
+      fromContainer.appendChild(evicted);
+    }
+  }
+
+  function handleCanvasSortEnd(evt) {
+    // Same-position drop (no actual move) — nothing to fix up or persist.
+    if (evt.from === evt.to && evt.oldIndex === evt.newIndex) return;
+    fixOverflow(evt.to, evt.from, evt.item);
+    afterCanvasMutation();
+  }
+
+  function destroyCanvasSortables() {
+    canvasSortables.forEach(function (s) { try { s.destroy(); } catch (_) {} });
+    canvasSortables = [];
+  }
+
+  function initCanvasSortable() {
+    destroyCanvasSortables();
+    allContainersInOrder().forEach(function (container) {
+      var type = bucketTypeOfContainer(container);
+      canvasSortables.push(Sortable.create(container, {
+        group: 'news-canvas',
+        animation: 150,
+        draggable: CANVAS_LIST_SELECTOR[type],
+        // Scratch cards (unsaved "+ Add a story") and the Move Up/Down
+        // buttons themselves must never start a drag — `preventOnFilter:
+        // false` keeps their own click handlers (button clicks; scratch
+        // card's own inline editing) working normally.
+        filter: '.is-scratch, [data-news-move]',
+        preventOnFilter: false,
+        onEnd: handleCanvasSortEnd
+      }));
+    });
+    renumberPositionBadges();
+  }
+
+  // Move Up/Down: an adjacent swap in the flat render-order sequence
+  // (main, then secondary in DOM order, then each widget position). A
+  // swap can never change any bucket's cardinality, so it can never
+  // violate capacity — this is deliberately NOT built on the same
+  // insert-then-evict path drag-and-drop uses; it doesn't need to be,
+  // and the simpler, provably-safe swap is what a keyboard user should
+  // expect a single "move" press to do. Falls back to relocating into
+  // open room at either canvas boundary (e.g. promoting the first
+  // secondary story into an empty main, or moving the last card down into
+  // an open widget slot) when there's no adjacent card to swap with.
+  function moveCard(cardNode, direction) {
+    var cards = flatCanvasCards();
+    var idx = cards.indexOf(cardNode);
+    if (idx === -1) return;
+    var moved = false;
+    if (direction === 'up') {
+      if (idx === 0) { moved = relocateToPrevEmptySlot(cardNode); }
+      else { swapNodes(cardNode, cards[idx - 1]); moved = true; }
+    } else {
+      if (idx === cards.length - 1) { moved = relocateToNextEmptySlot(cardNode); }
+      else { swapNodes(cardNode, cards[idx + 1]); moved = true; }
+    }
+    if (!moved) return;
+    afterCanvasMutation();
+    var btn = cardNode.querySelector('[data-news-move="' + direction + '"]');
+    if (btn && !btn.disabled) btn.focus();
+  }
+
+  initCanvasSortable();
 
   // ── Story Library drawer (Task 4) ─────────────────────
   // Replaces the old below-the-fold grid with an on-demand <dialog> built on
@@ -1322,7 +1639,7 @@ import Sortable from 'sortablejs';
 
   function reinitCanvas() {
     mainSlotSection = editor.querySelector('[data-news-slot="main"]');
-    initSecondarySortable();
+    initCanvasSortable();
     seedActiveStory();
   }
 

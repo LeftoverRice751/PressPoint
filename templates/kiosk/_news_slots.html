@@ -10,11 +10,29 @@
 
    Datelines use `published_label`, which only the kiosk payload carries
    (NewsController._news_item_to_dict); the editor has its own published_at
-   field in the properties panel. #}
+   field in the properties panel.
+
+   Task 6 — `data-news-slot-list` marks the drag-and-drop / Move Up-Down
+   container for a bucket (one for main, one for secondary, one PER widget
+   position since each widget position is its own single-capacity slot).
+   `ns` is a running position counter across the whole render so the
+   `Position #N` badges are truthful render-order numbers (H2), not the raw
+   `priority` column. All of this is emitted only when news_editor is set —
+   the kiosk viewer never sees drag handles, Move buttons, or badges. #}
+{% set ns = namespace(pos=0) %}
 <section class="paper-feature paper-slot paper-slot--main" aria-label="Main headline slot" data-news-slot="main">
   <div class="paper-slot__label">Main Headline Slot</div>
+  <div{% if news_editor %} data-news-slot-list="main"{% endif %}>
   {% if main_story %}
+  {% set ns.pos = ns.pos + 1 %}
   <article class="feature-story" data-news-id="{{ main_story.id }}">
+    {% if news_editor %}
+    <div class="news-card-controls" role="group" aria-label="Reorder this story">
+      <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
+      <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move story up">&uarr;</button>
+      <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move story down">&darr;</button>
+    </div>
+    {% endif %}
     <figure class="feature-story__figure">
       {% if main_story.image %}
       <img class="feature-story__image" data-news-edit="image" src="/storage/{{ main_story | news_image('large') }}" alt="{{ main_story.title }}" decoding="async" fetchpriority="high">
@@ -70,6 +88,7 @@
   {% else %}
   <div class="paper-empty">No stories have been published yet.</div>
   {% endif %}
+  </div>
 </section>
 
 <section class="paper-slot paper-slot--secondary" aria-label="Secondary stories" data-news-slot="secondary">
@@ -77,9 +96,17 @@
   {% if not news_editor and secondary_stories %}
   <h2 class="paper-section-head">Also in this issue</h2>
   {% endif %}
-  <div class="secondary-grid">
+  <div class="secondary-grid"{% if news_editor %} data-news-slot-list="secondary"{% endif %}>
     {% for news in secondary_stories %}
+    {% set ns.pos = ns.pos + 1 %}
     <article class="secondary-story" data-news-id="{{ news.id }}">
+      {% if news_editor %}
+      <div class="news-card-controls" role="group" aria-label="Reorder this story">
+        <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
+        <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move story up">&uarr;</button>
+        <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move story down">&darr;</button>
+      </div>
+      {% endif %}
       {% if news.image %}
       <img class="secondary-story__thumb" data-news-edit="image" src="/storage/{{ news | news_image('thumb') }}" alt="{{ news.title }}" loading="lazy" decoding="async">
       {% else %}
@@ -129,7 +156,16 @@
   {% if not news_editor %}
   <span class="paper-slot__eyebrow">Bulletin</span>
   {% endif %}
+  <div{% if news_editor %} data-news-slot-list="widget" data-news-slot-position="{{ loop.index }}"{% endif %}>
+  {% set ns.pos = ns.pos + 1 %}
   <article class="info-card" data-news-id="{{ widget.id }}">
+    {% if news_editor %}
+    <div class="news-card-controls" role="group" aria-label="Reorder this story">
+      <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
+      <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move story up">&uarr;</button>
+      <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move story down">&darr;</button>
+    </div>
+    {% endif %}
     <h3 class="info-card__title" data-news-edit="title">{{ widget.title }}</h3>
     {% if news_editor %}
     <p class="info-card__copy info-card__copy--excerpt" data-news-edit="excerpt">{{ widget.excerpt | default('', true) }}</p>
@@ -138,19 +174,25 @@
     <p class="info-card__copy">{% if widget.excerpt %}{{ widget.excerpt }}{% elif widget.description %}{{ widget.description | striptags | truncate(200) }}{% endif %}</p>
     {% endif %}
   </article>
+  </div>
 </section>
 {% endfor %}
 {# Editor-only: dashed-border placeholders for each unfilled widget
    position, up to the 2-slot cap. The kiosk renders nothing for an empty
-   widget slot — "Assign story" is CMS vocabulary, not news. #}
+   widget slot — "Assign story" is CMS vocabulary, not news. Each position
+   is its own single-capacity drag-and-drop container (data-news-slot-list),
+   so a card dropped here has exactly one possible occupant, same as a
+   real widget slot above. #}
 {% if news_editor %}
 {% for position in range(widget_filled + 1, 3) %}
 <section class="paper-slot paper-slot--widget" aria-label="Widget slot (empty)" data-news-slot="widget">
   <div class="paper-slot__label">Widget Slot</div>
+  <div data-news-slot-list="widget" data-news-slot-position="{{ position }}">
   <button type="button" class="paper-empty paper-empty--compact paper-empty--action"
           data-news-assign-slot data-news-slot-type="widget" data-news-slot-position="{{ position }}">
     + Assign story to Widget slot {{ position }}
   </button>
+  </div>
 </section>
 {% endfor %}
 {% endif %}

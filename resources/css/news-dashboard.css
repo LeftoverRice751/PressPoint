@@ -1103,6 +1103,101 @@
     box-shadow: 0 0 0 2px var(--kiosk-terracotta, #cc5a1f);
 }
 
+/* ── Cross-slot drag-and-drop + Move Up/Down + position badges (Task 6) ──
+   The whole canvas (lead, secondary grid, each widget position) is one
+   Sortable drag group in news-dashboard.js; these rules give every
+   draggable card a positioning context for its Move Up/Down + position
+   badge overlay, and make the whole canvas' cards grabbable. */
+.news-editor .feature-story,
+.news-editor .info-card {
+    cursor: grab;
+    position: relative;
+}
+.news-editor .secondary-story {
+    position: relative;
+}
+.news-editor .feature-story.sortable-chosen,
+.news-editor .info-card.sortable-chosen {
+    cursor: grabbing;
+    box-shadow: 0 0 0 2px var(--kiosk-terracotta, #cc5a1f);
+}
+
+/* Move Up/Down + position badge — an overlay, not a grid child, so it
+   never disturbs .feature-story/.secondary-story/.info-card's own
+   internal grid layout. Kept in the DOM (not display:none) at all times
+   so it stays keyboard-reachable; opacity/hover/focus-within only control
+   visibility, never tab order. Always partly visible (not fully hidden)
+   so touch users — who get no real :hover — can still find it. */
+.news-card-controls {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+}
+.news-editor .feature-story:hover .news-card-controls,
+.news-editor .feature-story:focus-within .news-card-controls,
+.news-editor .secondary-story:hover .news-card-controls,
+.news-editor .secondary-story:focus-within .news-card-controls,
+.news-editor .info-card:hover .news-card-controls,
+.news-editor .info-card:focus-within .news-card-controls {
+    opacity: 1;
+}
+
+.news-card-position {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 9999px;
+    background: var(--ink-oxblood);
+    color: #fff;
+    font-family: var(--kiosk-font-ui, "Gilroy", "Century Gothic", sans-serif);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.news-card-move-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.85rem;
+    height: 1.85rem;
+    padding: 0;
+    border: 1px solid var(--ink-oxblood);
+    border-radius: 4px;
+    background: var(--ink-cream, #fbf8f1);
+    color: var(--ink-oxblood);
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.news-card-move-btn:hover {
+    background: var(--ink-oxblood);
+    color: #fff;
+}
+.news-card-move-btn:focus-visible {
+    outline: none;
+    background: var(--ink-oxblood);
+    color: #fff;
+    box-shadow: 0 0 0 2px var(--ink-marigold);
+}
+.news-card-move-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.news-card-move-btn:disabled:hover {
+    background: var(--ink-cream, #fbf8f1);
+    color: var(--ink-oxblood);
+}
+
 /* ── Story Library slide-over drawer (Task 4) ──────────
    Extends .article-modal (gears-dashboard.css) the same way confirm-modal.css
    does: same <dialog> primitive, own panel/backdrop treatment. Docked to the
