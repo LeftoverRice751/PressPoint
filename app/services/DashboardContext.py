@@ -18,6 +18,7 @@ from app.models.Member import Member
 from app.models.News import News
 from app.models.Posts import Posts
 from app.models.TourScenes import TourScenes
+from app.models.User import User
 from app.models.Video import Video
 from app.services.AboutContent import AboutContent
 from app.services.ArchiveServices import ArchiveServices
@@ -359,6 +360,50 @@ FRAGMENT_SECTIONS = {
     "videos": videos_context,
     "news": news_context,
 }
+
+
+def super_admin_stats():
+    """Organization-wide counts for the super admin dashboard.
+
+    News counts read `News` — the table the composer and the kiosk front page
+    actually run on — not `Posts`, which is what `overview_context()`'s older
+    "Total News" cards count. That mismatch is pre-existing on the editor
+    dashboard and deliberately left alone here; these numbers are meant to be
+    the true org-wide figures.
+
+    Events come from `Events` — the model `events_context()` renders — not
+    from `Posts`, which is a legacy table `overview_context()` still reads.
+
+    `Events` and `Locations` are counted with the ORM aggregate rather than
+    loaded, because nothing on this page renders their rows.
+    """
+    users = list(User.all() or [])
+    roles = [(getattr(user, "role", "") or "").strip().lower() for user in users]
+
+    news_rows = list(News.all() or [])
+    published_news = sum(
+        1
+        for row in news_rows
+        if normalize_news_status(getattr(row, "status", None)) == "published"
+    )
+
+    archive_rows = list(Archives.all() or [])
+    total_newsletters = sum(
+        1
+        for row in archive_rows
+        if (getattr(row, "type", "") or "").strip().lower() == "newsletter"
+    )
+
+    return {
+        "admin_count": roles.count("admin"),
+        "editor_count": roles.count("editor"),
+        "total_news": len(news_rows),
+        "published_news": published_news,
+        "total_events": Events.count() or 0,
+        "total_archives": len(archive_rows),
+        "total_newsletters": total_newsletters,
+        "location_count": Locations.count() or 0,
+    }
 
 
 def full_context(default_page="dashboard"):
