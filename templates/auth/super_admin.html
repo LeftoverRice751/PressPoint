@@ -7,8 +7,9 @@
 {% block content %}
 <section class="auth-panel auth-panel--wide">
     <div class="auth-panel__header">
+        <div class="auth-panel__eyebrow">System Access</div>
         <h2 class="auth-panel__title">Super Admin Dashboard</h2>
-        <p class="auth-panel__subtitle">Welcome, {{ current_admin.admin_username }}. Manage users from the same GEARS visual system.</p>
+        <p class="auth-panel__subtitle">Welcome, {{ current_admin.username }}. Monitor organization content and manage admin and editor accounts.</p>
     </div>
 
     {% if bag().any() %}
@@ -21,38 +22,81 @@
     </div>
     {% endif %}
 
+    <h3 class="auth-section-heading">Organization overview</h3>
+    <div class="auth-stats-grid">
+        <article class="auth-stat-card">
+            <div class="auth-stat-card__label">Admins</div>
+            <div class="auth-stat-card__value">{{ admin_count or 0 }}</div>
+        </article>
+        <article class="auth-stat-card auth-stat-card--muted">
+            <div class="auth-stat-card__label">Editors</div>
+            <div class="auth-stat-card__value">{{ editor_count or 0 }}</div>
+        </article>
+        <article class="auth-stat-card auth-stat-card--success">
+            <div class="auth-stat-card__label">Published News</div>
+            <div class="auth-stat-card__value">{{ published_news or 0 }}</div>
+        </article>
+        <article class="auth-stat-card">
+            <div class="auth-stat-card__label">Total News</div>
+            <div class="auth-stat-card__value">{{ total_news or 0 }}</div>
+        </article>
+        <article class="auth-stat-card auth-stat-card--muted">
+            <div class="auth-stat-card__label">Events</div>
+            <div class="auth-stat-card__value">{{ total_events or 0 }}</div>
+        </article>
+        <article class="auth-stat-card">
+            <div class="auth-stat-card__label">Archives</div>
+            <div class="auth-stat-card__value">{{ total_archives or 0 }}</div>
+        </article>
+        <article class="auth-stat-card auth-stat-card--muted">
+            <div class="auth-stat-card__label">Newsletters</div>
+            <div class="auth-stat-card__value">{{ total_newsletters or 0 }}</div>
+        </article>
+        <article class="auth-stat-card auth-stat-card--success">
+            <div class="auth-stat-card__label">Locations</div>
+            <div class="auth-stat-card__value">{{ location_count or 0 }}</div>
+        </article>
+    </div>
+
+    <h3 class="auth-section-heading">User management</h3>
     <div class="auth-card-grid">
         <form class="auth-form" action="{{ route('auth.super_admin.store', {}, False) }}" method="post">
             {{ csrf_field | safe }}
 
             <div class="auth-form__split">
-                <label class="auth-form__group" for="admin_email">
+                <label class="auth-form__group" for="email">
                     <span class="auth-form__label">Email</span>
-                    <input type="text" name="admin_email" id="admin_email" placeholder="Email" class="auth-form__input" required>
+                    <input type="text" name="email" id="email" placeholder="Email" class="auth-form__input" required>
                 </label>
 
-                <label class="auth-form__group" for="admin_username">
+                <label class="auth-form__group" for="username">
                     <span class="auth-form__label">Username</span>
-                    <input type="text" name="admin_username" id="admin_username" placeholder="Username" class="auth-form__input" required>
+                    <input type="text" name="username" id="username" placeholder="Username" class="auth-form__input" required>
                 </label>
             </div>
 
-            <button type="submit" class="auth-form__button">Create User</button>
+            <button type="submit" class="auth-form__button">Create Admin</button>
         </form>
 
         <table class="auth-table user-management">
             <thead>
                 <tr>
                     <th>Username</th>
-                    <th>Email</th>  
+                    <th>Email</th>
+                    <th>Role</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
+                {# Super admin accounts are filtered out in SuperAdminController.show(),
+                   so no row here can ever target a peer. #}
                 {% for user in users %}
                 <tr>
-                    <td>{{ user.admin_username }}</td>
-                    <td>{{ user.admin_email }}</td>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        <span class="auth-role {% if user.role == 'admin' %}auth-role--admin{% endif %}">{{ user.role }}</span>
+                    </td>
                     <td>
                         <div class="auth-table__actions">
                             <form action="{{ route('auth.super_admin.destroy', {'id': user.id}, False) }}" method="post" class="inline-form">

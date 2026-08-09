@@ -39,10 +39,41 @@ body.auth-body {
 
 .auth-shell--centered {
   grid-template-columns: 1fr;
+  position: relative;
+  overflow: hidden;
+  --mark-size: clamp(420px, 112vh, 980px);
 }
 
 .auth-shell--centered .auth-main {
   width: 100%;
+}
+
+/* gears.png in the bottom-right, cropped by both viewport edges.
+   Offsets are fractions of --mark-size rather than fixed pixels because
+   the asset is mostly empty: the artwork occupies only 314x329 of the
+   500x500 PNG, so with background-size:contain it sits ~18.6% in from
+   the left/right edges of this box and ~17% from the top/bottom. About
+   a fifth of any offset is spent on transparent padding before the owl
+   moves at all. */
+.auth-shell--centered::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  right: calc(var(--mark-size) * -0.377);
+  bottom: calc(var(--mark-size) * -0.310);
+  width: var(--mark-size);
+  height: var(--mark-size);
+  /* --brand-mark is set inline by auth/base.html from the uploaded site
+     logo; the url() here is the fallback when nothing has been uploaded. */
+  background: var(--brand-mark, url("/gears.png")) no-repeat center / contain;
+  transform: rotate(-8deg);
+  transform-origin: center;
+  pointer-events: none;
+}
+
+/* admin / super_admin render a 960px card that reaches into this corner. */
+.auth-shell--centered:has(.auth-panel--wide) {
+  --mark-size: clamp(300px, 68vh, 560px);
 }
 
 /* ── Rail (admin two-column layout) ─────────────── */
@@ -179,17 +210,20 @@ body.auth-body {
 
 /* ── Panel card ─────────────────────────────────── */
 .auth-panel {
+  box-sizing: border-box;
   width: min(100%, 760px);
+  /* z-index lifts the card above the shell-level gears.png mark. */
   position: relative;
   z-index: 1;
-  padding: clamp(1.5rem, 2.8vw, 2.25rem);
+  padding: clamp(1.75rem, 3vw, 2.5rem);
   background: var(--auth-surface);
-  border: 2px solid var(--auth-ink);
-  border-radius: 0;
+  border: 1px solid var(--auth-rule);
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(31, 15, 12, 0.12);
 }
 
 .auth-panel--narrow {
-  width: min(100%, 520px);
+  width: min(100%, 440px);
 }
 
 .auth-panel--wide {
@@ -202,6 +236,16 @@ body.auth-body {
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--auth-rule);
+}
+
+/* Centered header (mockup): no divider, stacked title / welcome / subtitle. */
+.auth-panel__header--center {
+  justify-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  padding-bottom: 0;
+  border-bottom: 0;
+  margin-bottom: 1.75rem;
 }
 
 .auth-panel__eyebrow {
@@ -222,11 +266,32 @@ body.auth-body {
   color: var(--auth-ink);
 }
 
+.auth-panel__header--center .auth-panel__title {
+  font-family: var(--auth-font-display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.auth-panel__welcome {
+  margin: 0;
+  font-family: var(--auth-font-ui);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--auth-ink);
+}
+
 .auth-panel__subtitle {
   margin: 0;
   color: var(--auth-ink-muted);
   font-size: 0.92rem;
   line-height: 1.6;
+}
+
+.auth-panel__header--center .auth-panel__subtitle {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 /* ── Alert ──────────────────────────────────────── */
@@ -278,7 +343,7 @@ body.auth-body {
   box-sizing: border-box;
   width: 100%;
   border: 1px solid var(--auth-rule-strong);
-  border-radius: 0;
+  border-radius: 10px;
   padding: 0.85rem 1rem;
   background: var(--auth-bg);
   color: var(--auth-ink);
@@ -296,7 +361,7 @@ body.auth-body {
 .auth-form__button {
   width: 100%;
   border: 0;
-  border-radius: 0;
+  border-radius: 10px;
   padding: 0.9rem 1.2rem;
   background: var(--auth-accent);
   color: var(--auth-cream-on-dark);
@@ -396,6 +461,97 @@ body.auth-body {
   display: block;
 }
 
+/* ── Screen-reader-only labels (placeholder-only inputs) ── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Options row: show-password + forgot-password link ──── */
+.auth-form__options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.auth-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--auth-ink-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.auth-checkbox input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--auth-accent);
+  cursor: pointer;
+}
+
+/* ── OTP grid (folded in from orphaned auth-otp-code.css) ── */
+.otp-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.otp-digit {
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  padding: 0;
+  text-align: center;
+  border: 1px solid var(--auth-rule-strong);
+  border-radius: 10px;
+  background: var(--auth-bg);
+  color: var(--auth-ink);
+  font-family: var(--auth-font-ui);
+  font-size: 1.4rem;
+  font-weight: 800;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.otp-digit:focus {
+  border-color: var(--auth-accent);
+  box-shadow: 0 0 0 3px rgba(177, 30, 42, 0.14);
+}
+
+/* ── Password strength (folded in from orphaned auth-change-password.css) ── */
+.strength-meter {
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(31, 15, 12, 0.12);
+  overflow: hidden;
+}
+
+.strength-meter-bar {
+  height: 100%;
+  width: 0;
+  border-radius: 9999px;
+  background: var(--auth-accent);
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.strength-label {
+  margin-top: 0.4rem;
+  color: var(--auth-ink-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 /* ── Table (admin page) ─────────────────────────── */
 .auth-table {
   width: 100%;
@@ -464,10 +620,108 @@ body.auth-body {
   gap: 1rem;
 }
 
+/* ── Role badge (super admin user table) ────────── */
+.auth-role {
+  display: inline-block;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--auth-rule-strong);
+  color: var(--auth-ink);
+  font-family: var(--auth-font-ui);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.auth-role--admin {
+  border-color: var(--auth-accent);
+  color: var(--auth-accent);
+}
+
+/* ── Stat cards (super admin overview) ──────────── */
+.auth-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.auth-stat-card {
+  position: relative;
+  padding: 1.1rem 1.1rem 1.1rem 1.3rem;
+  border: 1px solid var(--auth-rule-strong);
+  background: var(--auth-surface);
+  overflow: hidden;
+}
+
+/* Flat 4px rule down the left edge — the same device the editor
+   dashboard's .stat-card uses, rebuilt on --auth-* tokens because
+   gears-dashboard.css is not loaded on the auth shell. */
+.auth-stat-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--auth-accent);
+}
+
+.auth-stat-card--muted::before {
+  background: var(--auth-rail);
+}
+
+.auth-stat-card--success::before {
+  background: var(--auth-success);
+}
+
+.auth-stat-card__label {
+  color: var(--auth-ink-muted);
+  font-family: var(--auth-font-ui);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.auth-stat-card__value {
+  margin-top: 0.5rem;
+  font-family: var(--auth-font-display);
+  font-size: clamp(1.6rem, 2.4vw, 2.1rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--auth-ink);
+}
+
+.auth-section-heading {
+  margin: 0 0 0.85rem;
+  color: var(--auth-ink-muted);
+  font-family: var(--auth-font-ui);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
 /* ── Responsive ─────────────────────────────────── */
+
+/* Portrait phones are tall and narrow, so sizing the mark off viewport
+   height would make it ~150% of the screen width. Size off width instead;
+   the crop ratios above still hold. Kept at 520px so a small desktop
+   window still gets the height-based treatment the mockup specifies. */
+@media (max-width: 520px) {
+  .auth-shell--centered {
+    --mark-size: clamp(300px, 125vw, 520px);
+  }
+}
+
 @media (max-width: 1000px) {
   .auth-shell {
     grid-template-columns: 1fr;
+  }
+
+  .auth-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .auth-rail {
@@ -477,6 +731,14 @@ body.auth-body {
 
   .auth-rail__copy {
     max-width: none;
+  }
+}
+
+/* Must follow the 1000px block: both match on a phone, so the single-column
+   rule has to be the later declaration to win. */
+@media (max-width: 560px) {
+  .auth-stats-grid {
+    grid-template-columns: 1fr;
   }
 }
 
