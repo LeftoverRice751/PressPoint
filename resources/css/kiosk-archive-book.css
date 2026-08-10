@@ -1,374 +1,330 @@
-/* Kiosk archive book overlay
- * Sits on top of the existing archives carousel; never modifies it.
- * Sizing assumes a 768x1024 portrait kiosk display.
+/*
+ * Archive reader overlay — adapter mounts + chrome.
+ *
+ * Self-contained: local --book-* tokens only (mirrors the Gears palette
+ * used by kiosk-archives.css). Solid fills throughout — gradients are
+ * banned by the brand rules in kiosk-tokens.css. Library visuals:
+ * StPageFlip draws into its own canvas, OpenSeadragon into its own
+ * element; this file just gives them correctly sized, cream-and-paper
+ * boxes to live in.
  */
 
 :root {
-  --book-page-width: 340px;
-  --book-page-height: 460px;
-  --book-tabloid-width: 700px;
-  --book-tabloid-height: 460px;
-  --book-page-color: #fdfdfb;
-  --book-paper-shadow: 0 30px 80px rgba(15, 23, 42, 0.45);
-  --book-spine-shadow: rgba(10, 14, 24, 0.32);
-  --book-flip-duration: 720ms;
+  --book-cream: #F1ECE3;
+  --book-paper: #FBF8F1;
+  --book-vermillion: #B82221;
+  --book-terracotta: #D15B26;
+  --book-soot: #1F1716;
+  --book-muted: #6B5E55;
+  --book-rule: rgba(31, 23, 22, 0.14);
+  --book-backdrop: rgba(31, 23, 22, 0.92);
+  --book-font-display: var(--kiosk-font-display, "Trajan Pro", "Times New Roman", serif);
+  --book-font-ui: var(--kiosk-font-ui, "Futura", "Century Gothic", sans-serif);
+  --book-font-mono: var(--kiosk-font-mono, ui-monospace, "SF Mono", Menlo, monospace);
   --book-zoom-duration: 520ms;
-  --book-curve: cubic-bezier(0.45, 0, 0.55, 1);
+  --book-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* ── Overlay shell ──────────────────────────────────────── */
 
 .archive-book-overlay {
   position: fixed;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 999;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 320ms ease;
+  z-index: 400;
+  display: block;
 }
 
 .archive-book-overlay[hidden] {
   display: none !important;
 }
 
-.archive-book-overlay.is-active {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 .archive-book-overlay__backdrop {
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-      ellipse at center,
-      rgba(15, 23, 42, 0.78) 0%,
-      rgba(8, 10, 18, 0.94) 100%
-    );
-  backdrop-filter: blur(6px);
+  background: var(--book-backdrop);
+  opacity: 0;
+  transition: opacity var(--book-zoom-duration) ease;
 }
 
-.archive-book-stage {
-  position: relative;
-  perspective: 2400px;
-  perspective-origin: center 40%;
-  transform-style: preserve-3d;
+.archive-book-overlay.is-active .archive-book-overlay__backdrop {
+  opacity: 1;
+}
+
+.reader-stage {
+  position: absolute;
+  inset: 0;
   transform-origin: center center;
-  transition: transform var(--book-zoom-duration) var(--book-curve);
-  will-change: transform;
-  width: calc(var(--book-page-width) * 2);
-  height: var(--book-page-height);
-  touch-action: none;
-}
-
-.archive-book {
-  position: relative;
-  width: calc(var(--book-page-width) * 2);
-  height: var(--book-page-height);
-  transform-style: preserve-3d;
-  transform: translateX(calc(var(--book-page-width) * -0.5));
-  transition: transform var(--book-flip-duration) var(--book-curve);
-  filter: drop-shadow(var(--book-paper-shadow));
-}
-
-.archive-book.is-open-spread {
-  transform: translateX(0);
-}
-
-.archive-book.is-tabloid {
-  width: var(--book-tabloid-width);
-  height: var(--book-tabloid-height);
-  transform: translateX(calc((var(--book-page-width) * 2 - var(--book-tabloid-width)) * 0.5));
-}
-
-.archive-book__spread {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  transform-style: preserve-3d;
-}
-
-.archive-book.is-tabloid .archive-book__spread {
-  display: none;
-}
-
-.archive-book__page {
-  position: relative;
-  width: var(--book-page-width);
-  height: 100%;
-  background: var(--book-page-color);
-  overflow: hidden;
-  flex: 0 0 var(--book-page-width);
-}
-
-.archive-book__page--left {
-  border-radius: 4px 0 0 4px;
-  box-shadow: inset -10px 0 16px -8px var(--book-spine-shadow);
-  visibility: hidden;
-}
-
-.archive-book__page--right {
-  border-radius: 0 4px 4px 0;
-  box-shadow: inset 10px 0 16px -8px var(--book-spine-shadow);
-}
-
-.archive-book.is-open-spread .archive-book__page--left {
-  visibility: visible;
-}
-
-.archive-book__page-image {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: var(--book-page-color);
-  user-select: none;
-  -webkit-user-drag: none;
-  pointer-events: none;
-  position: relative;
-  z-index: 2;
-}
-
-.archive-book__page-blank {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    135deg,
-    var(--book-page-color) 0%,
-    #f4f1e8 100%
-  );
-  z-index: 1;
-}
-
-.archive-book__flipper {
-  position: absolute;
-  top: 0;
-  width: var(--book-page-width);
-  height: 100%;
-  pointer-events: none;
-  transform-style: preserve-3d;
-  display: none;
-  z-index: 5;
-  background: transparent;
-  will-change: transform;
-}
-
-.archive-book__flipper.is-active {
-  display: block;
-}
-
-.archive-book__flipper.is-right {
-  left: var(--book-page-width);
-  transform-origin: left center;
-}
-
-.archive-book__flipper.is-left {
-  left: 0;
-  transform-origin: right center;
-}
-
-.archive-book__flipper-face {
-  position: absolute;
-  inset: 0;
-  backface-visibility: hidden;
-  background: var(--book-page-color);
-  overflow: hidden;
-}
-
-.archive-book__flipper-face--front {
-  box-shadow: inset 10px 0 16px -8px var(--book-spine-shadow);
-}
-
-.archive-book__flipper-face--back {
-  transform: rotateY(180deg);
-  background: linear-gradient(
-    135deg,
-    var(--book-page-color) 0%,
-    #f4f1e8 100%
-  );
-  box-shadow: inset -10px 0 16px -8px var(--book-spine-shadow);
-}
-
-/* Tabloid (landscape) — vertical flipping single-page view. */
-.archive-book__tabloid {
-  position: absolute;
-  inset: 0;
-  display: none;
-  background: var(--book-page-color);
-  overflow: hidden;
-  border-radius: 4px;
-  transform-style: preserve-3d;
-  filter: none;
-}
-
-.archive-book.is-tabloid .archive-book__tabloid {
-  display: block;
-}
-
-.archive-book__tabloid .archive-book__page-image {
-  transition: transform 320ms var(--book-curve), opacity 240ms ease;
-}
-
-.archive-book.is-tabloid-flipping-up .archive-book__tabloid .archive-book__page-image {
-  transform: translateY(-22%);
+  transition: transform var(--book-zoom-duration) var(--book-ease),
+              opacity var(--book-zoom-duration) ease;
   opacity: 0;
 }
 
-.archive-book.is-tabloid-flipping-down .archive-book__tabloid .archive-book__page-image {
-  transform: translateY(22%);
-  opacity: 0;
+.archive-book-overlay.is-active .reader-stage {
+  opacity: 1;
 }
 
-/* Controls */
-.archive-book-overlay__controls {
+/* ── Mounts ─────────────────────────────────────────────── */
+
+.reader-mount {
   position: absolute;
-  bottom: 64px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  z-index: 10;
-  pointer-events: auto;
+  inset: 0;
 }
 
-.archive-book-overlay__back {
-  appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(20, 24, 32, 0.72);
-  color: #fff;
-  font: 600 15px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 16px 32px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-  transition: background 160ms ease, transform 160ms ease;
-}
-
-.archive-book-overlay__back:active {
-  transform: scale(0.96);
-  background: rgba(255, 99, 33, 0.85);
-}
-
-.archive-book-overlay__back-icon {
-  font-size: 18px;
-  line-height: 1;
-}
-
-.archive-book-overlay__pager {
-  font: 500 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.6);
-  text-transform: uppercase;
-}
-
-@media (max-height: 900px) {
-  :root {
-    --book-page-width: 320px;
-    --book-page-height: 430px;
-    --book-tabloid-width: 660px;
-    --book-tabloid-height: 430px;
-  }
-}
-
-@media (max-height: 760px) {
-  :root {
-    --book-page-width: 280px;
-    --book-page-height: 380px;
-    --book-tabloid-width: 580px;
-    --book-tabloid-height: 380px;
-  }
-}
-
-/* ── Newsletter mode ──────────────────────────────────── */
-.archive-news {
-  display: none;
-  width: 100%;
-  height: 100%;
-}
-
-.archive-book.is-newsletter .archive-news {
-  display: flex;
-}
-
-.archive-book.is-newsletter .archive-book__spread,
-.archive-book.is-newsletter .archive-book__tabloid {
+.reader-mount[hidden] {
   display: none;
 }
 
-.archive-news__scroll {
-  flex: 1 1 0;
-  min-width: 0;
-  height: 100%;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  touch-action: none;
-}
-
-.archive-news__stack {
-  width: 100%;
-  height: 100%;
+/* Book (StPageFlip): breathing room so the curl never clips; the
+   library generates .stf__* wrappers inside. */
+.reader-mount--book {
+  inset: clamp(48px, 8vh, 84px) clamp(10px, 3vw, 48px) clamp(16px, 4vh, 48px);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.archive-news__page {
+/* Sized in pixels by BookAdapter.sizeHost() to exactly the page spread.
+   It must NOT fill the mount: StPageFlip's canvas stretches to this box and
+   wipes it white every frame, so any height the page doesn't use shows up as
+   white bands above and below the page. The mount centers this. */
+.reader-book__host {
+  width: auto;
+  height: auto;
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain;
+  background: transparent;
+}
+
+.reader-mount--book .stf__parent {
+  margin: 0 auto;
+}
+
+.reader-mount--book canvas {
   display: block;
-  user-select: none;
-  -webkit-user-drag: none;
 }
 
-/* Rail — thin progress bar on the right edge */
-.archive-news__rail {
-  width: 8px;
-  height: 100%;
-  flex-shrink: 0;
-  position: relative;
-  background: rgba(31, 15, 12, 0.12);
+/* Pages float on the dark backdrop: strip any surface color StPageFlip
+   puts behind the spread so only the page images (the PDF paper) read as
+   white. Covers both canvas and HTML render wrappers. */
+.reader-mount--book .stf__parent,
+.reader-mount--book .stf__wrapper,
+.reader-mount--book .stf__block,
+.reader-mount--book .stf__item {
+  background: transparent !important;
 }
 
-.archive-news__rail-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
+/* DeepZoom (OpenSeadragon): edge-to-edge map surface, letterbox stays dark. */
+.reader-mount--zoom {
+  inset: 0;
+  background: transparent;
+}
+
+.reader-mount--zoom > div {
   width: 100%;
-  height: 0%;
-  background: var(--kiosk-crimson, #B11E2A);
-  transition: height 0.3s ease;
+  height: 100%;
 }
 
-.archive-news__rail-dots {
+/* Scroll (newsletters): a continuous paper stack. */
+.reader-mount--scroll {
+  inset: 0;
+}
+
+.reader-scroll__inner {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y pinch-zoom;
+  overscroll-behavior: contain;
+  padding: clamp(56px, 9vh, 96px) clamp(10px, 3vw, 32px) clamp(24px, 5vh, 64px);
+}
+
+.reader-scroll__page {
+  position: relative;
+  width: 100%;
+  max-width: min(92vw, 900px);
+  margin: 0 auto clamp(12px, 2.4vh, 28px);
+  background: var(--book-paper);
+  border: 1px solid var(--book-rule);
+  box-shadow: 0 10px 30px rgba(31, 23, 22, 0.25);
+}
+
+.reader-scroll__page img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+
+.reader-scroll__page.is-rendered img {
+  opacity: 1;
+}
+
+/* ── Chrome (back + pager + tabloid nav) ────────────────── */
+
+.reader-chrome {
   position: absolute;
   inset: 0;
-  display: flex;
-  flex-direction: column;
+  z-index: 10;
+  pointer-events: none; /* children re-enable; the stage stays touchable */
+  transition: opacity 240ms ease;
+}
+
+/* The only exit on a phone, so it gets a full touch target and clears
+   any notch / rounded corner rather than tucking underneath it. */
+.reader-chrome__back {
+  position: absolute;
+  top: max(clamp(10px, 2vh, 22px), env(safe-area-inset-top, 0px));
+  left: max(clamp(10px, 2vw, 22px), env(safe-area-inset-left, 0px));
+  display: inline-flex;
   align-items: center;
-  justify-content: space-evenly;
-  z-index: 1;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 2px solid var(--book-soot);
+  border-radius: 999px;
+  background: var(--book-paper);
+  color: var(--book-soot);
+  font-family: var(--book-font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 4px 0 0 var(--book-soot);
 }
 
-.archive-news__dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.30);
-  flex-shrink: 0;
-  transition: background 0.2s ease, transform 0.2s ease;
+.reader-chrome__back:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 0 var(--book-soot);
 }
 
-.archive-news__dot.is-active {
-  background: #fff;
-  transform: scale(1.5);
+.reader-chrome__pager {
+  position: absolute;
+  top: clamp(16px, 2.6vh, 28px);
+  right: clamp(12px, 2vw, 24px);
+  padding: 8px 14px;
+  border: 1px solid var(--book-rule);
+  border-radius: 999px;
+  background: var(--book-paper);
+  color: var(--book-soot);
+  font-family: var(--book-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* Page-turn arrows: large, pinned to the left/right edges, vertically
+   centered over the spread. Desktop only — the touch media query below
+   keeps them hidden so kiosk/mobile stay swipe-driven. */
+.reader-chrome__nav[hidden] {
+  display: none;
+}
+
+.reader-chrome__nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: clamp(48px, 5vw, 60px);
+  height: clamp(48px, 5vw, 60px);
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--book-soot);
+  border-radius: 999px;
+  background: var(--book-paper);
+  color: var(--book-soot);
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 4px 0 0 var(--book-soot);
+  transition: transform 140ms var(--book-ease), background-color 160ms ease,
+              color 160ms ease, box-shadow 140ms var(--book-ease), opacity 160ms ease;
+}
+
+.reader-chrome__nav-btn span {
+  font-size: clamp(26px, 3vw, 34px);
+  line-height: 1;
+  margin-top: -3px;
+}
+
+.reader-chrome__nav-btn--prev {
+  left: clamp(10px, 2vw, 28px);
+}
+
+.reader-chrome__nav-btn--next {
+  right: clamp(10px, 2vw, 28px);
+}
+
+.reader-chrome__nav-btn:hover {
+  background: var(--book-vermillion);
+  color: var(--book-paper);
+}
+
+.reader-chrome__nav-btn:active {
+  transform: translateY(-50%) translateY(3px);
+  box-shadow: 0 1px 0 0 var(--book-soot);
+}
+
+.reader-chrome__nav-btn[disabled] {
+  opacity: 0.3;
+  pointer-events: none;
+  box-shadow: none;
+}
+
+.reader-chrome :focus-visible {
+  outline: 2px solid var(--book-terracotta);
+  outline-offset: 2px;
+}
+
+/* Desktop: chrome stays discoverable, brightens on hover. */
+@media (hover: hover) and (pointer: fine) {
+  .reader-chrome {
+    opacity: 0.55;
+  }
+
+  .reader-chrome:hover,
+  .reader-chrome:focus-within {
+    opacity: 1;
+  }
+}
+
+/* Touch: immersive, but the way out is never hidden.
+   The fade used to sit on .reader-chrome itself, which took the back
+   button down with the pager — leaving a phone reader with no visible
+   exit once the 2.5s timer fired. A phone has no keyboard for Escape and
+   the backdrop sits behind the spread, so this button is the only way
+   back to the menu. The pager and page-turn arrows still fade, and a
+   single tap still toggles them. */
+@media (hover: none), (pointer: coarse) {
+  .reader-chrome {
+    opacity: 1;
+  }
+
+  .reader-chrome__pager,
+  .reader-chrome__nav {
+    opacity: 0;
+    transition: opacity 240ms ease;
+  }
+
+  .reader-chrome__back {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .reader-chrome__nav-btn {
+    pointer-events: none;
+  }
+
+  .archive-book-overlay.is-chrome-visible .reader-chrome__pager,
+  .archive-book-overlay.is-chrome-visible .reader-chrome__nav {
+    opacity: 1;
+  }
+
+  .archive-book-overlay.is-chrome-visible .reader-chrome__nav-btn {
+    pointer-events: auto;
+  }
 }
