@@ -2,7 +2,6 @@
 
 import json
 import os
-import secrets
 
 from masonite.controllers import Controller
 from masonite.request import Request
@@ -15,9 +14,9 @@ from app.services.AboutContent import AboutContent, SECTION_SLUGS
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.StorageRouter import gearsnas_base
 from app.services.FileVerificationService import FileVerificationService
+from app.services.ImageUploads import save_uploaded_image
 
 
-MAX_IMAGE_BYTES = 4 * 1024 * 1024
 _SEAL_NAS_SUBDIR = "About"
 _MILESTONE_NAS_SUBDIR = "About/milestones"
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
@@ -26,61 +25,6 @@ MAX_AUDIO_BYTES = 20 * 1024 * 1024
 def _editor_redirect(response: Response):
     """Helper: every editor save endpoint redirects back to the editor page."""
     return response.redirect(name="gears.dashboard", query_params={"page": "about-lspu"})
-
-
-def _save_uploaded_image(file, nas_subdir, prefix):
-    """Validate and persist an uploaded image to NAS. Returns (stored_path, error).
-
-    stored_path uses the NAS-relative form (e.g. 'About/seal-abc.png') so that
-    StorageRouter.absolute_path resolves it to the correct NAS mount.
-    """
-    if isinstance(file, list):
-        file = file[0] if file else None
-    if not file:
-        return None, "Upload must be a JPEG, PNG, or WEBP image."
-
-    content = getattr(file, "content", None)
-    if content is None and hasattr(file, "stream") and callable(file.stream):
-        s = file.stream()
-        content = s.read() if hasattr(s, "read") else s
-    elif content is None and hasattr(file, "stream"):
-        content = file.stream.read()
-    if content is None:
-        return None, "Could not read uploaded file."
-
-    # Verify by actual content (magic bytes), not just the extension.
-    if not FileVerificationService.verify_buffer(content, "image"):
-        return None, "Upload must be a JPEG, PNG, or WEBP image."
-
-    if len(content) > MAX_IMAGE_BYTES:
-        return None, "Image must be 4 MB or smaller."
-
-    # Masonite file objects expose .filename, not .mime_type — the extension is
-    # only used to name the stored file, not to validate it.
-    raw_filename = getattr(file, "filename", "") or ""
-    ext = os.path.splitext(raw_filename)[1].lower()
-    if hasattr(file, "extension") and callable(file.extension):
-        ext = (file.extension() or ext).lower()
-    if ext and not ext.startswith("."):
-        ext = "." + ext
-    if ext == ".jpeg":
-        ext = ".jpg"
-
-    filename = f"{prefix}-{secrets.token_hex(8)}{ext}"
-    target_dir = os.path.join(gearsnas_base(), nas_subdir)
-
-    old_mask = os.umask(0o002)
-    try:
-        os.makedirs(target_dir, mode=0o775, exist_ok=True)
-        target_path = os.path.join(target_dir, filename)
-        with open(target_path, "wb") as fh:
-            fh.write(content)
-        os.chmod(target_path, 0o664)
-    finally:
-        os.umask(old_mask)
-
-    stored_path = f"{nas_subdir}/{filename}"
-    return stored_path, None
 
 
 class AboutController(Controller):
@@ -188,7 +132,7 @@ class AboutController(Controller):
         # Optional image upload swap-in.
         file = request.input("file")
         if file:
-            relative, err = _save_uploaded_image(file, _MILESTONE_NAS_SUBDIR, "milestone")
+            relative, err = save_uploaded_image(file, _MILESTONE_NAS_SUBDIR, "milestone")
             if err:
                 return _editor_redirect(response).with_errors([err])
             row.image_path = relative
@@ -233,7 +177,7 @@ class AboutController(Controller):
 
     def upload_seal(self, request: Request, response: Response):
         file = request.input("file")
-        stored_path, err = _save_uploaded_image(file, _SEAL_NAS_SUBDIR, "seal")
+        stored_path, err = save_uploaded_image(file, _SEAL_NAS_SUBDIR, "seal")
         is_ajax = wants_json(request)
         if err:
             if is_ajax:

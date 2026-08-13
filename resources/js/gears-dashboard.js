@@ -10,7 +10,6 @@
   var videoPushUrl = dashboardRoot.getAttribute('data-video-push-url') || '/trigger-video';
   var pageLinks = Array.prototype.slice.call(dashboardRoot.querySelectorAll('[data-page-link][role="tab"]'));
   var pagePanels = Array.prototype.slice.call(dashboardRoot.querySelectorAll('[data-page-panel]'));
-  var emptyContainers = Array.prototype.slice.call(dashboardRoot.querySelectorAll('[data-section-count]'));
   var progressBars = Array.prototype.slice.call(dashboardRoot.querySelectorAll('[data-progress-bar]'));
   var previewPlayer = dashboardRoot.querySelector('[data-video-preview-player]');
   var previewPlaceholder = dashboardRoot.querySelector('[data-video-preview-placeholder]');
@@ -122,7 +121,12 @@
   }
 
   function syncEmptyStates() {
-    emptyContainers.forEach(function (container) {
+    // Queried fresh each call: a live refresh can replace these nodes.
+    var containers = Array.prototype.slice.call(
+      dashboardRoot.querySelectorAll('[data-section-count]')
+    );
+
+    containers.forEach(function (container) {
       var count = parseInt(container.getAttribute('data-section-count') || '0', 10) || 0;
       var emptyState = container.querySelector('[data-empty-state]');
       var content = container.querySelector('[data-section-content]');
@@ -420,7 +424,10 @@
           if (!response.ok) {
             throw new Error('Delete failed');
           }
-          window.location.reload();
+          notify('Video deleted.');
+          if (window.DashboardLive) {
+            return window.DashboardLive.refresh('videos');
+          }
         })
         .catch(function () {
           notify('Could not delete the video.', { error: true });
@@ -472,6 +479,79 @@
     });
   }
 
+  // Events save posts JSON and refreshes the table in place. The form keeps its
+  // real action, so it still submits normally if this script never runs.
+  var eventsForm = dashboardRoot.querySelector('[data-events-form]');
+  if (eventsForm) {
+    eventsForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+
+      var submitButton = eventsForm.querySelector('button[type="submit"]');
+      clearFormError(eventsForm);
+      if (submitButton) {
+        submitButton.disabled = true;
+      }
+
+      var formData = new FormData(eventsForm);
+      if (token && !formData.has('__token')) {
+        formData.append('__token', token);
+      }
+
+      fetch(eventsForm.getAttribute('action'), {
+        method: 'POST',
+        headers: {
+          'X-CSRF-TOKEN': token,
+          'X-Requested-With': 'XMLHttpRequest',
+          Accept: 'application/json'
+        },
+        body: formData,
+        credentials: 'same-origin'
+      })
+        .then(function (response) {
+          return response.json().catch(function () { return null; });
+        })
+        .then(function (payload) {
+          if (!payload || !payload.ok) {
+            var errors = (payload && payload.errors) || ['Could not save the event.'];
+            throw new Error(Array.isArray(errors) ? errors.join(' ') : String(errors));
+          }
+
+          eventsForm.reset();
+          closeEventsModal();
+          notify('Event saved.');
+
+          if (window.DashboardLive) {
+            window.DashboardLive.refresh('events');
+          }
+        })
+        .catch(function (error) {
+          // Keep the modal open and show why, instead of flashing on a reload.
+          showFormError(eventsForm, error.message || 'Could not save the event.');
+        })
+        .then(function () {
+          if (submitButton) {
+            submitButton.disabled = false;
+          }
+        });
+    });
+  }
+
+  function clearFormError(form) {
+    var existing = form.querySelector('.upload-form-error');
+    if (existing) {
+      existing.remove();
+    }
+  }
+
+  function showFormError(form, message) {
+    clearFormError(form);
+    var node = document.createElement('div');
+    node.className = 'upload-form-error dashboard-alert';
+    node.innerHTML = '<ul class="dashboard-alert__list"><li></li></ul>';
+    node.querySelector('li').textContent = message;
+    form.insertBefore(node, form.firstChild);
+  }
+
   if (openEventsModalOnLoad) {
     openEventsModal();
   }
@@ -482,6 +562,32 @@
   } else if (previewPlayer) {
     setPreview('');
   }
+
+  // After a live refresh swaps the library, the previewed video may no longer
+  // exist — fall back to whatever card is now first, or to the placeholder.
+  dashboardRoot.addEventListener('live:refreshed', function (event) {
+    if (!previewPlayer || !event.detail || event.detail.section !== 'videos') {
+      return;
+    }
+
+    var current = previewPlayer.getAttribute('src') || '';
+    var stillListed = current && dashboardRoot.querySelector(
+      '[data-video-card][data-video-src="' + current.replace(/"/g, '\\"') + '"]'
+    );
+
+    if (stillListed) {
+      return;
+    }
+
+    var nextCard = dashboardRoot.querySelector('[data-video-card]');
+    setPreview(nextCard ? nextCard.getAttribute('data-video-src') : '');
+  });
+
+  window.GearsDashboard = {
+    syncEmptyStates: syncEmptyStates,
+    notify: notify,
+    setPreview: setPreview
+  };
 })();
 
 // ── Dashboard AJAX: toast + form interceptor ─────────────────────────────────

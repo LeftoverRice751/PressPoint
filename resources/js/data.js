@@ -1,3 +1,8 @@
+/* Each linkHotspot may carry an optional "targetYaw": <radians> to set the
+   heading the destination scene opens at during a warp (see kiosk-tour.js
+   warpToScene). When absent, the destination opens facing the clicked arrow's
+   own "yaw" — so no hotspot needs targetYaw unless you want to fine-tune a
+   specific arrival. */
 window.APP_DATA = {
   "scenes": [
     {

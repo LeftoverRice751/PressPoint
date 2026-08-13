@@ -1,18 +1,36 @@
 /*
  * Welcome screen — PressPoint kiosk attract page.
  *
- * Legacy visual identity (cream paper, maroon-on-orange accents) restored
- * after the editorial-broadsheet redesign was reverted. Differences from
- * the pre-redesign baseline:
- *   1. The radial-gradient background is replaced with a flat #f9f7f2 to
- *      honor the project's no-gradients rule (identical to the eye).
- *   2. Every fixed pixel dimension on the shell, hero, cards and ticker
- *      is now fluid (clamp / vw / dvh) so the page fills any viewport —
+ * Layout: status bar (org + live clock) · hero · 2x3 card grid · flash
+ * ticker, stacked in one full-height grid.
+ *
+ * Notes:
+ *   1. Colours all resolve to kiosk-tokens.css via the --w-* aliases
+ *      below. The page previously hardcoded nine values, two of which
+ *      (#8f1e24, #ff7a1a) were in no palette at all.
+ *   2. Solid fills only — the project forbids gradients.
+ *   3. Every fixed pixel dimension on the shell, hero, cards and ticker
+ *      is fluid (clamp / vw / dvh) so the page fills any viewport —
  *      phone, kiosk hardware, laptop, monitor — instead of capping at
  *      the 768x1024 touchscreen size.
- *   3. The .kiosk-idle-cta and .kiosk-logo-spin styles required by the
+ *   4. The .kiosk-idle-cta and .kiosk-logo-spin styles required by the
  *      idle attract feature live at the bottom of the file.
  */
+
+:root {
+    /* Every colour below resolves to kiosk-tokens.css. Oxblood is the brand
+       name for what the shared palette calls --kiosk-maroon; the Gears
+       dashboard carries its own drifted copy as --ink-oxblood (#491511).
+       Don't introduce a third name for it. */
+    --w-ground:  var(--kiosk-paper, #F4EFE6);
+    --w-card:    #ffffff;
+    --w-ink:     var(--kiosk-espresso, #1F0F0C);
+    --w-muted:   var(--kiosk-ink-muted, rgba(31, 15, 12, 0.62));
+    --w-oxblood: var(--kiosk-maroon, #4A1A12);
+    --w-accent:  var(--kiosk-terracotta, #CC5A1F);
+    --w-cream:   var(--kiosk-cream, #EAE3D9);
+    --w-rule:    var(--kiosk-rule, rgba(31, 15, 12, 0.18));
+}
 
 html,
 body {
@@ -20,8 +38,8 @@ body {
     height: 100%;
     margin: 0;
     overflow: hidden;
-    background: #f9f7f2;
-    color: #2f2721;
+    background: var(--w-ground);
+    color: var(--w-ink);
     font-family: var(--kiosk-font-body);
 }
 
@@ -40,7 +58,7 @@ body {
     height: 100dvh;
     max-width: none;
     overflow: hidden;
-    background: #f9f7f2;
+    background: var(--w-ground);
 }
 
 .kiosk-app {
@@ -48,8 +66,31 @@ body {
     height: 100%;
     padding: clamp(16px, 3vh, 56px) clamp(18px, 3vw, 60px) clamp(14px, 2.4vh, 40px);
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    /* status · hero · cards · ticker. The minmax(0, 1fr) on the card row is
+       what lets cards shrink below min-content on a 1024px-tall screen. */
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
     gap: clamp(12px, 2vh, 36px);
+}
+
+/* ── Status bar ──────────────────────────────────────────────────── */
+
+.kiosk-status {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--kiosk-s-3, 12px);
+    color: var(--w-muted);
+    font-family: var(--kiosk-font-ui);
+    font-size: clamp(0.72rem, 1.1vw, 0.95rem);
+    letter-spacing: 0.01em;
+}
+
+.kiosk-status__stamp {
+    display: flex;
+    gap: clamp(10px, 1.6vw, 26px);
+    white-space: nowrap;
+    /* Without tabular figures the time jitters sideways as digits change. */
+    font-variant-numeric: tabular-nums;
 }
 
 .hero {
@@ -90,17 +131,17 @@ body {
     appearance: none;
     position: relative;
     z-index: 1;
-    border: 1px solid rgba(85, 61, 42, 0.12);
-    border-radius: clamp(16px, 2vw, 28px);
-    background: #fdf8ee;
-    box-shadow: 0 18px 40px rgba(78, 56, 38, 0.12);
+    border: 1px solid var(--w-rule);
+    border-radius: clamp(10px, 1.2vw, 16px);
+    background: var(--w-card);
+    box-shadow: 0 10px 24px rgba(31, 15, 12, 0.07);
     min-height: 0;
     padding: clamp(12px, 2vw, 32px) clamp(12px, 1.6vw, 26px);
     display: grid;
     place-items: center;
     gap: clamp(8px, 1.2vw, 22px);
     text-align: center;
-    color: #2f2721;
+    color: var(--w-ink);
     cursor: pointer;
     overflow: hidden;
     transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease;
@@ -122,38 +163,42 @@ body {
 .feature-card:hover,
 .feature-card:focus-visible {
     transform: translateY(-2px);
-    box-shadow: 0 24px 48px rgba(78, 56, 38, 0.18);
+    box-shadow: 0 18px 36px rgba(31, 15, 12, 0.14);
     outline: none;
 }
 
 .feature-card.is-selected {
-    background: #8f1e24;
+    background: var(--w-oxblood);
     border-color: rgba(255, 255, 255, 0.08);
-    color: #fff8f2;
-    box-shadow: 0 24px 48px rgba(143, 30, 36, 0.28);
+    color: var(--w-cream);
+    box-shadow: 0 24px 48px rgba(74, 26, 18, 0.28);
 }
 
+/* Bare oxblood glyph sitting directly on the card — the svg inherits via
+   currentColor. The span keeps the old tile footprint so card heights
+   are unchanged. */
 .feature-card__icon {
-    width: clamp(52px, 7vw, 110px);
-    height: clamp(52px, 7vw, 110px);
-    border-radius: 999px;
-    background: rgba(143, 30, 36, 0.08);
+    width: clamp(44px, 5.5vw, 84px);
+    height: clamp(44px, 5.5vw, 84px);
+    color: var(--w-oxblood);
     display: grid;
     place-items: center;
-    transition: background-color 180ms ease, transform 180ms ease;
+    transition: color 180ms ease, transform 180ms ease;
 }
 
 .feature-card.is-selected .feature-card__icon {
-    background: #ff7a1a;
+    color: var(--w-cream);
     transform: scale(1.03);
 }
 
+/* Every glyph's paths sit within 3–21 of the 24 viewBox, so filling the
+   span leaves enough margin for the round stroke caps. */
 .feature-card__icon svg {
-    width: clamp(24px, 2.6vw, 46px);
-    height: clamp(24px, 2.6vw, 46px);
+    width: 100%;
+    height: 100%;
     stroke: currentColor;
     fill: none;
-    stroke-width: 2.2;
+    stroke-width: 1.7;
     stroke-linecap: round;
     stroke-linejoin: round;
 }
@@ -172,7 +217,7 @@ body {
     font-family: var(--kiosk-font-body);
     font-size: clamp(0.78rem, 1.1vw, 1.15rem);
     color: inherit;
-    opacity: 0.7;
+    opacity: 0.62;
 }
 
 .news-ticker {
@@ -183,9 +228,9 @@ body {
     align-items: stretch;
     border-radius: 0;
     overflow: hidden;
-    background: #fff8ec;
-    border: 1px solid rgba(92, 70, 51, 0.08);
-    box-shadow: 0 14px 28px rgba(84, 61, 42, 0.08);
+    background: var(--w-card);
+    border: 1px solid var(--w-rule);
+    box-shadow: 0 10px 24px rgba(31, 15, 12, 0.07);
     min-height: clamp(48px, 6.5vh, 72px);
 }
 
@@ -193,8 +238,8 @@ body {
     display: grid;
     place-items: center;
     padding: 0 clamp(10px, 1.4vw, 24px);
-    background: #2f2721;
-    color: #fff8f2;
+    background: var(--w-oxblood);
+    color: var(--w-cream);
     font-family: var(--kiosk-font-ui);
     font-size: clamp(0.72rem, 1vw, 1.05rem);
     font-weight: 800;
@@ -232,11 +277,11 @@ body {
     align-items: center;
     gap: clamp(8px, 1vw, 16px);
     font-size: clamp(0.85rem, 1.1vw, 1.15rem);
-    color: #2f2721;
+    color: var(--w-ink);
 }
 
 .news-ticker__bullet {
-    color: #ff7a1a;
+    color: var(--w-accent);
     font-weight: 900;
     letter-spacing: 0.05em;
 }
@@ -247,11 +292,11 @@ body {
 }
 
 .news-ticker__copy {
-    color: #7a6a5a;
+    color: var(--w-muted);
 }
 
 .news-ticker__date {
-    color: #5b4635;
+    color: var(--w-muted);
     font-weight: 700;
 }
 
@@ -286,7 +331,7 @@ body {
     height: 100dvh;
     display: grid;
     place-items: center;
-    background: #f9f7f2;
+    background: var(--w-ground);
 }
 
 .coming-soon-card {
@@ -294,9 +339,9 @@ body {
     margin: clamp(16px, 3vw, 40px);
     padding: clamp(28px, 4vw, 56px) clamp(24px, 3vw, 44px) clamp(24px, 3vw, 40px);
     border-radius: clamp(20px, 2.6vw, 36px);
-    background: #fdf8ee;
-    border: 1px solid rgba(92, 70, 51, 0.12);
-    box-shadow: 0 30px 70px rgba(27, 19, 14, 0.18);
+    background: var(--w-card);
+    border: 1px solid var(--w-rule);
+    box-shadow: 0 30px 70px rgba(31, 15, 12, 0.18);
     text-align: center;
 }
 
@@ -306,12 +351,12 @@ body {
     font-weight: 800;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: #7a6a5a;
+    color: var(--w-muted);
 }
 
 .coming-soon-card__title {
     margin: 0;
-    color: #8f1e24;
+    color: var(--w-oxblood);
     font-size: clamp(2.2rem, 4vw, 4rem);
     line-height: 1;
     font-weight: 900;
@@ -322,7 +367,7 @@ body {
     margin: clamp(10px, 1.2vw, 18px) 0 0;
     font-size: clamp(0.95rem, 1.2vw, 1.2rem);
     font-weight: 800;
-    color: #2f2721;
+    color: var(--w-ink);
 }
 
 .coming-soon-card__back {
@@ -330,8 +375,8 @@ body {
     margin-top: clamp(18px, 2.2vw, 30px);
     padding: clamp(10px, 1.2vw, 18px) clamp(16px, 1.8vw, 28px);
     border-radius: 999px;
-    background: #8f1e24;
-    color: #fff8f2;
+    background: var(--w-oxblood);
+    color: var(--w-cream);
     text-decoration: none;
     font-weight: 800;
     letter-spacing: 0.08em;
@@ -343,6 +388,9 @@ body {
 .kiosk-logo-spin {
     width: clamp(56px, 9vw, 96px);
     height: clamp(56px, 9vw, 96px);
+    /* The logo is editor-uploaded and may not be square — letterbox it into
+       the fixed spinner box rather than stretching it. */
+    object-fit: contain;
     animation: kiosk-logo-spin 2s linear infinite;
 }
 

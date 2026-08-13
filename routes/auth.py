@@ -3,11 +3,11 @@ from masonite.routes import Route
 
 ROUTES = [
     Route.get("/login","auth.LoginController@show").name("auth.login"),
-    Route.post("/login", "auth.LoginController@store").middleware("throttle:5,1").name("auth.login.store"),
+    Route.post("/login", "auth.LoginController@store").middleware("throttle:auth").name("auth.login.store"),
     Route.get("/forgot-password", "auth.PasswordResetController@show").name("auth.forgot-password"),
     Route.get("/forgot-password/otp", "auth.PasswordResetController@show_otp").name("auth.forgot-password.otp"),
     Route.post("/forgot-password", "auth.PasswordResetController@store").name("auth.forgot-password.store"),
-    Route.post("/forgot-password/otp", "auth.PasswordResetController@verify_otp").middleware("throttle:5,1").name("auth.forgot-password.otp.store"),
+    Route.post("/forgot-password/otp", "auth.PasswordResetController@verify_otp").middleware("throttle:auth").name("auth.forgot-password.otp.store"),
     Route.post("/logout", "auth.LoginController@logout").name("auth.logout"),
     Route.get("/home", "auth.HomeController@show").name("auth.home").middleware("auth"),
     Route.get("/users", "UserController@view").name("users.view").middleware("auth", "admin"),

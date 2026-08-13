@@ -1,4 +1,10 @@
 from masonite.providers import Provider
+from masonite.facades import RateLimiter
+from masonite.views import View
+
+from app.rate_limiters import GuestAuthLimiter
+from app.services import Branding
+from app.services.ImageDerivatives import news_image
 
 
 class AppProvider(Provider):
@@ -6,7 +12,23 @@ class AppProvider(Provider):
         self.application = application
 
     def register(self):
-        pass
+        # Register the view filter at startup, NOT in boot(): boot() runs
+        # per request inside the same provider loop that dispatches the route
+        # and renders the view, and AppProvider is booted last — so a filter
+        # added in boot() lands *after* the template has already rendered.
+        # View.filter() only updates the view's _filters dict (load_template
+        # re-applies it on every render), so it is safe to call here even
+        # though the Jinja env doesn't exist yet.
+        self.application.make(View).filter("news_image", news_image)
+
+        # The site logo is needed by templates that share no controller —
+        # kiosk pages, the dashboard, and the auth shell. Sharing the
+        # *function* (not its result) means every render calls it fresh;
+        # View._shared lives on the singleton, so sharing a value here
+        # would freeze whatever the logo was at boot.
+        self.application.make(View).share({"site_logo": Branding.logo_url})
 
     def boot(self):
-        pass
+        # Named limiter used by the login / OTP routes as `throttle:auth`.
+        # Per-client (see GuestAuthLimiter) so bad attempts can't lock everyone out.
+        RateLimiter.register("auth", GuestAuthLimiter("5/minute"))

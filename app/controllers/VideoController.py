@@ -4,46 +4,18 @@ from masonite.filesystem import Storage
 from masonite.utils.location import base_path
 from masonite.facades import Broadcast
 from masonite.configuration import config
-from app.models.Categories import Categories
-from app.models.Departments import Departments
-from app.models.Events import Events
-from app.models.News import News
-from app.models.Posts import Posts
-from app.models.Member import Member
 from app.models.Video import Video
-from app.models.Locations import Locations
 from masonite.response import Response
-from masonite.views import View
 import os
 import json
 import time
+import mimetypes
 import traceback
-import random
 from datetime import datetime
 
-from app.services.ArchiveServices import ArchiveServices
-from app.services.AboutContent import AboutContent
 from app.services.StorageRouter import absolute_path, is_safe_path
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.FileVerificationService import FileVerificationService
-from app.models.Archives import Archives
-
-
-_NEWS_STATUS_ALIASES = {
-    "pending": "review",
-    "reviewing": "review",
-    "publish": "published",
-    "live": "published",
-}
-_NEWS_ALLOWED_STATUSES = {"draft", "review", "approved", "scheduled", "published", "archived"}
-
-
-def _normalize_news_status(raw_status, default="approved"):
-    status = (raw_status or default or "approved").strip().lower()
-    status = _NEWS_STATUS_ALIASES.get(status, status)
-    if status not in _NEWS_ALLOWED_STATUSES:
-        return default or "approved"
-    return status
 
 
 VIDEO_UPLOAD_LIMIT = 10
@@ -73,76 +45,7 @@ def _broadcast_play_video(src, title):
         return False
 
 
-def _member_sort_key(member):
-    return (
-        int(getattr(member, "sort_order", 0) or 0),
-        (getattr(member, "name", "") or "").strip().lower(),
-        int(getattr(member, "id", 0) or 0),
-    )
-
-
-def _build_org_board_departments(departments, locations, members):
-    location_lookup = {
-        getattr(location, "id", None): location
-        for location in locations
-    }
-
-    node_lookup = {}
-    roots_by_department = {}
-
-    for member in members:
-        node = {
-            "id": getattr(member, "id", None),
-            "name": getattr(member, "name", "") or "",
-            "position": getattr(member, "position", "") or "",
-            "photo_path": getattr(member, "photo_path", "") or "",
-            "department_id": getattr(member, "department_id", None),
-            "parent_id": getattr(member, "parent_id", None),
-            "sort_order": int(getattr(member, "sort_order", 0) or 0),
-            "children": [],
-        }
-        node_lookup[node["id"]] = node
-
-    for node in sorted(node_lookup.values(), key=_member_sort_key):
-        parent_node = node_lookup.get(node["parent_id"])
-        if parent_node and parent_node["department_id"] == node["department_id"]:
-            parent_node["children"].append(node)
-        else:
-            roots_by_department.setdefault(node["department_id"], []).append(node)
-
-    def sort_branch(node):
-        node["children"].sort(key=_member_sort_key)
-        for child in node["children"]:
-            sort_branch(child)
-
-    department_rows = []
-    for department in departments:
-        roots = roots_by_department.get(getattr(department, "id", None), [])
-        roots.sort(key=_member_sort_key)
-        for root in roots:
-            sort_branch(root)
-
-        location = location_lookup.get(getattr(department, "location_id", None))
-        department_rows.append(
-            {
-                "id": getattr(department, "id", None),
-                "name": getattr(department, "name", "") or "",
-                "location_name": getattr(location, "name", "") if location else "",
-                "location_type": getattr(location, "type", "") if location else "",
-                "members": roots,
-            }
-        )
-
-    return department_rows
-
-
 class VideoController(Controller):
-    def _event_sort_key(self, item):
-        reference_at = getattr(item, "event_date", None) or getattr(item, "created_at", None)
-        if hasattr(reference_at, "timestamp"):
-            return reference_at.timestamp()
-        return 0
-
     def _video_upload_rate_limit_key(self, request: Request):
         user = request.user() if callable(getattr(request, "user", None)) else None
         if user:
@@ -200,36 +103,6 @@ class VideoController(Controller):
         self._save_video_upload_rate_limit_state(state)
         return None
 
-    def _group_news_slots(self, news_items):
-        sorted_items = sorted(
-            list(news_items or []),
-            key=lambda item: (
-                -int(getattr(item, "priority", 0) or 0),
-                -int(getattr(item, "id", 0) or 0),
-            ),
-        )
-
-        main_news = next(
-            (item for item in sorted_items if (getattr(item, "layout_type", "") or "").lower() == "main"),
-            sorted_items[0] if sorted_items else None,
-        )
-
-        secondary_news = [
-            item for item in sorted_items
-            if item is not main_news and (getattr(item, "layout_type", "secondary") or "secondary").lower() == "secondary"
-        ][:4]
-
-        widget_news = [
-            item for item in sorted_items
-            if item is not main_news and (getattr(item, "layout_type", "") or "").lower() == "widget"
-        ][:2]
-
-        return {
-            "main_news": main_news,
-            "secondary_news": secondary_news,
-            "widget_news": widget_news,
-        }
-
     def serve_storage(self, request: Request, response: Response, path):
         # /storage/<path> serves files from either the GearsNAS volume
         # (anything under Archives/ or Videos/) or the project's local
@@ -258,9 +131,57 @@ class VideoController(Controller):
         if request.header("If-None-Match") == etag:
             return response.status(304)
 
-        response.header("Cache-Control", "public, max-age=86400")
+        # Uploaded images have content-random filenames and are never
+        # overwritten, so they can cache for a year — a kiosk fetches each
+        # one once instead of daily. Other content keeps the 1-day default.
+        ext = os.path.splitext(full_path)[1].lower()
+        if ext in (".webp", ".jpg", ".jpeg", ".png", ".gif"):
+            response.header("Cache-Control", "public, max-age=31536000, immutable")
+        else:
+            response.header("Cache-Control", "public, max-age=86400")
         response.header("ETag", etag)
         response.header("Last-Modified", last_modified)
+        # Advertise range support so pdf.js (and video seeking) stream large
+        # files instead of forcing a full in-memory download. Without this,
+        # ~100 MB archive PDFs never finish loading and the reader shows
+        # "Could not open this archive".
+        response.header("Accept-Ranges", "bytes")
+
+        file_size = stat.st_size
+        range_header = request.header("Range")
+        if range_header and range_header.strip().lower().startswith("bytes="):
+            spec = range_header.split("=", 1)[1].split(",", 1)[0].strip()
+            start_str, _, end_str = spec.partition("-")
+            try:
+                if start_str == "":
+                    # Suffix range: the last N bytes of the file.
+                    suffix = int(end_str)
+                    if suffix <= 0:
+                        raise ValueError
+                    start = max(0, file_size - suffix)
+                    end = file_size - 1
+                else:
+                    start = int(start_str)
+                    end = int(end_str) if end_str else file_size - 1
+            except ValueError:
+                start, end = 0, file_size - 1
+
+            if start >= file_size or start > end:
+                response.header("Content-Range", f"bytes */{file_size}")
+                return "Requested range not satisfiable", 416
+
+            end = min(end, file_size - 1)
+            length = end - start + 1
+            with open(full_path, "rb") as fh:
+                fh.seek(start)
+                data = fh.read(length)
+
+            content_type = mimetypes.guess_type(full_path)[0] or "application/octet-stream"
+            response.status(206)
+            response.header("Content-Type", content_type)
+            response.header("Content-Range", f"bytes {start}-{end}/{file_size}")
+            # Content-Length is recomputed from the slice by make_headers().
+            return response.view(data)
 
         return response.download(os.path.basename(full_path), full_path, force=False)
 
@@ -278,169 +199,6 @@ class VideoController(Controller):
         response.header("Cache-Control", "no-store")
         return response.download("sw-archives.js", sw_path, force=False)
     
-    def show(self, views: View, request: Request):
-        posts = sorted(list(Posts.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
-        events = sorted(
-            list(Events.all() or []),
-            key=lambda item: (self._event_sort_key(item), getattr(item, "id", 0)),
-            reverse=True,
-        )
-        news_items = sorted(list(News.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
-        news_slots = self._group_news_slots(news_items)
-        news_status_counts = {
-            "draft": 0,
-            "review": 0,
-            "approved": 0,
-            "scheduled": 0,
-            "published": 0,
-            "archived": 0,
-        }
-
-        for news_item in news_items:
-            news_status = _normalize_news_status(getattr(news_item, "status", None), default="approved")
-            news_status_counts[news_status] = news_status_counts.get(news_status, 0) + 1
-        archive_services = ArchiveServices()
-        archive_records = sorted(list(Archives.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
-        archive_entries = [archive_services.build_archive_entry(archive) for archive in archive_records]
-        archive_groups_map = archive_services.group_archives_by_year(archive_records)
-        archive_years = sorted(archive_groups_map.keys(), reverse=True)
-        selected_archive_year = random.choice(archive_years) if archive_years else None
-        categories = sorted(list(Categories.all() or []), key=lambda item: getattr(item, "id", 0))
-        videos = sorted(list(Video.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
-        locations = sorted(list(Locations.all() or []), key=lambda item: getattr(item, "id", 0))
-        location_lookup = {getattr(location, "id", None): getattr(location, "name", "") for location in locations}
-        location_type_lookup = {
-            getattr(location, "id", None): (getattr(location, "type", "") or "")
-            for location in locations
-        }
-
-        existing_dept_location_ids = {
-            getattr(d, "location_id", None)
-            for d in (Departments.all() or [])
-        }
-        for location in locations:
-            if (getattr(location, "type", "") or "") != "Department":
-                continue
-            if getattr(location, "id", None) in existing_dept_location_ids:
-                continue
-            Departments.create({
-                "location_id": location.id,
-                "name": getattr(location, "name", "") or "Department",
-            })
-
-        departments = sorted(
-            [
-                d for d in list(Departments.all() or [])
-                if location_type_lookup.get(getattr(d, "location_id", None), "") == "Department"
-            ],
-            key=lambda item: (getattr(item, "name", "") or "").lower(),
-        )
-        org_board_members = sorted(
-            list(Member.all() or []),
-            key=lambda item: (
-                getattr(item, "department_id", 0) or 0,
-                getattr(item, "parent_id", 0) or 0,
-                getattr(item, "sort_order", 0) or 0,
-                (getattr(item, "name", "") or "").lower(),
-                getattr(item, "id", 0) or 0,
-            ),
-        )
-        department_lookup = {
-            getattr(department, "id", None): getattr(department, "name", "")
-            for department in departments
-        }
-        org_board_departments = _build_org_board_departments(departments, locations, org_board_members)
-        about_data = AboutContent.load_all()
-
-        published_articles = [
-            post for post in posts if (getattr(post, "status", "") or "").lower() == "published"
-        ]
-
-        category_rows = []
-        category_lookup = {getattr(category, "id", None): getattr(category, "name", "") for category in categories}
-        for category in categories:
-            article_items = [
-                post for post in posts if getattr(post, "category_id", None) == getattr(category, "id", None)
-            ]
-            category_rows.append(
-                {
-                    "name": getattr(category, "name", "Untitled category"),
-                    "count": len(article_items),
-                    "percent": round((len(article_items) / len(posts)) * 100) if posts else 0,
-                    "items": article_items[:3],
-                }
-            )
-
-        uncategorized_posts = [
-            post for post in posts if not getattr(post, "category_id", None)
-        ]
-        if uncategorized_posts:
-            category_rows.append(
-                {
-                    "name": "Uncategorized",
-                    "count": len(uncategorized_posts),
-                    "percent": round((len(uncategorized_posts) / len(posts)) * 100) if posts else 0,
-                    "items": uncategorized_posts[:3],
-                }
-            )
-
-        recent_articles = posts[:5]
-        default_page = (request.input("page") or "dashboard").strip() or "dashboard"
-
-        from app.models.TourScenes import TourScenes
-        from app.services.TourScenesCatalog import TourScenesCatalog
-
-        tour_catalog = TourScenesCatalog.all_scenes()
-        tour_mappings = {
-            (getattr(row, "scene_id", "") or ""): row
-            for row in (TourScenes.all() or [])
-        }
-        tour_scene_rows = []
-        for entry in tour_catalog:
-            mapping = tour_mappings.get(entry["scene_id"])
-            tour_scene_rows.append(
-                {
-                    "scene_id": entry["scene_id"],
-                    "scene_name": entry["name"],
-                    "location_id": getattr(mapping, "location_id", None) if mapping else None,
-                    "display_name": (getattr(mapping, "display_name", None) if mapping else "") or "",
-                }
-            )
-
-        return views.render("gears/dashboard", {
-            "posts": posts,
-            "events": events,
-            "categories": categories,
-            "videos": videos,
-            "news_items": news_items,
-            "main_news": news_slots["main_news"],
-            "secondary_news": news_slots["secondary_news"],
-            "widget_news": news_slots["widget_news"],
-            "news_status_counts": news_status_counts,
-            "archives": archive_entries,
-            "archive_years": archive_years,
-            "archive_groups": archive_groups_map,
-            "selected_archive_year": selected_archive_year,
-            "locations": locations,
-            "recent_articles": recent_articles,
-            "article_groups": category_rows,
-            "category_lookup": category_lookup,
-            "departments": departments,
-            "department_lookup": department_lookup,
-            "org_board_members": org_board_members,
-            "org_board_departments": org_board_departments,
-            "location_lookup": location_lookup,
-            "total_articles": len(posts),
-            "published_articles": len(published_articles),
-            "location_count": len(locations),
-            "news_count": len(news_items),
-            "default_page": default_page,
-            "tour_scene_rows": tour_scene_rows,
-            "sections": about_data["sections"],
-            "ordered_slugs": about_data["ordered_slugs"],
-            "milestones": about_data["milestones"],
-        })
-
     def upload(self, request: Request, storage: Storage, response: Response):
         limited_response = self._enforce_video_upload_rate_limit(request, response)
         if limited_response:

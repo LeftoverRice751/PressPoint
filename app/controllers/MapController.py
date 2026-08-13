@@ -8,6 +8,7 @@ from masonite.views import View
 
 from app.models.Locations import Locations
 from app.models.RouteSessions import RouteSessions
+from app.services import CampusGeo
 
 
 # How long a QR-shared route stays valid on the phone after the kiosk
@@ -130,13 +131,27 @@ class MapController(Controller):
     # --- helpers --------------------------------------------------------
 
     def _serialize_location(self, location):
+        """The one shape every client gets, for both the kiosk and the phone.
+
+        `latitude` / `longitude` are real WGS84. The maps are drawn as a flat
+        picture in Leaflet's CRS.Simple, which cannot use those, so the pixel
+        position is derived here and sent alongside as `map_x` / `map_y`.
+        Doing it server-side keeps the georeferencing in one language and one
+        file — no client ever needs to know the transform exists.
+        """
         name = getattr(location, "name", "") or ""
+        latitude = float(getattr(location, "latitude", 0) or 0)
+        longitude = float(getattr(location, "longitude", 0) or 0)
+        map_x, map_y = CampusGeo.to_pixel(latitude, longitude)
+
         return {
             "id": getattr(location, "id", None),
             "name": name,
             "type": getattr(location, "type", "") or "",
-            "latitude": float(getattr(location, "latitude", 0) or 0),
-            "longitude": float(getattr(location, "longitude", 0) or 0),
+            "latitude": latitude,
+            "longitude": longitude,
+            "map_x": map_x,
+            "map_y": map_y,
             "is_routable": bool(getattr(location, "is_routable", False)),
             "is_start": name.strip().lower() == KIOSK_START_LOCATION_NAME,
         }

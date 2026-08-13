@@ -539,3 +539,60 @@ class NewsEndpointsAuthMiddlewareTestCase(TestCase):
             route = router.find_by_name(name)
             self.assertIsNotNone(route, f"route {name} is not registered")
             self.assertIn("auth", route.list_middleware)
+
+
+class FeaturedImageRemovalTestCase(TestCase):
+    """The composer's Featured Image box offers a "Remove" action. store()
+    treats "no uploaded file" as "keep whatever image is already there"
+    (otherwise every text-only edit would wipe the photo), so clearing one
+    needs an explicit flag rather than an absent file."""
+
+    def _existing_record(self):
+        record = Mock(
+            id=1,
+            title="Existing",
+            description="<p>Existing</p>",
+            image="news/photo.jpg",
+            status="published",
+            layout_type="main",
+            priority=0,
+        )
+        record.save = Mock()
+        return record
+
+    def _store_with(self, record, inputs):
+        controller = NewsController()
+        base = {
+            "title": "Existing",
+            "description": "<p>Existing</p>",
+            "article_id": "1",
+            "layout_type": "main",
+            "status": "published",
+        }
+        base.update(inputs)
+        request = _mock_request(inputs=base, ajax=True)
+        response = _mock_response()
+        storage = Mock()
+
+        with patch(
+            "app.controllers.NewsController.News.where",
+            side_effect=_where_side_effect({1: record}),
+        ), patch("app.controllers.NewsController.Cache"), patch(
+            "app.controllers.NewsController.NewNews"
+        ), patch(
+            "app.controllers.NewsController.json_success", return_value="ok"
+        ):
+            controller.store(request, storage, response)
+        return record
+
+    def test_remove_image_flag_clears_the_stored_image(self):
+        record = self._store_with(self._existing_record(), {"remove_image": "1"})
+
+        self.assertIsNone(record.image)
+
+    def test_image_is_kept_when_the_flag_is_absent(self):
+        # The guard that makes a plain text edit safe — pin it so adding
+        # removal support can't turn every save into an image wipe.
+        record = self._store_with(self._existing_record(), {})
+
+        self.assertEqual(record.image, "news/photo.jpg")

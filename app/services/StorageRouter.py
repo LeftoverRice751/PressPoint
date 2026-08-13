@@ -6,7 +6,7 @@ from masonite.utils.location import base_path
 
 
 # Folders served by the GearsNAS volume.
-NAS_FOLDERS = ("Archives", "Videos", "About")
+NAS_FOLDERS = ("Archives", "Videos", "About", "Branding")
 
 
 def gearsnas_base() -> str:

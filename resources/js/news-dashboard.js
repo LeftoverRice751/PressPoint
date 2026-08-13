@@ -45,17 +45,17 @@ import Sortable from 'sortablejs';
     return Promise.resolve(window.confirm((opts && (opts.body || opts.title)) || 'Are you sure?'));
   }
 
-  // ── Page-state badge (hero) — "Live layout" vs "Unpublished changes" ──
-  // Reflects whether the composer holds edits that haven't been persisted
-  // yet. Publishing, unassigning, or deleting all write through immediately
-  // and clear it back to "Live layout"; any in-progress edit sets it dirty.
+  // ── Page-state badge (hero) — shown ONLY when there are unsaved edits ──
+  // There is deliberately no "all clear" state: a badge that is always lit
+  // says nothing and just adds noise. The clean state is silence, so the
+  // badge appearing at all means "you have work that isn't published yet".
   var layoutDirty = false;
   function setLayoutDirty(isDirty) {
     layoutDirty = !!isDirty;
     if (!stateBadge) return;
-    stateBadge.textContent = isDirty ? 'Unpublished changes' : 'Live layout';
+    stateBadge.textContent = isDirty ? 'Unpublished changes' : '';
+    stateBadge.hidden = !isDirty;
     stateBadge.classList.toggle('gears-hero__chip--dirty', !!isDirty);
-    stateBadge.classList.toggle('gears-hero__chip--live', !isDirty);
   }
   function markDirty() { setLayoutDirty(true); }
   setLayoutDirty(false);
@@ -74,6 +74,8 @@ import Sortable from 'sortablejs';
     publishedAt: field('published_at'),
     articleId:   field('article_id'),
     image:       field('image'),
+    removeImage: field('remove_image'),
+    status:      field('status'),
     layout:      form.querySelector('[data-news-layout-field]')
   };
   var propPriority = props ? props.querySelector('[data-news-prop="priority"]') : null;
@@ -387,6 +389,79 @@ import Sortable from 'sortablejs';
       f.image.files = dt.files;
     } catch (_) { /* older browsers: file will just not attach */ }
     previewImage(file);
+    // Picking a new photo cancels a staged removal — otherwise the server
+    // would clear the column and ignore the upload sitting next to it.
+    if (f.removeImage) f.removeImage.value = '';
+    setFeaturedPreview(file);
+  }
+
+  // ── Featured Image box ────────────────────────────────
+  // The canvas already accepts click-and-drop on the photo itself, but that
+  // affordance is invisible until you try it. This box is the discoverable
+  // twin — it drives the SAME hidden file input rather than adding a second
+  // upload path, so there's only ever one source of truth for the pending
+  // file.
+  var featuredPreview = props ? props.querySelector('[data-news-featured-preview]') : null;
+  var featuredEmpty   = props ? props.querySelector('[data-news-featured-empty]') : null;
+  var featuredSetBtn  = props ? props.querySelector('[data-news-featured-set]') : null;
+  var featuredRmBtn   = props ? props.querySelector('[data-news-featured-remove]') : null;
+  var featuredObjectUrl = null;
+
+  function setFeaturedPreview(src) {
+    if (!featuredPreview || !featuredEmpty) return;
+    if (featuredObjectUrl) {
+      try { URL.revokeObjectURL(featuredObjectUrl); } catch (_) {}
+      featuredObjectUrl = null;
+    }
+    var url = '';
+    if (src && typeof src !== 'string') url = (featuredObjectUrl = URL.createObjectURL(src));
+    else if (src) url = src;
+
+    if (url) {
+      featuredPreview.src = url;
+      featuredPreview.hidden = false;
+      featuredEmpty.hidden = true;
+    } else {
+      featuredPreview.removeAttribute('src');
+      featuredPreview.hidden = true;
+      featuredEmpty.hidden = false;
+    }
+    if (featuredRmBtn) featuredRmBtn.hidden = !url;
+    if (featuredSetBtn) featuredSetBtn.textContent = url ? 'Replace image' : 'Set featured image';
+  }
+
+  // A story can carry an image path whose file is missing (older rows, a
+  // failed upload). Showing a broken-image icon in the inspector is worse
+  // than showing the empty state, so fall back to it.
+  if (featuredPreview) {
+    featuredPreview.addEventListener('error', function () {
+      featuredPreview.hidden = true;
+      if (featuredEmpty) featuredEmpty.hidden = false;
+      if (featuredRmBtn) featuredRmBtn.hidden = false;
+    });
+  }
+
+  if (featuredSetBtn) {
+    featuredSetBtn.addEventListener('click', function () {
+      if (f.image) f.image.click();
+    });
+  }
+
+  if (featuredRmBtn) {
+    featuredRmBtn.addEventListener('click', function () {
+      // Clear any pending upload AND ask the server to drop the stored one.
+      try { if (f.image) f.image.value = ''; } catch (_) {}
+      if (f.removeImage) f.removeImage.value = '1';
+      setFeaturedPreview('');
+      // Mirror it on the canvas so the surface stays an honest preview.
+      var zone = activeArt ? region(activeArt, 'image') : null;
+      if (zone) {
+        zone.style.backgroundImage = '';
+        zone.classList.add('feature-story__image--fallback', 'secondary-story__thumb--fallback');
+        if (zone.tagName === 'IMG') zone.removeAttribute('src');
+      }
+      markDirty();
+    });
   }
 
   function wireImage(art) {
@@ -417,7 +492,15 @@ import Sortable from 'sortablejs';
   if (f.image) {
     f.image.addEventListener('change', function () {
       var file = f.image.files && f.image.files[0];
-      if (file) { previewImage(file); markDirty(); }
+      // Covers the Featured Image box's "Set/Replace" button too — it opens
+      // this same input, so the preview and the cancelled-removal flag are
+      // handled in one place.
+      if (file) {
+        previewImage(file);
+        if (f.removeImage) f.removeImage.value = '';
+        setFeaturedPreview(file);
+        markDirty();
+      }
     });
   }
 
@@ -523,6 +606,11 @@ import Sortable from 'sortablejs';
     try { if (f.image) f.image.value = ''; } catch (_) {}
 
     setSlot(activeSlotType);
+    // Selecting a different story drops any image removal staged against the
+    // previous one — otherwise Remove on story A would wipe story B's photo.
+    if (f.removeImage) f.removeImage.value = '';
+    setStatus(data.status || 'published');
+    setFeaturedPreview(data.image ? '/storage/' + String(data.image).replace(/\\/g, '/') : '');
     if (activeLabel) activeLabel.textContent = data.id ? ('Editing: ' + (data.title || 'Untitled')) : 'New story';
     return true;
   }
@@ -572,19 +660,56 @@ import Sortable from 'sortablejs';
     .catch(function () { toast('Request failed — please try again.', true); });
   }
 
+  // ── Publish box (WordPress-style status + two exits) ──
+  // The status field used to be hardcoded to "published" in the template,
+  // which is why the library's Drafts/Scheduled filters could never match.
+  // NewsController already understands the whole status vocabulary and keeps
+  // non-public statuses off the kiosk, so this is purely the missing UI.
+  var statusLabel = props ? props.querySelector('[data-news-status-label]') : null;
+  var STATUS_LABELS = {
+    draft: 'Draft',
+    review: 'Pending review',
+    approved: 'Published',
+    scheduled: 'Scheduled',
+    published: 'Published',
+    archived: 'Archived'
+  };
+
+  function setStatus(value) {
+    var status = value || 'published';
+    if (f.status) f.status.value = status;
+    if (statusLabel) statusLabel.textContent = STATUS_LABELS[status] || status;
+  }
+
+  function submitWithStatus(button, status, busyLabel, okMessage) {
+    if (!button) return;
+    syncFormFromSurface();
+    setStatus(status);
+    button.disabled = true;
+    var label = button.textContent;
+    button.textContent = busyLabel;
+    postForm(function (json) {
+      toast((json.messages && json.messages[0]) || okMessage, false);
+      setLayoutDirty(false);
+      // A saved story no longer has a pending image removal staged.
+      if (f.removeImage) f.removeImage.value = '';
+      if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
+      refreshCanvasFragment(okMessage);
+    });
+    setTimeout(function () { button.disabled = false; button.textContent = label; }, 4000);
+  }
+
   var saveBtn = composer.querySelector('[data-news-canvas-save]');
   if (saveBtn) {
     saveBtn.addEventListener('click', function () {
-      syncFormFromSurface();
-      saveBtn.disabled = true;
-      var label = saveBtn.textContent;
-      saveBtn.textContent = 'Publishing…';
-      postForm(function (json) {
-        toast((json.messages && json.messages[0]) || 'Story published.', false);
-        setLayoutDirty(false);
-        if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
-      });
-      setTimeout(function () { saveBtn.disabled = false; saveBtn.textContent = label; }, 4000);
+      submitWithStatus(saveBtn, 'published', 'Publishing…', 'Story published.');
+    });
+  }
+
+  var draftBtn = composer.querySelector('[data-news-save-draft]');
+  if (draftBtn) {
+    draftBtn.addEventListener('click', function () {
+      submitWithStatus(draftBtn, 'draft', 'Saving…', 'Draft saved.');
     });
   }
 
@@ -675,6 +800,123 @@ import Sortable from 'sortablejs';
     });
   }
 
+  // ── Right-click menu on a canvas slot ─────────────────
+  // Opening the menu SELECTS the story first, so the properties panel and
+  // the hidden form both point at it. That means the destructive actions can
+  // delegate straight to the existing inspector buttons instead of repeating
+  // their fetch/confirm/refresh logic — one implementation, one behaviour.
+  var contextMenu = composer.querySelector('[data-news-context-menu-el]');
+  var contextTitle = contextMenu ? contextMenu.querySelector('[data-news-context-title]') : null;
+  var contextTargetArt = null;
+  var contextOpenedAt = 0;
+
+  var SLOT_NAMES = { main: 'Lead', secondary: 'Side', widget: 'Widget' };
+
+  function closeContextMenu() {
+    if (!contextMenu || contextMenu.hidden) return;
+    contextMenu.hidden = true;
+    if (contextTargetArt) contextTargetArt.classList.remove('is-context-target');
+    contextTargetArt = null;
+  }
+
+  function openContextMenu(art, x, y) {
+    if (!contextMenu) return;
+    contextTargetArt = art;
+    art.classList.add('is-context-target');
+
+    var slotType = art.getAttribute('data-news-context-menu') || 'secondary';
+    var titleRegion = region(art, 'title');
+    var storyTitle = titleRegion ? (titleRegion.textContent || '').trim() : '';
+    if (contextTitle) {
+      contextTitle.textContent = (SLOT_NAMES[slotType] || 'Story') + (storyTitle ? ' · ' + storyTitle : '');
+    }
+
+    // Show first so the box has measurable dimensions, then clamp it inside
+    // the viewport (a right-click near the bottom edge would otherwise open
+    // a menu you can't reach).
+    contextMenu.hidden = false;
+    contextOpenedAt = Date.now();
+    var rect = contextMenu.getBoundingClientRect();
+    var left = Math.min(x, window.innerWidth - rect.width - 8);
+    var top = Math.min(y, window.innerHeight - rect.height - 8);
+    contextMenu.style.left = Math.max(8, left) + 'px';
+    contextMenu.style.top = Math.max(8, top) + 'px';
+
+    var firstItem = contextMenu.querySelector('[data-news-context-action]');
+    // preventScroll matters: the menu is already positioned at the pointer,
+    // and letting focus() scroll an ancestor fires the scroll listener below
+    // — which would close the menu in the same tick it opened.
+    if (firstItem) firstItem.focus({ preventScroll: true });
+  }
+
+  if (editor && contextMenu) {
+    editor.addEventListener('contextmenu', function (event) {
+      var art = event.target.closest('[data-news-context-menu]');
+      if (!art || !editor.contains(art)) return;
+      var id = art.getAttribute('data-news-id');
+      if (!id) return;
+
+      event.preventDefault();
+      var slotType = art.getAttribute('data-news-context-menu') || 'secondary';
+      if (!selectStory(id, slotType, art)) return;
+
+      // The context-menu KEY fires this event too, with no useful pointer
+      // coordinates — fall back to the slot's own corner so keyboard users
+      // get the menu somewhere sensible.
+      var x = event.clientX;
+      var y = event.clientY;
+      if (!x && !y) {
+        var artRect = art.getBoundingClientRect();
+        x = artRect.left + 12;
+        y = artRect.top + 12;
+      }
+      openContextMenu(art, x, y);
+    });
+
+    contextMenu.addEventListener('click', function (event) {
+      var item = event.target.closest('[data-news-context-action]');
+      if (!item) return;
+      var action = item.getAttribute('data-news-context-action');
+      var art = contextTargetArt;
+      closeContextMenu();
+
+      if (action === 'edit') {
+        // Already selected when the menu opened — put the caret in the
+        // headline so "Edit" actually starts an edit.
+        var titleRegion = art ? region(art, 'title') : null;
+        if (titleRegion) {
+          titleRegion.focus();
+          if (typeof titleRegion.scrollIntoView === 'function') {
+            titleRegion.scrollIntoView({ block: 'center' });
+          }
+        }
+        return;
+      }
+      if (action === 'unassign' && unassignBtn) { unassignBtn.click(); return; }
+      if (action === 'delete' && deleteBtn) { deleteBtn.click(); }
+    });
+
+    // Dismiss on mousedown, not click: a right-click never produces a click
+    // event (it goes mousedown → contextmenu → mouseup → auxclick), and
+    // mousedown lands BEFORE contextmenu, so right-clicking a second slot
+    // cleanly closes the first menu before the new one opens.
+    document.addEventListener('mousedown', function (event) {
+      if (contextMenu.hidden) return;
+      if (!contextMenu.contains(event.target)) closeContextMenu();
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') closeContextMenu();
+    });
+    // A menu pinned with position:fixed would otherwise float away from the
+    // slot it belongs to. Ignore any scroll in the same frame as the open —
+    // focusing the first item can itself nudge a scroll container.
+    window.addEventListener('resize', closeContextMenu);
+    window.addEventListener('scroll', function () {
+      if (Date.now() - contextOpenedAt < 150) return;
+      closeContextMenu();
+    }, true);
+  }
+
   // ── Library: open drawer / place on front page / add / select / edit body ─
   // Delegated from the dashboard root: the drawer's card grid and the
   // canvas's slot content both sit outside [data-news-composer] or get their
@@ -715,6 +957,23 @@ import Sortable from 'sortablejs';
     if (placeBtn && libraryDrawer && libraryDrawer.contains(placeBtn)) {
       var card = placeBtn.closest('[data-news-library-item]');
       if (card) handlePlaceStory(placeBtn, card);
+      return;
+    }
+
+    // All Posts table "Trash" row action. Selects the row's story so the
+    // shared delete handler (which reads the hidden form's article_id, and
+    // owns the confirm + refresh) acts on the right one.
+    var trashBtn = event.target.closest('[data-news-library-trash]');
+    if (trashBtn && libraryDrawer && libraryDrawer.contains(trashBtn)) {
+      var trashRow = trashBtn.closest('[data-news-library-item]');
+      var trashId = trashRow ? trashRow.getAttribute('data-news-library-id') : '';
+      if (trashId && deleteBtn) {
+        // Not tied to a canvas slot — an unassigned story has no article
+        // element — so select by id alone and let the inspector do the rest.
+        if (selectStory(trashId, trashRow.getAttribute('data-news-library-layout') || 'secondary', null)) {
+          deleteBtn.click();
+        }
+      }
       return;
     }
 
@@ -807,13 +1066,38 @@ import Sortable from 'sortablejs';
   // reused as-is from before), and one list PER widget position (cap 1
   // each, so the 2-widget cap falls out of there being exactly two such
   // lists — see `_news_slots.html`'s `data-news-slot-list="widget"`
-  // wrappers). Every persistence path below (drag end, Move Up/Down) reads
-  // the FINAL post-move DOM and resends the whole canvas' membership/order
-  // through one `news.layout` POST, renumbered from `globalMaxPriority()+1`
-  // — the same base Task 4's placement path already uses. That reconciles
-  // H6 (persistOrder used to start numbering at 0, colliding with the
-  // 1-7 range live rows already occupy): there is now exactly one
-  // numbering scheme for every write path, not two.
+  // wrappers).
+  //
+  // Fix round 1, C1: membership/counting is now ALWAYS by the generic
+  // `[data-news-id]` presence check, never by a bucket-specific class
+  // (`.feature-story`/`.secondary-story`/`.info-card`). A card physically
+  // moved into a different bucket container (by Sortable, or by our own
+  // swap/relocate below) keeps its ORIGINAL class — it does not get
+  // reclassed — so a `.secondary-story` selector run against the main
+  // container would silently miss a card that just moved there. Counting
+  // by `data-news-id` alone is correct regardless of which class the node
+  // still carries. The bucket-specific selectors below (`CANVAS_LIST_
+  // SELECTOR`) are kept ONLY for Sortable's own `draggable` option at
+  // (re)init time, when the DOM is guaranteed freshly server-rendered and
+  // therefore correctly classed.
+  //
+  // The VISUAL problem C1 also named — a moved card's inner markup
+  // (figure/kicker/copy vs thumb+body vs title+copy) doesn't match its new
+  // bucket's shape — is NOT something a class fix can solve: the fix is
+  // the server re-render every successful mutation now triggers (see
+  // `afterCanvasMutation`), which redraws the whole canvas with correct
+  // per-bucket markup. The immediate optimistic badge/placeholder updates
+  // below are a best-effort visual bridge until that refresh lands (or, if
+  // a genuinely-dirty unrelated edit defers the refresh, the best
+  // available approximation) — they are not the authoritative fix.
+  //
+  // Every persistence path below (drag end, Move Up/Down) reads the FINAL
+  // post-move DOM and resends the whole canvas' membership/order through
+  // one `news.layout` POST, numbered 1..N (fix round 1, C2 — see
+  // `currentCanvasBatch`). That reconciles H6 (persistOrder used to start
+  // numbering at 0, colliding with the 1-7 range live rows already
+  // occupy): there is now exactly one numbering scheme for every write
+  // path that owns the whole canvas.
   var CANVAS_LIST_SELECTOR = {
     main: '.feature-story',
     secondary: '.secondary-story:not(.is-scratch)',
@@ -821,10 +1105,14 @@ import Sortable from 'sortablejs';
   };
   var canvasSortables = [];
 
-  function realCardNodes(container, selector) {
+  // Generic, class-independent membership check (fix round 1, C1): a real
+  // card is any element with a non-empty `data-news-id`, regardless of
+  // which bucket's class it still carries. Placeholders/empty-state divs
+  // never have this attribute at all, so they're excluded automatically.
+  function realCardNodes(container) {
     if (!container) return [];
     return Array.prototype.filter.call(
-      container.querySelectorAll(selector),
+      container.querySelectorAll('[data-news-id]'),
       function (el) { return !!el.getAttribute('data-news-id'); }
     );
   }
@@ -850,10 +1138,6 @@ import Sortable from 'sortablejs';
     return container ? container.getAttribute('data-news-slot-list') : null;
   }
 
-  function selectorForContainer(container) {
-    return CANVAS_LIST_SELECTOR[bucketTypeOfContainer(container)] || '[data-news-id]';
-  }
-
   // Every widget CONTAINER is individually capacity 1 — the 2-widget total
   // is two such containers, not one container capped at 2 (H1: this keeps
   // a promoted-main's displacement, or any overflow, a same-shape swap
@@ -866,7 +1150,7 @@ import Sortable from 'sortablejs';
   }
 
   function containerHasRoom(container) {
-    return realCardNodes(container, selectorForContainer(container)).length < containerCapacity(container);
+    return realCardNodes(container).length < containerCapacity(container);
   }
 
   function bucketRank(container) {
@@ -878,9 +1162,29 @@ import Sortable from 'sortablejs';
   function flatCanvasCards() {
     var out = [];
     allContainersInOrder().forEach(function (c) {
-      out = out.concat(realCardNodes(c, selectorForContainer(c)));
+      out = out.concat(realCardNodes(c));
     });
     return out;
+  }
+
+  // The main slot's empty-state markup is cloned from a `<template>` the
+  // page itself renders (see `_news_slots.html`), instead of being
+  // hardcoded here (fix round 1, minor 11) — so it can't drift from what
+  // the server actually renders for an empty front page.
+  var mainEmptyTemplate = root.querySelector('[data-news-main-empty-template]');
+
+  // Fix round 1, I7: a polite live region announces the RESULT of a
+  // Move Up/Down press — right now a non-sighted user gets no confirmation
+  // a move happened beyond whatever their screen reader says about focus
+  // moving, which doesn't convey the new position.
+  var moveAnnouncer = root.querySelector('[data-news-move-announcer]');
+  function announceCardPosition(cardNode) {
+    if (!moveAnnouncer || !cardNode) return;
+    var titleEl = cardNode.querySelector('[data-news-edit="title"]');
+    var title = (titleEl && titleEl.textContent.trim()) || 'Story';
+    var badge = cardNode.querySelector('[data-news-position-badge]');
+    var posText = (badge && badge.textContent) || 'a new position';
+    moveAnnouncer.textContent = title + ' moved to ' + posText + '.';
   }
 
   // Rebuilds every bucket's "+ Assign story…" placeholders (and the main
@@ -888,21 +1192,23 @@ import Sortable from 'sortablejs';
   // than incrementally patching them — the position numbering only has to
   // be right in one place this way. Markup matches _news_slots.html's
   // server-rendered placeholders exactly so `data-news-assign-slot` clicks
-  // keep opening the drawer pre-scoped to the right slot.
+  // keep opening the drawer pre-scoped to the right slot. This is a
+  // best-effort OPTIMISTIC bridge — the follow-up server refresh in
+  // `afterCanvasMutation` is what's authoritative.
   function syncPlaceholders() {
     var lists = slotListContainers();
     if (lists.main) {
-      var mainReal = realCardNodes(lists.main, CANVAS_LIST_SELECTOR.main);
+      var mainReal = realCardNodes(lists.main);
       var mainEmpty = lists.main.querySelector('.paper-empty');
-      if (mainReal.length === 0 && !mainEmpty) {
-        lists.main.insertAdjacentHTML('beforeend', '<div class="paper-empty">No stories have been published yet.</div>');
+      if (mainReal.length === 0 && !mainEmpty && mainEmptyTemplate && mainEmptyTemplate.content) {
+        lists.main.appendChild(mainEmptyTemplate.content.cloneNode(true));
       } else if (mainReal.length > 0 && mainEmpty) {
         mainEmpty.remove();
       }
     }
     if (lists.secondary) {
       Array.prototype.slice.call(lists.secondary.querySelectorAll('.paper-empty')).forEach(function (el) { el.remove(); });
-      var secReal = realCardNodes(lists.secondary, CANVAS_LIST_SELECTOR.secondary);
+      var secReal = realCardNodes(lists.secondary);
       for (var p = secReal.length + 1; p <= 4; p++) {
         lists.secondary.insertAdjacentHTML(
           'beforeend',
@@ -913,7 +1219,7 @@ import Sortable from 'sortablejs';
       }
     }
     lists.widget.forEach(function (w) {
-      var real = realCardNodes(w, CANVAS_LIST_SELECTOR.widget);
+      var real = realCardNodes(w);
       var existingBtn = w.querySelector('.paper-empty--action');
       if (real.length === 0 && !existingBtn) {
         var pos = w.getAttribute('data-news-slot-position') || '1';
@@ -955,19 +1261,30 @@ import Sortable from 'sortablejs';
     });
   }
 
-  // Generic adjacent-node swap: exchanges two cards' DOM positions
-  // (including across different parent containers) in one pass. Used for
-  // both the common in-bucket reorder and cross-bucket-boundary moves —
-  // because it's always a 1-for-1 exchange, no bucket's membership COUNT
-  // can ever change, so capacity can never be violated by a swap.
+  // Generic node swap via a stable marker anchor (fix round 1, I4). The
+  // straightforward "capture nextSibling, insertBefore twice" approach the
+  // two deleted fast-paths AND the plain two-step fallback both used is
+  // provably a no-op when the two nodes are truly DOM-adjacent with no
+  // intervening node (which server-rendered markup normally avoids via
+  // whitespace text nodes between `<article>`s, but `fixOverflow`/
+  // `relocate*` produce via `appendChild`, which inserts no such
+  // whitespace) — `insertBefore(x, y)` is a no-op when x is already
+  // immediately before y, and the second insertBefore's captured
+  // `nextSibling` reference has gone stale by the time it runs. A marker
+  // node sidesteps this entirely: it stays put as a fixed anchor while a
+  // and b are individually relocated to each other's original slot, so
+  // the swap is correct whether the two nodes are adjacent (with or
+  // without an intervening whitespace node) or far apart, same parent or
+  // different parents.
   function swapNodes(a, b) {
     if (!a || !b || a === b) return;
-    var aParent = a.parentNode, aNext = a.nextSibling;
-    var bParent = b.parentNode, bNext = b.nextSibling;
-    if (aNext === b) { bParent.insertBefore(a, b); return; }
-    if (bNext === a) { aParent.insertBefore(b, a); return; }
+    var aParent = a.parentNode, bParent = b.parentNode;
+    if (!aParent || !bParent) return;
+    var marker = document.createComment('news-swap-marker');
+    aParent.insertBefore(marker, a);
     bParent.insertBefore(a, b);
-    aParent.insertBefore(b, aNext);
+    marker.parentNode.insertBefore(b, marker);
+    marker.parentNode.removeChild(marker);
   }
 
   // Relocating into open room (no swap partner) is always safe by
@@ -998,59 +1315,110 @@ import Sortable from 'sortablejs';
 
   // Reads the FINAL (post-move, post-capacity-fixup) canvas DOM and builds
   // one news.layout batch covering every real card currently on the
-  // canvas — main, secondary, and both widget positions — renumbered
-  // consecutively from globalMaxPriority()+1 in render order. Resending the
-  // whole canvas rather than just the moved card keeps this one coherent
-  // transaction (H6) instead of drag and placement fighting over what the
-  // "next" priority is.
+  // canvas — main, secondary, and both widget positions — numbered 1..N in
+  // render order (fix round 1, C2). `globalMaxPriority()+1` was right for
+  // Task 4's single-story INSERT (it only had to stay above the existing
+  // lowest-priority fallback main), but this path rewrites the WHOLE
+  // canvas and always sends an explicit `layout_type` for every row it
+  // touches — so Task 4's fallback-main concern doesn't apply here, and
+  // numbering from 1 is what's required to outrank every off-canvas
+  // assignable row (otherwise an off-canvas row sorts ahead of an
+  // on-canvas one the next time the bucket is truncated, per C2's proof).
   function currentCanvasBatch() {
     var lists = slotListContainers();
     var items = [];
-    var base = globalMaxPriority() + 1;
     var idx = 0;
     function push(type, els) {
       els.forEach(function (el) {
         var id = parseInt(el.getAttribute('data-news-id'), 10);
         if (!id) return;
-        items.push({ id: id, layout_type: type, priority: base + idx });
         idx += 1;
+        items.push({ id: id, layout_type: type, priority: idx });
       });
     }
-    if (lists.main) push('main', realCardNodes(lists.main, CANVAS_LIST_SELECTOR.main));
-    if (lists.secondary) push('secondary', realCardNodes(lists.secondary, CANVAS_LIST_SELECTOR.secondary));
-    lists.widget.forEach(function (w) { push('widget', realCardNodes(w, CANVAS_LIST_SELECTOR.widget)); });
+    if (lists.main) push('main', realCardNodes(lists.main));
+    if (lists.secondary) push('secondary', realCardNodes(lists.secondary));
+    lists.widget.forEach(function (w) { push('widget', realCardNodes(w)); });
     return items;
   }
 
-  function persistCanvasOrder() {
+  // Fix round 1, minor 9: an in-flight guard against overlapping requests.
+  // Two quick drags/moves can fire two POSTs whose responses land out of
+  // order; only the response to the MOST RECENTLY issued request is
+  // allowed to drive the follow-up refresh/toast — a stale one is silently
+  // dropped (its write already happened or failed server-side either way;
+  // this only guards which response gets to act on the UI).
+  var canvasPersistSeq = 0;
+
+  // `onSettled` (fix round 1, minor 8) fires once this operation's outcome
+  // is fully resolved — after a successful refresh's reinitCanvas(), after
+  // a dirty-gated skip, after a refresh failure, or immediately for a
+  // failed/superseded POST — so a caller like Move Up/Down can restore
+  // focus against whatever DOM is ACTUALLY current at that point, rather
+  // than a node a same-tick refresh may already have replaced.
+  function persistCanvasOrder(onSettled) {
     var items = currentCanvasBatch();
-    if (!items.length) return;
+    if (!items.length) { if (onSettled) onSettled(); return; }
+    canvasPersistSeq += 1;
+    var mySeq = canvasPersistSeq;
     postLayout(items).then(function (json) {
+      if (mySeq !== canvasPersistSeq) return; // superseded by a newer drag/move
       if (json && json.__sessionExpired) {
         toast('Your session has expired — reload the page and sign in again.', true);
+        if (onSettled) onSettled();
         return;
       }
       if (json && json.ok) {
-        toast('Order updated.', false);
+        // Fix round 1, C3: the drag/move already persisted — it is not an
+        // unpublished edit, so this must NOT set the dirty badge (that was
+        // the bug: a stale hidden-form layout_type/priority for the active
+        // story would then get RE-WRITTEN, reverting the move, the next
+        // time Publish ran). Re-syncing the library grid THEN the canvas —
+        // same order handlePlaceStory already uses — lets
+        // refreshCanvasFragment's own reinitCanvas()/seedActiveStory() do
+        // the resync (it already re-reads the active story's slot/priority
+        // from its, now-fresh, library card), rather than duplicating that
+        // logic here. If an unrelated pending text edit is currently
+        // marking the layout dirty, refreshCanvasFragment defers exactly
+        // like it already does for unassign/delete — the write is safe
+        // either way, only the visual catch-up waits.
+        if (window.DashboardLive) window.DashboardLive.refresh('news');
+        refreshCanvasFragment('Order updated', onSettled);
       } else {
-        toast((json && json.errors && json.errors[0]) || 'Could not save the new order — reload to check.', true);
+        // The server rejected the batch — the client-side DOM the user is
+        // looking at now shows an order that never actually saved. With
+        // markDirty() no longer called on this path (fix round 1, C3), the
+        // dirty gate isn't stuck, so re-rendering from the server snaps the
+        // canvas back to what's actually true instead of leaving a
+        // silently-wrong order on screen (fix round 1, "not required, your
+        // call" — taken, since the fix that unstuck the gate makes this
+        // essentially free).
+        toast((json && json.errors && json.errors[0]) || 'Could not save the new order — reverting to the last saved layout.', true);
+        if (window.DashboardLive) window.DashboardLive.refresh('news');
+        refreshCanvasFragment('Reverted', onSettled);
       }
     }).catch(function () {
-      toast('Request failed while saving order — reload to check.', true);
+      if (mySeq !== canvasPersistSeq) { if (onSettled) onSettled(); return; }
+      toast('Request failed — reverting to the last saved layout.', true);
+      if (window.DashboardLive) window.DashboardLive.refresh('news');
+      refreshCanvasFragment('Reverted', onSettled);
     });
   }
 
-  // Runs after every canvas mutation (drag end or Move Up/Down): fix up
-  // any capacity overflow left by Sortable's raw DOM move, rebuild
-  // placeholders, drop the stale occupancy overlay (H4/H5 — the DOM itself
-  // is authoritative again immediately after this), persist, renumber
-  // badges, and mark the layout dirty (deliverable 5).
-  function afterCanvasMutation() {
+  // Runs after every canvas mutation (drag end or Move Up/Down): rebuild
+  // placeholders and badges as an optimistic bridge, drop the stale
+  // occupancy overlay (H4/H5 — the DOM is authoritative again immediately
+  // after this), and persist — which on success triggers the library +
+  // canvas server refresh that is the authoritative fix for both the
+  // visual shape problem (C1) and the stale-form problem (C3). Deliberately
+  // does NOT call markDirty() (fix round 1, C3/root fix): a drag/move
+  // writes through news.layout immediately, so it is never an "unpublished
+  // change" in the sense that badge represents.
+  function afterCanvasMutation(onSettled) {
     syncPlaceholders();
     virtualSlots = null;
-    persistCanvasOrder();
     renumberPositionBadges();
-    markDirty();
+    persistCanvasOrder(onSettled);
   }
 
   // Sortable already performed the raw DOM move by the time onEnd fires,
@@ -1068,10 +1436,13 @@ import Sortable from 'sortablejs';
   //   by the insertion, but if the dropped card itself lands past the cap
   //   (e.g. appended to an already-full list), it is the one evicted,
   //   which reads as a clean reject/bounce-back.
+  // Fix round 1, C1: membership is read generically (realCardNodes no
+  // longer takes a bucket-specific selector), so a card that already moved
+  // into `toContainer` under its OLD class is still correctly counted.
   function fixOverflow(toContainer, fromContainer, draggedNode) {
     if (!toContainer) return;
     var cap = containerCapacity(toContainer);
-    var members = realCardNodes(toContainer, selectorForContainer(toContainer));
+    var members = realCardNodes(toContainer);
     if (members.length <= cap) return;
     var evicted;
     if (cap === 1) {
@@ -1103,6 +1474,11 @@ import Sortable from 'sortablejs';
       canvasSortables.push(Sortable.create(container, {
         group: 'news-canvas',
         animation: 150,
+        // Valid at (re)init time only — the DOM here is always freshly
+        // server-rendered (initial page load, or right after
+        // reinitCanvas()'s refresh), so every card still carries its
+        // correct bucket class. This selector is never used again to judge
+        // membership after a move; see the realCardNodes() comment above.
         draggable: CANVAS_LIST_SELECTOR[type],
         // Scratch cards (unsaved "+ Add a story") and the Move Up/Down
         // buttons themselves must never start a drag — `preventOnFilter:
@@ -1114,6 +1490,25 @@ import Sortable from 'sortablejs';
       }));
     });
     renumberPositionBadges();
+  }
+
+  // Fix round 1, minor 8: refocus after a move. The node the click
+  // originated on may be gone by the time this runs (a server refresh just
+  // replaced editor.innerHTML), so this always re-finds the card by id in
+  // whatever the CURRENT canvas DOM is, not the stale node reference.
+  // Prefers the button for the SAME direction that was just pressed if
+  // it's still enabled, falls back to the opposite direction (e.g. a card
+  // that just moved to the very top loses its "up" button but keeps
+  // "down"), and falls back further to a stable, always-present toolbar
+  // target rather than losing focus to <body>.
+  function restoreMoveFocus(id, direction) {
+    var card = id ? editor.querySelector('[data-news-id="' + id + '"]') : null;
+    var primary = card ? card.querySelector('[data-news-move="' + direction + '"]') : null;
+    var otherDir = direction === 'up' ? 'down' : 'up';
+    var other = card ? card.querySelector('[data-news-move="' + otherDir + '"]') : null;
+    if (primary && !primary.disabled) { primary.focus(); return; }
+    if (other && !other.disabled) { other.focus(); return; }
+    if (libraryOpenBtn) libraryOpenBtn.focus();
   }
 
   // Move Up/Down: an adjacent swap in the flat render-order sequence
@@ -1139,9 +1534,15 @@ import Sortable from 'sortablejs';
       else { swapNodes(cardNode, cards[idx + 1]); moved = true; }
     }
     if (!moved) return;
-    afterCanvasMutation();
-    var btn = cardNode.querySelector('[data-news-move="' + direction + '"]');
-    if (btn && !btn.disabled) btn.focus();
+    var movedId = cardNode.getAttribute('data-news-id');
+    // Immediate feedback against the current (pre-refresh) DOM, PLUS the
+    // same restoration again once the async persist/refresh actually
+    // settles (fix round 1, minor 8) — the refresh may replace this exact
+    // node in the meantime, and the second call re-finds it by id in
+    // whatever DOM is current at that point.
+    restoreMoveFocus(movedId, direction);
+    announceCardPosition(cardNode);
+    afterCanvasMutation(function () { restoreMoveFocus(movedId, direction); });
   }
 
   initCanvasSortable();
@@ -1553,10 +1954,16 @@ import Sortable from 'sortablejs';
   // `actionLabel` (round 2, new minor) lets unassign/delete route through
   // this same fix without the toast claiming a story was "Placed" when it
   // was actually removed or deleted.
-  function refreshCanvasFragment(actionLabel) {
+  // `onDone` (fix round 1, minor 8) fires after the refresh actually
+  // settles — success, the dirty-gate skip, or a fetch failure alike — so a
+  // caller that needs to act on the FINAL post-refresh DOM (e.g. Move
+  // Up/Down restoring focus) doesn't have to guess whether an innerHTML
+  // swap happened first.
+  function refreshCanvasFragment(actionLabel, onDone) {
     var label = actionLabel || 'Placed';
     if (layoutDirty) {
       toast(label + '. The canvas view is behind because of unpublished edits — publish them to bring it up to date.', false);
+      if (onDone) onDone();
       return;
     }
     fetch('/gears/dashboard/fragment/news-canvas', {
@@ -1567,6 +1974,7 @@ import Sortable from 'sortablejs';
       .then(function (json) {
         if (!json || !json.ok || !editor) {
           toast(label + ', but the canvas could not be refreshed — reload to see it there.', true);
+          if (onDone) onDone();
           return;
         }
         editor.innerHTML = json.html;
@@ -1581,9 +1989,11 @@ import Sortable from 'sortablejs';
         if (document.activeElement === document.body && libraryOpenBtn) {
           libraryOpenBtn.focus();
         }
+        if (onDone) onDone();
       })
       .catch(function () {
         toast(label + ', but the canvas could not be refreshed — reload to see it there.', true);
+        if (onDone) onDone();
       });
   }
 

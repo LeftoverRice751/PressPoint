@@ -1,22 +1,43 @@
-          {% for news in news_items %}
-          {% set _slot_label = {'main': 'Lead', 'secondary': 'Side', 'widget': 'Widget'}.get(news.layout_type, 'Side') %}
-          {% set _story_status = (news.status if news.status else 'approved') %}
-          <article class="news-story-card" data-news-library-item data-news-library-id="{{ news.id }}" data-news-library-title="{{ news.title | e }}" data-news-library-description="{{ news.description | default('', true) | e }}" data-news-library-source="{{ news.source | default('', true) | e }}" data-news-library-location="{{ news.location | default('', true) | e }}" data-news-library-layout="{{ news.layout_type | default('secondary', true) | e }}" data-news-library-status="{{ _story_status | e }}" data-news-library-priority="{{ news.priority if news.priority is not none else 0 }}" data-news-library-image="{{ news.image | default('', true) | e }}" data-news-library-dek="{{ news.dek | default('', true) | e }}" data-news-library-excerpt="{{ news.excerpt | default('', true) | e }}" data-news-library-caption="{{ news.image_caption | default('', true) | e }}" data-news-library-credit="{{ news.image_credit | default('', true) | e }}">
-            <div class="news-story-card__topline">
-              <span class="news-story-card__slot">{{ _slot_label }}</span>
-              <span class="news-story-card__status news-story-card__status--{{ _story_status | lower }}">{{ _story_status | capitalize }}</span>
-            </div>
-            <div class="news-story-card__title">{{ news.title }}</div>
-            <div class="news-story-card__copy">{{ news.description[:140] if news.description else 'No summary available.' }}</div>
-            <div class="news-story-card__meta">
-              <span>{{ news.source if news.source else 'Unspecified' }}</span>
-              <span>Order {{ news.priority if news.priority is not none else 0 }}</span>
-            </div>
-            <div class="news-story-card__actions">
-              <button type="button" class="ghost-button" data-news-place-story>Place on Front Page</button>
-            </div>
-          </article>
-          {% else %}
-          <div class="empty-state empty-state--embedded">No data available.</div>
-          {% endfor %}
-        
+{# Story Library — WordPress "All Posts" style table.
+   Replaces the old card grid: denser, scannable, and it scales past the
+   handful of stories a card grid can show. The data-news-library-* attributes
+   are the composer JS's read surface (news-dashboard.js reads them to place a
+   story into a slot) — they moved from <article> to <tr> unchanged. #}
+<table class="wp-posts-table">
+  <thead>
+    <tr>
+      <th scope="col" class="wp-posts-table__col-title">Title</th>
+      <th scope="col">Author</th>
+      <th scope="col">Slot</th>
+      <th scope="col">Status</th>
+      <th scope="col">Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for news in news_items %}
+    {% set _slot_label = {'main': 'Lead', 'secondary': 'Side', 'widget': 'Widget'}.get(news.layout_type, 'Side') %}
+    {% set _story_status = (news.status if news.status else 'approved') %}
+    <tr class="wp-posts-table__row" data-news-library-item data-news-library-id="{{ news.id }}" data-news-library-title="{{ news.title | e }}" data-news-library-description="{{ news.description | default('', true) | e }}" data-news-library-source="{{ news.source | default('', true) | e }}" data-news-library-location="{{ news.location | default('', true) | e }}" data-news-library-layout="{{ news.layout_type | default('secondary', true) | e }}" data-news-library-status="{{ _story_status | e }}" data-news-library-priority="{{ news.priority if news.priority is not none else 0 }}" data-news-library-image="{{ news.image | default('', true) | e }}" data-news-library-dek="{{ news.dek | default('', true) | e }}" data-news-library-excerpt="{{ news.excerpt | default('', true) | e }}" data-news-library-caption="{{ news.image_caption | default('', true) | e }}" data-news-library-credit="{{ news.image_credit | default('', true) | e }}">
+      <td class="wp-posts-table__title-cell">
+        <div class="wp-posts-table__title">{{ news.title }}</div>
+        <div class="wp-posts-table__excerpt">{{ news.excerpt if news.excerpt else (news.description | striptags | truncate(90) if news.description else 'No summary available.') }}</div>
+        {# Row actions: WordPress reveals these on hover. Kept in the DOM
+           always so they stay keyboard-reachable. #}
+        <div class="wp-posts-table__actions">
+          <button type="button" class="wp-row-action" data-news-place-story>Place on Front Page</button>
+          <span class="wp-row-action__sep" aria-hidden="true">|</span>
+          <button type="button" class="wp-row-action wp-row-action--trash" data-news-library-trash>Trash</button>
+        </div>
+      </td>
+      <td>{{ news.source if news.source else 'Unspecified' }}</td>
+      <td><span class="wp-posts-table__slot">{{ _slot_label }}</span></td>
+      <td><span class="news-story-card__status news-story-card__status--{{ _story_status | lower }}">{{ _story_status | capitalize }}</span></td>
+      <td class="wp-posts-table__date">{{ news.published_label if news.published_label else '—' }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="5"><div class="empty-state empty-state--embedded">No data available.</div></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

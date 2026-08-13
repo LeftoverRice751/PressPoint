@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gears: Archives</title>
   <link rel="stylesheet" href="/assets/css/kiosk-tokens.css" />
-
+  <link rel="stylesheet" href="/assets/css/swiper-bundle.min.css" />
   <link rel="stylesheet" href="/assets/css/kiosk-archives.css" />
   <link rel="stylesheet" href="/assets/css/kiosk-archive-book.css" />
   <link rel="stylesheet" href="/assets/css/kiosk-loading.css" />
@@ -18,25 +18,31 @@
   >
     <header class="archive-header">
       <div class="archive-header__brand">
-        <h1 class="archive-header__title">Gears: Archives</h1>
+        <div class="archive-header__name">
+          <h1 class="archive-header__title">The Gears: Archives</h1>
+        </div>
       </div>
 
       <div class="archive-header__meta">
-        <div class="archive-header__meta-label">Selected Portfolio</div>
+        <div class="archive-header__meta-label">Selected Year</div>
         <div class="archive-header__meta-value" data-archive-year-label>{{ selected_year if selected_year else '—' }}</div>
       </div>
     </header>
 
     <main class="archive-stage">
 
-      <!-- 1. Carousel (swipe to navigate) -->
-      <div class="archive-carousel-shell perspective-1000">
-        <div class="archive-track" data-archive-track>
-          {% if archives %}
+      <!-- 1. Coverflow carousel (Swiper) -->
+      <div class="archive-coverflow" data-archive-coverflow>
+        <button type="button" class="archive-arrow-btn archive-arrow-btn--prev" data-archive-prev aria-label="Previous issue">
+          <span aria-hidden="true">&#8249;</span>
+        </button>
+
+        <div class="swiper archive-swiper" data-archive-swiper>
+          <div class="swiper-wrapper">
             {% for archive in archives %}
             <button
               type="button"
-              class="archive-card"
+              class="swiper-slide archive-card"
               data-archive-card
               data-index="{{ loop.index0 }}"
               data-archive-id="{{ archive.id if archive.id else '' }}"
@@ -44,51 +50,44 @@
               data-title="{{ archive.name | e }}"
               data-type="{{ archive.type | e }}"
               data-cover-url="{{ archive.cover_url }}"
-              data-page-two-url="{{ archive.page_two_url }}"
               data-file-url="{{ archive.pdf_url }}"
               data-page-count="{{ archive.page_count }}"
               data-is-tabloid="{{ '1' if archive.is_tabloid else '0' }}"
-              data-page-url-base="{{ archive.page_url_base }}"
               data-first-page-url="{{ archive.first_page_url }}"
-              data-second-page-url="{{ archive.second_page_url }}"
+              {# Instant-open contract: the reader paints these pre-rendered
+                 pages immediately and only fetches the (large) PDF once the
+                 reader is engaged. A count of 0 means nothing is prewarmed,
+                 which tells the reader to load the PDF straight away. #}
+              data-page-url-base="{{ archive.page_url_base }}"
+              data-prewarmed-pages="{{ archive.prewarmed_pages if archive.prewarmed_pages else 0 }}"
             >
-              <span class="archive-card__shadow" aria-hidden="true"></span>
-              <span class="archive-card__stage">
-                <span class="archive-card__face archive-card__face--front">
-                  <span class="archive-card__cover-wrap">
-                    {% if archive.cover_url %}
-                    <img class="archive-card__cover" loading="lazy" decoding="async" src="{{ archive.cover_url }}" alt="{{ archive.name | e }} cover" />
-                    {% else %}
-                    <span class="archive-card__fallback" aria-hidden="true">
-                      <span class="archive-card__fallback-line"></span>
-                      <span class="archive-card__fallback-title">{{ archive.name }}</span>
-                      <span class="archive-card__fallback-subtitle">{{ archive.type }}</span>
-                    </span>
-                    {% endif %}
-                  </span>
+              <span class="archive-card__cover-wrap">
+                {% if archive.cover_url %}
+                <img class="archive-card__cover" loading="lazy" decoding="async" src="{{ archive.cover_url }}" alt="{{ archive.name | e }} cover" draggable="false" />
+                {% else %}
+                <span class="archive-card__fallback" aria-hidden="true">
+                  <span class="archive-card__fallback-rule"></span>
+                  <span class="archive-card__fallback-masthead">{{ archive.name }}</span>
+                  <span class="archive-card__fallback-type">{{ archive.type }}</span>
+                  <span class="archive-card__fallback-year">{{ archive.year if archive.year else '' }}</span>
                 </span>
-                <span class="archive-card__face archive-card__face--back">
-                  <span class="archive-card__cover-wrap archive-card__cover-wrap--back">
-                    <iframe
-                      class="archive-card__page-view"
-                      data-archive-page-two
-                      data-page-two-src="{{ archive.page_two_url }}"
-                      title="{{ archive.name | e }} page 2"
-                      loading="lazy"
-                      aria-label="{{ archive.name | e }} page 2"
-                    ></iframe>
-                  </span>
-                </span>
+                {% endif %}
               </span>
             </button>
             {% endfor %}
-          {% else %}
-            <div class="archive-empty-state">
-              <div class="archive-empty-state__title">No archives uploaded yet</div>
-              <p class="archive-empty-state__text">Upload PDF archives from the editor dashboard to populate this view.</p>
-            </div>
-          {% endif %}
+          </div>
         </div>
+
+        {% if not archives %}
+        <div class="archive-empty-state">
+          <div class="archive-empty-state__title">No archives uploaded yet</div>
+          <p class="archive-empty-state__text">Upload PDF archives from the editor dashboard to populate this view.</p>
+        </div>
+        {% endif %}
+
+        <button type="button" class="archive-arrow-btn archive-arrow-btn--next" data-archive-next aria-label="Next issue">
+          <span aria-hidden="true">&#8250;</span>
+        </button>
       </div>
 
       <!-- 2. Details + count -->
@@ -96,10 +95,10 @@
         <div class="archive-details__eyebrow" data-archive-type>—</div>
         <h2 class="archive-details__title" data-archive-title>—</h2>
         <div class="archive-details__year" data-archive-published>—</div>
-        <div class="archive-details__count" data-archive-count aria-live="polite"></div>
+        <div class="archive-details__count" data-archive-count></div>
       </section>
 
-      <!-- 3. Category tabs — bottom for ergonomic kiosk reach -->
+      <!-- 3. Category tabs -->
       <nav class="archive-categories" aria-label="Archive categories" data-archive-categories>
         <span class="archive-categories__rule" aria-hidden="true"></span>
         <button type="button" class="archive-category-button" data-archive-category-button data-category="all">
@@ -138,89 +137,36 @@
         {% endif %}
       </nav>
 
-      <!-- 5. Back link -->
-      <a class="archive-back-link" href="{{ route('kiosk') }}">Back to kiosk</a>
-
     </main>
 
-    <div class="archive-book-overlay" data-archive-book data-mode="folio" hidden aria-hidden="true">
+    <!-- Reader overlay: one mount per reading mode, adapters attach at runtime -->
+    <div class="archive-book-overlay" data-archive-book hidden aria-hidden="true">
       <div class="kiosk-loader" data-archive-loader hidden>
-        <img class="kiosk-loader__logo" src="/gears.png" alt="" aria-hidden="true">
+        <img class="kiosk-loader__logo" src="{{ site_logo() }}" alt="" aria-hidden="true">
       </div>
 
       <div class="archive-book-overlay__backdrop" data-archive-book-backdrop></div>
 
-      <div class="archive-book-stage" data-archive-book-stage>
-        <div class="archive-book" data-archive-book-frame>
-          <!-- Folio (book flip) -->
-          <div class="archive-book__spread" data-archive-book-spread>
-            <div class="archive-book__page archive-book__page--left" data-archive-book-left>
-              <img class="archive-book__page-image" data-archive-book-left-image alt="" />
-              <span class="archive-book__page-blank" aria-hidden="true"></span>
-            </div>
-            <div class="archive-book__page archive-book__page--right" data-archive-book-right>
-              <img class="archive-book__page-image" data-archive-book-right-image alt="" />
-              <span class="archive-book__page-blank" aria-hidden="true"></span>
-            </div>
-
-            <div class="archive-book__flipper" data-archive-book-flipper aria-hidden="true">
-              <div class="archive-book__flipper-face archive-book__flipper-face--front">
-                <img class="archive-book__page-image" data-archive-book-flipper-front alt="" />
-              </div>
-              <div class="archive-book__flipper-face archive-book__flipper-face--back">
-                <img class="archive-book__page-image" data-archive-book-flipper-back alt="" />
-              </div>
-            </div>
-
-            <button type="button" class="archive-folio-btn archive-folio-btn--prev"
-                    data-archive-folio-prev aria-label="Previous pages">&larr;</button>
-            <button type="button" class="archive-folio-btn archive-folio-btn--next"
-                    data-archive-folio-next aria-label="Next pages">&rarr;</button>
-          </div>
-
-          <!-- Tabloid (broadsheet column reader) -->
-          <div class="archive-book__tabloid" data-archive-book-tabloid>
-            <div class="archive-book__tabloid-pan" data-tabloid-pan>
-              <img class="archive-book__page-image" data-archive-book-tabloid-image alt="" />
-            </div>
-            <div class="archive-book__tabloid-controls">
-              <button type="button" class="archive-pill" data-tabloid-toggle-zoom>
-                <span data-tabloid-zoom-label>Read column</span>
-              </button>
-              <div class="archive-book__tabloid-nav">
-                <button type="button" class="archive-arrow" data-tabloid-prev aria-label="Previous page">&larr;</button>
-                <button type="button" class="archive-arrow" data-tabloid-next aria-label="Next page">&rarr;</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Magazine (glossy spread + filmstrip) -->
-          <div class="archive-mag" data-archive-mag>
-            <div class="archive-mag__viewport" data-mag-viewport>
-              <div class="archive-mag__track" data-mag-track></div>
-            </div>
-            <div class="archive-mag__filmstrip" data-mag-filmstrip></div>
-          </div>
-
-          <!-- Newsletter (vertical scroll letter) -->
-          <div class="archive-news" data-archive-news>
-            <div class="archive-news__scroll" data-news-scroll>
-              <div class="archive-news__stack" data-news-stack></div>
-            </div>
-            <div class="archive-news__rail" data-news-rail aria-hidden="true">
-              <span class="archive-news__rail-fill" data-news-rail-fill></span>
-              <div class="archive-news__rail-dots" data-news-rail-dots></div>
-            </div>
-          </div>
-        </div>
+      <div class="reader-stage" data-reader-stage>
+        <div class="reader-mount reader-mount--book"   data-reader-book   hidden></div>
+        <div class="reader-mount reader-mount--zoom"   data-reader-zoom   hidden></div>
+        <div class="reader-mount reader-mount--scroll" data-reader-scroll hidden></div>
       </div>
 
-      <div class="archive-book-overlay__controls">
-        <button type="button" class="archive-book-overlay__back" data-archive-book-back>
-          <span class="archive-book-overlay__back-icon" aria-hidden="true">&larr;</span>
+      <div class="reader-chrome" data-reader-chrome>
+        <button type="button" class="reader-chrome__back" data-reader-back>
+          <span aria-hidden="true">&larr;</span>
           <span>Back to selection</span>
         </button>
-        <div class="archive-book-overlay__pager" data-archive-book-pager>—</div>
+        <div class="reader-chrome__pager" data-reader-pager>&mdash;</div>
+        <div class="reader-chrome__nav" data-reader-nav hidden>
+          <button type="button" class="reader-chrome__nav-btn reader-chrome__nav-btn--prev" data-reader-prev aria-label="Previous page">
+            <span aria-hidden="true">&#8249;</span>
+          </button>
+          <button type="button" class="reader-chrome__nav-btn reader-chrome__nav-btn--next" data-reader-next aria-label="Next page">
+            <span aria-hidden="true">&#8250;</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

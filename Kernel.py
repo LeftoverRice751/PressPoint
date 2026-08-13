@@ -18,11 +18,6 @@ from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMidd
 from masonite.middleware import ThrottleRequestsMiddleware
 
 
-HTTP_MIDDLEWARE = [
-    ThrottleRequestsMiddleware,
-]
-
-
 class Kernel:
 
     http_middleware = [MaintenanceModeMiddleware, EncryptCookies, DatabaseReconnectMiddleware]
@@ -32,6 +27,9 @@ class Kernel:
         "auth": [AuthenticationMiddleware],
         "admin": [AdminMiddleware],
         "super_admin": [SuperAdminMiddleware],
+        # Keyed middleware: used as e.g. .middleware("throttle:5/minute").
+        # It requires a limit argument, so it must never sit bare in a group.
+        "throttle": ThrottleRequestsMiddleware,
     }
 
     def __init__(self, app):

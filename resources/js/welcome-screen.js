@@ -9,6 +9,64 @@ document.addEventListener("DOMContentLoaded", () => {
   const flashUpdatesEvent = "new-news";
   const pusherScriptId = "welcome-flash-pusher-script";
 
+  // ── Status-bar clock ────────────────────────────────────────────
+  //
+  // Pinned to campus time so a kiosk whose system clock is set to the
+  // wrong zone still shows the right hour.
+  const CLOCK_TZ = "Asia/Manila";
+  const clockDateEl = document.querySelector("[data-clock-date]");
+  const clockTimeEl = document.querySelector("[data-clock-time]");
+  const clockStampEl = document.querySelector("[data-kiosk-clock]");
+
+  const clockDateFmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: CLOCK_TZ,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  const clockTimeFmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: CLOCK_TZ,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  let clockTimer = null;
+
+  // Re-reads the system clock every tick and re-arms on the next minute
+  // boundary. A fixed setInterval would drift over the multi-week uptime
+  // this terminal sees, and ticking every second would repaint 60x more
+  // often than the display actually changes.
+  function renderClock() {
+    if (!clockDateEl || !clockTimeEl) {
+      return;
+    }
+
+    const now = new Date();
+    clockDateEl.textContent = clockDateFmt.format(now);
+    clockTimeEl.textContent = clockTimeFmt.format(now);
+    if (clockStampEl) {
+      clockStampEl.setAttribute("datetime", now.toISOString());
+    }
+
+    if (clockTimer) {
+      clearTimeout(clockTimer);
+    }
+    const msToNextMinute = 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
+    clockTimer = setTimeout(renderClock, msToNextMinute + 50);
+  }
+
+  if (clockDateEl && clockTimeEl) {
+    renderClock();
+    // Background tabs get their timers throttled, so the first frame after
+    // waking would otherwise show a stale minute.
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        renderClock();
+      }
+    });
+  }
+
   function escapeHtml(value) {
     return String(value)
       .replaceAll("&", "&amp;")

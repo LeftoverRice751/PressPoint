@@ -10,12 +10,14 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/auth-change-password.js', 'storage/compiled/js')
   .js('resources/js/auth-otp-code.js', 'storage/compiled/js')
   .js('resources/js/gears-dashboard.js', 'storage/compiled/js')
+  .js('resources/js/dashboard-live.js', 'storage/compiled/js')
   .js('resources/js/upload-meter.js', 'storage/compiled/js')
   .js('resources/js/confirm-modal.js', 'storage/compiled/js')
   .js('resources/js/news-dashboard.js', 'storage/compiled/js')
   .js('resources/js/kiosk-archives.js', 'storage/compiled/js')
   .js('resources/js/kiosk-archive-book.js', 'storage/compiled/js')
   .js('resources/js/kiosk-map.js', 'storage/compiled/js')
+  .js('resources/js/kiosk-news.js', 'storage/compiled/js')
   .js('resources/js/mobile-route.js', 'storage/compiled/js')
   .js('resources/js/kiosk-tour.js', 'storage/compiled/js')
   .js('resources/js/data.js', 'storage/compiled/js')
@@ -24,6 +26,8 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/about-lspu-kiosk.js', 'storage/compiled/js')
   .js('resources/js/about-lspu-editor.js', 'storage/compiled/js')
   .js('resources/js/org-board.js', 'storage/compiled/js')
+  .js('resources/js/org-chart-layout.js', 'storage/compiled/js')
+  .js('resources/js/org-board-editor.js', 'storage/compiled/js')
   .postCss('resources/css/app.css', 'storage/compiled/css', [
     //
   ])
@@ -114,6 +118,20 @@ mix.copy(
 mix.copy(
   "resources/js/sw-archives.js",
   "storage/compiled/js/sw-archives.js",
+)
+// Vendor Swiper's stylesheet the same way as pdf.js rather than
+// `import 'swiper/css'` in a JS entry: Mix extracts JS-imported CSS to
+// storage/compiled/js/<entry>.css — an unlinked path that shadows the
+// real /assets/css/ stylesheet. A verbatim copy is deterministic.
+mix.copy(
+  "node_modules/swiper/swiper-bundle.min.css",
+  "storage/compiled/css/swiper-bundle.min.css",
+)
+// Quill's snow theme stylesheet — vendored (not JS-imported) for the same
+// reason as Swiper above; linked from the dashboard where the news editor lives.
+mix.copy(
+  "node_modules/quill/dist/quill.snow.css",
+  "storage/compiled/css/quill.snow.css",
 )
 // Brand fonts — drop files into resources/fonts/{Columna,Gilroy,Gotham}/
 // before deploying. The copy is a no-op if the directory is empty.

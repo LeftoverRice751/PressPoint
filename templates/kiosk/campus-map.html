@@ -14,10 +14,9 @@
 
       .map-header                 brand bar + title (no back button here)
       .campus-map-page__stage     full-bleed map + every overlay
-        - leaflet map
-        - zoom controls (top-right, large)
+        - leaflet map (sized to the image's aspect, pinned to the top)
         - suggestions panel (top, while typing)
-        - building pane (left strip; QR view lives inline here)
+        - building pane (bottom dock; QR view lives inline here)
         - category rail (above the search bar; doubles as legend)
         - search bar (full-bleed black band at the bottom of the stage)
       .keyboard                   slides up; map shrinks above it
@@ -26,7 +25,7 @@
 <div class="campus-map-page" id="campus-map-page">
   <header class="map-header">
     <div class="map-header__brand">
-      <img class="map-header__brand-mark" src="/gears.png" alt="" aria-hidden="true" />
+      <img class="map-header__brand-mark" src="{{ site_logo() }}" alt="" aria-hidden="true" />
       <span class="map-header__brand-text">
         <span class="map-header__brand-eyebrow">PRESSPOINT</span>
         <span class="map-header__brand-line">WAYFINDING TERMINAL</span>
@@ -46,21 +45,10 @@
 
   <main class="campus-map-page__stage" id="campus-map-stage">
     <div class="kiosk-loader is-visible" data-map-loader>
-      <img class="kiosk-loader__logo" src="/gears.png" alt="" aria-hidden="true">
+      <img class="kiosk-loader__logo" src="{{ site_logo() }}" alt="" aria-hidden="true">
     </div>
 
     <div id="campus-map" class="campus-map-page__map"></div>
-
-    <!-- Zoom controls + coordinate readout — stacked in the bottom-right corner. -->
-    <div class="map-controls-stack">
-      <div class="map-coordinate-readout" id="map-coordinate-readout" aria-live="polite" aria-atomic="true">
-        Click the map to read coordinates
-      </div>
-      <div class="map-zoom" aria-hidden="false">
-        <button type="button" class="map-zoom__btn" id="zoom-in" aria-label="Zoom in">+</button>
-        <button type="button" class="map-zoom__btn" id="zoom-out" aria-label="Zoom out">−</button>
-      </div>
-    </div>
 
     <!-- Suggestions overlay — shown while typing or filtering by category. -->
     <div id="suggestions" class="suggestions suggestions--hidden">
@@ -71,26 +59,29 @@
       <ul id="suggestions-list" class="suggestions__list"></ul>
     </div>
 
-    <!-- Building detail pane — full-height left strip. QR view lives inline. -->
+    <!-- Building detail pane — bottom dock so the map stays visible above it.
+         Each view is a two-column row: content on one side, actions or QR on
+         the other, which keeps the dock short. -->
     <aside id="building-pane" class="building-pane building-pane--hidden" aria-hidden="true">
-      <button type="button" class="building-pane__close" id="building-pane-close" aria-label="Close">
-        <span aria-hidden="true">×</span>
-      </button>
+      {# No floating × here: both views carry a full-size CLOSE/DONE button,
+         and a 52px corner target was under the kiosk touch floor anyway. #}
 
       <!-- View 1: building info + Show Route action. -->
       <div id="building-pane-info" class="building-pane__view">
-        <span class="building-pane__type" id="building-pane-type"></span>
-        <h2 class="building-pane__name" id="building-pane-name"></h2>
-        <dl class="building-pane__coords">
-          <div>
-            <dt>LATITUDE</dt>
-            <dd id="building-pane-lat">—</dd>
-          </div>
-          <div>
-            <dt>LONGITUDE</dt>
-            <dd id="building-pane-lng">—</dd>
-          </div>
-        </dl>
+        <div class="building-pane__col">
+          <span class="building-pane__type" id="building-pane-type"></span>
+          <h2 class="building-pane__name" id="building-pane-name"></h2>
+          <dl class="building-pane__coords">
+            <div>
+              <dt>LATITUDE</dt>
+              <dd id="building-pane-lat">—</dd>
+            </div>
+            <div>
+              <dt>LONGITUDE</dt>
+              <dd id="building-pane-lng">—</dd>
+            </div>
+          </dl>
+        </div>
         <div class="building-pane__actions">
           <button type="button" class="building-pane__action" id="show-route">
             <span class="building-pane__action-arrow" aria-hidden="true">→</span>
@@ -107,22 +98,26 @@
 
       <!-- View 2: QR handoff. Inline in the pane, never modal. -->
       <div id="building-pane-qr" class="building-pane__view building-pane__view--hidden">
-        <span class="building-pane__qr-eyebrow">TAKE IT WITH YOU</span>
-        <h3 class="building-pane__qr-title">Scan to continue<br>on your phone</h3>
-        <p class="building-pane__qr-subtitle">
-          Open your camera. Point it at the code. The route follows you on the way there.
-        </p>
         <div id="qr-canvas" class="building-pane__qr-canvas"></div>
-        <p class="building-pane__qr-help">
-          <span class="building-pane__qr-pulse" aria-hidden="true"></span>
-          LINK VALID FOR 30 MIN
-        </p>
-        <button type="button"
-                class="building-pane__action building-pane__action--secondary"
-                data-pane-close>
-          <span class="building-pane__action-arrow" aria-hidden="true">×</span>
-          <span class="building-pane__action-label">DONE</span>
-        </button>
+        <div class="building-pane__col">
+          <span class="building-pane__qr-eyebrow">TAKE IT WITH YOU</span>
+          <h3 class="building-pane__qr-title">Scan to continue on your phone</h3>
+          <p class="building-pane__qr-subtitle">
+            Open your camera. Point it at the code. The route follows you on the way there.
+          </p>
+          <p class="building-pane__qr-help">
+            <span class="building-pane__qr-pulse" aria-hidden="true"></span>
+            LINK VALID FOR 30 MIN
+          </p>
+          <div class="building-pane__actions">
+            <button type="button"
+                    class="building-pane__action building-pane__action--secondary"
+                    data-pane-close>
+              <span class="building-pane__action-arrow" aria-hidden="true">×</span>
+              <span class="building-pane__action-label">DONE</span>
+            </button>
+          </div>
+        </div>
       </div>
     </aside>
 

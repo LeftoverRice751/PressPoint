@@ -6,12 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Login{% endblock %} · Presspoint</title>
+    <link rel="icon" href="{{ site_logo() }}">
     <link rel="stylesheet" href="/assets/css/kiosk-tokens.css">
     <link rel="stylesheet" href="/assets/css/auth-shell.css">
     {% block head %}{% endblock %}
 </head>
 <body class="auth-body">
-    <div class="auth-shell {% block auth_shell_class %}{% endblock %}">
+    <div class="auth-shell {% block auth_shell_class %}{% endblock %}"
+         style="--brand-mark: url('{{ site_logo() }}')">
         {% block auth_rail %}
         <aside class="auth-rail">
             <div class="auth-brand">

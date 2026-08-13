@@ -6,10 +6,10 @@
 
 {% block content %}
 <section class="auth-panel auth-panel--narrow">
-    <div class="auth-panel__header">
-        <div class="auth-panel__eyebrow">Secure access</div>
-        <h2 class="auth-panel__title">Login</h2>
-        <p class="auth-panel__subtitle">Enter your credentials to open the GEARS CMS dashboard.</p>
+    <div class="auth-panel__header auth-panel__header--center">
+        <h2 class="auth-panel__title">Gears Publication</h2>
+        <p class="auth-panel__welcome">Welcome</p>
+        <p class="auth-panel__subtitle">Sign in to Gears or sign up to continue</p>
     </div>
 
     {% if bag().any() %}
@@ -26,26 +26,24 @@
         {{ csrf_field | safe }}
 
         <label class="auth-form__group" for="username">
-            <span class="auth-form__label">Username</span>
-            <input id="username" type="text" name="username" placeholder="username" autocomplete="username" class="auth-form__input" required />
+            <span class="auth-form__label sr-only">Username</span>
+            <input id="username" type="text" name="username" placeholder="Username" autocomplete="username" class="auth-form__input" required />
         </label>
 
         <label class="auth-form__group" for="password">
-            <span class="auth-form__label">Password</span>
-            <div class="password-field">
-                <input id="password" type="password" name="password" placeholder="password" autocomplete="current-password" class="auth-form__input" required />
-                <button type="button" class="password-toggle" data-password-toggle="password" aria-label="Show password">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
-            </div>
+            <span class="auth-form__label sr-only">Password</span>
+            <input id="password" type="password" name="password" placeholder="Password" autocomplete="current-password" class="auth-form__input" required />
         </label>
 
-        <button type="submit" class="auth-form__button">Login</button>
-
-        <div class="auth-form__footer">
-            <span>Don't have an account? Register</span>
-            <a class="auth-form__link" href="{{ route('auth.forgot-password') }}">Forgot Password</a>
+        <div class="auth-form__options">
+            <label class="auth-checkbox">
+                <input type="checkbox" data-toggle-password="password" />
+                <span>Show password</span>
+            </label>
+            <a class="auth-form__link" href="{{ route('auth.forgot-password') }}">Forgot Password?</a>
         </div>
+
+        <button type="submit" class="auth-form__button">Sign in</button>
     </form>
 </section>
 {% endblock %}

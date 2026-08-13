@@ -44,8 +44,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const drawRoute = (start, destination) => {
-        const startPos = [Number(start.latitude), Number(start.longitude)];
-        const destPos = [Number(destination.latitude), Number(destination.longitude)];
+        // Pixel positions on campus-map.png, y first — see the note in
+        // kiosk-map.js. The real WGS84 sits on `latitude`/`longitude`, unused
+        // here because this map is a picture rather than a geographic one.
+        const startPos = [Number(start.map_y), Number(start.map_x)];
+        const destPos = [Number(destination.map_y), Number(destination.map_x)];
 
         L.circleMarker(startPos, {
             radius: 9,

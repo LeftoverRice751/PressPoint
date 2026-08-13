@@ -14,7 +14,9 @@ class Member(Model):
         "position",
         "photo_path", 
         "parent_id",
-        "sort_order"
+        "sort_order",
+        "pos_x",
+        "pos_y"
         ]
 
     @has_many("id", "parent_id")

@@ -19,4 +19,18 @@
             updateIcon(toggle, !showing);
         });
     });
+
+    // "Show password" checkbox — toggles one or more password inputs
+    // (space-separated ids in data-toggle-password) between hidden/visible.
+    Array.from(document.querySelectorAll('[data-toggle-password]')).forEach(function (checkbox) {
+        var ids = (checkbox.getAttribute('data-toggle-password') || '').split(/\s+/).filter(Boolean);
+        var inputs = ids.map(function (id) { return document.getElementById(id); }).filter(Boolean);
+        if (!inputs.length) return;
+
+        checkbox.addEventListener('change', function () {
+            inputs.forEach(function (input) {
+                input.type = checkbox.checked ? 'text' : 'password';
+            });
+        });
+    });
 })();

@@ -16,6 +16,7 @@ from masonite.providers import (
     AuthorizationProvider,
     HashServiceProvider,
     ORMProvider,
+    RateProvider,
 )
 
 
@@ -46,5 +47,6 @@ PROVIDERS = [
     ValidationProvider,
     AuthorizationProvider,
     ORMProvider,
+    RateProvider,
     AppProvider,
 ]

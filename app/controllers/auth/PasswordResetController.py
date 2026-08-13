@@ -121,8 +121,8 @@ class PasswordResetController(Controller):
             )
             return response.back().with_errors(["OTP code has expired. Please request a new one."])
         
-        request.session.put("reset_token", otp)
-        request.session.put("reset_email", reset_record["email"])
+        request.session.set("reset_token", otp)
+        request.session.set("reset_email", reset_record["email"])
         
         return response.redirect(name="auth.change-password")
 
@@ -151,8 +151,8 @@ class PasswordResetController(Controller):
     
 
         if not is_valid:
-            request.session.forget("reset_token")
-            request.session.forget("reset_email")
+            request.session.delete("reset_token")
+            request.session.delete("reset_email")
             return response.back().with_errors(["Password must be strong and confirmed."])
 
         reset_table = config("auth.guards.password_reset_table", "password_resets")
@@ -183,8 +183,8 @@ class PasswordResetController(Controller):
             [token],
         )
         
-        request.session.forget("reset_token")
-        request.session.forget("reset_email")
+        request.session.delete("reset_token")
+        request.session.delete("reset_email")
 
         return response.redirect(name="auth.login").with_success([
             "Password Reset Successfully",

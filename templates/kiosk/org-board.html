@@ -6,31 +6,6 @@
 {% endblock %}
 
 {% block content %}
-{% macro render_kiosk_member(member, depth=0) %}
-<div class="ob-member ob-member--depth-{{ depth if depth <= 3 else 3 }}">
-  <div class="ob-member__card">
-    <div class="ob-member__avatar">
-      {% if member.photo_path %}
-      <img src="/storage/{{ member.photo_path }}" alt="{{ member.name }}" loading="lazy" />
-      {% else %}
-      <span class="ob-member__initials" aria-hidden="true">{{ (member.name[:1] or '?') | upper }}</span>
-      {% endif %}
-    </div>
-    <div class="ob-member__info">
-      <div class="ob-member__name">{{ member.name }}</div>
-      <div class="ob-member__position">{{ member.position if member.position else 'Member' }}</div>
-    </div>
-  </div>
-  {% if member.children %}
-  <div class="ob-member__children">
-    {% for child in member.children %}
-    {{ render_kiosk_member(child, depth + 1) }}
-    {% endfor %}
-  </div>
-  {% endif %}
-</div>
-{% endmacro %}
-
 <div class="ob-page" data-org-board>
   <header class="ob-masthead">
     <div class="ob-masthead__row">
@@ -65,10 +40,13 @@
 
         <div class="ob-card__body">
           {% if dept.members %}
-          <div class="ob-card__tree">
-            {% for member in dept.members %}
-            {{ render_kiosk_member(member, 0) }}
-            {% endfor %}
+          <div class="ob-card__chart" data-ob-chart>
+            <div class="ob-chart__spacer" data-ob-chart-spacer aria-hidden="true"></div>
+            <div class="ob-chart__stage" data-ob-chart-stage>
+              <svg class="ob-chart__edges" data-ob-chart-edges xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
+              <div class="ob-chart__nodes" data-ob-chart-nodes></div>
+            </div>
+            <script type="application/json" data-ob-chart-data>{{ dept.members | tojson }}</script>
           </div>
           {% else %}
           <div class="ob-card__empty">
@@ -131,5 +109,6 @@
 {% endblock %}
 
 {% block js %}
+<script src="/assets/js/org-chart-layout.js" defer></script>
 <script src="/assets/js/org-board.js" defer></script>
 {% endblock %}

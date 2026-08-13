@@ -1044,7 +1044,7 @@ ensureTourDependencies()
   var state = {
     locations: [],
     sceneByLocation: {}, // { location_id: scene_id }
-    kioskStart: null,    // [lat, lng]
+    kioskStart: null,    // [map_y, map_x] pixel position on campus-map.png
     map: null,
     mapBounds: null,
     activeRoute: null,
@@ -1089,7 +1089,9 @@ ensureTourDependencies()
     state.locations = locations;
     locations.forEach(function(loc) {
       if (loc.is_start) {
-        state.kioskStart = [Number(loc.latitude), Number(loc.longitude)];
+        // Pixel position, not the WGS84 on latitude/longitude — this map is
+        // campus-map.png under CRS.Simple, same as the campus map page.
+        state.kioskStart = [Number(loc.map_y), Number(loc.map_x)];
       }
     });
 
@@ -1373,7 +1375,7 @@ ensureTourDependencies()
     ensureMap().then(function(map) {
       // Leaflet needs a redraw after its container becomes visible.
       setTimeout(function() { map.invalidateSize(); }, 60);
-      var dest = [Number(location.latitude), Number(location.longitude)];
+      var dest = [Number(location.map_y), Number(location.map_x)];
       drawRouteOnMap(map, dest);
 
       // Tell the server to mint a route session — same backend the

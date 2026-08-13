@@ -92,6 +92,26 @@ def _apply_scheduling(status, published_at):
 _NEWS_LAYOUT_TYPES = {"main", "secondary", "widget", "unassigned"}
 
 
+def _delete_image_files(image_path):
+    """Remove an uploaded news image and its generated .large/.thumb WebP
+    derivatives from disk, guarding against path traversal. Shared by
+    destroy() and by store()'s "remove featured image" path so the two can't
+    drift — missing the derivatives orphans them on disk forever."""
+    if not image_path:
+        return
+
+    candidates = [image_path] + [
+        variant_relpath(image_path, variant) for variant in ("large", "thumb")
+    ]
+    for relative_path in candidates:
+        try:
+            full_path = absolute_path(relative_path)
+            if is_safe_path(relative_path) and os.path.isfile(full_path):
+                os.remove(full_path)
+        except OSError:
+            pass
+
+
 def _news_is_public(news_item):
     status = _normalize_news_status(getattr(news_item, "status", None), default="approved")
     if status not in _NEWS_VISIBLE_STATUSES:
@@ -255,6 +275,15 @@ class NewsController(Controller):
         priority_value = request.input("priority")
         image_file = request.input("image")
         article_id = (request.input("article_id") or "").strip()
+        # The composer's Featured Image "Remove" action. An absent upload
+        # means "keep the current photo" (so a text-only edit doesn't wipe
+        # it), so clearing one has to be asked for explicitly.
+        remove_image = str(request.input("remove_image") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
 
         if isinstance(image_file, list):
             image_file = image_file[0] if image_file else None
@@ -364,6 +393,11 @@ class NewsController(Controller):
                     existing.published_at = published_at
                 if image_path is not None:
                     existing.image = image_path
+                elif remove_image:
+                    # Drop the files too — destroy() is careful about this and
+                    # leaving them behind orphans them on disk forever.
+                    _delete_image_files(getattr(existing, "image", None))
+                    existing.image = None
                 existing.save()
                 saved_news = existing
                 is_new = False
@@ -565,27 +599,8 @@ class NewsController(Controller):
         if not record:
             return _err(["Article not found."])
 
-        # Remove the uploaded image too, guarding against path traversal.
-        image_path = getattr(record, "image", None)
-        if image_path:
-            try:
-                full_path = absolute_path(image_path)
-                if is_safe_path(image_path) and os.path.isfile(full_path):
-                    os.remove(full_path)
-            except OSError:
-                pass
-
-            # Also remove the .large.webp / .thumb.webp derivatives that
-            # ImageDerivatives.generate_variants wrote alongside the
-            # original — otherwise they orphan on disk forever.
-            for variant in ("large", "thumb"):
-                variant_rel = variant_relpath(image_path, variant)
-                try:
-                    variant_full = absolute_path(variant_rel)
-                    if is_safe_path(variant_rel) and os.path.isfile(variant_full):
-                        os.remove(variant_full)
-                except OSError:
-                    pass
+        # Remove the uploaded image and its derivatives too.
+        _delete_image_files(getattr(record, "image", None))
 
         try:
             record.delete()

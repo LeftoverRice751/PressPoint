@@ -195,10 +195,21 @@
 <body>
   <div class="kiosk-shell">
     <main class="kiosk-app" aria-label="Kiosk terminal">
+      <!-- Status bar. No aria-live: a clock that announces itself every
+           minute is noise for screen-reader users. welcome-screen.js fills
+           both spans and sets the datetime attribute. -->
+      <header class="kiosk-status">
+        <span class="kiosk-status__org">Laguna State Polytechnic University</span>
+        <time class="kiosk-status__stamp" data-kiosk-clock>
+          <span class="kiosk-status__date" data-clock-date></span>
+          <span class="kiosk-status__time" data-clock-time></span>
+        </time>
+      </header>
+
       <section class="hero" aria-label="Brand mark">
-        <img class="hero__logo" src="/gears.png?v=20260411" alt="Gears logo" />
-        <h1 class="hero__title">PRESSPOINT</h1>
-        <p class="hero__subtitle">The Gears Publication's Official Kiosk</p>
+        <img class="hero__logo" src="{{ site_logo() }}" alt="Gears logo" />
+        <h1 class="hero__title">PRESS POINT</h1>
+        <p class="hero__subtitle">The Gears Publication Works</p>
       </section>
 
       <section class="feature-grid" aria-label="Kiosk actions">
@@ -299,7 +310,7 @@
 
   <div id="kiosk-stage" hidden aria-live="polite">
     <div id="kiosk-loading" aria-hidden="true">
-      <img class="kiosk-logo-spin" src="/gears.png" alt="" aria-hidden="true">
+      <img class="kiosk-logo-spin" src="{{ site_logo() }}" alt="" aria-hidden="true">
       <div class="kiosk-loading-title">Loading video</div>
       <div class="kiosk-loading-subtitle">Preparing kiosk playback…</div>
     </div>

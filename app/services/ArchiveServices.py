@@ -271,6 +271,40 @@ class ArchiveServices:
         self._write_page_count(normalized_path, count)
         return count
 
+    def count_prewarmed_pages(self, file_path, page_count):
+        """How many pages, counting from page 1, are already rasterised.
+
+        The kiosk reader paints these PNGs the instant an archive is opened,
+        before pdf.js has fetched the (often ~100 MB) source document, so the
+        count has to be honest: it is a CONTIGUOUS run from page 1, not a file
+        tally. A gap left by a render that failed mid-prewarm caps the run —
+        otherwise the reader would paint a broken image for the missing page.
+        Returns 0 when nothing has been prewarmed, which is the signal to fall
+        back to loading the PDF immediately.
+        """
+        normalized_path = self._normalized_archive_path(file_path)
+        if not normalized_path or page_count <= 0:
+            return 0
+
+        directory_relative = self._page_directory_relative(normalized_path)
+        if not directory_relative:
+            return 0
+
+        if not os.path.isdir(self._storage_public_path(directory_relative)):
+            return 0
+
+        limit = min(int(page_count), PREWARM_PAGE_LIMIT)
+        found = 0
+        for index in range(limit):
+            page_relative = self._page_relative_path(normalized_path, index)
+            if not page_relative:
+                break
+            if not os.path.exists(self._storage_public_path(page_relative)):
+                break
+            found += 1
+
+        return found
+
     def build_page_two_preview(self, file_path):
         normalized_path = self._normalized_archive_path(file_path)
         if not normalized_path:
@@ -340,6 +374,8 @@ class ArchiveServices:
             "first_page_url": page_url(0),
             "second_page_url": page_url(1),
             "page_url_base": f"/kiosk/archives/{archive_id}/pages" if archive_id is not None else "",
+            # Tells the reader how far it can paint instantly without the PDF.
+            "prewarmed_pages": self.count_prewarmed_pages(file_path, page_count),
         }
 
     def group_archives_by_year(self, archives):

@@ -250,33 +250,6 @@
     margin-bottom: 1rem;
 }
 
-.news-toolbar__live {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.45rem 0.85rem;
-    border-radius: 9999px;
-    border: 1px solid var(--ink-rule-strong);
-    background: var(--ink-cream);
-    color: var(--ink-soot);
-    font-size: 0.78rem;
-    font-weight: 700;
-}
-
-.news-toolbar__live .live-status-card__dot--inline {
-    margin-top: 0;
-}
-
-.news-toolbar__live-text {
-    white-space: nowrap;
-}
-
-@media (max-width: 720px) {
-    .news-toolbar__live-text {
-        white-space: normal;
-    }
-}
-
 .news-slot-pill,
 .news-story-card__status,
 .news-story-card__slot {
@@ -867,13 +840,42 @@
     font-size: 1.9rem;
 }
 
-.news-editor .secondary-story__title {
-    font-size: 1.15rem;
+/* The Position/Move controls are absolutely positioned over the card's
+   top-right corner, where they landed directly on top of the headline's
+   first line. Reserve a strip for them instead of letting them overlap the
+   text. Both columns get the same reservation, so this can't reintroduce
+   the row misalignment fixed below. */
+.news-editor .secondary-story__body,
+.news-editor .info-card {
+    padding-top: 1.9rem;
 }
 
-.news-editor .secondary-story__thumb,
-.news-editor .secondary-story__thumb--fallback {
-    height: 120px;
+.news-editor .secondary-story .news-card-controls,
+.news-editor .info-card .news-card-controls {
+    top: 0.15rem;
+    right: 0.15rem;
+}
+
+/* Reserve two lines for every side headline so the summary below it starts
+   at the same height in both columns of a row. Without this, a one-line
+   headline next to a two-line one pushed the two columns out of step —
+   the most visible part of the composer's "nothing lines up" problem. */
+.news-editor .secondary-story__title {
+    font-size: 1.15rem;
+    min-height: calc(2 * 1.14em);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+}
+
+/* The thumb is 108x108 on the kiosk. This block used to override only the
+   height (to 120px), leaving a 108x120 rectangle in a 108px grid column —
+   so composer thumbs were neither square nor a true preview of the kiosk
+   crop. Matching the kiosk exactly is the whole point of this surface. */
+.news-editor .secondary-story {
+    align-content: start;
 }
 
 /* The kicker mirrors the location field; it's read-only chrome here, so
@@ -883,12 +885,38 @@
     opacity: 0.75;
 }
 
-/* The kiosk boxes widget slots as a "Bulletin"; in the editor each slot
-   is a drop target and the heavy border reads as a modal edge. */
+/* The kiosk's heavy 3px "Bulletin" rule reads as a modal edge inside the
+   panel, so soften it — but keep a real box. Stripping the border entirely
+   (what this rule used to do) left widgets as unstyled full-bleed blocks
+   under a tidy 2-column grid, which is why they looked unaligned. */
 .news-editor .paper-slot--widget {
-    padding: 0;
-    border: 0;
+    padding: clamp(0.75rem, 1.6vw, 1.1rem);
+    border: 1px solid var(--kiosk-rule, rgba(31, 15, 12, 0.22));
     background: transparent;
+}
+
+/* Every widget cell claims equal height so the two columns end level even
+   when one holds a story and the other an "assign" placeholder.
+
+   The kiosk's auto-fit track sizing needs ~600px to form two columns; the
+   composer canvas is a ~780px column with padding, leaving under 540px, so
+   auto-fit collapsed both widget positions into a single stacked column —
+   the exact misalignment this section set out to fix. The composer always
+   shows exactly the two widget positions, so pin two columns here. */
+.news-editor .widget-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+}
+
+@media (max-width: 900px) {
+    .news-editor .widget-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.news-editor .widget-grid__cell > .paper-empty {
+    height: 100%;
+    min-height: 120px;
 }
 
 /* Editable affordances */
@@ -938,9 +966,26 @@
     font-style: italic;
     color: var(--kiosk-ink-muted, rgba(31, 15, 12, 0.62));
 }
+/* Clamp the resting state to roughly what the kiosk shows (it truncates the
+   summary to 150 chars). Unclamped, one long excerpt made its column three
+   times its neighbour's height AND misrepresented the published page.
+   Focus lifts the clamp so editing is never truncated. */
 .news-editor .secondary-story__copy--excerpt,
 .news-editor .info-card__copy--excerpt {
     font-style: italic;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+}
+
+.news-editor .secondary-story__copy--excerpt:focus,
+.news-editor .info-card__copy--excerpt:focus {
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: none;
+    line-clamp: none;
 }
 
 /* "Edit Full Article Body" — the entry point into the focused modal
@@ -1198,6 +1243,21 @@
     color: var(--ink-oxblood);
 }
 
+/* Screen-reader-only live region (fix round 1, I7) — announces the result
+   of a Move Up/Down press. Standard visually-hidden-but-announced pattern,
+   scoped here since auth-shell.css's .sr-only isn't loaded on this page. */
+.news-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 /* ── Story Library slide-over drawer (Task 4) ──────────
    Extends .article-modal (gears-dashboard.css) the same way confirm-modal.css
    does: same <dialog> primitive, own panel/backdrop treatment. Docked to the
@@ -1335,4 +1395,290 @@
     .news-body-modal__editor .ql-editor {
         min-height: 40vh;
     }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   WordPress-flavoured chrome around the visual canvas.
+
+   The canvas itself stays the editing surface — what's borrowed from
+   WordPress is the furniture an editor already knows: an All Posts table,
+   a Publish box, a Featured Image box, and a right-click row/slot menu.
+   Flat colors only (no gradients), per the project's UI convention.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── All Posts table (Story Library) ─────────────────────── */
+.wp-posts-table {
+    width: 100%;
+    margin-top: 1rem;
+    border-collapse: collapse;
+    background: var(--ink-paper);
+    border: 1px solid var(--ink-rule);
+    font-family: var(--font-ui);
+}
+
+.wp-posts-table thead th {
+    padding: 0.7rem 0.85rem;
+    text-align: left;
+    background: var(--ink-cream);
+    border-bottom: 1px solid var(--ink-rule-strong);
+    color: var(--ink-muted);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.wp-posts-table__col-title {
+    width: 45%;
+}
+
+.wp-posts-table tbody td {
+    padding: 0.75rem 0.85rem;
+    border-bottom: 1px solid var(--ink-rule);
+    vertical-align: top;
+    font-size: 0.86rem;
+    color: var(--ink-soot);
+}
+
+.wp-posts-table__row:hover {
+    background: rgba(227, 108, 34, 0.05);
+}
+
+.wp-posts-table__title {
+    color: var(--ink-oxblood);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 900;
+    line-height: 1.2;
+}
+
+.wp-posts-table__excerpt {
+    margin-top: 0.2rem;
+    color: var(--ink-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.wp-posts-table__date {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* WordPress reveals row actions on hover; they stay in the DOM (and become
+   visible on keyboard focus) so they're never keyboard-unreachable. */
+.wp-posts-table__actions {
+    margin-top: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+
+.wp-posts-table__row:hover .wp-posts-table__actions,
+.wp-posts-table__actions:focus-within {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    /* Touch has no hover — never hide the only way to act on a row. */
+    .wp-posts-table__actions {
+        opacity: 1;
+    }
+}
+
+.wp-row-action {
+    appearance: none;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink-terracotta);
+    font: 700 0.74rem/1.2 var(--font-ui);
+    cursor: pointer;
+}
+
+.wp-row-action:hover,
+.wp-row-action:focus-visible {
+    text-decoration: underline;
+}
+
+.wp-row-action--trash {
+    color: var(--ink-oxblood);
+}
+
+.wp-row-action__sep {
+    color: var(--ink-rule-strong);
+    font-size: 0.74rem;
+}
+
+@media (max-width: 720px) {
+    /* Collapse to a card-per-row: a 5-column table can't survive a phone. */
+    .wp-posts-table thead {
+        display: none;
+    }
+
+    .wp-posts-table,
+    .wp-posts-table tbody,
+    .wp-posts-table__row,
+    .wp-posts-table tbody td {
+        display: block;
+        width: auto;
+    }
+
+    .wp-posts-table__row {
+        border-bottom: 1px solid var(--ink-rule-strong);
+    }
+
+    /* The library filters hide rows with the `hidden` attribute; the
+       display:block above would otherwise override the UA's [hidden] rule
+       and every filter would look broken on a phone. */
+    .wp-posts-table__row[hidden] {
+        display: none;
+    }
+
+    .wp-posts-table tbody td {
+        border-bottom: 0;
+        padding: 0.25rem 0.85rem;
+    }
+
+    .wp-posts-table__title-cell {
+        padding-top: 0.85rem;
+    }
+}
+
+/* ── Slot context menu (right-click a Lead/Side/Widget) ──── */
+.news-context-menu {
+    position: fixed;
+    z-index: 60;
+    min-width: 220px;
+    margin: 0;
+    padding: 0.3rem;
+    list-style: none;
+    background: var(--ink-paper);
+    border: 1px solid var(--ink-rule-strong);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 18px 44px rgba(31, 23, 22, 0.18);
+}
+
+.news-context-menu[hidden] {
+    display: none;
+}
+
+.news-context-menu__title {
+    padding: 0.45rem 0.6rem 0.5rem;
+    border-bottom: 1px solid var(--ink-rule);
+    color: var(--ink-muted);
+    font: 800 0.66rem/1.2 var(--font-ui);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    /* Long headlines must not stretch the menu off-screen. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.news-context-menu__item {
+    display: block;
+    width: 100%;
+    padding: 0.55rem 0.6rem;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    text-align: left;
+    color: var(--ink-soot);
+    font: 600 0.85rem/1.2 var(--font-ui);
+    cursor: pointer;
+}
+
+.news-context-menu__item:hover,
+.news-context-menu__item:focus-visible {
+    background: rgba(227, 108, 34, 0.1);
+    color: var(--ink-oxblood);
+    outline: none;
+}
+
+.news-context-menu__item--danger {
+    color: var(--ink-oxblood);
+}
+
+.news-context-menu__item--danger:hover,
+.news-context-menu__item--danger:focus-visible {
+    background: rgba(140, 26, 17, 0.1);
+}
+
+.news-context-menu__sep {
+    height: 1px;
+    margin: 0.3rem 0.35rem;
+    background: var(--ink-rule);
+}
+
+/* The slot the menu was opened on, so it's obvious what you're acting on. */
+.news-editor [data-news-context-menu].is-context-target {
+    outline: 2px solid var(--ink-terracotta);
+    outline-offset: 3px;
+}
+
+/* ── Publish box + Featured Image box ────────────────────── */
+.news-prop-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-family: var(--font-ui);
+    font-size: 0.82rem;
+    color: var(--ink-soot);
+}
+
+.news-prop-status__value {
+    font-weight: 800;
+}
+
+.news-publish-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.news-publish-actions .primary-button {
+    flex: 1;
+}
+
+.news-featured-image {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.news-featured-image__preview {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    display: block;
+    background: var(--ink-cream);
+    border: 1px solid var(--ink-rule);
+    border-radius: 4px;
+}
+
+.news-featured-image__empty {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background: var(--ink-cream);
+    border: 1px dashed var(--ink-rule-strong);
+    border-radius: 4px;
+    color: var(--ink-muted);
+    font: 600 0.78rem/1.3 var(--font-ui);
+    text-align: center;
+    padding: 0.5rem;
+}
+
+.news-featured-image__actions {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.news-featured-image__actions .ghost-button {
+    flex: 1;
+    justify-content: center;
 }

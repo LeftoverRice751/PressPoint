@@ -20,17 +20,28 @@
    `priority` column. All of this is emitted only when news_editor is set —
    the kiosk viewer never sees drag handles, Move buttons, or badges. #}
 {% set ns = namespace(pos=0) %}
+{% if news_editor %}
+{# Fix round 1, minor 11: the JS-side placeholder rebuild (syncPlaceholders
+   in news-dashboard.js) clones this instead of hardcoding the empty-main
+   string itself, so the two can't drift apart. Never rendered on the
+   kiosk. #}
+<template data-news-main-empty-template><div class="paper-empty">No stories have been published yet.</div></template>
+{# Fix round 1, I7: a single polite live region announces the result of a
+   Move Up/Down press (news-dashboard.js's announceCardPosition) — visually
+   hidden, screen-reader only. #}
+<div class="news-sr-only" aria-live="polite" data-news-move-announcer></div>
+{% endif %}
 <section class="paper-feature paper-slot paper-slot--main" aria-label="Main headline slot" data-news-slot="main">
   <div class="paper-slot__label">Main Headline Slot</div>
   <div{% if news_editor %} data-news-slot-list="main"{% endif %}>
   {% if main_story %}
   {% set ns.pos = ns.pos + 1 %}
-  <article class="feature-story" data-news-id="{{ main_story.id }}">
+  <article class="feature-story" data-news-id="{{ main_story.id }}"{% if news_editor %} data-news-context-menu="main"{% endif %}>
     {% if news_editor %}
-    <div class="news-card-controls" role="group" aria-label="Reorder this story">
+    <div class="news-card-controls" role="group" aria-label="Reorder {{ main_story.title }}">
       <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
-      <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move story up">&uarr;</button>
-      <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move story down">&darr;</button>
+      <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ main_story.title }} up">&uarr;</button>
+      <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ main_story.title }} down">&darr;</button>
     </div>
     {% endif %}
     <figure class="feature-story__figure">
@@ -99,12 +110,12 @@
   <div class="secondary-grid"{% if news_editor %} data-news-slot-list="secondary"{% endif %}>
     {% for news in secondary_stories %}
     {% set ns.pos = ns.pos + 1 %}
-    <article class="secondary-story" data-news-id="{{ news.id }}">
+    <article class="secondary-story" data-news-id="{{ news.id }}"{% if news_editor %} data-news-context-menu="secondary"{% endif %}>
       {% if news_editor %}
-      <div class="news-card-controls" role="group" aria-label="Reorder this story">
+      <div class="news-card-controls" role="group" aria-label="Reorder {{ news.title }}">
         <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
-        <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move story up">&uarr;</button>
-        <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move story down">&darr;</button>
+        <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ news.title }} up">&uarr;</button>
+        <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ news.title }} down">&darr;</button>
       </div>
       {% endif %}
       {% if news.image %}
@@ -150,49 +161,52 @@
 </section>
 
 {% set widget_filled = widget_news|length if widget_news else 0 %}
-{% for widget in widget_news %}
-<section class="paper-slot paper-slot--widget" aria-label="Widget story" data-news-slot="widget">
+{# Widgets live in ONE section with a 2-column grid, not a section each.
+   One-per-widget stacked full-width blocks below the 2-up secondary grid
+   is what made the composer look unaligned. Each position keeps its own
+   `data-news-slot-list` container, so Task 6's drag-and-drop still sees
+   every widget position as a single-capacity drop target.
+
+   The kiosk only renders this section when a widget is actually filled —
+   the empty placeholders are CMS vocabulary, not news. #}
+{% if news_editor or widget_filled %}
+<section class="paper-slot paper-slot--widget" aria-label="Widget stories" data-news-slot="widget">
   <div class="paper-slot__label">Widget Slot</div>
   {% if not news_editor %}
   <span class="paper-slot__eyebrow">Bulletin</span>
   {% endif %}
-  <div{% if news_editor %} data-news-slot-list="widget" data-news-slot-position="{{ loop.index }}"{% endif %}>
-  {% set ns.pos = ns.pos + 1 %}
-  <article class="info-card" data-news-id="{{ widget.id }}">
-    {% if news_editor %}
-    <div class="news-card-controls" role="group" aria-label="Reorder this story">
-      <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
-      <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move story up">&uarr;</button>
-      <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move story down">&darr;</button>
+  <div class="widget-grid">
+    {% for widget in widget_news %}
+    <div class="widget-grid__cell"{% if news_editor %} data-news-slot-list="widget" data-news-slot-position="{{ loop.index }}"{% endif %}>
+      {% set ns.pos = ns.pos + 1 %}
+      <article class="info-card" data-news-id="{{ widget.id }}"{% if news_editor %} data-news-context-menu="widget"{% endif %}>
+        {% if news_editor %}
+        <div class="news-card-controls" role="group" aria-label="Reorder {{ widget.title }}">
+          <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
+          <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ widget.title }} up">&uarr;</button>
+          <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ widget.title }} down">&darr;</button>
+        </div>
+        {% endif %}
+        <h3 class="info-card__title" data-news-edit="title">{{ widget.title }}</h3>
+        {% if news_editor %}
+        <p class="info-card__copy info-card__copy--excerpt" data-news-edit="excerpt">{{ widget.excerpt | default('', true) }}</p>
+        <button type="button" class="info-card__edit-body-btn ghost-button" data-news-edit-body>Edit Full Article Body</button>
+        {% else %}
+        <p class="info-card__copy">{% if widget.excerpt %}{{ widget.excerpt }}{% elif widget.description %}{{ widget.description | striptags | truncate(200) }}{% endif %}</p>
+        {% endif %}
+      </article>
     </div>
-    {% endif %}
-    <h3 class="info-card__title" data-news-edit="title">{{ widget.title }}</h3>
+    {% endfor %}
     {% if news_editor %}
-    <p class="info-card__copy info-card__copy--excerpt" data-news-edit="excerpt">{{ widget.excerpt | default('', true) }}</p>
-    <button type="button" class="info-card__edit-body-btn ghost-button" data-news-edit-body>Edit Full Article Body</button>
-    {% else %}
-    <p class="info-card__copy">{% if widget.excerpt %}{{ widget.excerpt }}{% elif widget.description %}{{ widget.description | striptags | truncate(200) }}{% endif %}</p>
+    {% for position in range(widget_filled + 1, 3) %}
+    <div class="widget-grid__cell" data-news-slot-list="widget" data-news-slot-position="{{ position }}">
+      <button type="button" class="paper-empty paper-empty--compact paper-empty--action"
+              data-news-assign-slot data-news-slot-type="widget" data-news-slot-position="{{ position }}">
+        + Assign story to Widget slot {{ position }}
+      </button>
+    </div>
+    {% endfor %}
     {% endif %}
-  </article>
   </div>
 </section>
-{% endfor %}
-{# Editor-only: dashed-border placeholders for each unfilled widget
-   position, up to the 2-slot cap. The kiosk renders nothing for an empty
-   widget slot — "Assign story" is CMS vocabulary, not news. Each position
-   is its own single-capacity drag-and-drop container (data-news-slot-list),
-   so a card dropped here has exactly one possible occupant, same as a
-   real widget slot above. #}
-{% if news_editor %}
-{% for position in range(widget_filled + 1, 3) %}
-<section class="paper-slot paper-slot--widget" aria-label="Widget slot (empty)" data-news-slot="widget">
-  <div class="paper-slot__label">Widget Slot</div>
-  <div data-news-slot-list="widget" data-news-slot-position="{{ position }}">
-  <button type="button" class="paper-empty paper-empty--compact paper-empty--action"
-          data-news-assign-slot data-news-slot-type="widget" data-news-slot-position="{{ position }}">
-    + Assign story to Widget slot {{ position }}
-  </button>
-  </div>
-</section>
-{% endfor %}
 {% endif %}

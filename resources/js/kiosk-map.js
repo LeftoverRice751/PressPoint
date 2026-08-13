@@ -25,7 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const KIOSK_IDLE_RESET_MS = 60 * 1000;
     const SEARCH_RESULT_LIMIT = 6;
-    const QR_SIZE_PX = 240;
+    // Sized to fit the bottom dock's content height alongside its border and
+    // padding; still comfortably scannable at kiosk reading distance.
+    const QR_SIZE_PX = 190;
 
     // Categories drive the chip strip above the search bar. Each chip
     // owns a regex that decides which `type` strings belong to it. The
@@ -55,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = {
         locations: [],          // raw locations from /api/locations
         searchIndex: [],        // same locations with acronym + initials precomputed
-        kioskStart: null,       // [lat, lng] of the start (SSB)
+        kioskStart: null,       // [map_y, map_x] pixel position of the start (SSB)
         selected: null,         // currently selected destination location
         activeRoute: null,      // current Leaflet polyline, if any
         idleTimer: null,
@@ -68,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
         page: document.getElementById('campus-map-page'),
         stage: document.getElementById('campus-map-stage'),
         mapEl: document.getElementById('campus-map'),
+        stage: document.getElementById('campus-map-stage'),
         suggestions: document.getElementById('suggestions'),
         suggestionsList: document.getElementById('suggestions-list'),
         pane: document.getElementById('building-pane'),
@@ -80,14 +83,11 @@ document.addEventListener('DOMContentLoaded', () => {
         paneLng: document.getElementById('building-pane-lng'),
         showRoute: document.getElementById('show-route'),
         qrCanvas: document.getElementById('qr-canvas'),
-        coordReadout: document.getElementById('map-coordinate-readout'),
         searchInput: document.getElementById('search-input'),
         searchClear: document.getElementById('search-clear'),
         keyboard: document.getElementById('keyboard'),
         keyboardRows: document.querySelector('.keyboard__rows'),
         chips: document.getElementById('category-chips'),
-        zoomIn: document.getElementById('zoom-in'),
-        zoomOut: document.getElementById('zoom-out'),
     };
 
     if (!dom.mapEl || typeof L === 'undefined') {
@@ -289,6 +289,12 @@ document.addEventListener('DOMContentLoaded', () => {
         crs: L.CRS.Simple,
         minZoom: -2,
         zoomControl: false,
+        // Leaflet's default zoomSnap of 1 makes fitBounds *floor* to a whole
+        // zoom level. The kiosk needs zoom -0.665 to fit, so it was rounding
+        // to -1 and drawing the map at half scale — barely half the stage.
+        // 0 allows the exact fractional fit.
+        zoomSnap: 0,
+        doubleClickZoom: false,
     });
 
     // We keep the original image bounds so we can zoom back out later.
@@ -320,7 +326,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const addLocationMarker = (location) => {
-        const position = [Number(location.latitude), Number(location.longitude)];
+        // The map is a picture, not a globe: CRS.Simple positions are pixels,
+        // y first. `latitude`/`longitude` on the location are real WGS84 and
+        // would land somewhere near the map's bottom-left corner if used here.
+        // The server derives these from them (MapController._serialize_location).
+        const position = [Number(location.map_y), Number(location.map_x)];
 
         let marker;
         if (location.is_start) {
@@ -357,47 +367,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 locations.forEach((location) => {
                     if (location.is_start) {
-                        state.kioskStart = [Number(location.latitude), Number(location.longitude)];
+                        state.kioskStart = [Number(location.map_y), Number(location.map_x)];
                     }
                     addLocationMarker(location);
                 });
             })
             .catch((error) => console.error('Failed to load locations:', error));
 
+    // Match the map element to the image's aspect ratio and pin it to the top
+    // of the stage. fitBounds then fills the element edge to edge with no
+    // letterbox, and the leftover band falls *below* the map — exactly where
+    // the search bar and category chips already sit, so no empty space shows.
+    //
+    // Sizing the element beats panning the map: setMaxBounds re-centres a view
+    // smaller than its container, which would undo any offset we applied.
+    const sizeMapToAspect = () => {
+        if (!dom.stage || !mapBounds) return;
+
+        const sw = dom.stage.clientWidth;
+        const sh = dom.stage.clientHeight;
+        const aspect = mapImage.width / mapImage.height;
+
+        let w = sw;
+        let h = sw / aspect;
+        if (h > sh) {
+            h = sh;
+            w = sh * aspect;
+        }
+
+        Object.assign(dom.mapEl.style, {
+            width: `${w}px`,
+            height: `${h}px`,
+            top: '0',
+            bottom: 'auto',
+            left: `${(sw - w) / 2}px`,
+            right: 'auto',
+        });
+
+        map.invalidateSize({ animate: false });
+        map.fitBounds(mapBounds);
+    };
+
     // Bootstrap the image overlay first so positioning is right.
     const mapImage = new Image();
     mapImage.onload = () => {
         mapBounds = [[0, 0], [mapImage.height, mapImage.width]];
         L.imageOverlay('/campus-map.png', mapBounds).addTo(map);
-        map.fitBounds(mapBounds);
+        sizeMapToAspect();
         map.setMaxBounds(mapBounds);
         fetchLocations();
     };
     mapImage.src = '/campus-map.png';
 
-    const updateCoordinateReadout = (latlng) => {
-        if (!dom.coordReadout || !latlng) {
-            return;
-        }
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(sizeMapToAspect, 150);
+    });
 
-        const lat = Number(latlng.lat);
-        const lng = Number(latlng.lng);
-        const latText = Number.isFinite(lat) ? lat.toFixed(2) : '—';
-        const lngText = Number.isFinite(lng) ? lng.toFixed(2) : '—';
-
-        dom.coordReadout.textContent = `Lat ${latText}, Lng ${lngText}`;
-    };
-
-    // Tapping the map (away from a marker) closes any open pane and
-    // temporarily exposes the raw coordinates for placement work.
-    map.on('click', (event) => {
-        updateCoordinateReadout(event.latlng);
+    // Tapping the map away from a marker closes any open pane.
+    map.on('click', () => {
         closeBuildingPane();
     });
 
     // ── 8. Building pane ──────────────────────────────────────────
-
-    const ZOOM_FOR_FOCUS = 0;   // Leaflet CRS.Simple zoom. 0 = native pixels.
 
     const showInfoView = () => {
         dom.paneInfo.classList.remove('building-pane__view--hidden');
@@ -415,8 +448,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Populate the pane.
         dom.paneType.textContent = location.type || 'Building';
         dom.paneName.textContent = location.name || 'Location';
-        dom.paneLat.textContent = Number(location.latitude).toFixed(2);
-        dom.paneLng.textContent = Number(location.longitude).toFixed(2);
+        // Real WGS84 now, so this is worth showing properly. Six places is
+        // ~11cm — enough to be typed into any maps app and land on the door.
+        dom.paneLat.textContent = Number(location.latitude).toFixed(6);
+        dom.paneLng.textContent = Number(location.longitude).toFixed(6);
 
         // Clear any previous route line and start fresh on the info view.
         if (state.activeRoute) {
@@ -425,12 +460,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         showInfoView();
 
-        // Zoom in on the building.
-        map.setView(
-            [Number(location.latitude), Number(location.longitude)],
-            ZOOM_FOR_FOCUS,
-            { animate: true },
-        );
+        // The camera deliberately does not move. The whole map is sized to be
+        // readable without zooming, so selecting a building must not throw
+        // that view away.
 
         dom.pane.classList.remove('building-pane--hidden');
         dom.pane.setAttribute('aria-hidden', 'false');
@@ -456,7 +488,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mapBounds) map.fitBounds(mapBounds);
     };
 
-    dom.paneClose.addEventListener('click', closeBuildingPane);
+    // The floating × was removed from the dock — both views carry a full-size
+    // CLOSE/DONE button instead. Guarded so the ref staying absent is fine.
+    if (dom.paneClose) dom.paneClose.addEventListener('click', closeBuildingPane);
 
     // Bottom CLOSE/DONE buttons inside the pane (same size as Show Route).
     dom.pane.querySelectorAll('[data-pane-close]').forEach((btn) => {
@@ -467,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const drawRoute = (location) => {
         if (!state.kioskStart) return;
-        const destination = [Number(location.latitude), Number(location.longitude)];
+        const destination = [Number(location.map_y), Number(location.map_x)];
 
         if (state.activeRoute) {
             map.removeLayer(state.activeRoute);
@@ -481,8 +515,8 @@ document.addEventListener('DOMContentLoaded', () => {
             lineJoin: 'miter',
         }).addTo(map);
 
-        // Pull back so the user sees the whole route at once.
-        map.fitBounds([state.kioskStart, destination], { padding: [60, 60] });
+        // No fitBounds here: the whole campus is already in view, so the route
+        // is visible end to end without moving the camera.
     };
 
     const renderQr = (url) => {
@@ -548,12 +582,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chip) setActiveCategory(chip.dataset.cat);
     });
 
-    // ── 11. Zoom controls ─────────────────────────────────────────
-
-    dom.zoomIn.addEventListener('click', () => map.zoomIn());
-    dom.zoomOut.addEventListener('click', () => map.zoomOut());
-
-    // ── 12. Idle reset ────────────────────────────────────────────
+    // ── 11. Idle reset ────────────────────────────────────────────
 
     const resetKiosk = () => {
         closeBuildingPane();
@@ -574,7 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     map.on('movestart zoomstart', bumpIdleTimer);
 
-    // ── 13. Boot ──────────────────────────────────────────────────
+    // ── 12. Boot ──────────────────────────────────────────────────
 
     // Hide logo loader once the map and tiles have rendered
     const mapLoader = document.querySelector('[data-map-loader]');

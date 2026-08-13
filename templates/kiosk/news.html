@@ -9,106 +9,56 @@
   <link rel="stylesheet" href="/assets/css/kiosk-news.css" />
 </head>
 <body class="newspaper-bg">
+  {% set main_story = main_news if main_news else featured_news %}
+  {% set secondary_stories = secondary_news if secondary_news else (news_items[1:5] if news_items|length > 1 else []) %}
+  {% set issue_date = main_story.published_label if main_story and main_story.published_label else 'Latest edition' %}
+
   <div class="paper-container">
+    {# Folio → masthead → double rule → strapline. The double rule is the
+       page's strongest "this is a newspaper" signal; the folio carries the
+       date, which is what makes a news page credible. #}
     <header class="paper-header">
-      <div class="paper-header__top">
-        <span>ESTABLISHED 2026</span>
-        <span class="paper-header__brand">THE GEARS PUBLICATION</span>
-        <span>LAGUNA, PHILIPPINES</span>
+      <div class="paper-folio">
+        <span class="paper-folio__issue">Campus Edition{% if issue_vol and issue_no %} &middot; Vol. {{ issue_vol }}, No. {{ issue_no }}{% endif %}</span>
+        <img class="paper-folio__mark" src="{{ site_logo() }}" alt="" aria-hidden="true">
+        <span class="paper-folio__date">{{ issue_date }}</span>
       </div>
-      <h1 class="paper-header__title">LATEST NEWS</h1>
-      <div class="paper-header__divider"></div>
-      <nav class="paper-header__meta">
-        <span class="news-category">NEWS ARTICLES</span>
-      </nav>
+
+      <h1 class="paper-masthead">The Gears Publication</h1>
+      <div class="paper-rule" aria-hidden="true"></div>
+
+      <div class="paper-strapline">
+        <span>Laguna, Philippines</span>
+        <span>Established 2026</span>
+      </div>
     </header>
 
-    {% set main_story = main_news if main_news else featured_news %}
-    {% set secondary_stories = secondary_news if secondary_news else (news_items[1:5] if news_items|length > 1 else []) %}
-
     <main class="paper-grid">
-      <section class="paper-feature paper-slot paper-slot--main" aria-label="Main headline slot">
-        <div class="paper-slot__label">Main Headline Slot</div>
-        {% if main_story %}
-        <article class="feature-story">
-          {% if main_story.image %}
-          <img class="feature-story__image" src="/storage/{{ main_story.image | replace('\\', '/') }}" alt="{{ main_story.title }}">
-          {% else %}
-          <div class="feature-story__image feature-story__image--fallback" aria-hidden="true"></div>
-          {% endif %}
-          <div class="feature-story__content">
-            <h2 class="feature-story__title">{{ main_story.title }}</h2>
-            <div class="feature-story__meta">— {{ main_story.source | default('Editorial Desk') }}, {{ main_story.location | default('Campus') }}</div>
-            <p class="feature-story__copy drop-cap">{{ main_story.description }}</p>
-          </div>
-        </article>
-        {% else %}
-        <div class="paper-empty">No headline slot is populated yet.</div>
-        {% endif %}
-      </section>
-
-      <section class="paper-slot paper-slot--secondary" aria-label="Secondary stories">
-        <div class="paper-slot__label">Secondary Slot</div>
-        <div class="secondary-grid">
-          {% for news in secondary_stories %}
-          <article class="secondary-story">
-            {% if news.image %}
-            <img class="secondary-story__thumb" src="/storage/{{ news.image | replace('\\', '/') }}" alt="{{ news.title }}">
-            {% else %}
-            <div class="secondary-story__thumb secondary-story__thumb--fallback" aria-hidden="true"></div>
-            {% endif %}
-            <div class="secondary-story__body">
-              <h3 class="secondary-story__title">{{ news.title }}</h3>
-              <p class="secondary-story__copy">{{ news.description[:120] if news.description else 'No summary available.' }}</p>
-            </div>
-          </article>
-          {% else %}
-          <div class="paper-empty paper-empty--compact">Secondary story slots are waiting for content.</div>
-          {% endfor %}
-        </div>
-      </section>
-
-      {% for widget in widget_news %}
-      <section class="paper-slot paper-slot--widget" aria-label="Widget story">
-        <div class="paper-slot__label">Widget Slot</div>
-        <article class="info-card">
-          <h3 class="info-card__title">{{ widget.title | upper }}</h3>
-          <p class="info-card__copy">{{ widget.description[:200] if widget.description else '' }}</p>
-        </article>
-      </section>
-      {% else %}
-      <section class="paper-slot paper-slot--widget" aria-label="Widget slot (empty)">
-        <div class="paper-slot__label">Widget Slot</div>
-        <article class="info-card">
-          <h3 class="info-card__title">WIDGET SLOT AVAILABLE</h3>
-          <p class="info-card__copy">No widget content has been published yet.</p>
-        </article>
-      </section>
-      {% endfor %}
+      {% include 'kiosk/_news_slots.html' %}
     </main>
-
   </div>
 
-  <a href="/kiosk" class="news-back" aria-label="Back to kiosk">
-    <span class="news-back__arrow" aria-hidden="true">←</span>
-    <span class="news-back__label">Back to kiosk</span>
+  {# Reader overlay — populated from the lead story by kiosk-news.js when the
+     front-page copy is clamped. Inert markup until then. #}
+  <div class="news-reader" id="news-reader" role="dialog" aria-modal="true" aria-labelledby="news-reader-title" hidden>
+    <div class="news-reader__head">
+      <span class="news-reader__kicker" data-reader-kicker></span>
+      <h2 class="news-reader__title" id="news-reader-title" data-reader-title></h2>
+      <div class="news-reader__meta" data-reader-meta></div>
+    </div>
+    <div class="news-reader__body" data-reader-body></div>
+    <button type="button" class="news-reader__close" data-reader-close>
+      <span class="news-reader__close-icon" aria-hidden="true">&times;</span>
+      <span class="news-reader__close-label">Close</span>
+    </button>
+  </div>
+
+  <a href="/kiosk" class="news-back" aria-label="Back to home">
+    <span class="news-back__arrow" aria-hidden="true">&larr;</span>
+    <span class="news-back__label">Back to home</span>
+    <span class="news-back__hint" aria-hidden="true">Scroll for more</span>
   </a>
 
-  <script>
-    (function () {
-      var POLL_MS = 30000;
-      var lastActivity = Date.now();
-
-      ['pointerdown', 'touchstart', 'keydown'].forEach(function (evt) {
-        document.addEventListener(evt, function () { lastActivity = Date.now(); }, { passive: true });
-      });
-
-      setInterval(function () {
-        if (Date.now() - lastActivity >= POLL_MS) {
-          window.location.reload();
-        }
-      }, POLL_MS);
-    })();
-  </script>
+  <script src="/assets/js/kiosk-news.js"></script>
 </body>
 </html>

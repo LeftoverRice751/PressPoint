@@ -21,6 +21,9 @@
 .kiosk-loader__logo {
   width: 72px;
   height: 72px;
+  /* The logo is editor-uploaded and may not be square — letterbox it into
+     the fixed spinner box rather than stretching it. */
+  object-fit: contain;
   animation: kiosk-logo-spin 2s linear infinite;
 }
 

@@ -10,9 +10,13 @@
 {% block content %}
 {#
   This page is what the phone lands on after scanning the QR code on
-  the kiosk. It uses the same campus-map.png as the kiosk so the
-  coordinates already match — no real GPS, just a snapshot of the
-  route the kiosk drew.
+  the kiosk. It uses the same campus-map.png as the kiosk, and draws
+  using the same server-derived pixel positions, so the two always
+  agree.
+
+  Locations now carry real WGS84 as well, so this page *could* show the
+  phone's own position against them — it just doesn't yet. Today it is
+  still a static snapshot of the route the kiosk drew.
 
   `expired` comes from the controller: it's True when the token is
   unknown, already finished, or past expires_at.

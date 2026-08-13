@@ -1,3 +1,35 @@
+/*
+ * Kiosk Latest News — "The Gears Front Page".
+ *
+ * Target: 768x1024 portrait, read standing at ~60-80cm. Broadsheet
+ * anatomy, not newspaper-flavoured decoration:
+ *
+ *   .paper-container            the sheet
+ *     .paper-folio              volume / mark / issue date
+ *     .paper-masthead           the paper's name (the one place caps belong)
+ *     .paper-strapline          place + edition
+ *   .paper-grid
+ *     .paper-slot--main         lead: photo + cutline/credit, kicker,
+ *                               headline, dek, byline, 2-column
+ *                               justified body, drop cap
+ *     .paper-slot--secondary    "ALSO IN THIS ISSUE", 2-up cards
+ *     .paper-slot--widget       "BULLETIN" — boxed, a different object
+ *   .news-reader                full-screen reader overlay
+ *   .news-back                  88px fixed crimson stripe (mirrors .map-back)
+ *
+ * Type: display face for masthead + headlines only; body face for all
+ * running copy at 1.25rem/1.6. Hierarchy comes from SIZE, not weight,
+ * and headlines are mixed case — all-caps destroys word-shape
+ * recognition, which is what makes text scannable at kiosk distance.
+ *
+ * Accent (crimson) is spent in exactly three places: the kicker, the
+ * drop cap, and the back stripe. Solid fills only; never gradients.
+ *
+ * This file also styles the Gears dashboard news editor, which includes
+ * the same kiosk/_news_slots.html partial. Kiosk-only rules are scoped
+ * under `body.newspaper-bg` so the editor is never affected.
+ */
+
 :root {
     --paper-white:  var(--kiosk-cream,     #EAE3D9);
     --paper-cream:  var(--kiosk-paper,     #F4EFE6);
@@ -5,6 +37,9 @@
     --paper-muted:  var(--kiosk-ink-muted, rgba(31,15,12,0.62));
     --paper-line:   var(--kiosk-rule,      rgba(31,15,12,0.18));
     --paper-orange: var(--kiosk-crimson,   #B11E2A);
+    --paper-deep:   var(--kiosk-maroon,    #4A1A12);
+
+    --paper-stripe-h: 88px;
 }
 
 * {
@@ -18,248 +53,383 @@ body {
 }
 
 body.newspaper-bg {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    padding: var(--kiosk-s-4, 20px) var(--kiosk-s-3, 14px)
+             calc(var(--paper-stripe-h) + var(--kiosk-s-5, 28px));
     background: var(--paper-white);
-    padding: 24px 18px 124px;
     color: var(--paper-ink);
-    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
 }
 
 .paper-container {
-    width: min(100%, clamp(720px, 90vw, 1440px));
+    width: min(100%, clamp(720px, 92vw, 1180px));
     margin: 0 auto;
-    padding: clamp(20px, 2.6vw, 44px) clamp(18px, 2.4vw, 40px) clamp(22px, 2.6vw, 44px);
+    padding: clamp(20px, 2.6vw, 40px) clamp(20px, 2.6vw, 40px) clamp(24px, 3vw, 44px);
     background: var(--paper-cream);
     border: 1px solid var(--paper-line);
 }
 
-.paper-header {
-    text-align: center;
-    margin-bottom: 20px;
+/* Editor chrome ("Main Headline Slot" etc.) belongs to the dashboard,
+   never to a reader. The dashboard keeps it — this hides it here only. */
+body.newspaper-bg .paper-slot__label {
+    display: none;
 }
 
-.paper-header__top {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    color: var(--paper-muted);
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.26em;
-    text-transform: uppercase;
-}
+/* ── Masthead ───────────────────────────────────────────────────── */
 
-.paper-header__top::before,
-.paper-header__top::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--paper-line);
-}
-
-.paper-header__brand {
-    color: var(--paper-orange);
-}
-
-.paper-header__title {
-    margin: 10px 0 0;
-    color: var(--paper-ink);
-    font-size: clamp(3rem, 8vw, 5.5rem);
-    line-height: 0.96;
-    font-weight: 900;
-    letter-spacing: -0.06em;
-    text-transform: uppercase;
-}
-
-.paper-header__divider {
-    height: 4px;
-    margin-top: 12px;
-    border-top: 1px solid var(--paper-ink);
-    border-bottom: 1px solid var(--paper-ink);
-}
-
-.paper-header__meta {
+.paper-folio {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    margin-top: 22px;
+    gap: var(--kiosk-s-3, 12px);
     padding-bottom: 10px;
     border-bottom: 1px solid var(--paper-line);
+    color: var(--paper-muted);
+    font-family: var(--kiosk-font-mono, "JetBrains Mono", monospace);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
 }
 
-.news-category {
-    color: var(--paper-orange);
-    font-size: 0.98rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
+.paper-folio__mark {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    flex: 0 0 auto;
+}
+
+.paper-folio__issue,
+.paper-folio__date {
+    flex: 1 1 0;
+}
+
+.paper-folio__date {
+    text-align: right;
+}
+
+/* One line, always — a broadsheet nameplate never wraps. Sized so
+   "THE GEARS PUBLICATION" fits the 768px kiosk content box with room. */
+.paper-masthead {
+    margin: clamp(14px, 2vw, 22px) 0 0;
+    color: var(--paper-ink);
+    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-size: clamp(2rem, 5.2vw, 4.2rem);
+    font-weight: 700;
+    line-height: 0.94;
+    letter-spacing: 0.06em;
+    text-align: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* Thick-over-hairline double rule — the single strongest "newspaper"
+   signal on the page. Solid ink, no ornament. */
+.paper-rule {
+    height: 8px;
+    margin-top: clamp(12px, 1.8vw, 18px);
+    border-top: 4px solid var(--paper-ink);
+    border-bottom: 1px solid var(--paper-ink);
+}
+
+.paper-strapline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--kiosk-s-3, 12px);
+    margin-top: 8px;
+    padding-bottom: clamp(16px, 2.2vw, 26px);
+    color: var(--paper-muted);
+    font-family: var(--kiosk-font-mono, "JetBrains Mono", monospace);
+    font-size: 0.68rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
 }
 
-.btn-back {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.8rem 1.2rem;
-    border-radius: 999px;
-    background: var(--paper-orange);
-    color: var(--paper-white);
-    text-decoration: none;
-    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
-    font-size: 0.92rem;
-    font-weight: 800;
-}
-
-.news-back {
-    position: fixed;
-    left: 50%;
-    bottom: 24px;
-    transform: translateX(-50%);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.9rem;
-    padding: 0.95rem 2rem;
-    border-radius: 999px;
-    background: var(--paper-orange);
-    color: var(--paper-white);
-    text-decoration: none;
-    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
-    font-size: 1rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    z-index: 10;
-}
-
-.news-back__arrow {
-    font-size: 1.5rem;
-    line-height: 1;
-}
+/* ── Grid ───────────────────────────────────────────────────────── */
 
 .paper-grid {
     display: grid;
-    gap: 20px;
+    gap: clamp(24px, 3.4vw, 40px);
 }
 
-.paper-slot {
-    padding-top: 8px;
-}
-
-.paper-slot__label {
-    margin-bottom: 10px;
-    color: var(--paper-orange);
-    font-size: 0.85rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-}
+/* ── Lead story ─────────────────────────────────────────────────── */
 
 .feature-story {
     display: grid;
-    gap: 16px;
+    gap: clamp(14px, 2vw, 20px);
+}
+
+.feature-story__figure {
+    margin: 0;
 }
 
 .feature-story__image,
 .feature-story__image--fallback {
     width: 100%;
-    height: min(46vw, 390px);
+    height: min(38vh, 320px);
     object-fit: cover;
     display: block;
     border: 1px solid var(--paper-line);
     background: rgba(31, 15, 12, 0.08);
 }
 
-.feature-story__content {
+/* Cutline: caption reads as running copy; the credit is agate — small,
+   mono, and out of the way, like a wire-photo slug. */
+.feature-story__cutline {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 8px;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--paper-line);
 }
 
-.feature-story__title {
-    margin: 0;
-    color: var(--paper-ink);
-    font-size: clamp(2rem, 5vw, 3.7rem);
-    line-height: 0.98;
-    font-weight: 900;
-    letter-spacing: -0.05em;
+.feature-story__caption {
+    color: var(--paper-muted);
+    font-size: 0.94rem;
+    font-style: italic;
+    line-height: 1.45;
+}
+
+.feature-story__credit {
+    flex: 0 0 auto;
+    color: var(--paper-muted);
+    font-family: var(--kiosk-font-mono, "JetBrains Mono", monospace);
+    font-size: 0.66rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.feature-story__kicker {
+    display: block;
+    color: var(--paper-orange);
+    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
 }
 
-.feature-story__meta {
-    margin: 10px 0 12px;
-    color: var(--paper-muted);
-    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
-    font-size: 0.9rem;
+.feature-story__title {
+    margin: 10px 0 0;
+    color: var(--paper-ink);
+    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-size: clamp(2.1rem, 5.4vw, 3.25rem);
     font-weight: 700;
-    letter-spacing: 0.02em;
+    line-height: 1.04;
+    letter-spacing: -0.005em;
+}
+
+/* Dek / standfirst — bigger than body, lighter than the hed. */
+.feature-story__dek {
+    margin: 12px 0 0;
+    color: var(--paper-ink);
+    font-size: 1.35rem;
+    font-weight: 400;
+    line-height: 1.4;
+}
+
+.feature-story__meta {
+    margin: 14px 0 0;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--paper-line);
+    color: var(--paper-muted);
+    font-size: 0.88rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
 .feature-story__copy {
-    margin: 0;
+    margin: 16px 0 0;
     color: var(--paper-ink);
-    font-size: 1.02rem;
-    line-height: 1.65;
-    max-width: 72ch;
+    font-size: 1.25rem;
+    line-height: 1.6;
+    columns: 2;
+    column-gap: clamp(20px, 2.6vw, 32px);
+    column-rule: 1px solid var(--paper-line);
+    orphans: 2;
+    widows: 2;
 }
 
+.feature-story__copy > *:first-child {
+    margin-top: 0;
+}
+
+/* Broadsheet columns are justified and hyphenated. Kiosk only — the
+   editor keeps a ragged edge so Quill's cursor behaviour stays sane. */
+body.newspaper-bg .feature-story__copy {
+    text-align: justify;
+    -webkit-hyphens: auto;
+    hyphens: auto;
+    text-wrap: pretty;
+}
+
+/* Clamped on the front page; the full text lives in the reader overlay. */
+.feature-story__copy.is-clamped {
+    max-height: 15.6em; /* ~9 lines per column at 1.6 line-height */
+    overflow: hidden;
+}
+
+/* Drop cap sized to occupy exactly three lines of the new body scale. */
 .drop-cap::first-letter {
     float: left;
-    margin-right: 0.16em;
-    margin-top: 0.02em;
+    margin-right: 0.08em;
+    margin-top: 0.04em;
     color: var(--paper-orange);
-    font-size: 4.2rem;
-    line-height: 0.9;
-    font-weight: 900;
+    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-size: 3.4rem;
+    line-height: 0.82;
+    font-weight: 700;
 }
+
+.feature-story__more {
+    justify-self: start;
+    display: none;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: var(--kiosk-touch-min, 56px);
+    padding: 0 1.5rem;
+    background: transparent;
+    border: 2px solid var(--paper-ink);
+    color: var(--paper-ink);
+    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, ease),
+                color var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, ease);
+}
+
+.feature-story__more.is-visible {
+    display: inline-flex;
+}
+
+.feature-story__more:active {
+    background: var(--paper-ink);
+    color: var(--paper-cream);
+}
+
+/* ── Section head ───────────────────────────────────────────────── */
+
+.paper-section-head {
+    display: flex;
+    align-items: center;
+    gap: var(--kiosk-s-3, 14px);
+    margin-bottom: clamp(16px, 2.2vw, 24px);
+    color: var(--paper-ink);
+    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    font-size: 0.86rem;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+}
+
+.paper-section-head::after {
+    content: '';
+    flex: 1;
+    height: 2px;
+    background: var(--paper-ink);
+}
+
+/* ── Secondary stories ──────────────────────────────────────────── */
 
 .secondary-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0;
-    border-top: 1px solid var(--paper-line);
-    border-left: 1px solid var(--paper-line);
+    gap: clamp(20px, 2.8vw, 32px);
 }
 
+/* Newspaper briefs, not web cards: small side thumb, hairline rules,
+   dateline leading into the summary. */
 .secondary-story {
     display: grid;
-    grid-template-columns: 120px minmax(0, 1fr);
+    grid-template-columns: 108px minmax(0, 1fr);
     gap: 14px;
-    padding: 16px 16px 16px 0;
-    border-right: 1px solid var(--paper-line);
-    border-bottom: 1px solid var(--paper-line);
+    align-content: start;
     align-items: start;
-}
-
-.secondary-story:nth-child(2n) {
-    padding-right: 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--paper-line);
 }
 
 .secondary-story__thumb,
 .secondary-story__thumb--fallback {
-    width: 120px;
-    height: 92px;
+    width: 108px;
+    height: 108px;
     object-fit: cover;
     display: block;
     background: rgba(31, 15, 12, 0.08);
     border: 1px solid var(--paper-line);
 }
 
-.secondary-story__body {
-    padding-right: 12px;
-}
-
 .secondary-story__title {
     margin: 0;
-    font-size: 1.25rem;
-    line-height: 1.02;
-    font-weight: 900;
-    letter-spacing: -0.04em;
-    text-transform: uppercase;
+    color: var(--paper-ink);
+    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.14;
+    letter-spacing: -0.005em;
 }
 
 .secondary-story__copy {
-    margin: 10px 0 0;
+    margin: 8px 0 0;
     color: var(--paper-ink);
-    font-size: 0.95rem;
-    line-height: 1.58;
+    font-size: 1.02rem;
+    line-height: 1.5;
+}
+
+.secondary-story__date {
+    color: var(--paper-muted);
+    font-family: var(--kiosk-font-mono, "JetBrains Mono", monospace);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Bulletin (widget slots) ────────────────────────────────────── */
+
+.paper-slot--widget {
+    padding: clamp(18px, 2.4vw, 26px);
+    border: 3px solid var(--paper-ink);
+    background: var(--paper-cream);
+}
+
+.paper-slot__eyebrow {
+    display: block;
+    margin-bottom: 10px;
+    color: var(--paper-orange);
+    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+}
+
+/* All widget stories share one "Bulletin" box now (one section, not one
+   per widget). auto-fit collapses the empty track, so a lone widget still
+   spans the full width exactly as it did when each had its own section. */
+.widget-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    gap: clamp(18px, 2.4vw, 30px);
+    align-items: stretch;
+}
+
+.widget-grid__cell {
+    min-width: 0;
+    display: grid;
+    align-content: start;
 }
 
 .info-card {
@@ -268,72 +438,257 @@ body.newspaper-bg {
 }
 
 .info-card__title {
-    margin: 0 0 10px;
-    font-size: 1.65rem;
-    line-height: 0.98;
-    font-weight: 900;
-    letter-spacing: -0.04em;
-    text-transform: uppercase;
+    margin: 0;
+    color: var(--paper-ink);
+    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.16;
 }
 
 .info-card__copy {
-    margin: 0;
-    font-size: 1rem;
-    line-height: 1.65;
+    margin: 10px 0 0;
+    max-width: 62ch;
     color: var(--paper-ink);
-    max-width: 58ch;
+    font-size: 1.05rem;
+    line-height: 1.6;
 }
 
-.paper-slot--widget {
-    display: grid;
-    gap: 10px;
-    padding-top: 14px;
-    border-top: 1px solid var(--paper-line);
-}
+/* ── Empty states ───────────────────────────────────────────────── */
 
 .paper-empty {
-    min-height: 180px;
+    min-height: 160px;
     display: grid;
     place-items: center;
-    border: 1px dashed rgba(18, 18, 18, 0.28);
-    color: var(--paper-muted);
-    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
-    font-size: 0.96rem;
-    font-weight: 700;
-    text-align: center;
     padding: 20px;
+    border: 1px dashed var(--paper-line);
+    color: var(--paper-muted);
+    font-size: 1.02rem;
+    text-align: center;
 }
 
 .paper-empty--compact {
-    min-height: 120px;
+    min-height: 110px;
 }
 
-@media (max-width: 760px) {
+/* ── Reader overlay ─────────────────────────────────────────────── */
+
+.news-reader {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    background: var(--paper-cream);
+    overscroll-behavior: contain;
+}
+
+.news-reader[hidden] {
+    display: none;
+}
+
+.news-reader__head {
+    flex: 0 0 auto;
+    padding: clamp(20px, 3vw, 34px) clamp(20px, 3vw, 34px) clamp(16px, 2vw, 22px);
+    border-bottom: 4px solid var(--paper-ink);
+}
+
+.news-reader__kicker {
+    display: block;
+    color: var(--paper-orange);
+    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+}
+
+.news-reader__title {
+    margin: 10px 0 0;
+    color: var(--paper-ink);
+    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-size: clamp(1.9rem, 4.6vw, 2.6rem);
+    font-weight: 700;
+    line-height: 1.08;
+}
+
+.news-reader__meta {
+    margin-top: 10px;
+    color: var(--paper-muted);
+    font-size: 0.86rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.news-reader__body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: clamp(22px, 3vw, 36px);
+    color: var(--paper-ink);
+    font-size: 1.4rem;
+    line-height: 1.7;
+    -webkit-overflow-scrolling: touch;
+}
+
+.news-reader__body > *:first-child {
+    margin-top: 0;
+}
+
+.news-reader__body img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Close mirrors the back stripe so "leave this screen" always looks
+   the same on the kiosk. */
+.news-reader__close {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 1.25rem;
+    width: 100%;
+    height: var(--paper-stripe-h);
+    padding: 0 1.5rem;
+    background: var(--paper-orange);
+    border: 0;
+    border-top: 4px solid var(--paper-ink);
+    color: var(--paper-cream);
+    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    text-align: left;
+    cursor: pointer;
+}
+
+.news-reader__close:active {
+    background: var(--paper-deep);
+}
+
+.news-reader__close-icon {
+    font-size: 2.6rem;
+    line-height: 1;
+}
+
+.news-reader__close-label {
+    font-size: 1.55rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+/* ── Back stripe — mirrors .map-back on the campus map ──────────── */
+
+.news-back {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 1.25rem;
+    height: var(--paper-stripe-h);
+    padding: 0 1.5rem;
+    background: var(--paper-orange);
+    border-top: 4px solid var(--paper-ink);
+    color: var(--paper-cream);
+    text-decoration: none;
+    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    transition: background var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, ease);
+}
+
+.news-back:active {
+    background: var(--paper-deep);
+}
+
+.news-back__arrow {
+    font-size: 2.6rem;
+    line-height: 1;
+}
+
+.news-back__label {
+    font-size: 1.55rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.news-back__hint {
+    font-family: var(--kiosk-font-mono, "JetBrains Mono", monospace);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    text-align: right;
+    opacity: 0.82;
+}
+
+/* ── Quality floor ──────────────────────────────────────────────── */
+
+.news-back:focus-visible,
+.feature-story__more:focus-visible,
+.news-reader__close:focus-visible {
+    outline: 3px solid var(--paper-ink);
+    outline-offset: -6px;
+}
+
+/* ── Narrow phones (mobile-route fallback) ──────────────────────── */
+
+@media (max-width: 600px) {
     body.newspaper-bg {
-        padding: 14px;
+        padding-left: 12px;
+        padding-right: 12px;
     }
 
     .paper-container {
-        padding: 20px 16px 18px;
+        padding: 18px 16px 22px;
     }
 
-    .paper-header__top,
-    .paper-header__meta {
+    .paper-folio,
+    .paper-strapline {
+        font-size: 0.62rem;
+        letter-spacing: 0.12em;
+    }
+
+    .paper-masthead {
+        /* nowrap still holds; shrink to fit a phone-width sheet */
+        font-size: clamp(1.2rem, 5.6vw, 2rem);
+    }
+
+    /* Side-by-side cutline starves the caption on a phone — stack it. */
+    .feature-story__cutline {
         flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
     }
 
-    .secondary-grid {
+    .feature-story__copy {
+        columns: 1;
+        font-size: 1.12rem;
+    }
+
+    /* A single narrow justified column makes rivers — go back to ragged. */
+    body.newspaper-bg .feature-story__copy {
+        text-align: left;
+        -webkit-hyphens: none;
+        hyphens: none;
+    }
+
+    .secondary-grid,
+    .widget-grid {
         grid-template-columns: 1fr;
     }
 
     .secondary-story {
-        grid-template-columns: 1fr;
-        padding-right: 0;
+        grid-template-columns: 88px minmax(0, 1fr);
     }
 
     .secondary-story__thumb,
     .secondary-story__thumb--fallback {
-        width: 100%;
-        height: 160px;
+        width: 88px;
+        height: 88px;
+    }
+
+    .news-back__hint {
+        display: none;
     }
 }

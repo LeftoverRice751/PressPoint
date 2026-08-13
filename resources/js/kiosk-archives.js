@@ -1,3 +1,29 @@
+/*
+ * Gears Archives menu — Swiper coverflow.
+ *
+ * Deterministic by design: cards arrive newest-first from the server and
+ * every filter change lands on slide 0 (the newest match). No randomness.
+ *
+ * Contract with kiosk-archive-book.js (the reader bundle):
+ *   - clicking the centered slide dispatches CustomEvent('archive:open')
+ *     on document with { dataset, originRect } in detail;
+ *   - the reader answers with 'archive:reader-open' / 'archive:reader-close'
+ *     so this menu can hand the keyboard over while reading.
+ *
+ * NOTE: do not `import 'swiper/css'` here — laravel-mix extracts JS-imported
+ * CSS to storage/compiled/js/<entry>.css, which nothing links. The bundle CSS
+ * is vendored by webpack.mix.js to /assets/css/swiper-bundle.min.css instead.
+ */
+
+import Swiper from 'swiper';
+import {
+  EffectCoverflow,
+  Navigation,
+  Keyboard,
+  A11y,
+  Manipulation, // provides appendSlide/removeAllSlides used by applyFilter
+} from 'swiper/modules';
+
 document.addEventListener('DOMContentLoaded', () => {
   const root = document.querySelector('[data-archive-shell]');
 
@@ -5,8 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  const track = root.querySelector('[data-archive-track]');
-  const cards = Array.from(root.querySelectorAll('[data-archive-card]'));
+  const swiperEl = root.querySelector('[data-archive-swiper]');
+  const wrapperEl = swiperEl ? swiperEl.querySelector('.swiper-wrapper') : null;
   const yearButtons = Array.from(root.querySelectorAll('[data-archive-year-button]'));
   const categoryButtons = Array.from(root.querySelectorAll('[data-archive-category-button]'));
   const titleEl = root.querySelector('[data-archive-title]');
@@ -14,72 +40,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const yearEl = root.querySelector('[data-archive-published]');
   const headerYearEl = root.querySelector('[data-archive-year-label]');
   const countEl = root.querySelector('[data-archive-count]');
+
+  // Master list survives filtering; Swiper's removeAllSlides only detaches.
+  const masterSlides = wrapperEl ? Array.from(wrapperEl.children) : [];
+
   const selectedYearValue = parseInt((root.getAttribute('data-selected-year') || '').trim(), 10);
-  const swipeThreshold = 48;
-  const swipeLockDuration = 360;
-
-  let currentYear = Number.isFinite(selectedYearValue)
-    ? selectedYearValue
-    : (yearButtons.length
-      ? parseInt(yearButtons[Math.floor(Math.random() * yearButtons.length)].dataset.year || '', 10)
-      : null);
-
+  let currentYear = Number.isFinite(selectedYearValue) ? selectedYearValue : null;
   let currentCategory = 'all';
-  let currentIndex = 0;
-  let activeFlipIndex = null;
-  let swipeState = null;
-  let interactionLockedUntil = 0;
-  let unlockTimer = null;
-  let suppressClicksUntil = 0;
-  let flipTimer = null;
-
-  function isInteractionLocked() {
-    return Date.now() < interactionLockedUntil;
-  }
-
-  function lockInteraction(duration = swipeLockDuration) {
-    interactionLockedUntil = Date.now() + duration;
-
-    if (unlockTimer) {
-      window.clearTimeout(unlockTimer);
-    }
-
-    unlockTimer = window.setTimeout(() => {
-      interactionLockedUntil = 0;
-      unlockTimer = null;
-    }, duration);
-  }
-
-  function suppressNextClicks(duration = swipeLockDuration) {
-    suppressClicksUntil = Date.now() + duration;
-  }
-
-  function shouldIgnoreTap() {
-    return Date.now() < suppressClicksUntil;
-  }
-
-  function clearFlipTimer() {
-    if (flipTimer) {
-      window.clearTimeout(flipTimer);
-      flipTimer = null;
-    }
-  }
-
-  function loadPageTwoFrame(card) {
-    if (!card) {
-      return;
-    }
-
-    const pageTwoFrame = card.querySelector('[data-archive-page-two]');
-    if (!pageTwoFrame || pageTwoFrame.getAttribute('src')) {
-      return;
-    }
-
-    const pageTwoSrc = (pageTwoFrame.dataset.pageTwoSrc || '').trim();
-    if (pageTwoSrc) {
-      pageTwoFrame.setAttribute('src', pageTwoSrc);
-    }
-  }
 
   function matchesCategory(card, category) {
     if (category === 'all') {
@@ -98,24 +65,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getCategoryCards(category = currentCategory) {
-    return cards.filter((card) => matchesCategory(card, category));
+    return masterSlides.filter((card) => matchesCategory(card, category));
   }
 
-  function getVisibleCards() {
+  function getFilteredCards() {
     if (!Number.isFinite(currentYear)) {
       return [];
     }
-
-    return cards.filter((card) =>
+    return masterSlides.filter((card) =>
       parseInt(card.dataset.year || '', 10) === currentYear &&
       matchesCategory(card, currentCategory)
     );
   }
 
   function setYearButtonState() {
-    const categoryCards = getCategoryCards();
     const availableYears = new Set(
-      categoryCards
+      getCategoryCards()
         .map((card) => parseInt(card.dataset.year || '', 10))
         .filter((value) => Number.isFinite(value))
     );
@@ -123,10 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
     yearButtons.forEach((button) => {
       const buttonYear = parseInt(button.dataset.year || '', 10);
       const isActive = Number.isFinite(currentYear) && buttonYear === currentYear;
-      const isAvailable = availableYears.has(buttonYear);
       button.classList.toggle('is-active', isActive);
       button.setAttribute('aria-pressed', String(isActive));
-      button.disabled = !isAvailable;
+      button.disabled = !availableYears.has(buttonYear);
     });
 
     if (headerYearEl) {
@@ -138,128 +102,118 @@ document.addEventListener('DOMContentLoaded', () => {
     categoryButtons.forEach((button) => {
       const category = (button.dataset.category || 'all').toLowerCase();
       const isActive = category === currentCategory;
-      const hasAny = category === 'all' || cards.some((card) => matchesCategory(card, category));
+      const hasAny = category === 'all'
+        || masterSlides.some((card) => matchesCategory(card, category));
       button.classList.toggle('is-active', isActive);
       button.setAttribute('aria-pressed', String(isActive));
       button.disabled = !hasAny;
     });
   }
 
-  function setCardState(card, offset, isActive, swipeOffset, swipeProgress) {
-    const absoluteOffset = Math.abs(offset);
-    const hidden = absoluteOffset > 2;
-    const xOffset = offset * 210 + swipeOffset;
-    const scale = isActive ? 1.08 : absoluteOffset === 1 ? 0.78 : 0.62;
-    const rotation = isActive ? swipeOffset / 22 : offset * -18 + swipeOffset / 28;
-    const opacity = hidden ? 0 : isActive ? 1 : 0.68;
+  function syncDetails() {
+    const slides = swiper ? swiper.slides : [];
+    const active = slides.length ? slides[swiper.activeIndex] : null;
 
-    card.style.opacity = String(opacity);
-    card.style.zIndex = String(100 - absoluteOffset);
-    card.style.transform = `translate(-50%, -50%) translateX(${xOffset}px) scale(${scale}) rotateY(${rotation}deg)`;
-    card.setAttribute('aria-hidden', String(hidden));
-    card.classList.toggle('is-active', isActive);
-    card.classList.toggle('is-focused', isActive);
-    card.classList.toggle('is-flipped', isActive && activeFlipIndex === parseInt(card.dataset.index || '', 10));
-    card.style.setProperty('--archive-swipe-progress', String(swipeProgress));
-  }
-
-  function queueFlip(activeCardIndex) {
-    clearFlipTimer();
-
-    if (!Number.isFinite(activeCardIndex)) {
-      return;
-    }
-
-    flipTimer = window.setTimeout(() => {
-      activeFlipIndex = activeCardIndex;
-      render();
-      flipTimer = null;
-    }, swipeLockDuration);
-  }
-
-  function updateDetails(activeCard) {
-    if (!activeCard) {
-      if (titleEl) {
-        titleEl.textContent = 'No archives available';
-      }
-      if (typeEl) {
-        typeEl.textContent = '—';
-      }
-      if (yearEl) {
-        yearEl.textContent = '—';
-      }
-      return;
-    }
-
-    const title = activeCard.dataset.title || 'Untitled archive';
-    const type = activeCard.dataset.type || 'Archive';
-
-    if (titleEl) {
-      titleEl.textContent = title;
-    }
-
-    if (typeEl) {
-      typeEl.textContent = type;
-    }
-
-    if (yearEl) {
-      yearEl.textContent = Number.isFinite(currentYear) ? `Published ${currentYear}` : 'Year not set';
-    }
-  }
-
-  function render() {
-    const visibleCards = getVisibleCards();
-    const swipeOffset = swipeState ? swipeState.dragX : 0;
-    const swipeProgress = swipeState ? Math.min(1, Math.abs(swipeOffset) / 220) : 0;
-
-    if (!visibleCards.length) {
-      cards.forEach((card) => {
-        card.style.opacity = '0';
-        card.style.transform = 'translate(-50%, -50%) scale(0.55)';
-        card.setAttribute('aria-hidden', 'true');
-        card.classList.remove('is-active');
-        card.classList.remove('is-focused');
-        card.classList.remove('is-flipped');
-      });
-      setYearButtonState();
-      setCategoryButtonState();
-      updateDetails(null);
+    if (!active) {
+      if (titleEl) titleEl.textContent = 'No archives available';
+      if (typeEl) typeEl.textContent = '—';
+      if (yearEl) yearEl.textContent = '—';
       if (countEl) countEl.textContent = '';
       return;
     }
 
-    if (currentIndex >= visibleCards.length) {
-      currentIndex = 0;
+    if (titleEl) titleEl.textContent = active.dataset.title || 'Untitled archive';
+    if (typeEl) typeEl.textContent = active.dataset.type || 'Archive';
+    if (yearEl) {
+      yearEl.textContent = Number.isFinite(currentYear)
+        ? `Published ${currentYear}`
+        : 'Year not set';
     }
+    if (countEl) {
+      countEl.textContent = slides.length > 1
+        ? `${swiper.activeIndex + 1} / ${slides.length}`
+        : '';
+    }
+  }
 
-    const activeCard = visibleCards[currentIndex];
+  // ── Swiper ──────────────────────────────────────────────
 
-    cards.forEach((card) => {
-      const visibleIndex = visibleCards.indexOf(card);
-      if (visibleIndex === -1) {
-        card.style.opacity = '0';
-        card.style.transform = 'translate(-50%, -50%) scale(0.55)';
-        card.setAttribute('aria-hidden', 'true');
-        card.classList.remove('is-active');
-        card.classList.remove('is-focused');
-        card.classList.remove('is-flipped');
-        return;
-      }
+  let swiper = null;
 
-      setCardState(card, visibleIndex - currentIndex, visibleIndex === currentIndex, swipeOffset, swipeProgress);
+  if (swiperEl && masterSlides.length) {
+    swiper = new Swiper(swiperEl, {
+      modules: [EffectCoverflow, Navigation, Keyboard, A11y, Manipulation],
+      effect: 'coverflow',
+      coverflowEffect: {
+        rotate: 24,
+        stretch: 0,
+        depth: 160,
+        modifier: 1,
+        // Swiper's slide shadows are CSS gradients — banned by brand rules.
+        slideShadows: false,
+      },
+      centeredSlides: true,
+      slidesPerView: 'auto',
+      grabCursor: true,
+      slideToClickedSlide: true,
+      speed: 420,
+      keyboard: { enabled: true },
+      navigation: {
+        prevEl: '[data-archive-prev]',
+        nextEl: '[data-archive-next]',
+        disabledClass: 'is-disabled',
+      },
+      watchSlidesProgress: true,
+      observer: true,
+      observeParents: true,
     });
 
-    setYearButtonState();
-    setCategoryButtonState();
-    updateDetails(activeCard);
-    if (activeCard && activeFlipIndex === parseInt(activeCard.dataset.index || '', 10)) {
-      loadPageTwoFrame(activeCard);
+    swiper.on('slideChange', syncDetails);
+
+    // Center-slide click opens the reader; side clicks only center the
+    // slide (slideToClickedSlide). Swiper's preventClicks already swallows
+    // the synthetic click after a drag, so a swipe can never open a book.
+    swiper.on('click', () => {
+      const slide = swiper.clickedSlide;
+      if (!slide || !slide.hasAttribute('data-archive-card')) {
+        return;
+      }
+      if (swiper.clickedIndex !== swiper.activeIndex) {
+        return;
+      }
+      document.dispatchEvent(new CustomEvent('archive:open', {
+        detail: {
+          dataset: { ...slide.dataset },
+          originRect: slide.getBoundingClientRect(),
+        },
+      }));
+    });
+  }
+
+  function applyFilter() {
+    if (!swiper) {
+      setYearButtonState();
+      setCategoryButtonState();
+      return;
     }
 
-    if (countEl) {
-      const total = visibleCards.length;
-      countEl.textContent = total > 1 ? `${currentIndex + 1} of ${total}` : '';
+    const filtered = getFilteredCards();
+    swiper.removeAllSlides();
+    if (filtered.length) {
+      swiper.appendSlide(filtered);
     }
+    swiper.slideTo(0, 0); // newest match — deterministic
+    swiper.update();
+
+    swiperEl.classList.toggle('is-empty', !filtered.length);
+    setYearButtonState();
+    setCategoryButtonState();
+    syncDetails();
+  }
+
+  function selectYear(year) {
+    currentYear = year;
+    applyFilter();
   }
 
   function selectCategory(category) {
@@ -269,196 +223,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     currentCategory = normalized;
-    activeFlipIndex = null;
-    clearFlipTimer();
 
-    const categoryCards = getCategoryCards();
-    const availableYears = Array.from(
-      new Set(
-        categoryCards
-          .map((card) => parseInt(card.dataset.year || '', 10))
-          .filter((value) => Number.isFinite(value))
-      )
-    ).sort((a, b) => b - a);
+    const availableYears = getCategoryCards()
+      .map((card) => parseInt(card.dataset.year || '', 10))
+      .filter((value) => Number.isFinite(value));
 
     if (!availableYears.includes(currentYear) && availableYears.length) {
-      currentYear = availableYears[0];
+      currentYear = Math.max(...availableYears); // newest year with content
     }
 
-    const visibleCards = getVisibleCards();
-    currentIndex = visibleCards.length
-      ? Math.floor(Math.random() * visibleCards.length)
-      : 0;
-
-    render();
-  }
-
-  function selectYear(year, shouldRandomizeIndex = true) {
-    currentYear = year;
-    activeFlipIndex = null;
-    clearFlipTimer();
-    const visibleCards = getVisibleCards();
-
-    if (shouldRandomizeIndex && visibleCards.length) {
-      currentIndex = Math.floor(Math.random() * visibleCards.length);
-    } else {
-      currentIndex = 0;
-    }
-
-    render();
-  }
-
-  function move(direction, options = {}) {
-    const visibleCards = getVisibleCards();
-
-    if (isInteractionLocked() || !visibleCards.length) {
-      return;
-    }
-
-    activeFlipIndex = null;
-    clearFlipTimer();
-    if (options.source === 'swipe') {
-      lockInteraction();
-      suppressNextClicks();
-    }
-
-    currentIndex = (currentIndex + direction + visibleCards.length) % visibleCards.length;
-    render();
-
-    if (options.source === 'swipe') {
-      return;
-    }
+    applyFilter();
   }
 
   yearButtons.forEach((button) => {
     button.addEventListener('click', () => {
-      if (shouldIgnoreTap() || isInteractionLocked() || button.disabled) {
+      if (button.disabled) {
         return;
       }
-
       const year = parseInt(button.dataset.year || '', 10);
-      if (!Number.isFinite(year)) {
-        return;
+      if (Number.isFinite(year)) {
+        selectYear(year);
       }
-
-      selectYear(year, true);
     });
   });
 
   categoryButtons.forEach((button) => {
     button.addEventListener('click', () => {
-      if (shouldIgnoreTap() || isInteractionLocked() || button.disabled) {
-        return;
-      }
-
-      const category = (button.dataset.category || 'all').toLowerCase();
-      selectCategory(category);
-    });
-  });
-
-  cards.forEach((card) => {
-    card.addEventListener('click', () => {
-      if (shouldIgnoreTap() || isInteractionLocked()) {
-        return;
-      }
-
-      const visibleCards = getVisibleCards();
-      const visibleIndex = visibleCards.indexOf(card);
-
-      if (visibleIndex === -1) {
-        return;
-      }
-
-      clearFlipTimer();
-      currentIndex = visibleIndex;
-      activeFlipIndex = null;
-      render();
-
-      const hasPageTwo = (card.dataset.fileUrl || '').trim();
-      if (hasPageTwo) {
-        queueFlip(visibleIndex);
+      if (!button.disabled) {
+        selectCategory(button.dataset.category);
       }
     });
   });
 
-  if (track) {
-    track.style.touchAction = 'none';
+  // Keyboard handoff while the reader is open.
+  document.addEventListener('archive:reader-open', () => {
+    if (swiper) swiper.keyboard.disable();
+  });
+  document.addEventListener('archive:reader-close', () => {
+    if (swiper) swiper.keyboard.enable();
+  });
 
-    track.addEventListener('pointerdown', (event) => {
-      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') {
-        return;
-      }
-
-      if (isInteractionLocked()) {
-        return;
-      }
-
-      swipeState = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        dragX: 0,
-      };
-
-      if (track.setPointerCapture) {
-        try {
-          track.setPointerCapture(event.pointerId);
-        } catch (error) {
-          // Ignore pointer capture failures on unsupported touch stacks.
-        }
-      }
-    });
-
-    track.addEventListener('pointermove', (event) => {
-      if (!swipeState || event.pointerId !== swipeState.pointerId) {
-        return;
-      }
-
-      const deltaX = event.clientX - swipeState.startX;
-      const deltaY = event.clientY - swipeState.startY;
-
-      if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        event.preventDefault();
-        swipeState.dragX = deltaX;
-        render();
-      }
-    }, { passive: false });
-
-    function finishSwipe(event) {
-      if (!swipeState || event.pointerId !== swipeState.pointerId) {
-        return;
-      }
-
-      const deltaX = event.clientX - swipeState.startX;
-      const deltaY = event.clientY - swipeState.startY;
-      const wasHorizontalSwipe = Math.abs(deltaX) >= swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY);
-      const pointerId = swipeState.pointerId;
-      const swipeDirection = deltaX < 0 ? 1 : -1;
-
-      swipeState = null;
-
-      if (track.releasePointerCapture) {
-        try {
-          track.releasePointerCapture(pointerId);
-        } catch (error) {
-          // Ignore release failures when the pointer capture is already gone.
-        }
-      }
-
-      if (!wasHorizontalSwipe || isInteractionLocked()) {
-        render();
-        return;
-      }
-
-      move(swipeDirection, { source: 'swipe' });
-    }
-
-    track.addEventListener('pointerup', finishSwipe);
-    track.addEventListener('pointercancel', () => {
-      swipeState = null;
-      render();
-    });
-  }
+  // ── Init ────────────────────────────────────────────────
 
   if (!Number.isFinite(currentYear) && yearButtons.length) {
     const fallbackYear = parseInt(yearButtons[0].dataset.year || '', 10);
@@ -467,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  render();
+  applyFilter();
 
   // Prime the HTTP cache and Service Worker cache for archive covers so
   // subsequent opens are instant regardless of connection speed.
@@ -484,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(next, 600);
   }
 
-  const coverUrls = cards
+  const coverUrls = masterSlides
     .map((card) => (card.dataset.coverUrl || '').trim())
     .filter(Boolean);
 

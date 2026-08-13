@@ -58,7 +58,20 @@ body {
     background: var(--ink-oxblood);
     color: var(--ink-cream);
     border-right: 1px solid var(--ink-rule);
+
+    /* Scrolls, but shows no scrollbar. The nav is a short fixed list against
+       a solid oxblood panel, so a track and thumb are visual noise on a
+       surface that rarely needs to move at all. Wheel, trackpad, touch drag
+       and keyboard scrolling are all untouched — only the chrome is hidden.
+       Same pattern as the kiosk year and category strips. */
     overflow-y: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+
+.gears-sidebar::-webkit-scrollbar {
+    display: none;
 }
 
 .gears-sidebar__brand {
@@ -287,17 +300,12 @@ body {
     white-space: nowrap;
 }
 
-/* Only the news composer wires a page-state badge into the shared hero
-   right now (Live layout / Unpublished changes); it only shows while the
-   News panel is active. */
-[data-active-page="news"] .gears-hero__chip[data-news-state-badge] {
+/* Only the news composer wires a page-state badge into the shared hero, and
+   it appears only when there are unpublished edits — the clean state shows
+   nothing at all. Requiring --dirty here means a stray class or a stale
+   `hidden` attribute can't resurrect an always-on status chip. */
+[data-active-page="news"] .gears-hero__chip[data-news-state-badge].gears-hero__chip--dirty {
     display: inline-flex;
-}
-
-.gears-hero__chip--live {
-    border-color: var(--ink-terracotta);
-    background: var(--ink-marigold);
-    color: var(--ink-oxblood);
 }
 
 .gears-hero__chip--dirty {
@@ -1900,4 +1908,78 @@ body {
 
 .gears-toast--error {
     background: var(--ink-vermillion, #C0392B);
+}
+
+/* BRANDING (site logo) */
+.branding-card {
+    display: grid;
+    gap: 1.1rem;
+}
+
+.branding-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+}
+
+.branding-swatch {
+    margin: 0;
+    flex: 1 1 180px;
+    min-width: 160px;
+    display: grid;
+    gap: 0.55rem;
+    justify-items: center;
+    padding: 1.1rem 1rem 0.85rem;
+    border: 1px solid var(--ink-rule);
+    border-radius: var(--radius-md);
+}
+
+.branding-swatch--light {
+    background: var(--ink-cream);
+}
+
+/* Matches the sidebar so an editor can see the mark against the surface it
+   actually sits on there. */
+.branding-swatch--dark {
+    background: var(--ink-oxblood);
+}
+
+.branding-swatch__img {
+    width: 100%;
+    max-width: 116px;
+    height: 116px;
+    object-fit: contain;
+    display: block;
+}
+
+.branding-swatch__caption {
+    font-family: var(--font-ui);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+}
+
+.branding-swatch--dark .branding-swatch__caption {
+    color: rgba(241, 236, 227, 0.72);
+}
+
+.branding-note {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--ink-muted);
+    font-size: 0.9rem;
+    line-height: 1.55;
+}
+
+.branding-form__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.branding-form--restore {
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--ink-rule);
 }

@@ -352,61 +352,6 @@ html, body {
     box-shadow: inset 0 0 0 4px var(--ink), inset 0 0 0 8px var(--orange), 0 0 0 2px var(--ink), 0 6px 14px rgba(10, 10, 10, 0.22);
 }
 
-/* ── Zoom controls + coordinate readout (stacked group) ─────────── */
-
-.map-controls-stack {
-    position: absolute;
-    right: 1.25rem;
-    bottom: 1.5rem;
-    z-index: 40;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.75rem;
-}
-
-.map-zoom {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.map-zoom__btn {
-    width: 72px;
-    height: 72px;
-    border: 3px solid var(--ink);
-    border-radius: 0;
-    background: var(--paper);
-    color: var(--ink);
-    font-family: var(--display-font);
-    font-size: 2.2rem;
-    line-height: 1;
-    cursor: pointer;
-    box-shadow: 6px 6px 0 var(--ink);
-    transition: transform 0.06s ease, box-shadow 0.06s ease, background 0.12s ease, color 0.12s ease;
-}
-
-.map-zoom__btn:active {
-    transform: translate(3px, 3px);
-    box-shadow: 3px 3px 0 var(--ink);
-    background: var(--orange);
-    color: var(--ink);
-}
-
-.map-coordinate-readout {
-    padding: 0.7rem 0.95rem;
-    border: 2px solid var(--ink);
-    background: rgba(255, 255, 255, 0.94);
-    color: var(--ink);
-    font-family: var(--mono-font);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    box-shadow: var(--shadow-2);
-    pointer-events: none;
-}
-
 /* ── Category chips (filter + legend in one) ────────────────────── */
 
 .category-chips {
@@ -660,16 +605,22 @@ html, body {
 
 /* ── Building detail pane (left strip; QR view inline) ──────────── */
 
+/* Bottom dock, not a side strip: a left strip cost map width, but height is
+   the tighter axis here, so the dock is kept short and both views lay out
+   horizontally. Opening it already slides the chips and search bar away
+   (see .campus-map-page--pane-open below), so nothing collides. */
 .building-pane {
     position: absolute;
-    top: 0;
-    bottom: 0;
+    top: auto;
     left: 0;
-    width: 360px;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: min(36vh, 320px);
     background: var(--paper);
-    border-right: 4px solid var(--ink);
-    box-shadow: 28px 0 60px rgba(10, 10, 10, 0.28);
-    padding: 1.6rem 1.5rem 1.5rem;
+    border-top: 4px solid var(--ink);
+    box-shadow: 0 -28px 60px rgba(10, 10, 10, 0.28);
+    padding: 1.1rem 1.4rem 1.2rem;
     z-index: 40;
     transition: transform 0.32s cubic-bezier(.25, .8, .35, 1);
     display: flex;
@@ -686,7 +637,7 @@ html, body {
 }
 
 .building-pane--hidden {
-    transform: translateX(-110%);
+    transform: translateY(110%);
 }
 
 .building-pane__close {
@@ -712,15 +663,48 @@ html, body {
     color: var(--ink);
 }
 
+/* Each view is one row inside the dock: copy on one side, actions (or the QR
+   code) on the other. Keeping it horizontal is what lets the dock stay short
+   enough to leave most of the map visible. */
 .building-pane__view {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
     flex: 1;
-    padding-top: 1.1rem;
+    gap: 1.5rem;
+    padding-top: 0.4rem;
     min-height: 0;
 }
 
 .building-pane__view--hidden { display: none; }
+
+/* The text column: stacks vertically inside the horizontal row. */
+.building-pane__col {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.5rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.building-pane__qr-canvas {
+    flex: 0 0 auto;
+}
+
+/* Info view: actions are their own right-hand column. In the QR view they sit
+   inside the copy column instead, so the QR code can have the width it needs. */
+#building-pane-info .building-pane__actions {
+    flex: 0 0 auto;
+    width: 290px;
+}
+
+#building-pane-qr .building-pane__actions {
+    margin-top: 0.35rem;
+    max-width: 320px;
+}
 
 .building-pane__type {
     font-family: var(--mono-font);
@@ -732,7 +716,7 @@ html, body {
 }
 
 .building-pane__name {
-    margin: 0.55rem 0 1.4rem;
+    margin: 0.4rem 0 0.9rem;
     font-family: var(--display-font);
     font-size: 1.85rem;
     letter-spacing: 0.01em;
@@ -742,7 +726,7 @@ html, body {
 }
 
 .building-pane__coords {
-    margin: 0 0 1.5rem;
+    margin: 0;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.9rem;
@@ -778,11 +762,10 @@ html, body {
 
 /* Action stack — Show Route + Close (same size, secondary is outlined). */
 .building-pane__actions {
-    margin-top: auto;
     display: flex;
     flex-direction: column;
+    justify-content: center;
     gap: 0.7rem;
-    padding-top: 1rem;
 }
 
 .building-pane__action {
@@ -828,9 +811,7 @@ html, body {
 }
 
 /* In the QR view the secondary CTA sits under the help strip with margin. */
-#building-pane-qr .building-pane__action--secondary {
-    margin-top: 0.85rem;
-}
+
 
 /* ── QR view (inline within the pane) ───────────────────────────── */
 
@@ -843,25 +824,24 @@ html, body {
 }
 
 .building-pane__qr-title {
-    margin: 0.55rem 0 0.55rem;
+    margin: 0;
     font-family: var(--display-font);
-    font-size: 1.55rem;
+    font-size: 1.25rem;
     letter-spacing: 0.01em;
-    line-height: 1.08;
+    line-height: 1.1;
     color: var(--ink);
     text-transform: uppercase;
 }
 
 .building-pane__qr-subtitle {
-    margin: 0 0 1.1rem;
+    margin: 0;
     color: var(--ink-soft);
-    font-size: 0.95rem;
-    line-height: 1.45;
+    font-size: 0.88rem;
+    line-height: 1.4;
 }
 
 .building-pane__qr-canvas {
-    align-self: center;
-    margin: 0.4rem 0 1.1rem;
+    margin: 0;
     background: var(--paper);
     padding: 0.85rem;
     border: 4px solid var(--ink);
@@ -872,8 +852,8 @@ html, body {
 .building-pane__qr-canvas canvas { display: block; }
 
 .building-pane__qr-help {
-    margin: auto 0 0;
-    padding: 0.95rem 1rem;
+    margin: 0.9rem 0 0;
+    padding: 0.7rem 1rem;
     background: var(--paper-soft);
     border: 2px dashed var(--ink);
     font-family: var(--mono-font);

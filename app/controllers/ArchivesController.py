@@ -1,9 +1,9 @@
 from datetime import date, datetime
 import contextlib
-import random
 import os
 import traceback
 from masonite.controllers import Controller
+from masonite.facades import Cache
 from masonite.filesystem import Storage
 from masonite.request import Request
 from masonite.response import Response
@@ -13,6 +13,14 @@ from app.services.ArchiveServices import ArchiveServices
 from app.services.StorageRouter import absolute_path, gearsnas_base
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.FileVerificationService import FileVerificationService
+
+
+# Public kiosk index is read constantly (every kiosk device, plus visitors)
+# but written rarely (an editor publishing/deleting an archive), so it's
+# cached and explicitly invalidated on write rather than re-scanning the
+# whole table + re-touching the NAS filesystem on every single request.
+_ARCHIVES_CACHE_KEY = "kiosk:archives:index"
+_ARCHIVES_CACHE_TTL = 300  # seconds — safety net only; writes invalidate explicitly.
 
 
 # Files written to the NAS need to be group-writable so the web user and
@@ -35,22 +43,52 @@ def _group_writable_umask():
 
 
 class ArchivesController(Controller):
-    def show(self, view: View):
+    def _build_archives_payload(self):
         archive_services = ArchiveServices()
-        archives = sorted(list(Archives.all() or []), key=lambda item: getattr(item, "id", 0), reverse=True)
+        archives = Archives.order_by("id", "desc").get()
         archive_entries = [archive_services.build_archive_entry(archive) for archive in archives]
+        # Newest first, deterministically: year desc, then upload id desc.
+        # DOM order then matches coverflow order with no client-side sorting.
+        archive_entries.sort(
+            key=lambda entry: (entry.get("year") or 0, entry.get("id") or 0),
+            reverse=True,
+        )
         archive_years = sorted(
             {entry["year"] for entry in archive_entries if entry.get("year") is not None},
             reverse=True,
         )
-        selected_year = random.choice(archive_years) if archive_years else None
+        selected_year = archive_years[0] if archive_years else None
+
+        # JSON-safe copy for the cache: build_archive_entry()'s "date" is a
+        # raw date object, which json.dumps() (used by the file cache driver)
+        # can't serialize. The kiosk template never reads this field (only
+        # the derived "year"), so converting it here is safe and doesn't
+        # touch build_archive_entry() itself — every other caller of that
+        # method (the dashboard, destroy()) is unaffected.
+        cache_entries = []
+        for entry in archive_entries:
+            cache_entry = dict(entry)
+            raw_date = cache_entry.get("date")
+            cache_entry["date"] = raw_date.isoformat() if hasattr(raw_date, "isoformat") else None
+            cache_entries.append(cache_entry)
+
+        return {
+            "archives": cache_entries,
+            "archive_years": archive_years,
+            "selected_year": selected_year,
+        }
+
+    def show(self, view: View):
+        payload = Cache.remember(_ARCHIVES_CACHE_KEY, lambda cache: cache.put(
+            _ARCHIVES_CACHE_KEY, self._build_archives_payload(), seconds=_ARCHIVES_CACHE_TTL
+        ))
 
         return view.render(
             "kiosk/archives",
             {
-                "archives": archive_entries,
-                "archive_years": archive_years,
-                "selected_year": selected_year,
+                "archives": payload["archives"],
+                "archive_years": payload["archive_years"],
+                "selected_year": payload["selected_year"],
                 "active_nav": "archives",
             },
         )
@@ -135,6 +173,8 @@ class ArchivesController(Controller):
 
             archive_services = ArchiveServices()
             archive_services.prewarm_archive_previews(file_path)
+
+            Cache.forget(_ARCHIVES_CACHE_KEY)
 
             if is_ajax:
                 return json_success(response, payload={
@@ -237,6 +277,8 @@ class ArchivesController(Controller):
                 traceback.print_exception(type(exception), exception, exception.__traceback__)
 
             archive.delete()
+
+            Cache.forget(_ARCHIVES_CACHE_KEY)
 
             if is_ajax:
                 return json_success(response, messages=["Archive deleted successfully."])
