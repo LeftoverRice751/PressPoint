@@ -119,6 +119,13 @@ mix.copy(
   "resources/js/sw-archives.js",
   "storage/compiled/js/sw-archives.js",
 )
+// Self-contained Leaflet plugin (IIFE) — vendored as-is. It ships with its
+// own embedded GeoJSON and needs no bundling; both kiosk-map and mobile-route
+// load it directly via a <script> tag before their own bundles.
+mix.copy(
+  "resources/js/campus-2.5d.layer.js",
+  "storage/compiled/js/campus-2.5d.layer.js",
+)
 // Vendor Swiper's stylesheet the same way as pdf.js rather than
 // `import 'swiper/css'` in a JS entry: Mix extracts JS-imported CSS to
 // storage/compiled/js/<entry>.css — an unlinked path that shadows the

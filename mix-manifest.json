@@ -50,6 +50,7 @@
     "/storage/compiled/js/pdfjs/pdf.min.mjs": "/storage/compiled/js/pdfjs/pdf.min.mjs",
     "/storage/compiled/js/pdfjs/pdf.worker.min.mjs": "/storage/compiled/js/pdfjs/pdf.worker.min.mjs",
     "/storage/compiled/js/sw-archives.js": "/storage/compiled/js/sw-archives.js",
+    "/storage/compiled/js/campus-2.5d.layer.js": "/storage/compiled/js/campus-2.5d.layer.js",
     "/storage/compiled/css/swiper-bundle.min.css": "/storage/compiled/css/swiper-bundle.min.css",
     "/storage/compiled/css/quill.snow.css": "/storage/compiled/css/quill.snow.css"
 }

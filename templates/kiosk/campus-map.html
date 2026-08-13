@@ -5,6 +5,7 @@
 {% block head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <link rel="stylesheet" href="/assets/css/kiosk-map.css" />
+<link rel="stylesheet" href="/assets/css/kiosk-building-pane.css" />
 <link rel="stylesheet" href="/assets/css/kiosk-loading.css" />
 {% endblock %}
 
@@ -28,11 +29,9 @@
       <img class="map-header__brand-mark" src="{{ site_logo() }}" alt="" aria-hidden="true" />
       <span class="map-header__brand-text">
         <span class="map-header__brand-eyebrow">PRESSPOINT</span>
-        <span class="map-header__brand-line">WAYFINDING TERMINAL</span>
       </span>
     </div>
     <div class="map-header__title">
-      <span class="map-header__title-prefix" aria-hidden="true">→</span>
       <h1 class="map-header__title-text">CAMPUS MAP</h1>
     </div>
     <div class="map-header__hint" aria-hidden="true">
@@ -161,5 +160,6 @@
 {% block js %}
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="/assets/js/campus-2.5d.layer.js"></script>
 <script src="/assets/js/kiosk-map.js"></script>
 {% endblock %}

@@ -1303,7 +1303,7 @@ ensureTourDependencies()
       img.onload = function() {
         var bounds = [[0, 0], [img.height, img.width]];
         state.mapBounds = bounds;
-        L.imageOverlay('/campus-map.png', bounds).addTo(map);
+        L.campus25d().addTo(map);
         map.fitBounds(bounds);
         map.setMaxBounds(bounds);
         resolve(map);
@@ -1324,7 +1324,18 @@ ensureTourDependencies()
     });
   }
 
-  function drawRouteOnMap(map, destinationLatLng) {
+  function routePathFor(location, destinationLatLng) {
+    if (location && Array.isArray(location.route) && location.route.length >= 2) {
+      return location.route.map(function(point) {
+        return [Number(point[0]), Number(point[1])];
+      });
+    }
+
+    if (!state.kioskStart || !destinationLatLng) return null;
+    return [state.kioskStart, destinationLatLng];
+  }
+
+  function drawRouteOnMap(map, location, destinationLatLng) {
     if (state.activeRoute) {
       map.removeLayer(state.activeRoute);
     }
@@ -1337,7 +1348,10 @@ ensureTourDependencies()
 
     if (!state.kioskStart) return;
 
-    state.activeRoute = L.polyline([state.kioskStart, destinationLatLng], {
+    var path = routePathFor(location, destinationLatLng);
+    if (!path || path.length < 2) return;
+
+    state.activeRoute = L.polyline(path, {
       color: '#ff5b13',
       weight: 6,
       opacity: 0.95,
@@ -1348,7 +1362,7 @@ ensureTourDependencies()
 
     state.destMarker = buildMarker(destinationLatLng, 'tour-pin').addTo(map);
 
-    map.fitBounds([state.kioskStart, destinationLatLng], { padding: [60, 60] });
+    map.fitBounds(state.activeRoute.getBounds(), { padding: [60, 60] });
   }
 
   /* ── overlay open/close ───────────────────────────────────────── */
@@ -1376,7 +1390,7 @@ ensureTourDependencies()
       // Leaflet needs a redraw after its container becomes visible.
       setTimeout(function() { map.invalidateSize(); }, 60);
       var dest = [Number(location.map_y), Number(location.map_x)];
-      drawRouteOnMap(map, dest);
+      drawRouteOnMap(map, location, dest);
 
       // Tell the server to mint a route session — same backend the
       // campus map uses. We don't surface the QR here (the user is
@@ -1394,6 +1408,14 @@ ensureTourDependencies()
   }
 
   function closeRouteOverlay() {
+    if (state.activeRoute) {
+      state.map.removeLayer(state.activeRoute);
+      state.activeRoute = null;
+    }
+    if (state.destMarker) {
+      state.map.removeLayer(state.destMarker);
+      state.destMarker = null;
+    }
     dom.routeOverlay.classList.add('tour-route--hidden');
     dom.routeOverlay.setAttribute('aria-hidden', 'true');
   }

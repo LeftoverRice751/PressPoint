@@ -1,0 +1,10 @@
+{
+  "_docs": {
+    "purpose": "Map each 2.5D feature id (from resources/js/campus-2.5d.layer.js -> L.CAMPUS_25D_DATA) to the numeric locations.id it represents. Consumed by app/services/Campus25dMapping.py. Ignored keys starting with underscore.",
+    "example": {
+      "H": 1,
+      "21": 3
+    },
+    "fallback": "Buildings with no entry keep the layer's own name/label; they still render, they just don't tie back to a locations row."
+  }
+}

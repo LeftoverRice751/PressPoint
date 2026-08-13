@@ -5,7 +5,9 @@
  *   1. Read the token + expired flag the server stamped onto the root element.
  *   2. If expired, show the notice and bail — no map, no fetch.
  *   3. Otherwise fetch /api/route-sessions/<token> for start + destination.
- *   4. Draw the map (campus-map.png with CRS.Simple, same as the kiosk).
+ *   4. Draw the 2.5D campus (L.campus25d — same self-contained plugin the
+ *      kiosk uses; see resources/js/campus-2.5d.layer.js) and overlay the
+ *      selected route polyline from the serialized location coordinates.
  *   5. Wire the Finish button -> POST /api/route-sessions/<token>/finish
  *      and on success, show the congrats modal.
  */
@@ -21,6 +23,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const finishButton = document.getElementById('mobile-route-finish');
     const expiredNotice = document.getElementById('mobile-route-expired');
     const modal = document.getElementById('mobile-route-modal');
+
+    const DRONE_BASE_CAMERA_DISTANCE = 1.7;
+    const DRONE_BASE_HEIGHT_SCALE = 1;
+    const DRONE_FOCUS_CAMERA_DISTANCE = 2.6;
+    const DRONE_FOCUS_HEIGHT_SCALE = 1.5;
+    const DRONE_FOCUS_ZOOM_BUMP = 1.8;
+    const DRONE_DESCENT_MS = 1400;
+    const ROUTE_STYLE = {
+        color: '#ff5b13',
+        weight: 6,
+        opacity: 0.95,
+        dashArray: '12, 8',
+        lineCap: 'square',
+        lineJoin: 'miter',
+    };
 
     const showExpired = (message) => {
         if (message) {
@@ -38,66 +55,110 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const map = L.map('mobile-route-map', {
         crs: L.CRS.Simple,
-        minZoom: -2,
+        minZoom: -3,
+        maxZoom: 3,
+        zoomSnap: 0.25,
         zoomControl: false,
         attributionControl: false,
     });
 
-    const drawRoute = (start, destination) => {
-        // Pixel positions on campus-map.png, y first — see the note in
-        // kiosk-map.js. The real WGS84 sits on `latitude`/`longitude`, unused
-        // here because this map is a picture rather than a geographic one.
-        const startPos = [Number(start.map_y), Number(start.map_x)];
-        const destPos = [Number(destination.map_y), Number(destination.map_x)];
+    let layer = null;
+    let layerBounds = null;
+    let routeLayer = null;
+    let animationToken = 0;
 
-        L.circleMarker(startPos, {
-            radius: 9,
-            color: '#16a34a',
-            weight: 3,
-            fillColor: '#22c55e',
-            fillOpacity: 0.95,
-        }).addTo(map).bindTooltip('Start', { permanent: true, direction: 'top', offset: [0, -10] });
-
-        L.circleMarker(destPos, {
-            radius: 11,
-            color: '#dc2626',
-            weight: 3,
-            fillColor: '#ef4444',
-            fillOpacity: 0.95,
-        }).addTo(map).bindTooltip(destination.name || 'Destination', {
-            permanent: true,
-            direction: 'top',
-            offset: [0, -12],
-        });
-
-        L.polyline([startPos, destPos], {
-            color: '#2563eb',
-            weight: 5,
-            opacity: 0.9,
-        }).addTo(map);
-
-        // Frame the view so both points are visible with a margin.
-        map.fitBounds([startPos, destPos], { padding: [40, 40] });
+    // Same centroid helper as the kiosk: average the outer ring of a
+    // 2.5D feature's first polygon and hand back an L.latLng. See
+    // resources/js/kiosk-map.js for the shared implementation notes.
+    const featureCenter = (featureId) => {
+        if (!featureId) return null;
+        const data = (window.L && L.CAMPUS_25D_DATA) || null;
+        if (!data || !Array.isArray(data.features)) return null;
+        const feature = data.features.find(
+            (f) => f.properties && String(f.properties.id) === String(featureId),
+        );
+        if (!feature || !feature.geometry) return null;
+        const polys = feature.geometry.type === 'Polygon'
+            ? [feature.geometry.coordinates]
+            : feature.geometry.type === 'MultiPolygon'
+                ? feature.geometry.coordinates
+                : null;
+        if (!polys || !polys[0] || !polys[0][0]) return null;
+        const ring = polys[0][0];
+        let sumX = 0;
+        let sumY = 0;
+        for (const [x, y] of ring) { sumX += x; sumY += y; }
+        return L.latLng(sumY / ring.length, sumX / ring.length);
     };
 
-    const loadCampusImage = () => new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = reject;
-        image.src = '/campus-map.png';
-    });
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+    const animateDrone = (fromDistance, toDistance, fromScale, toScale, durationMs) => {
+        animationToken += 1;
+        const token = animationToken;
+        const start = performance.now();
+        return new Promise((resolve) => {
+            const tick = (now) => {
+                if (token !== animationToken) return resolve();
+                const t = Math.min(1, (now - start) / durationMs);
+                const eased = easeOutCubic(t);
+                layer.setCameraDistance(fromDistance + (toDistance - fromDistance) * eased);
+                layer.setHeightScale(fromScale + (toScale - fromScale) * eased);
+                if (t < 1) requestAnimationFrame(tick);
+                else resolve();
+            };
+            requestAnimationFrame(tick);
+        });
+    };
+
+    const flyToWithDroneIn = (destination) => {
+        const target = featureCenter(destination.feature_id);
+        if (!target) return;
+        const targetZoom = map.getZoom() + DRONE_FOCUS_ZOOM_BUMP;
+        map.flyTo(target, targetZoom, { duration: DRONE_DESCENT_MS / 1000 });
+        animateDrone(
+            layer.options.cameraDistance,
+            DRONE_FOCUS_CAMERA_DISTANCE,
+            layer.options.heightScale,
+            DRONE_FOCUS_HEIGHT_SCALE,
+            DRONE_DESCENT_MS,
+        );
+    };
+
+    const routePathFor = (start, destination) => {
+        const route = Array.isArray(destination && destination.route) && destination.route.length >= 2
+            ? destination.route.map(([y, x]) => [Number(y), Number(x)])
+            : null;
+        if (route) return route;
+
+        return [
+            [Number(start.latitude) || 0, Number(start.longitude) || 0],
+            [Number(destination.latitude) || 0, Number(destination.longitude) || 0],
+        ];
+    };
+
+    const drawRouteLine = (start, destination) => {
+        if (routeLayer) {
+            map.removeLayer(routeLayer);
+            routeLayer = null;
+        }
+
+        const path = routePathFor(start, destination);
+        if (!path || path.length < 2) return;
+
+        routeLayer = L.polyline(path, ROUTE_STYLE).addTo(map);
+        map.fitBounds(routeLayer.getBounds(), { padding: [32, 32] });
+    };
 
     const renderMap = (data) => {
-        loadCampusImage()
-            .then((image) => {
-                const bounds = [[0, 0], [image.height, image.width]];
-                L.imageOverlay('/campus-map.png', bounds).addTo(map);
-                map.setMaxBounds(bounds);
-                drawRoute(data.start, data.destination);
-            })
-            .catch(() => {
-                showExpired('Could not load the campus map. Please try again later.');
-            });
+        layer = L.campus25d({
+            cameraDistance: DRONE_BASE_CAMERA_DISTANCE,
+            heightScale: DRONE_BASE_HEIGHT_SCALE,
+            interactive: false,
+        }).addTo(map);
+        layerBounds = layer.getBounds();
+        map.setMaxBounds(layerBounds.pad(0.5));
+        drawRouteLine(data.start, data.destination);
     };
 
     const fetchSession = () => {

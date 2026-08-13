@@ -8,7 +8,7 @@ from masonite.views import View
 
 from app.models.Locations import Locations
 from app.models.RouteSessions import RouteSessions
-from app.services import CampusGeo
+from app.services import Campus25dMapping, CampusRoutes
 
 
 # How long a QR-shared route stays valid on the phone after the kiosk
@@ -28,8 +28,9 @@ class MapController(Controller):
 
     def get_locations(self, response: Response):
         locations = Locations.all()
+        route_map = CampusRoutes.build_location_route_map(locations)
 
-        payload = [self._serialize_location(location) for location in locations]
+        payload = [self._serialize_location(location, route_map) for location in locations]
 
         return response.json(payload)
 
@@ -105,11 +106,13 @@ class MapController(Controller):
         if not start or not destination:
             return response.json({"status": "expired"}, status=404)
 
+        route_map = CampusRoutes.build_location_route_map(Locations.all())
+
         return response.json(
             {
                 "status": "active",
-                "start": self._serialize_location(start),
-                "destination": self._serialize_location(destination),
+                "start": self._serialize_location(start, route_map),
+                "destination": self._serialize_location(destination, route_map),
                 "expires_at": str(session.expires_at),
             }
         )
@@ -130,30 +133,32 @@ class MapController(Controller):
 
     # --- helpers --------------------------------------------------------
 
-    def _serialize_location(self, location):
+    def _serialize_location(self, location, route_map=None):
         """The one shape every client gets, for both the kiosk and the phone.
 
-        `latitude` / `longitude` are real WGS84. The maps are drawn as a flat
-        picture in Leaflet's CRS.Simple, which cannot use those, so the pixel
-        position is derived here and sent alongside as `map_x` / `map_y`.
-        Doing it server-side keeps the georeferencing in one language and one
-        file — no client ever needs to know the transform exists.
+        `latitude` and `longitude` are pixel positions on campus-map.png in
+        Leaflet's CRS.Simple space — `latitude` is the y (down from the top of
+        the image, inverted so up is positive) and `longitude` is the x. The
+        column names are historical; every consumer treats them as pixels.
+
+        `route` is the polyline (Leaflet [y, x] pairs) drawn from Main Gate to
+        this building, sourced from the QGIS network via CampusRoutes. It is
+        None for locations without a matching feature; the JS falls back to a
+        straight start->destination line in that case.
         """
         name = getattr(location, "name", "") or ""
-        latitude = float(getattr(location, "latitude", 0) or 0)
-        longitude = float(getattr(location, "longitude", 0) or 0)
-        map_x, map_y = CampusGeo.to_pixel(latitude, longitude)
+        location_id = getattr(location, "id", None)
 
         return {
-            "id": getattr(location, "id", None),
+            "id": location_id,
             "name": name,
             "type": getattr(location, "type", "") or "",
-            "latitude": latitude,
-            "longitude": longitude,
-            "map_x": map_x,
-            "map_y": map_y,
+            "latitude": float(getattr(location, "latitude", 0) or 0),
+            "longitude": float(getattr(location, "longitude", 0) or 0),
             "is_routable": bool(getattr(location, "is_routable", False)),
             "is_start": name.strip().lower() == KIOSK_START_LOCATION_NAME,
+            "route": (route_map or {}).get(location_id),
+            "feature_id": Campus25dMapping.feature_id_for(location_id),
         }
 
     def _find_start_location(self):

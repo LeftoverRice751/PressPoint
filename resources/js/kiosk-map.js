@@ -57,12 +57,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = {
         locations: [],          // raw locations from /api/locations
         searchIndex: [],        // same locations with acronym + initials precomputed
-        kioskStart: null,       // [map_y, map_x] pixel position of the start (SSB)
         selected: null,         // currently selected destination location
-        activeRoute: null,      // current Leaflet polyline, if any
         idleTimer: null,
         activeCategory: 'all',  // current chip filter
+        layer: null,            // the L.campus25d() layer instance
+        routeLayer: null,       // active route polyline overlay
+        baseZoom: null,         // zoom the map settles at after the initial fit
+        baseCenter: null,       // center the map settles at after the initial fit
+        droneActive: false,     // true while a drone descent animation is in flight
+        currentAnimation: 0,    // token so a newer drone call can cancel an older one
     };
+
+    // 2.5D drone baseline knobs. Match the layer's option defaults so a reset
+    // returns to the same look the layer draws when nothing is selected.
+    const DRONE_BASE_CAMERA_DISTANCE = 1.7;
+    const DRONE_BASE_HEIGHT_SCALE = 1;
+    const DRONE_FOCUS_CAMERA_DISTANCE = 2.6;
+    const DRONE_FOCUS_HEIGHT_SCALE = 1.5;
+    const DRONE_FOCUS_ZOOM_BUMP = 1.8;
+    const DRONE_DESCENT_MS = 1200;
+    const DRONE_RESET_MS = 900;
 
     // ── 2. DOM references ─────────────────────────────────────────
 
@@ -283,25 +297,63 @@ document.addEventListener('DOMContentLoaded', () => {
         showKeyboard();
     });
 
-    // ── 7. Map setup + marker rendering ───────────────────────────
+    // ── 7. Map setup + 2.5D layer + marker rendering ──────────────
 
     const map = L.map(dom.mapEl, {
         crs: L.CRS.Simple,
-        minZoom: -2,
+        minZoom: -3,
+        maxZoom: 3,
+        // The 2.5D layer's usage docs call for a 0.25 snap so its parallax
+        // stays crisp during flyTo tweens; anything smaller and Leaflet keeps
+        // rerendering the canvas at odd fractional zooms.
+        zoomSnap: 0.25,
         zoomControl: false,
-        // Leaflet's default zoomSnap of 1 makes fitBounds *floor* to a whole
-        // zoom level. The kiosk needs zoom -0.665 to fit, so it was rounding
-        // to -1 and drawing the map at half scale — barely half the stage.
-        // 0 allows the exact fractional fit.
-        zoomSnap: 0,
         doubleClickZoom: false,
     });
 
-    // We keep the original image bounds so we can zoom back out later.
-    let mapBounds = null;
+    const routeStyle = {
+        color: '#ff5b13',
+        weight: 6,
+        opacity: 0.95,
+        dashArray: '12, 8',
+        lineCap: 'square',
+        lineJoin: 'miter',
+    };
 
-    // The kiosk start gets a divIcon with two pulse rings + a solid
-    // core + a permanent label. Animation is pure CSS (see kiosk-map.css).
+    const clearRouteLayer = () => {
+        if (state.routeLayer) {
+            map.removeLayer(state.routeLayer);
+            state.routeLayer = null;
+        }
+    };
+
+    const buildRoutePath = (location) => {
+        const route = Array.isArray(location?.route) && location.route.length >= 2
+            ? location.route.map(([y, x]) => [Number(y), Number(x)])
+            : null;
+        if (route) return route;
+
+        const start = state.locations.find((loc) => loc.is_start);
+        if (!start) return null;
+
+        return [
+            [Number(start.latitude) || 0, Number(start.longitude) || 0],
+            [Number(location.latitude) || 0, Number(location.longitude) || 0],
+        ];
+    };
+
+    const showRouteLine = (location) => {
+        clearRouteLayer();
+
+        const path = buildRoutePath(location);
+        if (!path || path.length < 2) return;
+
+        state.routeLayer = L.polyline(path, routeStyle).addTo(map);
+        map.fitBounds(state.routeLayer.getBounds(), { padding: [48, 48] });
+    };
+
+    // "You are here" divIcon — pulses to anchor the user's mental map at the
+    // start location (SSB). Placement lives on top of the 2.5D building.
     const buildHereIcon = () => L.divIcon({
         className: 'kiosk-here-marker',
         html: `
@@ -316,8 +368,9 @@ document.addEventListener('DOMContentLoaded', () => {
         iconAnchor: [0, 0],
     });
 
-    // Routable buildings get a category-tinted divIcon so the visual matches
-    // the legend swatches. Non-routable ones keep the default Leaflet pin.
+    // Category-tinted marker for a routable building. The 2.5D layer already
+    // draws the building shape; the pin adds a colour-coded dot on top so the
+    // user still sees the category legend match at a glance.
     const buildPinIcon = (categoryId) => L.divIcon({
         className: 'kiosk-pin-marker',
         html: `<div class="kiosk-pin kiosk-pin--${categoryId}"><span class="kiosk-pin__dot"></span></div>`,
@@ -325,26 +378,65 @@ document.addEventListener('DOMContentLoaded', () => {
         iconAnchor: [0, 0],
     });
 
+    // Cache of feature-id -> Leaflet L.latLng centroid. The 2.5D data lives
+    // in L.CAMPUS_25D_DATA (pixel CRS: lng = x, lat = -y — the layer stores
+    // that as-written, so we just average the polygon vertices and hand back
+    // an L.latLng with the y sign already baked in).
+    const featureCenterCache = new Map();
+    const featureCenter = (featureId) => {
+        if (!featureId) return null;
+        const key = String(featureId);
+        if (featureCenterCache.has(key)) return featureCenterCache.get(key);
+
+        const data = (window.L && L.CAMPUS_25D_DATA) || null;
+        if (!data || !Array.isArray(data.features)) return null;
+
+        const idProp = 'id';
+        const feature = data.features.find(
+            (f) => f.properties && String(f.properties[idProp]) === key,
+        );
+        if (!feature || !feature.geometry) return null;
+
+        const polys = feature.geometry.type === 'Polygon'
+            ? [feature.geometry.coordinates]
+            : feature.geometry.type === 'MultiPolygon'
+                ? feature.geometry.coordinates
+                : null;
+        if (!polys || !polys[0] || !polys[0][0]) return null;
+
+        const ring = polys[0][0];
+        let sumX = 0;
+        let sumY = 0;
+        for (const [x, y] of ring) { sumX += x; sumY += y; }
+        const cx = sumX / ring.length;
+        const cy = sumY / ring.length;
+
+        const latLng = L.latLng(cy, cx);
+        featureCenterCache.set(key, latLng);
+        return latLng;
+    };
+
     const addLocationMarker = (location) => {
-        // The map is a picture, not a globe: CRS.Simple positions are pixels,
-        // y first. `latitude`/`longitude` on the location are real WGS84 and
-        // would land somewhere near the map's bottom-left corner if used here.
-        // The server derives these from them (MapController._serialize_location).
-        const position = [Number(location.map_y), Number(location.map_x)];
+        // A location without a mapped 2.5D feature has no meaningful place to
+        // sit on the extruded scene, so we skip it. It still shows up in
+        // search results and will select cleanly (search-driven flow does not
+        // need a pin on the map).
+        const center = featureCenter(location.feature_id);
+        if (!center) return;
 
         let marker;
         if (location.is_start) {
-            marker = L.marker(position, { icon: buildHereIcon() }).addTo(map);
+            marker = L.marker(center, { icon: buildHereIcon() }).addTo(map);
         } else if (location.is_routable) {
             const categoryId = categoryFor(location.type);
-            marker = L.marker(position, { icon: buildPinIcon(categoryId) }).addTo(map);
+            marker = L.marker(center, { icon: buildPinIcon(categoryId) }).addTo(map);
             marker.bindTooltip(location.name, {
                 direction: 'top',
                 offset: [0, -22],
                 className: 'campus-map-label',
             });
         } else {
-            marker = L.marker(position).addTo(map);
+            marker = L.marker(center).addTo(map);
             marker.bindTooltip(location.name, {
                 direction: 'top',
                 offset: [0, -10],
@@ -365,65 +457,118 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.locations = locations;
                 state.searchIndex = buildSearchIndex(locations);
 
-                locations.forEach((location) => {
-                    if (location.is_start) {
-                        state.kioskStart = [Number(location.map_y), Number(location.map_x)];
-                    }
-                    addLocationMarker(location);
-                });
+                locations.forEach(addLocationMarker);
             })
             .catch((error) => console.error('Failed to load locations:', error));
 
-    // Match the map element to the image's aspect ratio and pin it to the top
-    // of the stage. fitBounds then fills the element edge to edge with no
-    // letterbox, and the leftover band falls *below* the map — exactly where
-    // the search bar and category chips already sit, so no empty space shows.
-    //
-    // Sizing the element beats panning the map: setMaxBounds re-centres a view
-    // smaller than its container, which would undo any offset we applied.
-    const sizeMapToAspect = () => {
-        if (!dom.stage || !mapBounds) return;
+    // Bootstrap the 2.5D layer and route featureclick through selectBuilding.
+    // The layer handles its own sizing against the map viewport — no image
+    // aspect trick needed like the old flat picture required.
+    state.layer = L.campus25d({
+        cameraDistance: DRONE_BASE_CAMERA_DISTANCE,
+        heightScale: DRONE_BASE_HEIGHT_SCALE,
+    }).addTo(map);
 
-        const sw = dom.stage.clientWidth;
-        const sh = dom.stage.clientHeight;
-        const aspect = mapImage.width / mapImage.height;
+    const layerBounds = state.layer.getBounds();
+    map.fitBounds(layerBounds, { padding: [48, 48] });
+    map.setMaxBounds(layerBounds.pad(0.5));
+    state.baseZoom = map.getZoom();
+    state.baseCenter = map.getCenter();
 
-        let w = sw;
-        let h = sw / aspect;
-        if (h > sh) {
-            h = sh;
-            w = sh * aspect;
-        }
+    state.layer.on('featureclick', (event) => {
+        const featureId = event.feature && event.feature.id;
+        if (!featureId) return;
+        // Fast lookup: match the location whose feature_id === this feature.id.
+        const location = state.locations.find(
+            (loc) => loc.feature_id && String(loc.feature_id) === String(featureId),
+        );
+        if (!location) return;
+        if (!location.is_routable) return;
+        selectBuilding(location);
+    });
 
-        Object.assign(dom.mapEl.style, {
-            width: `${w}px`,
-            height: `${h}px`,
-            top: '0',
-            bottom: 'auto',
-            left: `${(sw - w) / 2}px`,
-            right: 'auto',
-        });
-
-        map.invalidateSize({ animate: false });
-        map.fitBounds(mapBounds);
-    };
-
-    // Bootstrap the image overlay first so positioning is right.
-    const mapImage = new Image();
-    mapImage.onload = () => {
-        mapBounds = [[0, 0], [mapImage.height, mapImage.width]];
-        L.imageOverlay('/campus-map.png', mapBounds).addTo(map);
-        sizeMapToAspect();
-        map.setMaxBounds(mapBounds);
-        fetchLocations();
-    };
-    mapImage.src = '/campus-map.png';
+    fetchLocations();
 
     let resizeTimer = null;
     window.addEventListener('resize', () => {
         if (resizeTimer) clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(sizeMapToAspect, 150);
+        resizeTimer = setTimeout(() => {
+            map.invalidateSize({ animate: false });
+            if (!state.droneActive && !state.selected) {
+                map.fitBounds(layerBounds, { padding: [48, 48] });
+                state.baseZoom = map.getZoom();
+                state.baseCenter = map.getCenter();
+            }
+        }, 150);
     });
+
+    // ── 7b. Drone descent + reset ─────────────────────────────────
+
+    // Cubic ease-out feels like a soft settle — matches the "drone slowing
+    // to hover" cue we want; ease-in would look like acceleration into the
+    // building, which reads as impact.
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+    // A single tween runner drives both the descent and the reset: they only
+    // differ in the target values and the duration. `currentAnimation` acts
+    // as a fence — if a new call starts while an old one is mid-flight, the
+    // old one stops writing to the layer and the new one takes over.
+    const animateDrone = (fromDistance, toDistance, fromScale, toScale, durationMs) => {
+        state.currentAnimation += 1;
+        const token = state.currentAnimation;
+        const start = performance.now();
+
+        return new Promise((resolve) => {
+            const tick = (now) => {
+                if (token !== state.currentAnimation) return resolve();
+                const t = Math.min(1, (now - start) / durationMs);
+                const eased = easeOutCubic(t);
+                state.layer.setCameraDistance(fromDistance + (toDistance - fromDistance) * eased);
+                state.layer.setHeightScale(fromScale + (toScale - fromScale) * eased);
+                if (t < 1) {
+                    requestAnimationFrame(tick);
+                } else {
+                    resolve();
+                }
+            };
+            requestAnimationFrame(tick);
+        });
+    };
+
+    const flyToWithDroneIn = (location) => {
+        const target = featureCenter(location.feature_id);
+        if (!target) return;
+        state.droneActive = true;
+        map.flyTo(target, state.baseZoom + DRONE_FOCUS_ZOOM_BUMP, {
+            duration: DRONE_DESCENT_MS / 1000,
+        });
+        animateDrone(
+            state.layer.options.cameraDistance,
+            DRONE_FOCUS_CAMERA_DISTANCE,
+            state.layer.options.heightScale,
+            DRONE_FOCUS_HEIGHT_SCALE,
+            DRONE_DESCENT_MS,
+        ).then(() => { state.droneActive = false; });
+    };
+
+    const resetDroneCamera = () => {
+        state.droneActive = true;
+        map.flyToBounds(layerBounds, {
+            duration: DRONE_RESET_MS / 1000,
+            padding: [48, 48],
+        });
+        animateDrone(
+            state.layer.options.cameraDistance,
+            DRONE_BASE_CAMERA_DISTANCE,
+            state.layer.options.heightScale,
+            DRONE_BASE_HEIGHT_SCALE,
+            DRONE_RESET_MS,
+        ).then(() => {
+            state.droneActive = false;
+            state.baseZoom = map.getZoom();
+            state.baseCenter = map.getCenter();
+        });
+    };
 
     // Tapping the map away from a marker closes any open pane.
     map.on('click', () => {
@@ -444,25 +589,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const selectBuilding = (location) => {
         state.selected = location;
+        clearRouteLayer();
 
         // Populate the pane.
         dom.paneType.textContent = location.type || 'Building';
         dom.paneName.textContent = location.name || 'Location';
-        // Real WGS84 now, so this is worth showing properly. Six places is
-        // ~11cm — enough to be typed into any maps app and land on the door.
-        dom.paneLat.textContent = Number(location.latitude).toFixed(6);
-        dom.paneLng.textContent = Number(location.longitude).toFixed(6);
+        dom.paneLat.textContent = Number(location.latitude).toFixed(2);
+        dom.paneLng.textContent = Number(location.longitude).toFixed(2);
 
-        // Clear any previous route line and start fresh on the info view.
-        if (state.activeRoute) {
-            map.removeLayer(state.activeRoute);
-            state.activeRoute = null;
-        }
         showInfoView();
 
-        // The camera deliberately does not move. The whole map is sized to be
-        // readable without zooming, so selecting a building must not throw
-        // that view away.
+        // The drone descent is the wayfinding cue: fly the camera to the
+        // building, tilt the 2.5D scene, taller extrusion — reads as the
+        // camera dropping in from above so users see the target AND what
+        // surrounds it.
+        flyToWithDroneIn(location);
 
         dom.pane.classList.remove('building-pane--hidden');
         dom.pane.setAttribute('aria-hidden', 'false');
@@ -480,12 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.pane.setAttribute('aria-hidden', 'true');
         dom.page.classList.remove('campus-map-page--pane-open');
         state.selected = null;
-
-        if (state.activeRoute) {
-            map.removeLayer(state.activeRoute);
-            state.activeRoute = null;
-        }
-        if (mapBounds) map.fitBounds(mapBounds);
+        resetDroneCamera();
     };
 
     // The floating × was removed from the dock — both views carry a full-size
@@ -497,27 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', closeBuildingPane);
     });
 
-    // ── 9. Show Route flow + QR handoff ───────────────────────────
-
-    const drawRoute = (location) => {
-        if (!state.kioskStart) return;
-        const destination = [Number(location.map_y), Number(location.map_x)];
-
-        if (state.activeRoute) {
-            map.removeLayer(state.activeRoute);
-        }
-        state.activeRoute = L.polyline([state.kioskStart, destination], {
-            color: '#ff5b13',
-            weight: 6,
-            opacity: 0.95,
-            dashArray: '12, 8',
-            lineCap: 'square',
-            lineJoin: 'miter',
-        }).addTo(map);
-
-        // No fitBounds here: the whole campus is already in view, so the route
-        // is visible end to end without moving the camera.
-    };
+    // ── 9. QR handoff ─────────────────────────────────────────────
 
     const renderQr = (url) => {
         // qrcodejs appends children; clear any prior code first.
@@ -547,9 +663,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Failed to create route session:', body);
                     return;
                 }
-                drawRoute(state.selected);
+                // The walkway is already on screen from selectBuilding; the
+                // QR flow only needs to issue the token and swap the view.
                 renderQr(body.qr_url);
                 showQrView();
+                showRouteLine(state.selected);
             })
             .catch((error) => console.error('Route session request failed:', error));
     };
@@ -590,6 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setSearchValue('');
         dom.suggestions.classList.add('suggestions--hidden');
         setActiveCategory('all');
+        clearRouteLayer();
     };
 
     const bumpIdleTimer = () => {
