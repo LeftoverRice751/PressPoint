@@ -1075,6 +1075,24 @@
     max-width: 780px;
     margin: 0.85rem auto 0;
     text-align: center;
+    /* Two buttons now live here ("+ Add main headline" next to the
+       pre-existing "+ Add a story") — flex + gap keeps them evenly spaced
+       instead of relying on incidental inline-whitespace spacing. */
+    display: flex;
+    justify-content: center;
+    gap: 0.6rem;
+}
+/* "+ Add main headline" disables once the lead is occupied (saved story or
+   scratch card alike) — ghost-button has no built-in disabled treatment
+   elsewhere, so give it one here rather than leaving a dead-looking-but-
+   clickable control. */
+.news-editor__add .ghost-button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.news-editor__add .ghost-button:disabled:hover {
+    background: transparent;
+    color: var(--ink-oxblood);
 }
 
 /* Quill toolbar/content in the Gears palette */

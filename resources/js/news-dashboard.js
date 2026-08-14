@@ -1021,12 +1021,12 @@ import Sortable from 'sortablejs';
 
   // A brand-new, not-yet-published story has no slot of its own to be
   // edited "in place" in yet, so it needs a scratch card to hold its inline
-  // title/excerpt/image fields until it's saved. Deliberately appended to
-  // the secondary grid (never the lead) so "+ Add a story" can no longer
-  // clobber whatever the front page's actual lead story currently shows —
-  // that DOM-overwrite was the confusing behavior Task 5 exists to remove.
-  // Mirrors the real secondary-story markup in kiosk/_news_slots.html
-  // exactly (title + excerpt + image), minus the server-rendered id.
+  // fields until it's saved. "+ Add a story" deliberately appends to the
+  // secondary grid (never the lead) so it can no longer clobber whatever
+  // the front page's actual lead story currently shows — that DOM-overwrite
+  // was the confusing behavior Task 5 exists to remove. Mirrors the real
+  // secondary-story markup in kiosk/_news_slots.html exactly (title +
+  // excerpt + image), minus the server-rendered id.
   var SCRATCH_SECONDARY_HTML =
     '<article class="secondary-story is-scratch" data-news-id="">' +
       '<div class="secondary-story__thumb secondary-story__thumb--fallback" data-news-edit="image" aria-hidden="true"></div>' +
@@ -1036,19 +1036,81 @@ import Sortable from 'sortablejs';
       '</div>' +
     '</article>';
 
-  function ensureNewStoryScratch() {
-    var grid = editor.querySelector('.secondary-grid');
+  // "+ Add main headline"'s scratch. Main owns MORE editable regions than
+  // secondary (image caption/credit, dek, source, location, body) — mirrors
+  // the real `article.feature-story` markup in kiosk/_news_slots.html lines
+  // 39-95 so every one of those regions exists on the scratch too.
+  // syncFormFromSurface() only writes a field into the hidden form when its
+  // region is present on the active `<article>` (see its own comment,
+  // "fix-round-1, C2") — a scratch missing caption/credit would silently
+  // drop those columns the moment Publish ran, because the field would
+  // never be read off the surface at all. No news-card-controls/position
+  // badge/"Continue reading": those belong to cards that already have a
+  // real id and a place in the persisted canvas order; a scratch has
+  // neither yet.
+  var SCRATCH_MAIN_HTML =
+    '<article class="feature-story is-scratch" data-news-id="">' +
+      '<figure class="feature-story__figure">' +
+        '<div class="feature-story__image feature-story__image--fallback" data-news-edit="image" aria-hidden="true"></div>' +
+        '<figcaption class="feature-story__cutline">' +
+          '<span class="feature-story__caption" data-news-edit="caption"></span>' +
+          '<span class="feature-story__credit"><span class="feature-story__credit-label" aria-hidden="true">Photo:</span> <span data-news-edit="credit"></span></span>' +
+        '</figcaption>' +
+      '</figure>' +
+      '<div class="feature-story__content">' +
+        '<span class="feature-story__kicker">Campus</span>' +
+        '<h2 class="feature-story__title" data-news-edit="title"></h2>' +
+        '<p class="feature-story__dek" data-news-edit="dek"></p>' +
+        '<p class="feature-story__excerpt" data-news-edit="excerpt"></p>' +
+        '<div class="feature-story__meta">By <span data-news-edit="source"></span> &middot; <span data-news-edit="location"></span></div>' +
+        '<div class="feature-story__copy drop-cap" data-news-edit="body"></div>' +
+        '<button type="button" class="feature-story__edit-body-btn ghost-button" data-news-edit-body>Edit Full Article Body</button>' +
+      '</div>' +
+    '</article>';
+
+  var SCRATCH_SHAPE = {
+    main:      { list: function () { return editor.querySelector('[data-news-slot-list="main"]'); }, selector: '.feature-story[data-news-id=""]', html: SCRATCH_MAIN_HTML },
+    secondary: { list: function () { return editor.querySelector('.secondary-grid'); }, selector: '.secondary-story[data-news-id=""]', html: SCRATCH_SECONDARY_HTML }
+  };
+
+  // Slot-aware: targets the lead's own list for 'main', the secondary grid
+  // otherwise. Keeps the existing "is there already a scratch card?" guard
+  // per list, so re-clicking either add button re-uses/re-selects the same
+  // in-progress scratch rather than stacking a second one.
+  function ensureNewStoryScratch(slotType) {
+    var shape = SCRATCH_SHAPE[slotType] || SCRATCH_SHAPE.secondary;
+    var grid = shape.list();
     if (!grid) return null;
-    var existing = grid.querySelector('.secondary-story[data-news-id=""]');
+    var existing = grid.querySelector(shape.selector);
     if (existing) return existing;
-    grid.insertAdjacentHTML('afterbegin', SCRATCH_SECONDARY_HTML);
-    return grid.querySelector('.secondary-story[data-news-id=""]');
+    grid.insertAdjacentHTML('afterbegin', shape.html);
+    return grid.querySelector(shape.selector);
+  }
+
+  var addMainBtn = composer.querySelector('[data-news-add-main]');
+  if (addMainBtn) {
+    addMainBtn.addEventListener('click', function () {
+      // Belt-and-braces alongside the `disabled` attribute syncPlaceholders()
+      // maintains: a stale click event already queued before the last
+      // disable takes effect must not still insert a second scratch.
+      if (addMainBtn.disabled) return;
+      var art = ensureNewStoryScratch('main');
+      selectStory('', 'main', art);
+      // Re-derive placeholders/the add-button's disabled state immediately —
+      // this is the exact scenario the mainSlotOccupied() helper exists for:
+      // without it, the just-inserted scratch wouldn't count as occupancy,
+      // so the "+ Assign story to Main Headline" button would reappear
+      // under the blank lead card and this button would stay clickable.
+      syncPlaceholders();
+      markDirty();
+      if (art && art.scrollIntoView) art.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   var addBtn = composer.querySelector('[data-news-add-secondary]');
   if (addBtn) {
     addBtn.addEventListener('click', function () {
-      var art = ensureNewStoryScratch();
+      var art = ensureNewStoryScratch('secondary');
       selectStory('', 'secondary', art);
       markDirty();
       if (art && art.scrollIntoView) art.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1099,7 +1161,13 @@ import Sortable from 'sortablejs';
   // occupy): there is now exactly one numbering scheme for every write
   // path that owns the whole canvas.
   var CANVAS_LIST_SELECTOR = {
-    main: '.feature-story',
+    // :not(.is-scratch) — same reason the secondary entry already excludes
+    // it below: an unsaved "+ Add main headline" scratch (Task 2) has no
+    // real id, so letting it register as a Sortable list item here would
+    // let a dragged-in real card land ALONGSIDE it instead of being swapped
+    // for it (`filter` below only blocks the scratch from STARTING a drag,
+    // not from being counted as an existing item other drags land next to).
+    main: '.feature-story:not(.is-scratch)',
     secondary: '.secondary-story:not(.is-scratch)',
     widget: '.info-card'
   };
@@ -1115,6 +1183,22 @@ import Sortable from 'sortablejs';
       container.querySelectorAll('[data-news-id]'),
       function (el) { return !!el.getAttribute('data-news-id'); }
     );
+  }
+
+  // The lead's occupancy, for placeholder rendering and the "+ Add main
+  // headline" button ONLY — deliberately not folded into realCardNodes()
+  // itself, whose "real card" meaning (empty data-news-id excluded) other
+  // call sites (drag capacity via containerHasRoom/fixOverflow, position
+  // badges via flatCanvasCards) still depend on. Without this separate
+  // helper, `realCardNodes(lists.main).length === 0` stays true right after
+  // "+ Add main headline" inserts its scratch (data-news-id=""), so
+  // syncPlaceholders() would re-add the "+ Assign story to Main Headline"
+  // button underneath the blank lead card, and the add button would stay
+  // enabled for a second scratch.
+  function mainSlotOccupied(container) {
+    if (!container) return false;
+    if (realCardNodes(container).length > 0) return true;
+    return !!container.querySelector('.feature-story[data-news-id=""]');
   }
 
   function slotListContainers() {
@@ -1198,13 +1282,18 @@ import Sortable from 'sortablejs';
   function syncPlaceholders() {
     var lists = slotListContainers();
     if (lists.main) {
-      var mainReal = realCardNodes(lists.main);
+      var mainOccupiedNow = mainSlotOccupied(lists.main);
       var mainEmpty = lists.main.querySelector('.paper-empty');
-      if (mainReal.length === 0 && !mainEmpty && mainEmptyTemplate && mainEmptyTemplate.content) {
+      if (!mainOccupiedNow && !mainEmpty && mainEmptyTemplate && mainEmptyTemplate.content) {
         lists.main.appendChild(mainEmptyTemplate.content.cloneNode(true));
-      } else if (mainReal.length > 0 && mainEmpty) {
+      } else if (mainOccupiedNow && mainEmpty) {
         mainEmpty.remove();
       }
+      // "+ Add main headline" only ever makes sense while the lead is
+      // genuinely open — a saved story OR an unsaved scratch both count
+      // (mainSlotOccupied), otherwise a second click would insert a second
+      // scratch card into a capacity-1 slot.
+      if (addMainBtn) addMainBtn.disabled = mainOccupiedNow;
     }
     if (lists.secondary) {
       Array.prototype.slice.call(lists.secondary.querySelectorAll('.paper-empty')).forEach(function (el) { el.remove(); });
@@ -1783,7 +1872,11 @@ import Sortable from 'sortablejs';
   // belt-and-braces check, not the primary defense.
   function firstFreeTarget() {
     var counts = slotCounts();
-    if (counts.main < 1) return { type: 'main', priority: 0 };
+    // priority: 1, not 0 — the lead's own assign button now carries
+    // data-news-slot-position="1" (Task 1), and removeFilledPlaceholder()
+    // no longer bails on main, so this has to match that button's position
+    // for the generic toolbar-open path to clean it up immediately too.
+    if (counts.main < 1) return { type: 'main', priority: 1 };
     if (counts.secondary < 4) return { type: 'secondary', priority: counts.secondary + 1 };
     if (counts.widget < 2) return { type: 'widget', priority: counts.widget + 1 };
     return null;
@@ -1853,8 +1946,15 @@ import Sortable from 'sortablejs';
   // it's safe to reconcile immediately and unconditionally — unlike the full
   // canvas fragment swap below, this doesn't need to wait on the dirty-edit
   // gate (fix round 1, I2).
+  //
+  // Used to bail on target.type === 'main' because main had no placeholder
+  // to remove at all — the lead's empty state was a plain, buttonless div.
+  // Now that it's "+ Assign story to Main Headline" (same shape as
+  // secondary/widget), that early return would leave the button lingering
+  // on screen under the story that just landed until the next full canvas
+  // refresh, so it's gone.
   function removeFilledPlaceholder(target) {
-    if (!target || target.type === 'main' || !editor) return;
+    if (!target || !editor) return;
     var selector = '[data-news-assign-slot][data-news-slot-type="' + target.type +
       '"][data-news-slot-position="' + target.priority + '"]';
     var placeholder = editor.querySelector(selector);
@@ -2051,11 +2151,23 @@ import Sortable from 'sortablejs';
     mainSlotSection = editor.querySelector('[data-news-slot="main"]');
     initCanvasSortable();
     seedActiveStory();
+    // "+ Add main headline" lives in `.news-editor__add`, a sibling of
+    // `editor` — a server refresh's `editor.innerHTML = json.html` swap
+    // never touches it, so its `disabled` state would otherwise go stale
+    // the moment a drag, Move Up/Down, or unassign changes whether the
+    // lead is occupied. syncPlaceholders() is the one place that derives
+    // that occupancy (mainSlotOccupied), so re-run it here too.
+    syncPlaceholders();
   }
 
   // ── Init: edit the real rendered front page ────────────
   (function init() {
     mainSlotSection = editor.querySelector('[data-news-slot="main"]');
     seedActiveStory();
+    // Sets the initial disabled state of "+ Add main headline" to match
+    // whatever the server actually rendered for the lead — see the same
+    // call in reinitCanvas() above for why this can't be left to the
+    // server-rendered markup alone.
+    syncPlaceholders();
   })();
 })();

@@ -307,6 +307,11 @@
           </div>
 
           <div class="news-editor__add">
+            {# The lead holds exactly one story — news-dashboard.js disables
+               this button (syncPlaceholders()) the moment the lead is
+               occupied, by a saved story or by an unsaved scratch card
+               alike, so it can never stage a second lead. #}
+            <button type="button" class="ghost-button" data-news-add-main>+ Add main headline</button>
             <button type="button" class="ghost-button" data-news-add-secondary>+ Add a story</button>
           </div>
         </div><!-- /.news-canvas -->

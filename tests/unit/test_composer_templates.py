@@ -119,6 +119,44 @@ class WidgetSlotAlignmentTestCase(TestCase):
         self.assertNotIn("paper-slot--widget", html)
 
 
+class MainSlotAssignButtonTestCase(TestCase):
+    """Every empty slot except the lead already offered a clickable "assign
+    a story" button, so editors had no discoverable way to set a main
+    headline (Task 1). The partial is shared with the public kiosk, so the
+    new button must be editor-only -- a visitor keeps the plain static
+    empty-state div and never receives the data-news-assign-slot hook."""
+
+    def test_editor_sees_assign_button_when_lead_is_empty(self):
+        html = _render_slots(editor=True)
+
+        self.assertIn("data-news-assign-slot", html)
+        self.assertIn('data-news-slot-type="main"', html)
+
+    def test_kiosk_never_sees_assign_button_when_lead_is_empty(self):
+        html = _render_slots(editor=False)
+
+        self.assertNotIn("data-news-assign-slot", html)
+        self.assertIn(
+            '<div class="paper-empty">No stories have been published yet.</div>', html
+        )
+
+    def test_editor_lead_filled_has_no_live_assign_button(self):
+        html = _render_slots(main=_Story(1, layout_type="main"), editor=True)
+
+        # <template data-news-main-empty-template> -- the clone source
+        # syncPlaceholders() reads instead of hardcoding the button string
+        # itself -- always carries this markup once news_editor is true,
+        # regardless of whether the lead is filled (that's the point: it
+        # can't drift from the `{% else %}` branch). So this checks the
+        # LIVE paper-slot--main section, past the inert template, rather
+        # than a blind substring search that the template would always
+        # satisfy. Scoped to the "main" slot type specifically -- the
+        # secondary/widget slots are legitimately still empty in this
+        # fixture and keep their own assign buttons.
+        live_html = html.split("</template>", 1)[1]
+        self.assertNotIn('data-news-slot-type="main"', live_html)
+
+
 class AllPostsTableTestCase(TestCase):
     """The Story Library moves from a card grid to a WordPress-style
     All Posts table. The JS reads the data-news-library-* attributes, so

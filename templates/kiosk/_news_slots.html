@@ -23,9 +23,11 @@
 {% if news_editor %}
 {# Fix round 1, minor 11: the JS-side placeholder rebuild (syncPlaceholders
    in news-dashboard.js) clones this instead of hardcoding the empty-main
-   string itself, so the two can't drift apart. Never rendered on the
-   kiosk. #}
-<template data-news-main-empty-template><div class="paper-empty">No stories have been published yet.</div></template>
+   markup itself, so the two can't drift apart. Never rendered on the
+   kiosk — news_editor gates the whole `<template>` above, so this is
+   always the editor's "assign a lead story" button, matching the
+   `{% else %}` branch below verbatim. #}
+<template data-news-main-empty-template><button type="button" class="paper-empty paper-empty--compact paper-empty--action" data-news-assign-slot data-news-slot-type="main" data-news-slot-position="1">+ Assign story to Main Headline</button></template>
 {# Fix round 1, I7: a single polite live region announces the result of a
    Move Up/Down press (news-dashboard.js's announceCardPosition) — visually
    hidden, screen-reader only. #}
@@ -97,7 +99,18 @@
     {% endif %}
   </article>
   {% else %}
+  {# Every other empty slot already offered an "assign a story" button —
+     the lead was the one silent exception, so editors had no discoverable
+     way to set a main headline. Gated behind news_editor like the rest of
+     this partial's editor chrome; the kiosk keeps the plain static div. #}
+  {% if news_editor %}
+  <button type="button" class="paper-empty paper-empty--compact paper-empty--action"
+          data-news-assign-slot data-news-slot-type="main" data-news-slot-position="1">
+    + Assign story to Main Headline
+  </button>
+  {% else %}
   <div class="paper-empty">No stories have been published yet.</div>
+  {% endif %}
   {% endif %}
   </div>
 </section>
