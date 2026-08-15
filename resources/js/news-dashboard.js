@@ -1520,6 +1520,88 @@ import Sortable from 'sortablejs';
     });
   }
 
+  // A scratch counts as "untouched" only by what the editor could plausibly
+  // have MEANT to type — source/location are deliberately excluded even
+  // though they're never blank: selectStory() pre-fills them with
+  // "Editorial Desk"/"Campus" the moment a blank scratch is created, so
+  // checking them would read every fresh, never-edited scratch as
+  // "touched." Body is read off the node's own DOM (not f.description),
+  // since the modal writes back into `region(activeArt, 'body').innerHTML`
+  // regardless of whether this node is still the active one by the time
+  // this runs.
+  function scratchIsEmpty(node) {
+    if (!node) return true;
+    var TOUCHED_KEYS = ['title', 'dek', 'excerpt', 'caption', 'credit'];
+    var hasText = TOUCHED_KEYS.some(function (key) { return !!getText(node, key); });
+    if (hasText) return false;
+    var bodyRegion = region(node, 'body');
+    if (bodyRegion && bodyRegion.textContent && bodyRegion.textContent.trim()) return false;
+    var imageRegion = region(node, 'image');
+    if (imageRegion && !imageRegion.classList.contains('feature-story__image--fallback')) return false;
+    return true;
+  }
+
+  // Fix round 2 — reopened finding: a real card landing in the lead (via
+  // drag OR Move Up/Down) while an unsaved "+ Add main headline" scratch
+  // was still sitting there went unnoticed. containerHasRoom()/
+  // fixOverflow() count only realCardNodes() (cap 1, one real card <= cap,
+  // nothing evicted), so the scratch is never removed — and if it's still
+  // the ACTIVE story, its hidden form still carries layout_type="main"
+  // from creation, with layoutDirty permanently true for its whole
+  // lifetime (creating it calls markDirty(), and only Publish or a reload
+  // ever clears that flag), so refreshCanvasFragment()'s dirty gate can
+  // never reconcile it away on its own. Publish would then submit the
+  // scratch as a SECOND main row alongside the one that just landed —
+  // group_news_slots() keeps only the lowest (priority, id) as main_news,
+  // so the loser publishes and renders nowhere. Same defect shape as
+  // Important 2, reached through the drag/move path instead of the
+  // placement path.
+  //
+  // realCardNodes() itself stays untouched, per the standing ruling:
+  // containerHasRoom, fixOverflow, flatCanvasCards, currentCanvasBatch and
+  // the position badges all depend on its current meaning, and widening it
+  // to count a scratch would be a bigger regression than this bug. Closed
+  // at the scratch instead, from the one seam both the drag and Move
+  // Up/Down paths already funnel through (afterCanvasMutation(), below).
+  //
+  // Never silently discards typed content (chosen over an explicit confirm
+  // dialog — see the fix-round-2 report for why): an EMPTY/untouched
+  // scratch (scratchIsEmpty()) is removed outright, same as it always was
+  // safe to walk away from an unedited "+ Add a story" scratch. A scratch
+  // that DOES carry content is never deleted or rewritten — if it's the
+  // one currently driving the hidden form, only its Publish DESTINATION is
+  // retargeted to Secondary (setSlot(), no text/image field touched), so
+  // Publish can no longer write it as a second main row. If it isn't the
+  // active story, there is nothing left to defuse: an id-less card can't
+  // be re-selected by clicking (the generic click-select path requires a
+  // truthy story id) and "+ Add main headline" just disabled itself
+  // because realCardNodes(lists.main) is no longer empty, so there is no
+  // remaining path back to layout_type="main" for it at all.
+  function reconcileMainScratchCollision() {
+    var lists = slotListContainers();
+    if (!lists.main) return;
+    var scratch = lists.main.querySelector('.feature-story[data-news-id=""]');
+    if (!scratch || realCardNodes(lists.main).length === 0) return;
+
+    if (scratchIsEmpty(scratch)) {
+      var wasActive = scratch === activeArt;
+      scratch.remove();
+      if (wasActive) clearActiveStory();
+      return;
+    }
+
+    if (scratch === activeArt) {
+      activeSlotType = 'secondary';
+      setSlot('secondary');
+      markDirty();
+      toast(
+        'The lead now belongs to the story you just moved there. Your unpublished draft ' +
+          'was kept and retargeted to Secondary so it will not be lost or collide with it.',
+        false
+      );
+    }
+  }
+
   // Runs after every canvas mutation (drag end or Move Up/Down): rebuild
   // placeholders and badges as an optimistic bridge, drop the stale
   // occupancy overlay (H4/H5 — the DOM is authoritative again immediately
@@ -1530,6 +1612,7 @@ import Sortable from 'sortablejs';
   // writes through news.layout immediately, so it is never an "unpublished
   // change" in the sense that badge represents.
   function afterCanvasMutation(onSettled) {
+    reconcileMainScratchCollision();
     syncPlaceholders();
     virtualSlots = null;
     renumberPositionBadges();
@@ -1842,12 +1925,21 @@ import Sortable from 'sortablejs';
   // mainSlotOccupied() (already the single source of truth for "does a
   // scratch count as occupying the lead") fixes this at the root instead
   // of adding a second, possibly-drifting occupancy check.
+  //
+  // Fix round 2: reads via realCardNodes() rather than a raw
+  // `.feature-story[data-news-id]` querySelector, which returns whichever
+  // element is FIRST in DOM order — reconcileMainScratchCollision() (below)
+  // can legitimately leave a content-bearing scratch coexisting alongside a
+  // real card for a moment (it retargets the scratch's Publish destination
+  // rather than deleting it), and a raw first-match query could pick the
+  // scratch and report the sentinel even though a real story also occupies
+  // the slot. realCardNodes()[0] is unambiguous regardless of DOM order.
   function canvasMainId() {
     if (!mainSlotSection) return '';
-    var art = mainSlotSection.querySelector('.feature-story[data-news-id]');
-    var id = (art && art.getAttribute('data-news-id')) || '';
-    if (!id && mainSlotOccupied(mainSlotSection)) return '__scratch__';
-    return id;
+    var real = realCardNodes(mainSlotSection)[0];
+    if (real) return real.getAttribute('data-news-id') || '';
+    if (mainSlotOccupied(mainSlotSection)) return '__scratch__';
+    return '';
   }
 
   // Lazily snapshots the canvas into the overlay on first use, so a run of
