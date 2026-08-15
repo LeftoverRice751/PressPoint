@@ -308,9 +308,12 @@
 
           <div class="news-editor__add">
             {# The lead holds exactly one story — news-dashboard.js disables
-               this button (syncPlaceholders()) the moment the lead is
-               occupied, by a saved story or by an unsaved scratch card
-               alike, so it can never stage a second lead. #}
+               this button (syncPlaceholders()) the moment a SAVED story
+               occupies the lead. An unsaved scratch card deliberately leaves
+               it enabled: re-clicking re-selects that draft (content intact,
+               selectScratch()), which is the in-app route back to a card that
+               has no id to click-select and no article_id for Remove/Delete
+               (fix round 1, Minor 3). #}
             <button type="button" class="ghost-button" data-news-add-main>+ Add main headline</button>
             <button type="button" class="ghost-button" data-news-add-secondary>+ Add a story</button>
           </div>
@@ -325,6 +328,16 @@
 
           <div class="news-prop-section">
             <div class="news-prop-section__label">Slot</div>
+            {# "Story Library" (layout_type="unassigned") is a real
+               destination this composer already writes — "Remove from Front
+               Page" sets it, and so does the colliding-scratch retarget in
+               reconcileMainScratchCollision(). Without a button for it the
+               panel showed NO slot selected after either of those ran, while
+               the card's own badge said otherwise. "Lead" is disabled by
+               news-dashboard.js (syncSlotPaletteState()) whenever a real
+               story other than the one being edited holds the lead: clicking
+               it there re-staged layout_type="main" behind the canvas's back
+               and Publish wrote a second main row that renders nowhere. #}
             <div class="news-composer-palette" role="group" aria-label="Layout slots">
               <button type="button" class="news-slot-choice is-active"
                       data-news-slot-choice="main" aria-pressed="true">Lead</button>
@@ -332,6 +345,8 @@
                       data-news-slot-choice="secondary" aria-pressed="false">Side</button>
               <button type="button" class="news-slot-choice"
                       data-news-slot-choice="widget" aria-pressed="false">Widget</button>
+              <button type="button" class="news-slot-choice"
+                      data-news-slot-choice="unassigned" aria-pressed="false">Story Library</button>
             </div>
           </div>
 

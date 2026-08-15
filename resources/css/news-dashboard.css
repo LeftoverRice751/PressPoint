@@ -306,6 +306,19 @@
     border-color: var(--ink-oxblood);
 }
 
+/* "Lead" is disabled while a real story other than the one being edited holds
+   the lead (news-dashboard.js's syncSlotPaletteState()) — see the comment
+   there for the duplicate-main row it used to produce. Same treatment the
+   add-story buttons already use for their disabled state. */
+.news-slot-choice:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.news-slot-choice:disabled:hover {
+    transform: none;
+    border-color: var(--ink-rule-strong);
+}
+
 .news-slot-choice:focus-visible,
 .news-story-card__actions .ghost-button:focus-visible {
     outline: 2px solid var(--ink-marigold);
@@ -1223,18 +1236,54 @@
     outline: 2px dashed var(--kiosk-terracotta, #cc5a1f);
     outline-offset: -2px;
 }
+/* Contrast, final review (minor): white on --kiosk-terracotta (#CC5A1F) is
+   ~4.16:1, and at 0.68rem/800 this is not "large text", so it needed 4.5:1
+   and missed. This badge is the one message the whole round-3 design depends
+   on being read, so it's inverted instead of merely nudged: flat terracotta
+   TINT behind deep terracotta ink (#7A3208 on #F7E4D8 ≈ 8.1:1), keeping the
+   solid/flat-colour rule and the same terracotta family as the outline. */
 .feature-story__pending-badge {
     display: inline-block;
     margin-bottom: 0.6rem;
     padding: 0.3rem 0.75rem;
+    border: 1px solid var(--kiosk-terracotta, #cc5a1f);
     border-radius: 9999px;
-    background: var(--kiosk-terracotta, #cc5a1f);
-    color: #fff;
+    background: #f7e4d8;
+    color: #7a3208;
     font-family: var(--kiosk-font-ui, "Gilroy", "Century Gothic", sans-serif);
     font-size: 0.68rem;
     font-weight: 800;
     letter-spacing: 0.06em;
     text-transform: uppercase;
+}
+
+/* "Discard draft" on an unsaved scratch card (final review, Important 4:
+   there was no way out of a scratch, and creating one pins layoutDirty for
+   the session). Sits top-right of the card, quiet until hovered — it is an
+   escape hatch, not a primary action, and it must never compete with the
+   inline fields it floats over. */
+.news-scratch-discard {
+    float: right;
+    margin: 0 0 0.4rem 0.6rem;
+    padding: 0.25rem 0.7rem;
+    border: 1px solid var(--ink-rule-strong);
+    border-radius: 9999px;
+    background: var(--ink-paper);
+    color: var(--ink-soot);
+    font-family: var(--kiosk-font-ui, "Gilroy", "Century Gothic", sans-serif);
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+.news-scratch-discard:hover {
+    border-color: var(--ink-oxblood);
+    color: var(--ink-oxblood);
+}
+.news-scratch-discard:focus-visible {
+    outline: 2px solid var(--ink-marigold);
+    outline-offset: 2px;
 }
 
 .news-card-position {

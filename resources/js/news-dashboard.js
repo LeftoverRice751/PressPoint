@@ -50,14 +50,35 @@ import Sortable from 'sortablejs';
   // says nothing and just adds noise. The clean state is silence, so the
   // badge appearing at all means "you have work that isn't published yet".
   var layoutDirty = false;
+  // Which editing surface each unpublished edit belongs to. Publish is the
+  // only thing that clears the badge wholesale; discarding an unsaved draft
+  // (discardScratch(), final review Important 4) has to clear it ONLY when
+  // that draft was the sole reason the page was dirty — forcing it false
+  // would hide a real pending edit on another story AND drop the refresh gate
+  // that is protecting it. Every edit path in here runs against the ACTIVE
+  // story, so the active node is a faithful owner key; an inspector edit made
+  // with nothing active falls back to a sentinel string no discard can clear
+  // (errs toward keeping the badge lit, never toward losing work).
+  var dirtySources = [];
   function setLayoutDirty(isDirty) {
     layoutDirty = !!isDirty;
+    if (!layoutDirty) dirtySources = [];
     if (!stateBadge) return;
     stateBadge.textContent = isDirty ? 'Unpublished changes' : '';
     stateBadge.hidden = !isDirty;
     stateBadge.classList.toggle('gears-hero__chip--dirty', !!isDirty);
   }
-  function markDirty() { setLayoutDirty(true); }
+  function markDirty(source) {
+    var owner = source || activeArt || 'inspector';
+    if (dirtySources.indexOf(owner) === -1) dirtySources.push(owner);
+    setLayoutDirty(true);
+  }
+  // Drops one surface's claim on the dirty badge and RE-DERIVES it from
+  // what's left, rather than forcing it false.
+  function forgetDirtySource(owner) {
+    dirtySources = dirtySources.filter(function (s) { return s !== owner; });
+    if (!dirtySources.length) setLayoutDirty(false);
+  }
   setLayoutDirty(false);
 
   function field(name) { return form.querySelector('[data-news-field="' + name + '"]'); }
@@ -168,6 +189,10 @@ import Sortable from 'sortablejs';
     quill.on('text-change', function () {
       bodyModalDirty = true;
       if (f.description) f.description.value = quill.root.innerHTML;
+      // An unsaved scratch with no body region of its own (the secondary
+      // shape) would otherwise lose this the moment anything else became the
+      // active story — f.description is the only copy. See scratchDrafts.
+      rememberScratchDraft(activeArt, 'body', quill.root.innerHTML);
       markDirty();
     });
     return quill;
@@ -381,8 +406,39 @@ import Sortable from 'sortablejs';
     }
   }
 
+  // The parts of an UNSAVED scratch's draft that do NOT live on the card
+  // itself, so that selectScratch() can put them back when the editor
+  // switches away and returns (final review, Important 1 — the draft has to
+  // survive the round trip, not just its visible text):
+  //  - `file`: selecting any other story clears f.image (otherwise story A's
+  //    pending upload would attach to story B), and a file input can never be
+  //    repopulated from the preview left behind in the DOM. Keeping the File
+  //    lets setImageFile() re-stage it exactly as a fresh drop would.
+  //  - `body`: the secondary scratch has no `data-news-edit="body"` region at
+  //    all, so a body written in the modal exists ONLY in f.description —
+  //    there is nothing on the card to read it back from.
+  // Only id-less nodes are tracked, so this list holds at most the one live
+  // scratch (see startOrResumeScratch()'s one-draft-at-a-time rule).
+  var scratchDrafts = [];
+  function scratchDraftFor(node) {
+    for (var i = 0; i < scratchDrafts.length; i++) {
+      if (scratchDrafts[i].node === node) return scratchDrafts[i];
+    }
+    return null;
+  }
+  function rememberScratchDraft(node, key, value) {
+    if (!node || node.getAttribute('data-news-id')) return;
+    var entry = scratchDraftFor(node);
+    if (!entry) { entry = { node: node }; scratchDrafts.push(entry); }
+    entry[key] = value;
+  }
+  function forgetScratchDraft(node) {
+    scratchDrafts = scratchDrafts.filter(function (e) { return e.node !== node; });
+  }
+
   function setImageFile(file) {
     if (!f.image || !file || !/^image\//.test(file.type)) return;
+    rememberScratchDraft(activeArt, 'file', file);
     try {
       var dt = new DataTransfer();
       dt.items.add(file);
@@ -451,6 +507,9 @@ import Sortable from 'sortablejs';
     featuredRmBtn.addEventListener('click', function () {
       // Clear any pending upload AND ask the server to drop the stored one.
       try { if (f.image) f.image.value = ''; } catch (_) {}
+      // Drop only the remembered FILE, not the whole draft entry — a body
+      // typed for a body-less scratch is stored alongside it (scratchDrafts).
+      rememberScratchDraft(activeArt, 'file', null);
       if (f.removeImage) f.removeImage.value = '1';
       setFeaturedPreview('');
       // Mirror it on the canvas so the surface stays an honest preview.
@@ -496,6 +555,7 @@ import Sortable from 'sortablejs';
       // this same input, so the preview and the cancelled-removal flag are
       // handled in one place.
       if (file) {
+        rememberScratchDraft(activeArt, 'file', file);
         previewImage(file);
         if (f.removeImage) f.removeImage.value = '';
         setFeaturedPreview(file);
@@ -505,14 +565,46 @@ import Sortable from 'sortablejs';
   }
 
   // ── Slot selector ─────────────────────────────────────
+  // The palette carries FOUR choices, not three: "Story Library"
+  // (layout_type="unassigned") is a real state this composer already writes —
+  // "Remove from Front Page" sets it, and so does the colliding-scratch
+  // retarget in reconcileMainScratchCollision(). While it had no button, the
+  // panel simply showed nothing selected after either of those ran, so the
+  // one place that names a story's destination disagreed with the card's own
+  // badge (final review, Important 3).
   function setSlot(slot) {
-    if (f.layout) f.layout.value = slot || 'main';
+    var value = slot || 'main';
+    if (f.layout) f.layout.value = value;
     if (!props) return;
     Array.prototype.slice.call(props.querySelectorAll('[data-news-slot-choice]')).forEach(function (btn) {
-      var active = btn.getAttribute('data-news-slot-choice') === slot;
+      var active = btn.getAttribute('data-news-slot-choice') === value;
       btn.classList.toggle('is-active', active);
       btn.setAttribute('aria-pressed', String(active));
     });
+    syncSlotPaletteState();
+  }
+
+  // "Lead" was a live path back to layout_type="main" (final review,
+  // Important 3): three plain enabled buttons, so clicking it on an active
+  // card — including a scratch already badged for the Story Library —
+  // re-staged main even though a real story owned the lead, and Publish then
+  // wrote a SECOND layout_type="main" row that group_news_slots() drops from
+  // every bucket. Disabled whenever a real story other than the one being
+  // edited holds the lead; the way to take the lead from it is to drag/place
+  // over it (which carries a replace confirm), not to relabel a second story
+  // as the lead behind the canvas's back.
+  function syncSlotPaletteState() {
+    if (!props) return;
+    var leadBtn = props.querySelector('[data-news-slot-choice="main"]');
+    if (!leadBtn) return;
+    var occupantId = leadRealStoryId();
+    var takenByOther = !!occupantId && occupantId !== String(activeId || '');
+    leadBtn.disabled = takenByOther;
+    if (takenByOther) {
+      leadBtn.title = 'The lead already holds a story. Place or drag a story onto the lead to replace it.';
+    } else {
+      leadBtn.removeAttribute('title');
+    }
   }
 
   function cardData(card) {
@@ -613,6 +705,75 @@ import Sortable from 'sortablejs';
     setFeaturedPreview(data.image ? '/storage/' + String(data.image).replace(/\\/g, '/') : '');
     if (activeLabel) activeLabel.textContent = data.id ? ('Editing: ' + (data.title || 'Untitled')) : 'New story';
     return true;
+  }
+
+  // ── Re-select an EXISTING, unsaved scratch card ───────
+  // Never route this through selectStory('', …): that builds an all-blank
+  // data object and writes it back over the node — setText(title, ''),
+  // bodyRegion.innerHTML = '', image reset — so re-selecting a draft ERASED
+  // it. That silently falsified round 1 Minor 3's whole justification for
+  // leaving "+ Add main headline" enabled as the escape hatch back to a
+  // scratch ("re-clicking is always safe"): the escape hatch was the very
+  // thing that destroyed the draft (final review, Important 1). Read the
+  // node's current values back INTO the form instead, so a draft survives
+  // being switched away from and returned to.
+  //
+  // The staged photo and a body written for a body-less secondary scratch
+  // come back too, from scratchDrafts — see the comment there for why those
+  // two cannot be read off the card.
+  function scratchSlotType(art) {
+    if (!art) return 'secondary';
+    // A scratch already retargeted by reconcileMainScratchCollision() files
+    // to the Story Library, whatever container it is physically sitting in —
+    // the badge on the card is the honest answer here, not its position.
+    if (art.classList.contains('is-pending-unassigned')) return 'unassigned';
+    var section = art.closest('[data-news-slot]');
+    return (section && section.getAttribute('data-news-slot')) || 'secondary';
+  }
+
+  function selectScratch(art) {
+    if (!art) return false;
+    activeArt = art;
+    activeId = '';
+    activeSlotType = scratchSlotType(art);
+    wireInline(art);
+    wireImage(art);
+
+    var draft = scratchDraftFor(art);
+    // A region the scratch's own shape doesn't have (secondary carries no
+    // source/location/caption/credit) is staged BLANK, exactly as
+    // selectStory('', …) would have staged it at creation — never left
+    // holding the previously-selected story's value.
+    INLINE_KEYS.forEach(function (key) {
+      if (!f[key]) return;
+      f[key].value = region(art, key) ? getText(art, key) : '';
+    });
+    var bodyRegion = region(art, 'body');
+    if (f.description) {
+      f.description.value = bodyRegion ? bodyRegion.innerHTML : ((draft && draft.body) || '');
+    }
+    if (f.articleId) f.articleId.value = '';
+    if (f.priority)  f.priority.value = '0';
+    if (propPriority) propPriority.value = '0';
+    if (f.removeImage) f.removeImage.value = '';
+    try { if (f.image) f.image.value = ''; } catch (_) {}
+    if (draft && draft.file) {
+      setImageFile(draft.file); // re-stages the File, the card preview and the inspector box
+    } else {
+      setFeaturedPreview('');
+    }
+
+    setSlot(activeSlotType);
+    setStatus('published');
+    var draftTitle = getText(art, 'title');
+    if (activeLabel) activeLabel.textContent = draftTitle ? ('New story: ' + draftTitle) : 'New story';
+    return true;
+  }
+
+  // There is at most ONE unsaved scratch at a time (see the add-button
+  // handlers), so this can look anywhere in the canvas for it.
+  function existingScratch() {
+    return editor.querySelector('.feature-story[data-news-id=""], .secondary-story[data-news-id=""]');
   }
 
   // ── Save (Publish) ────────────────────────────────────
@@ -977,6 +1138,28 @@ import Sortable from 'sortablejs';
       return;
     }
 
+    // "Discard draft" on an unsaved scratch card (final review, Important
+    // 4). This is the ONLY way out of a scratch that doesn't either publish a
+    // story nobody wanted or reload the page and lose everything else in
+    // flight — see discardScratch() for why the dirty flag is the real
+    // problem being solved here.
+    var discardBtn = event.target.closest('[data-news-discard-scratch]');
+    if (discardBtn && editor.contains(discardBtn)) {
+      var scratchNode = discardBtn.closest('[data-news-id=""]');
+      if (!scratchNode) return;
+      // Nothing typed yet: no confirm — same as it has always been safe to
+      // walk away from an untouched "+ Add a story" card.
+      if (scratchIsEmpty(scratchNode)) { discardScratch(scratchNode); return; }
+      confirmAction({
+        title: 'Discard this unsaved draft?',
+        body: 'Everything typed into this card will be lost. It has never been saved, so there is nothing to recover afterwards.',
+        confirmLabel: 'Discard draft',
+        cancelLabel: 'Keep editing',
+        danger: true
+      }).then(function (ok) { if (ok) discardScratch(scratchNode); });
+      return;
+    }
+
     // "Edit Full Article Body" — appears in the inspector (no ancestor
     // story; targets whatever is already active) and on each slot's own
     // card (editor-only markup in kiosk/_news_slots.html). Selects that
@@ -1015,6 +1198,14 @@ import Sortable from 'sortablejs';
         var section = selectableArt.closest('[data-news-slot]');
         var storySlotType = section ? section.getAttribute('data-news-slot') : 'secondary';
         selectStory(storyId, storySlotType, selectableArt);
+      } else if (!storyId && selectableArt !== activeArt) {
+        // An id-less scratch. Clicking it USED to be a no-op (this branch
+        // required a truthy id), which is what made a draft unreachable the
+        // moment anything else became active: it could not be re-selected,
+        // could not be published, and the next canvas refresh deleted it
+        // without a word (final review, Important 1/2). selectScratch()
+        // re-activates it with its typed content intact.
+        selectScratch(selectableArt);
       }
     }
   });
@@ -1027,8 +1218,17 @@ import Sortable from 'sortablejs';
   // was the confusing behavior Task 5 exists to remove. Mirrors the real
   // secondary-story markup in kiosk/_news_slots.html exactly (title +
   // excerpt + image), minus the server-rendered id.
+  //
+  // Both scratch shapes carry a "Discard draft" control (final review,
+  // Important 4). It is deliberately ON the card rather than in the
+  // inspector: a draft that is no longer the active story still needs a way
+  // out, and the inspector always acts on the active one.
+  var SCRATCH_DISCARD_HTML =
+    '<button type="button" class="news-scratch-discard" data-news-discard-scratch>Discard draft</button>';
+
   var SCRATCH_SECONDARY_HTML =
     '<article class="secondary-story is-scratch" data-news-id="">' +
+      SCRATCH_DISCARD_HTML +
       '<div class="secondary-story__thumb secondary-story__thumb--fallback" data-news-edit="image" aria-hidden="true"></div>' +
       '<div class="secondary-story__body">' +
         '<h3 class="secondary-story__title" data-news-edit="title"></h3>' +
@@ -1064,6 +1264,7 @@ import Sortable from 'sortablejs';
   // carried a per-card copy of this button for the same reason.
   var SCRATCH_MAIN_HTML =
     '<article class="feature-story is-scratch" data-news-id="">' +
+      SCRATCH_DISCARD_HTML +
       '<figure class="feature-story__figure">' +
         '<div class="feature-story__image feature-story__image--fallback" data-news-edit="image" aria-hidden="true"></div>' +
         '<figcaption class="feature-story__cutline">' +
@@ -1100,6 +1301,74 @@ import Sortable from 'sortablejs';
     return grid.querySelector(shape.selector);
   }
 
+  // ONE unsaved draft at a time, deliberately (final review, Important 1).
+  // The composer has a single global hidden form and Publish only ever writes
+  // whichever story is currently active, so a second scratch is a draft that
+  // is guaranteed to be lost: it cannot be published without switching away
+  // from it, and the next successful canvas refresh (editor.innerHTML =
+  // json.html) deletes it silently. Rather than let an editor create work
+  // that cannot be saved, a second click re-selects the draft they already
+  // have — content intact, via selectScratch(), never selectStory('', …) —
+  // and says why when it isn't the slot they asked for.
+  function startOrResumeScratch(slotType) {
+    var existing = existingScratch();
+    if (existing) {
+      selectScratch(existing);
+      syncPlaceholders();
+      if (scratchSlotType(existing) !== slotType) {
+        toast('You already have one unsaved draft — publish it or discard it before starting another.', true);
+      }
+      if (existing.scrollIntoView) existing.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    var art = ensureNewStoryScratch(slotType);
+    if (!art) return;
+    selectStory('', slotType, art);
+    // Re-derive placeholders/the add-button's disabled state immediately —
+    // this is the exact scenario the mainSlotOccupied() helper exists for:
+    // without it, the just-inserted scratch wouldn't count as occupancy,
+    // so the "+ Assign story to Main Headline" button would reappear
+    // under the blank lead card.
+    syncPlaceholders();
+    markDirty(art);
+    if (art.scrollIntoView) art.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // Removes an unsaved scratch and re-derives the page state around it (final
+  // review, Important 4). Creating a scratch calls markDirty(), and
+  // setLayoutDirty(false) only ever runs in submitWithStatus()'s success
+  // callback — so before this existed, an editor who clicked "+ Add main
+  // headline" and changed their mind was stuck with layoutDirty=true for the
+  // rest of the session. That permanently gates refreshCanvasFragment(), so
+  // every later placement/drag/unassign/delete left the canvas visually stale
+  // behind the "canvas view is behind" toast and the lead could no longer
+  // self-reconcile. The only two exits were publishing a story nobody wanted
+  // or reloading and throwing the work away.
+  //
+  // layoutDirty is RE-DERIVED here (forgetDirtySource), never forced false:
+  // an unrelated unpublished edit on another story keeps the badge lit and
+  // keeps the refresh gate closed, which is exactly what protects it.
+  function discardScratch(node) {
+    if (!node) return;
+    var wasActive = node === activeArt;
+    forgetScratchDraft(node);
+    node.remove();
+    forgetDirtySource(node);
+    if (wasActive) {
+      clearActiveStory();
+      // Land the editor on the real lead (or a clean "New story") rather than
+      // on a detached node the canvas no longer contains.
+      seedActiveStory();
+    }
+    syncPlaceholders();
+    toast('Draft discarded.', false);
+    // If this draft was the only thing holding the dirty gate shut, the
+    // canvas is probably behind by every refresh that gate deferred while it
+    // existed — catch it up now. A genuine unrelated pending edit keeps
+    // layoutDirty true here and the canvas stays deferred, exactly as before.
+    if (!layoutDirty) refreshCanvasFragment('Canvas updated');
+  }
+
   var addMainBtn = composer.querySelector('[data-news-add-main]');
   if (addMainBtn) {
     addMainBtn.addEventListener('click', function () {
@@ -1107,26 +1376,14 @@ import Sortable from 'sortablejs';
       // maintains: a stale click event already queued before the last
       // disable takes effect must not still insert a second scratch.
       if (addMainBtn.disabled) return;
-      var art = ensureNewStoryScratch('main');
-      selectStory('', 'main', art);
-      // Re-derive placeholders/the add-button's disabled state immediately —
-      // this is the exact scenario the mainSlotOccupied() helper exists for:
-      // without it, the just-inserted scratch wouldn't count as occupancy,
-      // so the "+ Assign story to Main Headline" button would reappear
-      // under the blank lead card and this button would stay clickable.
-      syncPlaceholders();
-      markDirty();
-      if (art && art.scrollIntoView) art.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      startOrResumeScratch('main');
     });
   }
 
   var addBtn = composer.querySelector('[data-news-add-secondary]');
   if (addBtn) {
     addBtn.addEventListener('click', function () {
-      var art = ensureNewStoryScratch('secondary');
-      selectStory('', 'secondary', art);
-      markDirty();
-      if (art && art.scrollIntoView) art.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      startOrResumeScratch('secondary');
     });
   }
 
@@ -1316,9 +1573,12 @@ import Sortable from 'sortablejs';
       // article_id a scratch doesn't have yet, so if this button also
       // disabled on the scratch there would be no in-app way back to it
       // short of a reload that throws the dirty edits away — exactly the
-      // dead end this task exists to remove. ensureNewStoryScratch()'s
-      // "is there already a scratch?" branch re-selects the existing one
-      // rather than inserting a second, so re-clicking is always safe.
+      // dead end this task exists to remove. Re-clicking routes through
+      // startOrResumeScratch(), which re-selects the existing draft with
+      // selectScratch() — its typed content READ BACK into the form, never
+      // blanked. (Until the final review that claim was false: the re-click
+      // path ran selectStory('', …), which rewrote the node with an all-blank
+      // story and erased the draft it was advertised as recovering.)
       if (addMainBtn) addMainBtn.disabled = realCardNodes(lists.main).length > 0;
     }
     if (lists.secondary) {
@@ -1348,6 +1608,11 @@ import Sortable from 'sortablejs';
         existingBtn.remove();
       }
     });
+    // Whoever owns the lead may have just changed, which is what the Slot
+    // palette's "Lead" button is enabled/disabled from (Important 3). This is
+    // the one function every mutation, refresh and init already funnels
+    // through, so derive it here rather than at each call site.
+    syncSlotPaletteState();
   }
 
   function renumberPositionBadges() {
@@ -1536,8 +1801,21 @@ import Sortable from 'sortablejs';
     if (hasText) return false;
     var bodyRegion = region(node, 'body');
     if (bodyRegion && bodyRegion.textContent && bodyRegion.textContent.trim()) return false;
+    // The image region carries a DIFFERENT fallback class per scratch shape
+    // (feature-story__image--fallback vs secondary-story__thumb--fallback),
+    // and previewImage() strips both when a photo is staged. Checking only
+    // main's class read every untouched SECONDARY scratch as "has content" —
+    // harmless while this only fed the lead-collision path, but it now also
+    // decides whether "Discard draft" needs a confirm.
     var imageRegion = region(node, 'image');
-    if (imageRegion && !imageRegion.classList.contains('feature-story__image--fallback')) return false;
+    if (imageRegion &&
+        !imageRegion.classList.contains('feature-story__image--fallback') &&
+        !imageRegion.classList.contains('secondary-story__thumb--fallback')) return false;
+    // Content that lives off the card: a staged File, and a body typed in the
+    // modal for a scratch shape that has no body region (see scratchDrafts).
+    var draft = scratchDraftFor(node);
+    if (draft && draft.file) return false;
+    if (draft && draft.body && draft.body.replace(/<[^>]*>/g, '').trim()) return false;
     return true;
   }
 
@@ -1562,9 +1840,15 @@ import Sortable from 'sortablejs';
   // dashed outline (resources/css/news-dashboard.css) and the badge text
   // names the actual destination so the screen never disagrees with what
   // Publish will write.
+  //
+  // Final review, Important 2: the copy used to read "Will be saved to the
+  // Story Library" — a promise that was simply false whenever this card
+  // wasn't the active story, because nothing in the composer saves a story
+  // that isn't the one driving the hidden form. It now names the ACTION the
+  // editor still has to take, which is true in both cases.
   var SCRATCH_PENDING_BADGE_HTML =
     '<span class="feature-story__pending-badge" data-news-scratch-pending-badge>' +
-      'Will be saved to the Story Library' +
+      'Unsaved draft — publish it to save it to the Story Library' +
     '</span>';
 
   function markScratchPendingUnassigned(scratch) {
@@ -1636,12 +1920,18 @@ import Sortable from 'sortablejs';
   // markScratchPendingUnassigned() gives it a PERSISTENT on-card marker
   // (round 3: a toast alone was the round-2 bug, not just an omission —
   // the screen has to keep matching what will actually be written for as
-  // long as that's true, not just for 3.5 seconds). If it isn't the active
-  // story, there is nothing left to defuse: an id-less card can't be
-  // re-selected by clicking (the generic click-select path requires a
-  // truthy story id) and "+ Add main headline" just disabled itself
-  // because realCardNodes(lists.main) is no longer empty, so there is no
-  // remaining path back to layout_type="main" for it at all.
+  // long as that's true, not just for 3.5 seconds).
+  //
+  // Round 3 claimed here that an inactive badged scratch had "no remaining
+  // path back to layout_type='main'". That was wrong twice over, and the
+  // final review found both: the inspector's Slot palette could set "main"
+  // straight back on an active badged scratch (closed by
+  // syncSlotPaletteState() plus the re-evaluation below), and treating the
+  // inactive case as needing no action meant the badge promised safety for a
+  // draft nothing was saving (closed by making the card click-selectable
+  // again and telling the truth in the copy). The rule now is simpler: this
+  // function never assumes a previous run still holds — it re-derives the
+  // destination on every mutation.
   //
   // Symmetric on the way back out, too: if a later mutation removes the
   // real card again (e.g. Move Up/Down relocates it elsewhere) and the
@@ -1649,13 +1939,26 @@ import Sortable from 'sortablejs';
   // 3's normal state — undo the retarget so it reads as "main" again
   // rather than leaving a stale "Story Library" marker on a card that is,
   // once again, simply the in-progress lead.
+  // Final review, Important 3: this runs on EVERY mutation and re-evaluates
+  // from scratch — it no longer returns early just because the badge is
+  // already on the card. The badge is not proof the retarget still holds: the
+  // inspector's Slot palette could have set layout_type back to "main" in
+  // between (that path is narrowed too, see syncSlotPaletteState(), but this
+  // is the check that makes a stale "main" impossible to carry to Publish).
+  //
+  // Final review, Critical 1: "does a real story own the lead" is read
+  // through leadHasRealStory(), which consults the placement overlay as well
+  // as the DOM. A Story-Library placement into the lead never reaches the DOM
+  // while the dirty gate is holding the canvas back, and creating a scratch
+  // always sets that gate — so a DOM-only read could not see the very
+  // collision this function exists to defuse.
   function reconcileMainScratchCollision() {
     var lists = slotListContainers();
     if (!lists.main) return;
     var scratch = lists.main.querySelector('.feature-story[data-news-id=""]');
     if (!scratch) return;
 
-    var hasRealCard = realCardNodes(lists.main).length > 0;
+    var hasRealCard = leadHasRealStory(lists.main);
 
     if (!hasRealCard) {
       if (scratch.classList.contains('is-pending-unassigned')) {
@@ -1669,25 +1972,51 @@ import Sortable from 'sortablejs';
 
     if (outcome === 'discard') {
       var wasActive = scratch === activeArt;
+      forgetScratchDraft(scratch);
       scratch.remove();
+      forgetDirtySource(scratch);
       if (wasActive) clearActiveStory();
       return;
     }
 
     // outcome === 'unassigned' from here down.
-    if (scratch.classList.contains('is-pending-unassigned')) return; // already reconciled
+    var alreadyBadged = scratch.classList.contains('is-pending-unassigned');
+    markScratchPendingUnassigned(scratch); // idempotent
 
-    markScratchPendingUnassigned(scratch);
     if (scratch === activeArt) {
-      activeSlotType = 'unassigned';
-      setSlot('unassigned');
-      markDirty();
+      // Re-assert the destination every time, not once (see above).
+      if (activeSlotType !== 'unassigned' || (f.layout && f.layout.value !== 'unassigned')) {
+        activeSlotType = 'unassigned';
+        setSlot('unassigned');
+        markDirty(scratch);
+      }
+      if (!alreadyBadged) {
+        toast(
+          'The lead now belongs to the story you just moved there. Your draft was kept — it will ' +
+            'publish to the Story Library instead, so you can place it wherever you like.',
+          false
+        );
+      }
+      return;
     }
-    toast(
-      'The lead now belongs to the story you just moved there. Your draft was kept — it will ' +
-        'publish to the Story Library instead, so you can place it wherever you like.',
-      false
-    );
+
+    // Final review, Important 2: the non-active branch used to badge the card
+    // "Will be saved to the Story Library" and toast the same, while doing
+    // nothing at all — the hidden form belongs to whatever story IS active,
+    // so nothing was staged to save this draft anywhere. It published nowhere
+    // and was discarded at the next canvas refresh, having been told it was
+    // safe. It is now genuinely recoverable (the card is click-selectable
+    // again, and selectScratch() reads the badge as its destination), so the
+    // copy says what the editor has to DO rather than promising an outcome
+    // nothing was arranging.
+    if (!alreadyBadged) {
+      toast(
+        'The lead now belongs to the story you just moved there. Your unsaved draft is still on ' +
+          'screen but is NOT the story being edited — click it, then Publish, to keep it. ' +
+          'It is lost if the canvas refreshes first.',
+        true
+      );
+    }
   }
 
   // Runs after every canvas mutation (drag end or Move Up/Down): rebuild
@@ -1976,6 +2305,10 @@ import Sortable from 'sortablejs';
   // DOM is trustworthy again at that point.
   var BUCKET_CAPACITY = { secondary: 4, widget: 2 };
   var virtualSlots = null; // { main: id|null, secondary: [ids], widget: [ids] }
+  // Stands in for "the lead is held by an unsaved scratch". Deliberately not
+  // a number, so it can never collide with a real story id in the equality
+  // checks applyPlacementToVirtualSlots() runs.
+  var MAIN_SCRATCH_ID = '__scratch__';
 
   function canvasBucketIds(type) {
     if (type === 'secondary') {
@@ -2026,8 +2359,41 @@ import Sortable from 'sortablejs';
     if (!mainSlotSection) return '';
     var real = realCardNodes(mainSlotSection)[0];
     if (real) return real.getAttribute('data-news-id') || '';
-    if (mainSlotOccupied(mainSlotSection)) return '__scratch__';
+    if (mainSlotOccupied(mainSlotSection)) return MAIN_SCRATCH_ID;
     return '';
+  }
+
+  // The unsaved lead scratch, but ONLY while it still intends to publish as
+  // the lead: one already retargeted by reconcileMainScratchCollision()
+  // (is-pending-unassigned) files to the Story Library and no longer claims
+  // the slot, so it must not suppress a legitimate lead placement.
+  function leadScratchClaimingMain() {
+    var s = mainSlotSection ? mainSlotSection.querySelector('.feature-story[data-news-id=""]') : null;
+    return (s && !s.classList.contains('is-pending-unassigned')) ? s : null;
+  }
+
+  // The id of the REAL story that owns the lead right now — '' when only a
+  // scratch, or nothing, is there. The overlay wins when it exists: it knows
+  // about placements the dirty-gated canvas has not re-rendered yet, and the
+  // DOM in that state is the stale copy.
+  function leadRealStoryId() {
+    if (virtualSlots) {
+      var v = virtualSlots.main;
+      return (v && v !== MAIN_SCRATCH_ID) ? String(v) : '';
+    }
+    var real = mainSlotSection ? realCardNodes(mainSlotSection)[0] : null;
+    return real ? (real.getAttribute('data-news-id') || '') : '';
+  }
+
+  // "Has a real story taken the lead away from the scratch?" — the trigger
+  // condition for reconcileMainScratchCollision(). Deliberately an OR of the
+  // DOM and the overlay rather than "whichever is fresher": missing a
+  // collision publishes a duplicate layout_type='main' row that renders
+  // nowhere, while an over-cautious retarget only sends a draft to the Story
+  // Library, which is visible and recoverable.
+  function leadHasRealStory(mainList) {
+    if (mainList && realCardNodes(mainList).length > 0) return true;
+    return !!leadRealStoryId();
   }
 
   // Lazily snapshots the canvas into the overlay on first use, so a run of
@@ -2049,8 +2415,32 @@ import Sortable from 'sortablejs';
     return canvasBucketIds(type);
   }
 
+  // Final review, Critical 1: this used to short-circuit on the overlay and
+  // never reach canvasMainId()'s '__scratch__' sentinel, and NOTHING on the
+  // scratch-creation path writes to the overlay — so an overlay snapshotted
+  // before "+ Add main headline" (e.g. by placing a story into Secondary,
+  // which snapshots main:null) reported the lead as FREE while a scratch sat
+  // in it. firstFreeTarget() then handed the toolbar Story Library a
+  // {type:'main'} target, handlePlaceStory()'s replace-confirm didn't fire
+  // because mainOccupant() was null, the POST succeeded, the dirty gate kept
+  // the scratch alive and still active with layout_type='main', and Publish
+  // wrote a SECOND main row that group_news_slots() drops from every bucket:
+  // published, invisible, undiscoverable.
+  //
+  // The overlay is asked first and is NOT cleared here — clearing it wholesale
+  // reintroduces round 2's secondary-overfill bug (the overlay is the only
+  // record of placements the dirty-gated canvas hasn't rendered). The scratch
+  // is simply made visible to it: the DOM is the authority on the scratch,
+  // which is client-only and can never appear in the overlay. Re-reading the
+  // DOM also retires a STALE sentinel — an overlay snapshotted while a
+  // scratch held the lead keeps '__scratch__' in `main` even after the
+  // scratch is discarded, and that must not read as occupied forever.
   function mainOccupant() {
-    if (virtualSlots) return virtualSlots.main;
+    if (virtualSlots) {
+      var v = virtualSlots.main;
+      if (v && v !== MAIN_SCRATCH_ID) return v;
+      return leadScratchClaimingMain() ? MAIN_SCRATCH_ID : null;
+    }
     return canvasMainId() || null;
   }
 
@@ -2227,6 +2617,17 @@ import Sortable from 'sortablejs';
           if (json && json.ok && json.updated && json.updated.length) {
             toast((json.messages && json.messages[0]) || 'Story placed on the front page.', false);
             applyPlacementToVirtualSlots(target, id);
+            // Final review, Critical 1: a placement into the lead can hand it
+            // to a real story while an unsaved scratch is still sitting
+            // there — either through a stale drawerTarget past the
+            // replace-confirm, or through the confirm itself being accepted.
+            // Until now reconcileMainScratchCollision() was wired ONLY into
+            // afterCanvasMutation() (drag / Move Up/Down), so the placement
+            // path had no reconciliation at all, and the canvas refresh below
+            // is dirty-gated — which creating a scratch guarantees. Run it
+            // AFTER the overlay is updated, so leadHasRealStory() can see the
+            // placement the DOM won't show.
+            reconcileMainScratchCollision();
             removeFilledPlaceholder(target);
             if (libraryDrawer.close) libraryDrawer.close();
             if (window.DashboardLive) window.DashboardLive.refresh('news');
@@ -2246,10 +2647,16 @@ import Sortable from 'sortablejs';
     // when none is tracked, so this only fires from a stale drawerTarget or
     // a race — but it's cheap insurance, and Task 6 may add an explicit
     // main placeholder that would hit this path routinely (fix round 1, I1).
-    if (target.type === 'main' && mainOccupant()) {
+    var occupant = target.type === 'main' ? mainOccupant() : null;
+    if (occupant) {
       confirmAction({
         title: 'Replace the front-page lead?',
-        body: 'This story will replace the current lead story on the front page.',
+        // Naming the unsaved draft matters: reconcileMainScratchCollision()
+        // will move it to the Story Library the moment this placement lands,
+        // and the editor should know that before confirming, not after.
+        body: occupant === MAIN_SCRATCH_ID
+          ? 'The lead currently holds an unsaved draft. It will be kept on screen and will publish to the Story Library instead of the front page.'
+          : 'This story will replace the current lead story on the front page.',
         confirmLabel: 'Replace lead',
         cancelLabel: 'Cancel'
       }).then(function (ok) { if (ok) proceed(); });

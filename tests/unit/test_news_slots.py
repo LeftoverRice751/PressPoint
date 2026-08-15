@@ -122,6 +122,76 @@ class NewsSlotsTestCase(TestCase):
 
         self.assertIs(slots["main_news"], first_eligible)
 
+    def test_duplicate_main_rows_orphan_the_loser_in_every_bucket(self):
+        # THE defect class four fix rounds of the newsroom composer have been
+        # chasing, pinned server-side at last. Every one of those bugs ended
+        # the same way: the composer wrote a SECOND layout_type="main" row
+        # (a lead scratch that stayed staged as "main" while a real story took
+        # the lead). This is what that costs — group_news_slots() keeps only
+        # the lowest (priority, id) as main_news, and the loser matches
+        # neither the `== "secondary"` nor the `== "widget"` filter, so it is
+        # in NO bucket at all: it saves successfully, renders on neither the
+        # kiosk nor the composer canvas, and the editor has no way to find it.
+        # The grouping is doing the right thing here; the test exists so that
+        # stays true and so the cost of a duplicate main is documented in
+        # code, not only in a fix-round report.
+        winner = _Story(id=7, priority=2, layout_type="main")
+        loser = _Story(id=3, priority=5, layout_type="main")
+        secondary = _Story(id=4, priority=6, layout_type="secondary")
+
+        slots = group_news_slots([loser, secondary, winner])
+
+        self.assertIs(slots["main_news"], winner)
+        self.assertNotIn(loser, slots["secondary_news"])
+        self.assertNotIn(loser, slots["widget_news"])
+        # And it does not quietly displace a legitimate secondary story either.
+        self.assertEqual([item.id for item in slots["secondary_news"]], [secondary.id])
+
+    def test_duplicate_main_rows_tie_break_on_lowest_id(self):
+        # Same priority — which is the realistic collision, since a new story
+        # created from the composer gets priority max+1 only on the create
+        # path. The ascending (priority, id) key means the OLDER row keeps the
+        # lead and the newer one is the orphan; pin the direction, because a
+        # flip would silently change which of two mains the kiosk shows.
+        older = _Story(id=2, priority=3, layout_type="main")
+        newer = _Story(id=9, priority=3, layout_type="main")
+
+        slots = group_news_slots([newer, older])
+
+        self.assertIs(slots["main_news"], older)
+        self.assertNotIn(newer, slots["secondary_news"])
+        self.assertNotIn(newer, slots["widget_news"])
+        self.assertEqual(slots["secondary_news"], [])
+        self.assertEqual(slots["widget_news"], [])
+
+    def test_unassigned_excluded_from_every_bucket_even_when_a_main_exists(self):
+        # The other two "unassigned" tests both run with NO explicit main, so
+        # they exercise the exclusion through the main-FALLBACK path. This one
+        # pins the plain bucket exclusion with a real main present, which is
+        # the state the composer's colliding-scratch retarget actually
+        # produces: a real story owns the lead and the draft is sent to
+        # layout_type="unassigned". That retarget is only safe because an
+        # unassigned row cannot be capacity-excluded into invisibility — it is
+        # never in a bucket to begin with, and has no cap to overflow (the
+        # bug that killed round 2's retarget-to-secondary).
+        main = _Story(id=1, priority=1, layout_type="main")
+        unassigned = _Story(id=2, priority=2, layout_type="unassigned")
+        secondary = _Story(id=3, priority=3, layout_type="secondary")
+        unassigned_upper = _Story(id=4, priority=4, layout_type="Unassigned")
+        widget = _Story(id=5, priority=5, layout_type="widget")
+
+        slots = group_news_slots(
+            [main, unassigned, secondary, unassigned_upper, widget]
+        )
+
+        self.assertIs(slots["main_news"], main)
+        self.assertEqual([item.id for item in slots["secondary_news"]], [secondary.id])
+        self.assertEqual([item.id for item in slots["widget_news"]], [widget.id])
+        for orphan in (unassigned, unassigned_upper):
+            self.assertIsNot(slots["main_news"], orphan)
+            self.assertNotIn(orphan, slots["secondary_news"])
+            self.assertNotIn(orphan, slots["widget_news"])
+
     def test_secondary_cap_holds_at_four(self):
         # Six secondary stories, plus one explicit "main" so the fallback
         # doesn't eat into the secondary pool being measured.
