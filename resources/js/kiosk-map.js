@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
         baseCenter: null,       // center the map settles at after the initial fit
         droneActive: false,     // true while a drone descent animation is in flight
         currentAnimation: 0,    // token so a newer drone call can cancel an older one
+        suppressNextMapClick: false, // set by featureclick; see the map click handler
     };
 
     // 2.5D drone baseline knobs. Match the layer's option defaults so a reset
@@ -327,6 +328,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Every position drawn on this map comes from map_y/map_x — the 2.5D
+    // layer's own pixel space, which the server converts to (see
+    // app/services/Campus25dMapping.py). `latitude`/`longitude` are the raw
+    // stored columns in the older y-up space and belong only in the pane
+    // readout; drawing with them puts the feature a full image height off
+    // the campus, which is exactly the bug this replaced.
+    const layerLatLng = (location) => {
+        const y = Number(location?.map_y);
+        const x = Number(location?.map_x);
+        if (!Number.isFinite(y) || !Number.isFinite(x)) return null;
+        return L.latLng(y, x);
+    };
+
     const buildRoutePath = (location) => {
         const route = Array.isArray(location?.route) && location.route.length >= 2
             ? location.route.map(([y, x]) => [Number(y), Number(x)])
@@ -336,10 +350,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const start = state.locations.find((loc) => loc.is_start);
         if (!start) return null;
 
-        return [
-            [Number(start.latitude) || 0, Number(start.longitude) || 0],
-            [Number(location.latitude) || 0, Number(location.longitude) || 0],
-        ];
+        const from = layerLatLng(start);
+        const to = layerLatLng(location);
+        if (!from || !to) return null;
+
+        return [from, to];
     };
 
     const showRouteLine = (location) => {
@@ -417,11 +432,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const addLocationMarker = (location) => {
-        // A location without a mapped 2.5D feature has no meaningful place to
-        // sit on the extruded scene, so we skip it. It still shows up in
-        // search results and will select cleanly (search-driven flow does not
-        // need a pin on the map).
-        const center = featureCenter(location.feature_id);
+        // Prefer the mapped 2.5D footprint's centroid so the pin sits on the
+        // building the layer actually drew. A location that isn't in
+        // campus_25d_mapping.json yet still gets a pin from its own
+        // coordinates — same space, just less precise than the footprint.
+        const center = featureCenter(location.feature_id) || layerLatLng(location);
         if (!center) return;
 
         let marker;
@@ -484,6 +499,11 @@ document.addEventListener('DOMContentLoaded', () => {
         );
         if (!location) return;
         if (!location.is_routable) return;
+        // The layer registers its own map click handler in onAdd — i.e. above,
+        // at .addTo(map) — so it fires before the "tap the background to
+        // dismiss" handler further down. Without this flag that handler would
+        // close the pane on the very click that just opened it.
+        state.suppressNextMapClick = true;
         selectBuilding(location);
     });
 
@@ -536,7 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const flyToWithDroneIn = (location) => {
-        const target = featureCenter(location.feature_id);
+        const target = featureCenter(location.feature_id) || layerLatLng(location);
         if (!target) return;
         state.droneActive = true;
         map.flyTo(target, state.baseZoom + DRONE_FOCUS_ZOOM_BUMP, {
@@ -570,8 +590,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // Tapping the map away from a marker closes any open pane.
+    // Tapping the map away from a marker closes any open pane. A tap that
+    // landed on a building already ran the layer's featureclick handler on
+    // this same click, so honour the flag it set instead of undoing it.
     map.on('click', () => {
+        if (state.suppressNextMapClick) {
+            state.suppressNextMapClick = false;
+            return;
+        }
         closeBuildingPane();
     });
 

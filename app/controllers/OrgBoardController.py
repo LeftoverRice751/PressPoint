@@ -7,15 +7,15 @@ from masonite.request import Request
 from masonite.response import Response
 from masonite.views import View
 
-from app.models.Departments import Departments
-from app.models.Locations import Locations
+from app.models.Organization import Organization
 from app.models.Member import Member
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.OrgBoardTree import (
     build_member_tree,
-    build_org_board_departments,
+    build_org_board_organizations,
     member_sort_key as _member_sort_key,
     member_node,
+    organization_sort_key as _organization_sort_key,
 )
 
 
@@ -95,11 +95,11 @@ class OrgBoardController(Controller):
 
         return branch_ids
 
-    def _next_sort_order(self, members, department_id, parent_id):
+    def _next_sort_order(self, members, organization_id, parent_id):
         values = [
             int(getattr(row, "sort_order", 0) or 0)
             for row in members
-            if getattr(row, "department_id", None) == department_id
+            if getattr(row, "organization_id", None) == organization_id
             and getattr(row, "parent_id", None) == parent_id
         ]
         return (max(values) if values else 0) + 1
@@ -110,30 +110,30 @@ class OrgBoardController(Controller):
                 row.sort_order = index
                 row.save()
 
-    def _sibling_group(self, members, department_id, parent_id, excluded_ids=None):
+    def _sibling_group(self, members, organization_id, parent_id, excluded_ids=None):
         excluded_ids = excluded_ids or set()
         return sorted(
             [
                 row for row in members
                 if getattr(row, "id", None) not in excluded_ids
-                and getattr(row, "department_id", None) == department_id
+                and getattr(row, "organization_id", None) == organization_id
                 and getattr(row, "parent_id", None) == parent_id
             ],
             key=_member_sort_key,
         )
 
-    def _department_members(self, department_id):
-        """Members of one department, as serialized root nodes."""
+    def _organization_members(self, organization_id):
+        """Members of one organization, as serialized root nodes."""
         members = [
             row for row in self._all_members()
-            if getattr(row, "department_id", None) == department_id
+            if getattr(row, "organization_id", None) == organization_id
         ]
-        return build_member_tree(members).get(department_id, [])
+        return build_member_tree(members).get(organization_id, [])
 
-    def _department_payload(self, department_id):
+    def _organization_payload(self, organization_id):
         return {
-            "department_id": department_id,
-            "members": self._department_members(department_id),
+            "organization_id": organization_id,
+            "members": self._organization_members(organization_id),
         }
 
     def _save_photo(self, photo_file, storage: Storage):
@@ -154,50 +154,48 @@ class OrgBoardController(Controller):
         return _dashboard_redirect(response)
 
     def public_show(self, view: View):
-        locations = list(Locations.all() or [])
-        location_type_lookup = {
-            getattr(l, "id", None): (getattr(l, "type", "") or "")
-            for l in locations
-        }
-        departments_rows = sorted(
-            [
-                d for d in list(Departments.all() or [])
-                if location_type_lookup.get(getattr(d, "location_id", None), "") == "Department"
-            ],
-            key=lambda item: (getattr(item, "name", "") or "").lower(),
+        """The kiosk board: every organization, in dropdown order.
+
+        This used to join through `locations` and show only organizations whose
+        `location_id` pointed at a Department-type location, which silently hid
+        any row an editor had added by hand. Organizations stand on their own
+        now, so the list is simply all of them.
+        """
+        organization_rows = sorted(
+            list(Organization.all() or []),
+            key=_organization_sort_key,
         )
         members = sorted(
             list(Member.all() or []),
             key=_member_sort_key,
         )
-        department_rows = build_org_board_departments(departments_rows, locations, members)
 
         return view.render(
             "kiosk/org-board",
             {
                 "campus_name": "LSPU Organizational Chart",
-                "departments": department_rows,
-                "active_section": "departments",
+                "organizations": build_org_board_organizations(organization_rows, members),
+                "active_section": "organizations",
                 "active_nav": "",
             },
         )
 
     def data(self, request: Request, response: Response):
-        """JSON tree for a single department, used by the dashboard editor."""
-        department_id = _int_or_none(request.input("department_id"))
-        if department_id is None:
-            return json_errors(response, ["Please choose a valid department."])
+        """JSON tree for a single organization, used by the dashboard editor."""
+        organization_id = _int_or_none(request.input("organization_id"))
+        if organization_id is None:
+            return json_errors(response, ["Please choose a valid organization."])
 
-        department = Departments.find(department_id)
-        if not department:
-            return json_errors(response, ["Please choose a valid department."])
+        organization = Organization.find(organization_id)
+        if not organization:
+            return json_errors(response, ["Please choose a valid organization."])
 
-        return json_success(response, payload=self._department_payload(department.id))
+        return json_success(response, payload=self._organization_payload(organization.id))
 
     def store(self, request: Request, storage: Storage, response: Response):
         name = (request.input("name") or "").strip()
         position = (request.input("position") or "").strip()
-        department_id_value = (request.input("department_id") or "").strip()
+        organization_id_value = (request.input("organization_id") or "").strip()
         parent_id_value = (request.input("parent_id") or "").strip()
         photo_file = _normalize_uploaded_photo(request.input("photo_path"))
 
@@ -208,15 +206,15 @@ class OrgBoardController(Controller):
                 return json_errors(response, messages)
             return _dashboard_redirect(response).with_errors(messages)
 
-        if not name or not position or not department_id_value:
-            return _err(["Name, position, and department are required."])
+        if not name or not position or not organization_id_value:
+            return _err(["Name, position, and organization are required."])
 
-        if not department_id_value.isdigit():
-            return _err(["Please choose a valid department."])
+        if not organization_id_value.isdigit():
+            return _err(["Please choose a valid organization."])
 
-        department = Departments.find(int(department_id_value))
-        if not department:
-            return _err(["Please choose a valid department."])
+        organization = Organization.find(int(organization_id_value))
+        if not organization:
+            return _err(["Please choose a valid organization."])
 
         parent_id = None
         if parent_id_value:
@@ -227,8 +225,8 @@ class OrgBoardController(Controller):
             if not parent_member:
                 return _err(["Please choose a valid supervisor."])
 
-            if getattr(parent_member, "department_id", None) != department.id:
-                return _err(["The supervisor must belong to the same department."])
+            if getattr(parent_member, "organization_id", None) != organization.id:
+                return _err(["The supervisor must belong to the same organization."])
 
             parent_id = parent_member.id
 
@@ -238,12 +236,12 @@ class OrgBoardController(Controller):
 
         try:
             existing_members = self._all_members()
-            sort_order = self._next_sort_order(existing_members, department.id, parent_id)
+            sort_order = self._next_sort_order(existing_members, organization.id, parent_id)
 
             member = Member.create({
                 "name": name,
                 "position": position,
-                "department_id": department.id,
+                "organization_id": organization.id,
                 "parent_id": parent_id,
                 "photo_path": photo_path,
                 "sort_order": sort_order,
@@ -252,7 +250,7 @@ class OrgBoardController(Controller):
             })
 
             if is_ajax:
-                payload = self._department_payload(department.id)
+                payload = self._organization_payload(organization.id)
                 payload["member"] = member_node(member)
                 return json_success(response, payload=payload, messages=["Member added successfully."])
 
@@ -281,7 +279,7 @@ class OrgBoardController(Controller):
         members = self._all_members()
         branch_ids = self._branch_ids(members, member.id)
 
-        source_department_id = getattr(member, "department_id", None)
+        source_organization_id = getattr(member, "organization_id", None)
         source_parent_id = getattr(member, "parent_id", None)
         target_parent_id = source_parent_id
         reparenting = request.input("parent_id", None) is not None
@@ -302,8 +300,8 @@ class OrgBoardController(Controller):
                 if not parent_member:
                     return json_errors(response, ["Please choose a valid supervisor."])
 
-                if getattr(parent_member, "department_id", None) != source_department_id:
-                    return json_errors(response, ["The supervisor must belong to the same department."])
+                if getattr(parent_member, "organization_id", None) != source_organization_id:
+                    return json_errors(response, ["The supervisor must belong to the same organization."])
 
                 target_parent_id = parent_member.id
 
@@ -320,18 +318,18 @@ class OrgBoardController(Controller):
 
             if target_parent_id != source_parent_id:
                 source_group = self._sibling_group(
-                    members, source_department_id, source_parent_id, excluded_ids=branch_ids
+                    members, source_organization_id, source_parent_id, excluded_ids=branch_ids
                 )
                 self._renumber_group(source_group)
 
             destination_group = self._sibling_group(
-                self._all_members(), source_department_id, target_parent_id
+                self._all_members(), source_organization_id, target_parent_id
             )
             self._reorder_siblings_by_position(destination_group)
 
             return json_success(
                 response,
-                payload=self._department_payload(source_department_id),
+                payload=self._organization_payload(source_organization_id),
                 messages=["Member moved."],
             )
         except Exception as exception:
@@ -363,7 +361,7 @@ class OrgBoardController(Controller):
         if not member:
             return json_errors(response, ["Please choose a valid member."])
 
-        source_department_id = getattr(member, "department_id", None)
+        source_organization_id = getattr(member, "organization_id", None)
         name = (request.input("name") or "").strip()
         position = (request.input("position") or "").strip()
 
@@ -373,17 +371,17 @@ class OrgBoardController(Controller):
         members = self._all_members()
         branch_ids = self._branch_ids(members, member.id)
 
-        target_department_id = source_department_id
-        if request.input("department_id", None) is not None:
-            department_id = _int_or_none(request.input("department_id"))
-            if department_id is None:
-                return json_errors(response, ["Please choose a valid department."])
+        target_organization_id = source_organization_id
+        if request.input("organization_id", None) is not None:
+            organization_id = _int_or_none(request.input("organization_id"))
+            if organization_id is None:
+                return json_errors(response, ["Please choose a valid organization."])
 
-            department = Departments.find(department_id)
-            if not department:
-                return json_errors(response, ["Please choose a valid department."])
+            organization = Organization.find(organization_id)
+            if not organization:
+                return json_errors(response, ["Please choose a valid organization."])
 
-            target_department_id = department.id
+            target_organization_id = organization.id
 
         target_parent_id = getattr(member, "parent_id", None)
         if request.input("parent_id", None) is not None:
@@ -401,13 +399,13 @@ class OrgBoardController(Controller):
                 if not parent_member:
                     return json_errors(response, ["Please choose a valid supervisor."])
 
-                if getattr(parent_member, "department_id", None) != target_department_id:
-                    return json_errors(response, ["The supervisor must belong to the same department."])
+                if getattr(parent_member, "organization_id", None) != target_organization_id:
+                    return json_errors(response, ["The supervisor must belong to the same organization."])
 
                 target_parent_id = parent_member.id
 
-        if target_department_id != source_department_id and target_parent_id == getattr(member, "parent_id", None):
-            # A department change without a new supervisor makes the member a root there.
+        if target_organization_id != source_organization_id and target_parent_id == getattr(member, "parent_id", None):
+            # An organization change without a new supervisor makes the member a root there.
             target_parent_id = None
 
         photo_path, photo_error = self._save_photo(
@@ -423,19 +421,19 @@ class OrgBoardController(Controller):
             if photo_path:
                 member.photo_path = photo_path
 
-            if target_department_id != source_department_id:
+            if target_organization_id != source_organization_id:
                 # The whole branch follows, and pinned positions no longer apply
                 # to a canvas the branch has never been laid out on.
                 branch_rows = [row for row in members if getattr(row, "id", None) in branch_ids]
                 for row in branch_rows:
                     if getattr(row, "id", None) == member.id:
                         continue
-                    row.department_id = target_department_id
+                    row.organization_id = target_organization_id
                     row.pos_x = None
                     row.pos_y = None
                     row.save()
 
-                member.department_id = target_department_id
+                member.organization_id = target_organization_id
                 member.pos_x = None
                 member.pos_y = None
 
@@ -443,14 +441,14 @@ class OrgBoardController(Controller):
 
             refreshed = self._all_members()
             self._renumber_group(
-                self._sibling_group(refreshed, source_department_id, getattr(member, "parent_id", None))
+                self._sibling_group(refreshed, source_organization_id, getattr(member, "parent_id", None))
             )
             self._reorder_siblings_by_position(
-                self._sibling_group(refreshed, target_department_id, target_parent_id)
+                self._sibling_group(refreshed, target_organization_id, target_parent_id)
             )
 
-            payload = self._department_payload(target_department_id)
-            payload["moved_department"] = target_department_id != source_department_id
+            payload = self._organization_payload(target_organization_id)
+            payload["moved_organization"] = target_organization_id != source_organization_id
             return json_success(response, payload=payload, messages=["Member updated."])
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
@@ -483,7 +481,7 @@ class OrgBoardController(Controller):
                 payload={
                     "member_id": member.id,
                     "photo_path": photo_path,
-                    "department_id": getattr(member, "department_id", None),
+                    "organization_id": getattr(member, "organization_id", None),
                 },
                 messages=["Photo updated."],
             )
@@ -501,7 +499,7 @@ class OrgBoardController(Controller):
         if not member:
             return json_errors(response, ["Please choose a valid member."])
 
-        department_id = getattr(member, "department_id", None)
+        organization_id = getattr(member, "organization_id", None)
         promoted_parent_id = getattr(member, "parent_id", None)
 
         try:
@@ -518,10 +516,10 @@ class OrgBoardController(Controller):
             member.delete()
 
             self._reorder_siblings_by_position(
-                self._sibling_group(self._all_members(), department_id, promoted_parent_id)
+                self._sibling_group(self._all_members(), organization_id, promoted_parent_id)
             )
 
-            payload = self._department_payload(department_id)
+            payload = self._organization_payload(organization_id)
             payload["promoted"] = len(subordinates)
             return json_success(response, payload=payload, messages=["Member removed."])
         except Exception as exception:
@@ -529,18 +527,18 @@ class OrgBoardController(Controller):
             return json_errors(response, ["Could not remove the member. Please try again."])
 
     def reset_layout(self, request: Request, response: Response):
-        """Drop every hand-placed coordinate in a department, back to auto-layout."""
-        department_id = _int_or_none(request.input("department_id"))
-        if department_id is None:
-            return json_errors(response, ["Please choose a valid department."])
+        """Drop every hand-placed coordinate in an organization, back to auto-layout."""
+        organization_id = _int_or_none(request.input("organization_id"))
+        if organization_id is None:
+            return json_errors(response, ["Please choose a valid organization."])
 
-        department = Departments.find(department_id)
-        if not department:
-            return json_errors(response, ["Please choose a valid department."])
+        organization = Organization.find(organization_id)
+        if not organization:
+            return json_errors(response, ["Please choose a valid organization."])
 
         try:
             for row in self._all_members():
-                if getattr(row, "department_id", None) != department.id:
+                if getattr(row, "organization_id", None) != organization.id:
                     continue
                 if getattr(row, "pos_x", None) is None and getattr(row, "pos_y", None) is None:
                     continue
@@ -550,9 +548,171 @@ class OrgBoardController(Controller):
 
             return json_success(
                 response,
-                payload=self._department_payload(department.id),
+                payload=self._organization_payload(organization.id),
                 messages=["Layout reset."],
             )
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return json_errors(response, ["Could not reset the layout. Please try again."])
+
+    # --- organizations ---------------------------------------------------
+    #
+    # The org board had no way to manage the records its dropdowns are built
+    # from: rows were generated from Department-type campus locations, so an
+    # editor could not add a student organization at all. These three actions
+    # are that missing surface.
+
+    def _organization_name_taken(self, name, excluding_id=None):
+        """The name column is UNIQUE — catch it here for a readable message."""
+        needle = name.strip().lower()
+        for row in Organization.all() or []:
+            if getattr(row, "id", None) == excluding_id:
+                continue
+            if (getattr(row, "name", "") or "").strip().lower() == needle:
+                return True
+        return False
+
+    def _organization_member_count(self, organization_id):
+        return len([
+            row for row in self._all_members()
+            if getattr(row, "organization_id", None) == organization_id
+        ])
+
+    def store_organization(self, request: Request, response: Response):
+        name = (request.input("name") or "").strip()
+        kind = Organization.normalize_kind(request.input("kind"))
+        is_ajax = wants_json(request)
+
+        def _err(messages):
+            if is_ajax:
+                return json_errors(response, messages)
+            return _dashboard_redirect(response).with_errors(messages)
+
+        if not name:
+            return _err(["Please give the organization a name."])
+
+        if kind is None:
+            return _err(["Please choose whether this is a department or an organization."])
+
+        if self._organization_name_taken(name):
+            return _err([f"“{name}” already exists."])
+
+        try:
+            organization = Organization.create({"name": name, "kind": kind})
+
+            if is_ajax:
+                return json_success(
+                    response,
+                    payload={
+                        "organization": {
+                            "id": organization.id,
+                            "name": organization.name,
+                            "kind": kind,
+                            "kind_label": Organization.label_for(kind),
+                        }
+                    },
+                    messages=[f"{Organization.label_for(kind)} added."],
+                )
+
+            return _dashboard_redirect(response).with_success([
+                f"{Organization.label_for(kind)} added.",
+            ])
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return _err(["Could not save the organization. Please try again."])
+
+    def update_organization(self, request: Request, response: Response):
+        organization_id = _int_or_none(request.input("organization_id"))
+        is_ajax = wants_json(request)
+
+        def _err(messages):
+            if is_ajax:
+                return json_errors(response, messages)
+            return _dashboard_redirect(response).with_errors(messages)
+
+        if organization_id is None:
+            return _err(["Please choose a valid organization."])
+
+        organization = Organization.find(organization_id)
+        if not organization:
+            return _err(["Please choose a valid organization."])
+
+        name = (request.input("name") or "").strip()
+        if not name:
+            return _err(["Please give the organization a name."])
+
+        if self._organization_name_taken(name, excluding_id=organization.id):
+            return _err([f"“{name}” already exists."])
+
+        # Kind is optional on update: a rename-only submit leaves it alone.
+        kind = getattr(organization, "kind", None)
+        if request.input("kind", None) is not None:
+            kind = Organization.normalize_kind(request.input("kind"))
+            if kind is None:
+                return _err(["Please choose whether this is a department or an organization."])
+
+        try:
+            organization.name = name
+            organization.kind = kind
+            organization.save()
+
+            if is_ajax:
+                return json_success(
+                    response,
+                    payload={
+                        "organization": {
+                            "id": organization.id,
+                            "name": name,
+                            "kind": kind,
+                            "kind_label": Organization.label_for(kind),
+                        }
+                    },
+                    messages=["Organization updated."],
+                )
+
+            return _dashboard_redirect(response).with_success(["Organization updated."])
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return _err(["Could not update the organization. Please try again."])
+
+    def destroy_organization(self, request: Request, response: Response):
+        organization_id = _int_or_none(request.input("organization_id"))
+        is_ajax = wants_json(request)
+
+        def _err(messages):
+            if is_ajax:
+                return json_errors(response, messages)
+            return _dashboard_redirect(response).with_errors(messages)
+
+        if organization_id is None:
+            return _err(["Please choose a valid organization."])
+
+        organization = Organization.find(organization_id)
+        if not organization:
+            return _err(["Please choose a valid organization."])
+
+        # members.organization_id is ON DELETE CASCADE, so without this guard
+        # removing an organization would silently destroy its whole chart.
+        member_count = self._organization_member_count(organization.id)
+        if member_count:
+            plural = "member" if member_count == 1 else "members"
+            return _err([
+                f"“{organization.name}” still has {member_count} {plural}. "
+                f"Remove them from its chart first.",
+            ])
+
+        try:
+            name = organization.name
+            organization.delete()
+
+            if is_ajax:
+                return json_success(
+                    response,
+                    payload={"organization_id": organization_id},
+                    messages=[f"“{name}” removed."],
+                )
+
+            return _dashboard_redirect(response).with_success([f"“{name}” removed."])
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return _err(["Could not remove the organization. Please try again."])

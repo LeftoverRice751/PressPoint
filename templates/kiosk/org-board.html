@@ -2,7 +2,7 @@
 {% block title %}LSPU Organizational Chart{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="/assets/css/org-board.css" />
+<link rel="stylesheet" href="{{ asset_url('css/org-board.css') }}" />
 {% endblock %}
 
 {% block content %}
@@ -14,44 +14,41 @@
     </div>
     <h1 class="ob-masthead__title">{{ campus_name if campus_name else 'Organizational Chart' }}</h1>
     <p class="ob-masthead__lead">
-      A live structure of every department on campus. Swipe across the deck below to view each department&rsquo;s leadership.
+      A live structure of every department and organization on campus. Swipe across the deck below to view each one&rsquo;s leadership.
     </p>
   </header>
 
-  <section class="ob-deck" aria-label="Department directory">
-    {% if departments %}
+  <section class="ob-deck" aria-label="Organization directory">
+    {% if organizations %}
     <div class="ob-deck__viewport" data-ob-viewport>
-      {% for dept in departments %}
+      {% for org in organizations %}
       <article
         class="ob-card"
         data-ob-card
-        data-department-id="{{ dept.id }}"
-        data-department-name="{{ dept.name | e }}"
+        data-organization-id="{{ org.id }}"
+        data-organization-name="{{ org.name | e }}"
         data-index="{{ loop.index0 }}"
       >
         <header class="ob-card__header">
-          <span class="ob-card__eyebrow">{{ dept.location_type if dept.location_type else 'Department' }}</span>
-          <h2 class="ob-card__title">{{ dept.name }}</h2>
-          {% if dept.location_name %}
-          <p class="ob-card__location">{{ dept.location_name }}</p>
-          {% endif %}
-          <p class="ob-card__count">{{ dept.members | length }} {{ 'leader' if (dept.members | length) == 1 else 'leaders' }} listed</p>
+          <span class="ob-card__eyebrow">{{ org.kind_label }}</span>
+          <h2 class="ob-card__title">{{ org.name }}</h2>
+          <p class="ob-card__count">{{ org.members | length }} {{ 'leader' if (org.members | length) == 1 else 'leaders' }} listed</p>
         </header>
 
         <div class="ob-card__body">
-          {% if dept.members %}
+          {% if org.members %}
           <div class="ob-card__chart" data-ob-chart>
             <div class="ob-chart__spacer" data-ob-chart-spacer aria-hidden="true"></div>
             <div class="ob-chart__stage" data-ob-chart-stage>
               <svg class="ob-chart__edges" data-ob-chart-edges xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
               <div class="ob-chart__nodes" data-ob-chart-nodes></div>
             </div>
-            <script type="application/json" data-ob-chart-data>{{ dept.members | tojson }}</script>
+            <script type="application/json" data-ob-chart-data>{{ org.members | tojson }}</script>
           </div>
           {% else %}
           <div class="ob-card__empty">
             <p class="ob-card__empty-title">Roster pending</p>
-            <p class="ob-card__empty-copy">Editors have not added members to this department yet.</p>
+            <p class="ob-card__empty-copy">Editors have not added members to this organization yet.</p>
           </div>
           {% endif %}
         </div>
@@ -60,17 +57,17 @@
     </div>
     {% else %}
     <div class="ob-empty-state">
-      <p class="ob-empty-state__eyebrow">No departments yet</p>
+      <p class="ob-empty-state__eyebrow">Nothing published yet</p>
       <h2 class="ob-empty-state__title">The org chart is being prepared</h2>
-      <p class="ob-empty-state__copy">Editors will publish departments and leadership soon. Please check back in a moment.</p>
+      <p class="ob-empty-state__copy">Editors will publish organizations and leadership soon. Please check back in a moment.</p>
     </div>
     {% endif %}
   </section>
 
   <footer class="ob-dock">
-    {% if departments %}
-    <div class="ob-dock__nav" role="group" aria-label="Department navigation">
-      <button type="button" class="ob-dock__arrow" data-ob-prev aria-label="Previous department">
+    {% if organizations %}
+    <div class="ob-dock__nav" role="group" aria-label="Organization navigation">
+      <button type="button" class="ob-dock__arrow" data-ob-prev aria-label="Previous organization">
         <span aria-hidden="true">&larr;</span>
       </button>
 
@@ -78,23 +75,23 @@
         <span class="ob-dock__counter">
           <span data-ob-current-index>1</span>
           <span class="ob-dock__counter-sep">/</span>
-          <span>{{ departments | length }}</span>
+          <span>{{ organizations | length }}</span>
         </span>
-        <span class="ob-dock__name" data-ob-current-name>{{ departments[0].name if departments else '' }}</span>
-        <div class="ob-dock__dots" role="tablist" aria-label="Jump to department">
-          {% for dept in departments %}
+        <span class="ob-dock__name" data-ob-current-name>{{ organizations[0].name if organizations else '' }}</span>
+        <div class="ob-dock__dots" role="tablist" aria-label="Jump to organization">
+          {% for org in organizations %}
           <button
             type="button"
             class="ob-dock__dot {{ 'is-active' if loop.first else '' }}"
             data-ob-dot
             data-index="{{ loop.index0 }}"
-            aria-label="View {{ dept.name }}"
+            aria-label="View {{ org.name }}"
           ></button>
           {% endfor %}
         </div>
       </div>
 
-      <button type="button" class="ob-dock__arrow" data-ob-next aria-label="Next department">
+      <button type="button" class="ob-dock__arrow" data-ob-next aria-label="Next organization">
         <span aria-hidden="true">&rarr;</span>
       </button>
     </div>
@@ -109,6 +106,6 @@
 {% endblock %}
 
 {% block js %}
-<script src="/assets/js/org-chart-layout.js" defer></script>
-<script src="/assets/js/org-board.js" defer></script>
+<script src="{{ asset_url('js/org-chart-layout.js') }}" defer></script>
+<script src="{{ asset_url('js/org-board.js') }}" defer></script>
 {% endblock %}

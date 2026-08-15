@@ -1,0 +1,61 @@
+{#
+  The managed list of organizations. Rendered both by the full dashboard page
+  and by DashboardController's fragment endpoint, so an add or a delete can
+  never produce markup that differs from a fresh page load.
+
+  The JSON block at the bottom is how the three organization <select>s stay in
+  sync without a reload: org-board-editor.js reads it on `live:refreshed` and
+  rebuilds their options. Same handoff the kiosk board uses for its chart data.
+#}
+{% for group in organization_groups %}
+{% if group.rows %}
+<div class="org-manage-group">
+  <p class="org-manage-group__label">{{ group.label }}s</p>
+
+  <ul class="org-manage-list">
+    {% for row in group.rows %}
+    <li class="org-manage-item">
+      {# Name on its own line, controls beneath. Kept off one line on purpose:
+         a single strip of name + kind + count + two buttons has a min-content
+         width of ~410px, which used to burst out of its container. #}
+      <input type="text" id="org-manage-name-{{ row.id }}" name="name" form="org-manage-form-{{ row.id }}"
+             class="field__input org-manage-item__name" value="{{ row.name }}" aria-label="Name" required>
+
+      <div class="org-manage-item__controls">
+        <form action="{{ route('org-board.organization.update', {}, False) }}" method="POST"
+              id="org-manage-form-{{ row.id }}" class="org-manage-item__form">
+          {{ csrf_field | safe }}
+          <input type="hidden" name="organization_id" value="{{ row.id }}">
+
+          <select id="org-manage-kind-{{ row.id }}" name="kind" class="field__input field__input--select org-manage-item__kind" aria-label="Kind">
+            {% for kind_value, kind_label in organization_kind_labels %}
+            <option value="{{ kind_value }}"{% if row.kind == kind_value %} selected{% endif %}>{{ kind_label }}</option>
+            {% endfor %}
+          </select>
+
+          <button type="submit" class="ghost-button">Save</button>
+        </form>
+
+        <span class="org-manage-item__count">
+          {% set count = organization_member_counts.get(row.id, 0) %}
+          {{ count }} member{{ '' if count == 1 else 's' }}
+        </span>
+
+        <form action="{{ route('org-board.organization.destroy', {}, False) }}" method="POST" class="org-manage-item__delete" data-live-delete="org-board-organizations">
+          {{ csrf_field | safe }}
+          <input type="hidden" name="organization_id" value="{{ row.id }}">
+          <button type="submit" class="ghost-button ghost-button--danger"
+                  data-confirm="Remove &ldquo;{{ row.name | e }}&rdquo; from the org board? This cannot be undone."
+                  data-confirm-title="Remove organization?"
+                  data-confirm-label="Remove"
+                  data-confirm-danger>Delete</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endfor %}
+
+<script type="application/json" data-ob-organization-groups>{{ organization_groups | tojson }}</script>

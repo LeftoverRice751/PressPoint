@@ -7,8 +7,8 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Login{% endblock %} · Presspoint</title>
     <link rel="icon" href="{{ site_logo() }}">
-    <link rel="stylesheet" href="/assets/css/kiosk-tokens.css">
-    <link rel="stylesheet" href="/assets/css/auth-shell.css">
+    <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}">
+    <link rel="stylesheet" href="{{ asset_url('css/auth-shell.css') }}">
     {% block head %}{% endblock %}
 </head>
 <body class="auth-body">

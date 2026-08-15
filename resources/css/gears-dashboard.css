@@ -1435,22 +1435,103 @@ body {
     border-top: 1px solid var(--ink-rule);
 }
 
-/* ORG BOARD */
-.org-board-layout {
-    display: grid;
-    grid-template-columns: minmax(300px, 0.7fr) minmax(0, 1.3fr);
-    gap: 1rem;
-    align-items: start;
-}
-
-.org-board-layout.has-panel {
-    grid-template-columns: minmax(280px, 0.6fr) minmax(0, 1.4fr) minmax(280px, 0.7fr);
-}
-
-.org-board-board {
+/* ORG BOARD
+ *
+ * The chart is the whole point of this section, so it gets the full width and
+ * everything else lives in a dialog. This replaced a two-column grid whose
+ * left track was `minmax(300px, 0.7fr)` — about 349px at 1366px — beside an
+ * organizations list whose rows needed ~410px and could not shrink, so the
+ * card spilled across the gap and collided with the canvas. A stack cannot
+ * have that failure mode.
+ */
+.org-board {
     display: grid;
     gap: 0.75rem;
     min-width: 0;
+}
+
+.org-manage {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.org-manage-group__label {
+    margin: 0 0 0.35rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+}
+
+.org-manage-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.5rem;
+}
+
+/* Two lines by design: the name owns the first, the controls the second. As one
+   strip these needed ~410px of unshrinkable width. */
+.org-manage-item {
+    display: grid;
+    gap: 0.45rem;
+    padding: 0.6rem;
+    border: 1px solid var(--ink-rule);
+    border-radius: var(--radius-sm);
+    background: var(--ink-paper);
+    min-width: 0;
+}
+
+.org-manage-item__name {
+    min-width: 0;
+    width: 100%;
+}
+
+.org-manage-item__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.org-manage-item__form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.org-manage-item__kind {
+    flex: 1 1 8rem;
+    min-width: 0;
+}
+
+.org-manage-item__count {
+    flex: 1 1 auto;
+    font-size: 0.72rem;
+    color: var(--ink-muted);
+}
+
+/* Pushes Delete to the trailing edge, away from Save. */
+.org-manage-item__delete {
+    margin-left: auto;
+}
+
+.org-manage-add__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 0.75rem;
+}
+
+.org-manage-divider {
+    display: grid;
+    gap: 0.9rem;
+    padding-top: 1rem;
+    margin-top: 0.25rem;
+    border-top: 1px solid var(--ink-rule);
 }
 
 .org-board-toolbar {
@@ -1509,7 +1590,7 @@ body {
     outline-offset: -6px;
 }
 
-.org-board-layout.is-loading .org-board-canvas {
+.org-board.is-loading .org-board-canvas {
     opacity: 0.55;
 }
 
@@ -1650,61 +1731,6 @@ body {
     text-align: center;
 }
 
-.org-board-panel {
-    display: grid;
-    gap: 0.85rem;
-    align-self: start;
-    padding: 1rem;
-    border: 1px solid var(--ink-rule);
-    border-radius: var(--radius-sm);
-    background: var(--ink-paper);
-}
-
-.org-board-panel__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding-bottom: 0.6rem;
-    border-bottom: 1px solid var(--ink-rule);
-}
-
-.org-board-panel__header .ghost-button {
-    padding: 0.25rem 0.6rem;
-    font-size: 1.1rem;
-    line-height: 1;
-}
-
-.org-board-panel__preview {
-    display: grid;
-    place-items: center;
-    width: 76px;
-    height: 76px;
-    overflow: hidden;
-    border-radius: 50%;
-    border: 1px solid var(--ink-rule-strong);
-    background: var(--ink-cream);
-}
-
-.org-board-panel__preview img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.org-board-panel__note {
-    margin: 0;
-    color: var(--ink-muted);
-    font-size: 0.8rem;
-    line-height: 1.45;
-}
-
-.org-board-panel__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
 .ghost-button--danger {
     color: var(--ink-vermillion);
     border-color: var(--ink-vermillion);
@@ -1715,10 +1741,61 @@ body {
     color: var(--ink-cream);
 }
 
-.org-board-form-card {
+/* The member editor's warning that a card is hand-placed. Sits above the form
+   in the dialog, where the inline panel used to show it. */
+.org-board-pin-note {
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.75rem;
+    border-left: 3px solid var(--ink-marigold);
+    background: var(--ink-cream);
+    color: var(--ink-muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+/* A form dialog needs less room than the article/news drawers it shares a class
+   with. Same panel treatment, narrower measure. */
+.article-modal--compact {
+    width: min(520px, calc(100vw - 2rem));
+}
+
+/* Destructive action anchored away from Save/Cancel, per the footer's flex-end. */
+.org-board-modal__delete {
+    margin-right: auto;
+}
+
+/* Current portrait, so replacing a photo is a comparison rather than a guess. */
+.org-board-member-photo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.org-board-member-preview {
     display: grid;
-    gap: 1rem;
-    align-self: start;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 56px;
+    height: 56px;
+    overflow: hidden;
+    border-radius: 50%;
+    border: 1px solid var(--ink-rule-strong);
+    background: var(--ink-cream);
+}
+
+.org-board-member-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.org-board-member-photo__hint {
+    margin: 0;
+    min-width: 0;
+    color: var(--ink-muted);
+    font-size: 0.78rem;
+    line-height: 1.4;
 }
 
 @keyframes gears-page-in {
@@ -1775,16 +1852,13 @@ body {
     }
 }
 
-@media (max-width: 1100px) {
-    .org-board-layout,
-    .org-board-layout.has-panel {
-        grid-template-columns: 1fr;
-    }
-}
-
 @media (max-width: 720px) {
     .gears-main {
         padding: 1.25rem 1rem 2rem;
+    }
+
+    .org-manage-add__row {
+        grid-template-columns: 1fr;
     }
 
     .gears-hero {

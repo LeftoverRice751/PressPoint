@@ -3,13 +3,13 @@
 from masoniteorm.models import Model
 from masoniteorm.relationships import belongs_to, has_many
 
-from app.models.Departments import Departments
+from app.models.Organization import Organization
 
 
 class Member(Model):
     """Member Model"""
     __fillable__ = [
-        "department_id",
+        "organization_id",
         "name",
         "position",
         "photo_path", 
@@ -27,6 +27,6 @@ class Member(Model):
     def leader(self):
         return Member
 
-    @belongs_to("department_id", "id")
-    def department(self):
-        return Departments
+    @belongs_to("organization_id", "id")
+    def organization(self):
+        return Organization

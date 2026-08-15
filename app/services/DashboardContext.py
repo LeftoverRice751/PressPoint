@@ -11,7 +11,7 @@ import random
 
 from app.models.Archives import Archives
 from app.models.Categories import Categories
-from app.models.Departments import Departments
+from app.models.Organization import Organization
 from app.models.Events import Events
 from app.models.Locations import Locations
 from app.models.Member import Member
@@ -22,7 +22,7 @@ from app.models.User import User
 from app.models.Video import Video
 from app.services.AboutContent import AboutContent
 from app.services.ArchiveServices import ArchiveServices
-from app.services.OrgBoardTree import build_org_board_departments
+from app.services.OrgBoardTree import build_org_board_organizations, organization_sort_key
 from app.services.TourScenesCatalog import TourScenesCatalog
 
 
@@ -214,61 +214,59 @@ def locations_context():
     }
 
 
-def ensure_departments_for_locations(locations):
-    """Give every Department-type location a matching departments row.
+def org_board_context():
+    """Organizations and their member trees, for the org board panel.
 
-    This writes, so it belongs only on a full page render — never on a fragment
-    refresh or a polling request.
+    There used to be an `ensure_departments_for_locations()` alongside this that
+    created a `departments` row for every Department-type location on each full
+    page render, and this builder then filtered the list back down to rows whose
+    `location_id` resolved to such a location. That made editor-created rows
+    invisible and meant the board could never show a student organization.
+    Organizations are now plain editor-owned records: no locations, no filter,
+    no write on render.
     """
-    existing_location_ids = {
-        getattr(department, "location_id", None)
-        for department in (Departments.all() or [])
-    }
-
-    for location in locations:
-        if (getattr(location, "type", "") or "") != "Department":
-            continue
-        if getattr(location, "id", None) in existing_location_ids:
-            continue
-        Departments.create({
-            "location_id": location.id,
-            "name": getattr(location, "name", "") or "Department",
-        })
-
-
-def org_board_context(locations=None):
-    locations = locations if locations is not None else sorted(list(Locations.all() or []), key=_by_id_desc)
-    location_type_lookup = {
-        getattr(location, "id", None): (getattr(location, "type", "") or "")
-        for location in locations
-    }
-
-    departments = sorted(
-        [
-            department for department in list(Departments.all() or [])
-            if location_type_lookup.get(getattr(department, "location_id", None), "") == "Department"
-        ],
-        key=lambda item: (getattr(item, "name", "") or "").lower(),
+    organizations = sorted(
+        list(Organization.all() or []),
+        key=organization_sort_key,
     )
     org_board_members = sorted(
         list(Member.all() or []),
         key=lambda item: (
-            getattr(item, "department_id", 0) or 0,
+            getattr(item, "organization_id", 0) or 0,
             getattr(item, "parent_id", 0) or 0,
             getattr(item, "sort_order", 0) or 0,
             (getattr(item, "name", "") or "").lower(),
             getattr(item, "id", 0) or 0,
         ),
     )
+    org_board_organizations = build_org_board_organizations(organizations, org_board_members)
+    member_counts = {}
+    for member in org_board_members:
+        organization_id = getattr(member, "organization_id", None)
+        member_counts[organization_id] = member_counts.get(organization_id, 0) + 1
 
     return {
-        "departments": departments,
-        "department_lookup": {
-            getattr(department, "id", None): getattr(department, "name", "")
-            for department in departments
+        "organizations": organizations,
+        "organization_lookup": {
+            getattr(organization, "id", None): getattr(organization, "name", "")
+            for organization in organizations
         },
+        # Grouped for the dashboard's <optgroup> dropdowns, in KINDS order.
+        "organization_groups": [
+            {
+                "kind": kind,
+                "label": Organization.KIND_LABELS[kind],
+                "rows": [row for row in org_board_organizations if row["kind"] == kind],
+            }
+            for kind in Organization.KINDS
+        ],
+        "organization_member_counts": member_counts,
+        # (value, label) pairs for the kind selects, in KINDS order.
+        "organization_kind_labels": [
+            (kind, Organization.KIND_LABELS[kind]) for kind in Organization.KINDS
+        ],
         "org_board_members": org_board_members,
-        "org_board_departments": build_org_board_departments(departments, locations, org_board_members),
+        "org_board_organizations": org_board_organizations,
     }
 
 
@@ -409,9 +407,6 @@ def super_admin_stats():
 def full_context(default_page="dashboard"):
     """The complete dashboard context, identical to what the page always got."""
     locations_data = locations_context()
-    locations = locations_data["locations"]
-
-    ensure_departments_for_locations(locations)
 
     context = {}
     context.update(overview_context())
@@ -420,7 +415,7 @@ def full_context(default_page="dashboard"):
     context.update(archives_context())
     context.update(videos_context())
     context.update(locations_data)
-    context.update(org_board_context(locations))
+    context.update(org_board_context())
     context.update(about_context())
     context.update(tour_context())
     context["default_page"] = default_page

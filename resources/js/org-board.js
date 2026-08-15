@@ -163,7 +163,7 @@
     });
 
     if (nameLabel) {
-      nameLabel.textContent = cards[index].getAttribute('data-department-name') || '';
+      nameLabel.textContent = cards[index].getAttribute('data-organization-name') || '';
     }
     if (indexLabel) {
       indexLabel.textContent = String(index + 1);

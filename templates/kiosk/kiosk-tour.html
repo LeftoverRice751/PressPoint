@@ -7,7 +7,7 @@
 <style> @-ms-viewport { width: device-width; } </style>
 <link rel="stylesheet" href="/pano/vendor/reset.min.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-<link rel="stylesheet" href="/assets/css/kiosk-tour.css">
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-tour.css') }}">
 </head>
 <body class="multiple-scenes tour-page">
 
@@ -338,7 +338,7 @@
   <script src="/pano/vendor/marzipano.js" ></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-  <script src="/assets/js/data.js"></script>
-  <script src="/assets/js/kiosk-tour.js"></script>
+  <script src="{{ asset_url('js/data.js') }}"></script>
+  <script src="{{ asset_url('js/kiosk-tour.js') }}"></script>
 </body>
 </html>

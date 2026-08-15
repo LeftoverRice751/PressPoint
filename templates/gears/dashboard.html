@@ -2,14 +2,14 @@
 {% block title %}{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="/assets/css/gears-dashboard.css" />
-<link rel="stylesheet" href="/assets/css/kiosk-tokens.css" />
-<link rel="stylesheet" href="/assets/css/kiosk-news.css" />
-<link rel="stylesheet" href="/assets/css/quill.snow.css" />
-<link rel="stylesheet" href="/assets/css/news-dashboard.css" />
-<link rel="stylesheet" href="/assets/css/dropzone.css" />
-<link rel="stylesheet" href="/assets/css/upload-meter.css" />
-<link rel="stylesheet" href="/assets/css/confirm-modal.css" />
+<link rel="stylesheet" href="{{ asset_url('css/gears-dashboard.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/quill.snow.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/news-dashboard.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/dropzone.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/upload-meter.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/confirm-modal.css') }}" />
 {% endblock %}
 
 {% block content %}
@@ -642,13 +642,33 @@
       </div>
     </section>
 
-    <section class="gears-page" data-page-panel="org-board" id="panel-org-board" role="tabpanel" aria-labelledby="nav-org-board" data-hero-eyebrow="Content" data-hero-title="Organization board" data-hero-subtitle="Arrange each department's chart on the canvas: drag a card onto another to nest it, or anywhere to position it freely." hidden>
+    {#
+      One source of options for all three organization selects, so the
+      add-member form, the canvas switcher and the edit panel can never drift
+      apart. `organization_groups` comes from DashboardContext.org_board_context.
+    #}
+    {% macro organization_options(groups, placeholder=None, selected=None) %}
+      {% if placeholder %}<option value="">{{ placeholder }}</option>{% endif %}
+      {% for group in groups %}{% if group.rows %}
+      <optgroup label="{{ group.label }}s">
+        {% for row in group.rows %}
+        <option value="{{ row.id }}"{% if selected == row.id %} selected{% endif %}>{{ row.name }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endif %}{% endfor %}
+    {% endmacro %}
+
+    <section class="gears-page" data-page-panel="org-board" id="panel-org-board" role="tabpanel" aria-labelledby="nav-org-board" data-live-section="org-board-organizations" data-hero-eyebrow="Content" data-hero-title="Organization board" data-hero-subtitle="Arrange each organization's chart on the canvas: drag a card onto another to nest it, or anywhere to position it freely." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
           <h2 class="section-head__title">Org Board</h2>
+          <p class="section-head__subtitle">The kiosk shows exactly the arrangement you build here.</p>
         </div>
-        <p class="section-head__subtitle">The kiosk shows exactly the arrangement you build here.</p>
+        <div class="section-head__actions">
+          <button type="button" class="primary-button" data-ob-member-modal-open{% if not org_board_organizations %} disabled{% endif %}>Add member</button>
+          <button type="button" class="ghost-button" data-ob-orgs-modal-open>Manage organizations</button>
+        </div>
       </div>
 
       {% if bag().any() %}
@@ -662,78 +682,22 @@
       {% endif %}
 
       <div
-        class="org-board-layout"
+        class="org-board"
         data-org-board-editor
         data-ob-data-url="{{ route('org-board.data', {}, False) }}"
+        data-ob-store-url="{{ route('org-board.store', {}, False) }}"
         data-ob-move-url="{{ route('org-board.move', {}, False) }}"
         data-ob-update-url="{{ route('org-board.update', {}, False) }}"
         data-ob-photo-url="{{ route('org-board.photo', {}, False) }}"
         data-ob-delete-url="{{ route('org-board.destroy', {}, False) }}"
         data-ob-reset-url="{{ route('org-board.reset-layout', {}, False) }}"
       >
-        <article class="page-card org-board-form-card">
-          <div class="panel-header panel-header--compact">
-            <div>
-              <p class="panel-header__eyebrow">Org Board Entry</p>
-              <h3 class="panel-header__title">Add a member</h3>
-            </div>
-          </div>
-
-          <p class="panel-header__subtitle">Editors can add members here first, then arrange the chart by dragging cards on the canvas.</p>
-
-          <form action="{{ route('org-board.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-reload="false" data-upload-label="member photo" data-ob-add-form>
-            {{ csrf_field | safe }}
-
-            <label class="field" for="org-board-name">
-              <span class="field__label">Name</span>
-              <input type="text" name="name" id="org-board-name" class="field__input" placeholder="Member name" required>
-            </label>
-
-            <label class="field" for="org-board-position">
-              <span class="field__label">Position</span>
-              <input type="text" name="position" id="org-board-position" class="field__input" placeholder="Department head" required>
-            </label>
-
-            <label class="field" for="org-board-department-id">
-              <span class="field__label">Department</span>
-              <select name="department_id" id="org-board-department-id" class="field__input field__input--select" required>
-                <option value="">Choose a department</option>
-                {% for department in departments %}
-                <option value="{{ department.id }}">{{ department.name }}</option>
-                {% endfor %}
-              </select>
-            </label>
-
-            <div class="field">
-              <span class="field__label">Photo</span>
-              <label class="dropzone" data-dropzone>
-                <input type="file" name="photo_path" id="org-board-photo-path" class="dropzone__input" accept="image/*">
-                <span class="dropzone__empty">
-                  <span class="dropzone__icon" aria-hidden="true">↑</span>
-                  <span class="dropzone__title">Drop a portrait here, or tap to choose</span>
-                  <span class="dropzone__hint">PNG, JPG, GIF, or WEBP · optional</span>
-                </span>
-                <span class="dropzone__filled" hidden>
-                  <span class="dropzone__filename" data-dropzone-name></span>
-                  <span class="dropzone__size" data-dropzone-size></span>
-                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
-                </span>
-              </label>
-            </div>
-
-            <button type="submit" class="primary-button">Save member</button>
-          </form>
-        </article>
-
-        <div class="org-board-board">
-          {% if org_board_departments %}
+        {% if org_board_organizations %}
           <div class="org-board-toolbar">
-            <label class="field field--inline" for="org-board-canvas-department">
-              <span class="field__label">Department</span>
-              <select id="org-board-canvas-department" class="field__input field__input--select" data-ob-department>
-                {% for department in org_board_departments %}
-                <option value="{{ department.id }}">{{ department.name }}</option>
-                {% endfor %}
+            <label class="field field--inline" for="org-board-canvas-organization">
+              <span class="field__label">Organization</span>
+              <select id="org-board-canvas-organization" class="field__input field__input--select" data-ob-organization data-ob-organization-select>
+                {{ organization_options(organization_groups) }}
               </select>
             </label>
 
@@ -756,64 +720,154 @@
               <div class="org-board-cards" data-ob-cards></div>
             </div>
 
-            <div class="empty-state empty-state--embedded org-board-empty" data-ob-empty hidden>
-              No members in this department yet. Add one with the form beside this canvas.
+            <div class="empty-state org-board-empty" data-ob-empty hidden>
+              <p class="empty-state__title">No one on this chart yet</p>
+              <p class="empty-state__text">Add the first member to start building the hierarchy.</p>
             </div>
           </div>
+        {% else %}
+          <div class="empty-state empty-state--embedded">
+            No organizations yet. Add one from &ldquo;Manage organizations&rdquo; above.
+          </div>
+        {% endif %}
+      </div>
 
-          <aside class="org-board-panel" data-ob-panel hidden>
-            <div class="org-board-panel__header">
-              <h3 class="panel-header__title">Edit member</h3>
-              <button type="button" class="ghost-button" data-ob-panel-close aria-label="Close editor">&times;</button>
+      {#
+        Member editor. One form serves both create and edit — a hidden member_id
+        decides which, and the JS points `action` at store or update to match.
+        It keeps the upload-meter attributes so the portrait still gets a
+        progress meter, exactly as the old inline form did.
+      #}
+      <dialog class="article-modal article-modal--compact" data-ob-member-modal>
+        <div class="article-modal__panel">
+          <div class="article-modal__header">
+            <div>
+              <h3 class="article-modal__title" data-ob-member-modal-title>Add member</h3>
+              <p class="article-modal__subtitle">Names and reporting lines here; drag cards on the canvas to arrange them.</p>
+            </div>
+            <button type="button" class="article-modal__close" data-ob-member-modal-close>Close</button>
+          </div>
+
+          <p class="org-board-pin-note" data-ob-pin-note hidden>
+            This card is positioned by hand. &ldquo;Reset layout&rdquo; returns the whole organization to the automatic arrangement.
+          </p>
+
+          <form action="{{ route('org-board.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-reload="false" data-upload-label="member photo" data-ob-member-form>
+            {{ csrf_field | safe }}
+            <input type="hidden" name="member_id" value="" data-ob-field="member_id">
+
+            <label class="field" for="org-board-member-name">
+              <span class="field__label">Name</span>
+              <input type="text" name="name" id="org-board-member-name" class="field__input" placeholder="Member name" data-ob-field="name" required>
+            </label>
+
+            <label class="field" for="org-board-member-position">
+              <span class="field__label">Position</span>
+              <input type="text" name="position" id="org-board-member-position" class="field__input" placeholder="Dean, President, Adviser…" data-ob-field="position" required>
+            </label>
+
+            <label class="field" for="org-board-member-organization">
+              <span class="field__label">Organization</span>
+              <select name="organization_id" id="org-board-member-organization" class="field__input field__input--select" data-ob-field="organization_id" data-ob-organization-select required>
+                {{ organization_options(organization_groups, placeholder='Choose an organization') }}
+              </select>
+            </label>
+
+            <label class="field" for="org-board-member-parent">
+              <span class="field__label">Reports to</span>
+              <select name="parent_id" id="org-board-member-parent" class="field__input field__input--select" data-ob-field="parent_id"></select>
+            </label>
+
+            <div class="field">
+              <span class="field__label">Photo</span>
+              <div class="org-board-member-photo">
+                <div class="org-board-member-preview" data-ob-member-preview aria-hidden="true"></div>
+                <p class="org-board-member-photo__hint" data-ob-member-photo-hint>Uploading a new portrait replaces the current one.</p>
+              </div>
+              <label class="dropzone" data-dropzone>
+                <input type="file" name="photo_path" id="org-board-member-photo" class="dropzone__input" accept="image/*" data-ob-field="photo_path">
+                <span class="dropzone__empty">
+                  <span class="dropzone__icon" aria-hidden="true">↑</span>
+                  <span class="dropzone__title">Drop a portrait here, or tap to choose</span>
+                  <span class="dropzone__hint">PNG, JPG, GIF, or WEBP · optional</span>
+                </span>
+                <span class="dropzone__filled" hidden>
+                  <span class="dropzone__filename" data-dropzone-name></span>
+                  <span class="dropzone__size" data-dropzone-size></span>
+                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
+                </span>
+              </label>
             </div>
 
-            <div class="org-board-panel__preview" data-ob-panel-preview></div>
+            <div class="article-modal__footer">
+              <button type="button" class="ghost-button ghost-button--danger org-board-modal__delete" data-ob-member-delete hidden>Remove member</button>
+              <button type="button" class="ghost-button" data-ob-member-modal-close>Cancel</button>
+              <button type="submit" class="primary-button" data-ob-member-submit>Save member</button>
+            </div>
+          </form>
+        </div>
+      </dialog>
 
-            <p class="org-board-panel__note" data-ob-pin-note hidden>
-              This card is positioned by hand. &ldquo;Reset layout&rdquo; returns the whole department to the automatic arrangement.
-            </p>
+      {#
+        Organizations manager. The list keeps its data-live-* hooks so
+        dashboard-live.js can swap it in place after an add or a delete — the
+        dialog stays inside this section, which is how the panel is located.
+      #}
+      <dialog class="article-modal" data-ob-orgs-modal>
+        <div class="article-modal__panel">
+          <div class="article-modal__header">
+            <div>
+              <h3 class="article-modal__title">Organizations</h3>
+              <p class="article-modal__subtitle">Departments and student organizations both live here. Anything you add is immediately available on the board.</p>
+            </div>
+            <button type="button" class="article-modal__close" data-ob-orgs-modal-close>Close</button>
+          </div>
 
-            <form class="form-stack" data-ob-panel-form>
-              <label class="field" for="org-board-edit-name">
+          {#
+            data-upload-form is what makes this an AJAX post: upload-meter.js
+            intercepts it and dispatches `upload:success`, which is the event
+            dashboard-live.js listens for on a [data-live-form] to swap the list
+            below. Without it the form posts natively and reloads the page,
+            which would defeat the point of adding one mid-edit.
+          #}
+          <form action="{{ route('org-board.organization.store', {}, False) }}" method="POST" class="form-stack org-manage-add"
+                data-live-form="org-board-organizations" data-upload-form data-upload-reload="false" data-upload-label="organization">
+            {{ csrf_field | safe }}
+
+            <div class="org-manage-add__row">
+              <label class="field" for="org-manage-new-name">
                 <span class="field__label">Name</span>
-                <input type="text" id="org-board-edit-name" class="field__input" data-ob-field="name" required>
+                <input type="text" name="name" id="org-manage-new-name" class="field__input" placeholder="Supreme Student Council" required>
               </label>
 
-              <label class="field" for="org-board-edit-position">
-                <span class="field__label">Position</span>
-                <input type="text" id="org-board-edit-position" class="field__input" data-ob-field="position" required>
-              </label>
-
-              <label class="field" for="org-board-edit-department">
-                <span class="field__label">Department</span>
-                <select id="org-board-edit-department" class="field__input field__input--select" data-ob-field="department_id">
-                  {% for department in org_board_departments %}
-                  <option value="{{ department.id }}">{{ department.name }}</option>
+              <label class="field" for="org-manage-new-kind">
+                <span class="field__label">Kind</span>
+                <select name="kind" id="org-manage-new-kind" class="field__input field__input--select" required>
+                  {% for kind_value, kind_label in organization_kind_labels %}
+                  <option value="{{ kind_value }}">{{ kind_label }}</option>
                   {% endfor %}
                 </select>
               </label>
+            </div>
 
-              <label class="field" for="org-board-edit-parent">
-                <span class="field__label">Reports to</span>
-                <select id="org-board-edit-parent" class="field__input field__input--select" data-ob-field="parent_id"></select>
-              </label>
+            <button type="submit" class="primary-button">Add organization</button>
+          </form>
 
-              <label class="field" for="org-board-edit-photo">
-                <span class="field__label">Replace photo</span>
-                <input type="file" id="org-board-edit-photo" class="field__input" accept="image/*" data-ob-field="photo_path">
-              </label>
+          <div class="org-manage-divider" data-section-count="{{ organizations|length }}">
+            <div class="empty-state empty-state--embedded" data-empty-state{% if organizations %} hidden{% endif %}>
+              Nothing here yet. Add a department or organization to start a chart.
+            </div>
 
-              <div class="org-board-panel__actions">
-                <button type="submit" class="primary-button">Save changes</button>
-                <button type="button" class="ghost-button ghost-button--danger" data-ob-panel-delete>Remove member</button>
-              </div>
-            </form>
-          </aside>
-          {% else %}
-          <div class="empty-state empty-state--embedded">No departments found.</div>
-          {% endif %}
+            <div class="org-manage" data-section-content data-live-target>
+              {% include "gears/partials/organizations-list.html" %}
+            </div>
+          </div>
+
+          <div class="article-modal__footer">
+            <button type="button" class="ghost-button" data-ob-orgs-modal-close>Done</button>
+          </div>
         </div>
-      </div>
+      </dialog>
     </section>
 
     <section class="gears-page" data-page-panel="tour-mapping" id="panel-tour-mapping" role="tabpanel" aria-labelledby="nav-tour-mapping" data-hero-eyebrow="Content" data-hero-title="Link panoramas to buildings" data-hero-subtitle="Tell the virtual tour which building each panorama represents so visitors can search and walk to it." hidden>
@@ -1538,12 +1592,12 @@
 {% endblock %}
 
 {% block js %}
-<script src="/assets/js/confirm-modal.js" defer></script>
-<script src="/assets/js/upload-meter.js" defer></script>
-<script src="/assets/js/gears-dashboard.js" defer></script>
-<script src="/assets/js/dashboard-live.js" defer></script>
-<script src="/assets/js/news-dashboard.js" defer></script>
-<script src="/assets/js/about-lspu-editor.js" defer></script>
-<script src="/assets/js/org-chart-layout.js" defer></script>
-<script src="/assets/js/org-board-editor.js" defer></script>
+<script src="{{ asset_url('js/confirm-modal.js') }}" defer></script>
+<script src="{{ asset_url('js/upload-meter.js') }}" defer></script>
+<script src="{{ asset_url('js/gears-dashboard.js') }}" defer></script>
+<script src="{{ asset_url('js/dashboard-live.js') }}" defer></script>
+<script src="{{ asset_url('js/news-dashboard.js') }}" defer></script>
+<script src="{{ asset_url('js/about-lspu-editor.js') }}" defer></script>
+<script src="{{ asset_url('js/org-chart-layout.js') }}" defer></script>
+<script src="{{ asset_url('js/org-board-editor.js') }}" defer></script>
 {% endblock %}

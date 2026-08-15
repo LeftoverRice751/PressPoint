@@ -4,9 +4,9 @@
 
 {% block head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<link rel="stylesheet" href="/assets/css/kiosk-map.css" />
-<link rel="stylesheet" href="/assets/css/kiosk-building-pane.css" />
-<link rel="stylesheet" href="/assets/css/kiosk-loading.css" />
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-map.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-building-pane.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-loading.css') }}" />
 {% endblock %}
 
 {% block content %}
@@ -160,6 +160,6 @@
 {% block js %}
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="/assets/js/campus-2.5d.layer.js"></script>
-<script src="/assets/js/kiosk-map.js"></script>
+<script src="{{ asset_url('js/campus-2.5d.layer.js') }}"></script>
+<script src="{{ asset_url('js/kiosk-map.js') }}"></script>
 {% endblock %}

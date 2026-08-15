@@ -15,6 +15,7 @@ from masonite.views import View
 from app.models.Archives import Archives
 from app.models.Events import Events
 from app.models.News import News
+from app.models.Organization import Organization
 from app.models.Video import Video
 from app.services.AjaxResponses import json_success, json_errors
 from app.services import DashboardContext
@@ -33,6 +34,14 @@ FRAGMENTS = {
     # directly, right after a drawer assignment succeeds. See
     # resources/js/news-dashboard.js `refreshCanvasFragment()`.
     "news-canvas": (DashboardContext.news_canvas_context, "kiosk/_news_slots", "news_items"),
+    # The org board's managed organization list. Refreshing it also re-emits the
+    # JSON block the three organization <select>s rebuild themselves from, so
+    # adding one shows up in every dropdown without a page reload.
+    "org-board-organizations": (
+        DashboardContext.org_board_context,
+        "gears/partials/organizations-list",
+        "organizations",
+    ),
 }
 
 #: section -> model to read the change stamp from
@@ -42,6 +51,8 @@ STAMP_MODELS = {
     "videos": Video,
     "news": News,
     "news-canvas": News,
+    # `fragment` indexes this dict unguarded, so every FRAGMENTS key needs one.
+    "org-board-organizations": Organization,
 }
 
 

@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Gears Publication | Latest News</title>
-  <link rel="stylesheet" href="/assets/css/kiosk-tokens.css" />
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}" />
 
-  <link rel="stylesheet" href="/assets/css/kiosk-news.css" />
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />
 </head>
 <body class="newspaper-bg">
   {% set main_story = main_news if main_news else featured_news %}
@@ -59,6 +59,6 @@
     <span class="news-back__hint" aria-hidden="true">Scroll for more</span>
   </a>
 
-  <script src="/assets/js/kiosk-news.js"></script>
+  <script src="{{ asset_url('js/kiosk-news.js') }}"></script>
 </body>
 </html>

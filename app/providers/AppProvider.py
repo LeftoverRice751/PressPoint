@@ -4,6 +4,7 @@ from masonite.views import View
 
 from app.rate_limiters import GuestAuthLimiter
 from app.services import Branding
+from app.services.AssetVersion import asset_url
 from app.services.ImageDerivatives import news_image
 
 
@@ -27,6 +28,17 @@ class AppProvider(Provider):
         # View._shared lives on the singleton, so sharing a value here
         # would freeze whatever the logo was at boot.
         self.application.make(View).share({"site_logo": Branding.logo_url})
+
+        # Every <script>/<link> in the templates goes through this. nginx
+        # caches /assets/ for 7 days and the paths are written by hand, so
+        # without a stamp a rebuilt file keeps its old URL and returning
+        # browsers never re-fetch it. That is what left the Org Board's
+        # buttons inert in production: new markup, week-old JS. Shared as the
+        # *function* so each render stats the file it is linking.
+        #
+        # Named asset_url, not asset: Masonite's ViewProvider already registers
+        # an `asset(alias, filename)` helper that resolves filesystem disks.
+        self.application.make(View).share({"asset_url": asset_url})
 
     def boot(self):
         # Named limiter used by the login / OTP routes as `throttle:auth`.

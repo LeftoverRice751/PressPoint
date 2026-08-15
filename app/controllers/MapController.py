@@ -8,7 +8,7 @@ from masonite.views import View
 
 from app.models.Locations import Locations
 from app.models.RouteSessions import RouteSessions
-from app.services import Campus25dMapping, CampusRoutes
+from app.services import Campus25dMapping, MapWayfinderService
 
 
 # How long a QR-shared route stays valid on the phone after the kiosk
@@ -28,7 +28,10 @@ class MapController(Controller):
 
     def get_locations(self, response: Response):
         locations = Locations.all()
-        route_map = CampusRoutes.build_location_route_map(locations)
+        start = self._find_start_location()
+        route_map = MapWayfinderService.build_location_route_map(
+            locations, getattr(start, "id", None)
+        )
 
         payload = [self._serialize_location(location, route_map) for location in locations]
 
@@ -106,7 +109,11 @@ class MapController(Controller):
         if not start or not destination:
             return response.json({"status": "expired"}, status=404)
 
-        route_map = CampusRoutes.build_location_route_map(Locations.all())
+        # The session's own start, not KIOSK_START_LOCATION_NAME: the phone is
+        # replaying a route that was minted at a particular kiosk.
+        route_map = MapWayfinderService.build_location_route_map(
+            Locations.all(), session.start_location_id
+        )
 
         return response.json(
             {
@@ -136,18 +143,25 @@ class MapController(Controller):
     def _serialize_location(self, location, route_map=None):
         """The one shape every client gets, for both the kiosk and the phone.
 
-        `latitude` and `longitude` are pixel positions on campus-map.png in
-        Leaflet's CRS.Simple space — `latitude` is the y (down from the top of
-        the image, inverted so up is positive) and `longitude` is the x. The
-        column names are historical; every consumer treats them as pixels.
+        `map_x` / `map_y` are what a client draws with: pixel positions in the
+        2.5D layer's space (x right, y negative running down from the top of
+        the campus). Anything placed on the map — markers, route lines, camera
+        moves — must use this pair, never the raw columns below.
 
-        `route` is the polyline (Leaflet [y, x] pairs) drawn from Main Gate to
-        this building, sourced from the QGIS network via CampusRoutes. It is
-        None for locations without a matching feature; the JS falls back to a
-        straight start->destination line in that case.
+        `latitude` and `longitude` are the values as stored, kept for the
+        building pane's readout. They are pixels too, but in the older y-up
+        space the deleted flat imageOverlay used; drawing with them puts a
+        feature one image height off the map. See Campus25dMapping.
+
+        `route` is the polyline ([y, x] pairs, already in layer space) walked
+        from the start to this building, routed over the QGIS walkway network
+        by MapWayfinderService. It is None for the three locations no walkway
+        reaches yet, and for the start itself; the JS falls back to a straight
+        start->destination line in that case.
         """
         name = getattr(location, "name", "") or ""
         location_id = getattr(location, "id", None)
+        layer_point = Campus25dMapping.layer_point(location) or (0.0, 0.0)
 
         return {
             "id": location_id,
@@ -155,6 +169,8 @@ class MapController(Controller):
             "type": getattr(location, "type", "") or "",
             "latitude": float(getattr(location, "latitude", 0) or 0),
             "longitude": float(getattr(location, "longitude", 0) or 0),
+            "map_x": layer_point[0],
+            "map_y": layer_point[1],
             "is_routable": bool(getattr(location, "is_routable", False)),
             "is_start": name.strip().lower() == KIOSK_START_LOCATION_NAME,
             "route": (route_map or {}).get(location_id),

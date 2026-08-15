@@ -125,16 +125,26 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     };
 
+    // map_y/map_x are the 2.5D layer's pixel space — the only coordinates
+    // safe to draw with. See the note in resources/js/kiosk-map.js.
+    const layerLatLng = (location) => {
+        const y = Number(location && location.map_y);
+        const x = Number(location && location.map_x);
+        if (!Number.isFinite(y) || !Number.isFinite(x)) return null;
+        return L.latLng(y, x);
+    };
+
     const routePathFor = (start, destination) => {
         const route = Array.isArray(destination && destination.route) && destination.route.length >= 2
             ? destination.route.map(([y, x]) => [Number(y), Number(x)])
             : null;
         if (route) return route;
 
-        return [
-            [Number(start.latitude) || 0, Number(start.longitude) || 0],
-            [Number(destination.latitude) || 0, Number(destination.longitude) || 0],
-        ];
+        const from = layerLatLng(start);
+        const to = layerLatLng(destination);
+        if (!from || !to) return null;
+
+        return [from, to];
     };
 
     const drawRouteLine = (start, destination) => {
@@ -157,6 +167,11 @@ document.addEventListener('DOMContentLoaded', () => {
             interactive: false,
         }).addTo(map);
         layerBounds = layer.getBounds();
+        // Frame the campus before the route does its own tighter fit. Without
+        // this the map's only view ever comes from the route bounds, so a
+        // session that has no route to draw leaves the phone on a blank
+        // canvas at the CRS origin.
+        map.fitBounds(layerBounds, { padding: [32, 32] });
         map.setMaxBounds(layerBounds.pad(0.5));
         drawRouteLine(data.start, data.destination);
     };

@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>About LSPU</title>
-  <link rel="stylesheet" href="/assets/css/kiosk-tokens.css" />
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}" />
 
-  <link rel="stylesheet" href="/assets/css/welcome-screen.css" />
-  <link rel="stylesheet" href="/assets/css/about-lspu-kiosk.css" />
+  <link rel="stylesheet" href="{{ asset_url('css/welcome-screen.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/about-lspu-kiosk.css') }}" />
 </head>
 <body>
   <div class="kiosk-shell">
@@ -187,6 +187,6 @@
     </main>
   </div>
 
-  <script src="/assets/js/about-lspu-kiosk.js"></script>
+  <script src="{{ asset_url('js/about-lspu-kiosk.js') }}"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<link rel="stylesheet" href="/assets/css/mobile-route.css" />
+<link rel="stylesheet" href="{{ asset_url('css/mobile-route.css') }}" />
 {% endblock %}
 
 {% block content %}
@@ -52,6 +52,6 @@
 
 {% block js %}
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="/assets/js/campus-2.5d.layer.js"></script>
-<script src="/assets/js/mobile-route.js"></script>
+<script src="{{ asset_url('js/campus-2.5d.layer.js') }}"></script>
+<script src="{{ asset_url('js/mobile-route.js') }}"></script>
 {% endblock %}

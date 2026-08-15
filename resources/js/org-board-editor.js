@@ -1,7 +1,7 @@
 /**
  * Org board editor.
  *
- * One canvas per department. Cards are laid out by the shared OrgChart module
+ * One canvas per organization. Cards are laid out by the shared OrgChart module
  * (resources/js/org-chart-layout.js) so the kiosk renders the identical
  * arrangement. Dropping a card on another card reparents it; dropping it on
  * empty canvas pins it where it landed. Dropping an image file on a card sets
@@ -16,20 +16,96 @@
     return;
   }
 
+  // The dialogs and the section's action buttons sit outside the editor root —
+  // they are siblings of it inside the section — so anything that reaches them
+  // is scoped to the section, not to root.
+  var section = root.closest('.gears-page') || document;
+
   var canvas = root.querySelector('[data-ob-canvas]');
   var stage = root.querySelector('[data-ob-stage]');
   var edges = root.querySelector('[data-ob-edges]');
   var cardLayer = root.querySelector('[data-ob-cards]');
   var emptyState = root.querySelector('[data-ob-empty]');
-  var departmentSelect = root.querySelector('[data-ob-department]');
-  var panel = root.querySelector('[data-ob-panel]');
+  var organizationSelect = root.querySelector('[data-ob-organization]');
 
-  if (!canvas || !stage || !edges || !cardLayer || !departmentSelect) {
+  var memberModal = section.querySelector('[data-ob-member-modal]');
+  var memberForm = section.querySelector('[data-ob-member-form]');
+  var memberModalTitle = section.querySelector('[data-ob-member-modal-title]');
+  var memberSubmit = section.querySelector('[data-ob-member-submit]');
+  var memberDelete = section.querySelector('[data-ob-member-delete]');
+  var addMemberButton = section.querySelector('[data-ob-member-modal-open]');
+  var preview = section.querySelector('[data-ob-member-preview]');
+  var photoHint = section.querySelector('[data-ob-member-photo-hint]');
+  var pinNote = section.querySelector('[data-ob-pin-note]');
+  var orgsModal = section.querySelector('[data-ob-orgs-modal]');
+  var memberModalTrigger = null;
+  var orgsModalTrigger = null;
+
+  function bindAll(selector, handler) {
+    var elements = section.querySelectorAll(selector);
+    Array.prototype.forEach.call(elements, function (element) {
+      element.addEventListener('click', function (event) {
+        handler(event, element);
+      });
+    });
+  }
+
+  // Wired before the canvas guard below: managing organizations has to work on
+  // a board that has none yet, which is exactly when there is no canvas.
+  function wireOrganizationsDialog() {
+    if (!orgsModal || typeof orgsModal.showModal !== 'function') {
+      return;
+    }
+
+    bindAll('[data-ob-orgs-modal-open]', function (event, trigger) {
+      orgsModalTrigger = trigger || null;
+      orgsModal.showModal();
+    });
+
+    bindAll('[data-ob-orgs-modal-close]', function () {
+      if (orgsModal.open) {
+        orgsModal.close();
+      }
+    });
+
+    orgsModal.addEventListener('cancel', function (event) {
+      event.preventDefault();
+      orgsModal.close();
+    });
+
+    orgsModal.addEventListener('click', function (event) {
+      if (event.target === orgsModal) {
+        orgsModal.close();
+      }
+    });
+
+    orgsModal.addEventListener('close', function () {
+      if (orgsModalTrigger && orgsModalTrigger.isConnected) {
+        orgsModalTrigger.focus();
+      }
+      orgsModalTrigger = null;
+    });
+  }
+
+  wireOrganizationsDialog();
+
+  if (!canvas || !stage || !edges || !cardLayer || !organizationSelect) {
+    // With no organizations at all the template renders no canvas, so there is
+    // nothing for this editor to drive. The managed list still refreshes live —
+    // but the canvas markup itself only exists on a render that has at least
+    // one organization, so reload once the first one lands.
+    document.addEventListener('live:refreshed', function (event) {
+      var detail = event.detail || {};
+      if (detail.section === 'org-board-organizations') {
+        window.location.reload();
+      }
+    });
     return;
   }
 
   var urls = {
     data: root.getAttribute('data-ob-data-url') || '/org-board/dashboard/data',
+    store: root.getAttribute('data-ob-store-url') || '/org-board/dashboard',
     move: root.getAttribute('data-ob-move-url') || '/org-board/dashboard/move',
     update: root.getAttribute('data-ob-update-url') || '/org-board/dashboard/update',
     photo: root.getAttribute('data-ob-photo-url') || '/org-board/dashboard/photo',
@@ -43,7 +119,7 @@
   var METRICS = window.OrgChart.DEFAULTS;
 
   var state = {
-    departmentId: departmentSelect.value || '',
+    organizationId: organizationSelect.value || '',
     roots: [],
     placed: [],
     lookup: {},
@@ -142,10 +218,13 @@
       emptyState.hidden = state.placed.length > 0;
     }
 
+    // If the member being edited is no longer on this chart — deleted, or moved
+    // by another editor — the dialog is stale, so close it. Deliberately does
+    // NOT re-fill an open dialog: render() runs on every payload, and
+    // overwriting the fields would discard whatever the editor was typing.
     if (state.selectedId && !state.lookup[String(state.selectedId)]) {
-      closePanel();
-    } else if (state.selectedId) {
-      syncPanel();
+      closeMemberModal();
+      return;
     }
 
     applyTransform();
@@ -247,8 +326,8 @@
 
   // ===== loading =====
 
-  function loadDepartment(departmentId, options) {
-    if (!departmentId) {
+  function loadOrganization(organizationId, options) {
+    if (!organizationId) {
       state.roots = [];
       render();
       return Promise.resolve();
@@ -257,17 +336,17 @@
     state.loading = true;
     root.classList.add('is-loading');
 
-    return fetch(urls.data + '?department_id=' + encodeURIComponent(departmentId), {
+    return fetch(urls.data + '?organization_id=' + encodeURIComponent(organizationId), {
       headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
       credentials: 'same-origin'
     })
       .then(readJson)
       .then(function (payload) {
-        state.departmentId = String(departmentId);
+        state.organizationId = String(organizationId);
         applyPayload(payload, options);
       })
       .catch(function (error) {
-        toast(error.message || 'Could not load this department.', true);
+        toast(error.message || 'Could not load this organization.', true);
       })
       .finally(function () {
         state.loading = false;
@@ -439,7 +518,7 @@
       })
       .catch(function (error) {
         toast(error.message || 'Could not move the member.', true);
-        loadDepartment(state.departmentId);
+        loadOrganization(state.organizationId);
       });
   }
 
@@ -528,29 +607,29 @@
     applyTransform();
   }
 
-  bindClick('[data-ob-zoom-in]', function () { zoomBy(1.15); });
-  bindClick('[data-ob-zoom-out]', function () { zoomBy(0.87); });
-  bindClick('[data-ob-fit]', fitToView);
+  bindAll('[data-ob-zoom-in]', function () { zoomBy(1.15); });
+  bindAll('[data-ob-zoom-out]', function () { zoomBy(0.87); });
+  bindAll('[data-ob-fit]', fitToView);
 
-  bindClick('[data-ob-reset-layout]', function () {
-    if (!state.departmentId) {
+  bindAll('[data-ob-reset-layout]', function () {
+    if (!state.organizationId) {
       return;
     }
 
     var ask = window.ConfirmModal && window.ConfirmModal.ask
       ? window.ConfirmModal.ask({
           title: 'Reset this layout?',
-          body: 'Every card you positioned by hand in this department goes back to the automatic arrangement. Names, photos, and reporting lines are not affected.',
+          body: 'Every card you positioned by hand in this organization goes back to the automatic arrangement. Names, photos, and reporting lines are not affected.',
           confirmLabel: 'Reset layout',
           cancelLabel: 'Keep my layout'
         })
-      : Promise.resolve(window.confirm('Reset this department to the automatic layout?'));
+      : Promise.resolve(window.confirm('Reset this organization to the automatic layout?'));
 
     ask.then(function (ok) {
       if (!ok) {
         return;
       }
-      post(urls.reset, { department_id: state.departmentId })
+      post(urls.reset, { organization_id: state.organizationId })
         .then(function (payload) {
           applyPayload(payload, { fit: true });
           toast('Layout reset.');
@@ -561,21 +640,14 @@
     });
   });
 
-  function bindClick(selector, handler) {
-    var element = root.querySelector(selector);
-    if (element) {
-      element.addEventListener('click', handler);
-    }
-  }
-
-  // ===== edit panel =====
+  // ===== opening the member editor =====
 
   cardLayer.addEventListener('click', function (event) {
     var card = event.target.closest('[data-ob-node]');
     if (!card) {
       return;
     }
-    openPanel(card.getAttribute('data-member-id'));
+    openMemberModal(card.getAttribute('data-member-id'), card);
   });
 
   cardLayer.addEventListener('keydown', function (event) {
@@ -587,21 +659,72 @@
       return;
     }
     event.preventDefault();
-    openPanel(card.getAttribute('data-member-id'));
+    openMemberModal(card.getAttribute('data-member-id'), card);
   });
 
   function panelField(name) {
-    return panel ? panel.querySelector('[data-ob-field="' + name + '"]') : null;
+    return memberForm ? memberForm.querySelector('[data-ob-field="' + name + '"]') : null;
   }
 
-  function openPanel(memberId) {
-    if (!panel) {
+  // ===== member dialog =====
+  //
+  // This replaced an inline <aside> that lived in a third grid column. One form
+  // serves create and edit: the hidden member_id decides which, and the action
+  // is pointed at store or update to match. upload-meter.js owns the submit
+  // (it reads `action` at submit time), which is what keeps the portrait's
+  // progress meter working, and it fires `upload:success` for both paths.
+
+  function openMemberModal(memberId, trigger) {
+    if (!memberModal || typeof memberModal.showModal !== 'function') {
       return;
     }
-    state.selectedId = memberId;
-    panel.hidden = false;
-    root.classList.add('has-panel');
-    syncPanel();
+
+    var node = memberId ? state.lookup[String(memberId)] : null;
+    var editing = !!node;
+
+    state.selectedId = editing ? node.id : null;
+    memberModalTrigger = trigger || null;
+
+    if (memberModalTitle) {
+      memberModalTitle.textContent = editing ? 'Edit member' : 'Add member';
+    }
+    if (memberSubmit) {
+      memberSubmit.textContent = editing ? 'Save changes' : 'Save member';
+    }
+    if (memberDelete) {
+      memberDelete.hidden = !editing;
+    }
+    if (memberForm) {
+      memberForm.setAttribute('action', editing ? urls.update : urls.store);
+    }
+
+    setValue('member_id', editing ? node.id : '');
+    setValue('name', editing ? node.name : '');
+    setValue('position', editing ? node.position : '');
+    setValue('organization_id', editing ? node.organization_id : organizationSelect.value);
+
+    var photoInput = panelField('photo_path');
+    if (photoInput) {
+      photoInput.value = '';
+    }
+    if (window.UploadMeter && window.UploadMeter.wireDropzones) {
+      // Clears the dropzone's "filled" state left over from a previous open.
+      window.UploadMeter.wireDropzones(memberModal);
+    }
+
+    fillSupervisorOptions(node);
+    fillPreview(node);
+
+    if (pinNote) {
+      pinNote.hidden = !(editing && window.OrgChart.isPinned(node));
+    }
+    if (photoHint) {
+      photoHint.textContent = editing
+        ? 'Uploading a new portrait replaces the current one.'
+        : 'Optional — you can add a portrait later.';
+    }
+
+    memberModal.showModal();
     render();
 
     var nameField = panelField('name');
@@ -610,60 +733,54 @@
     }
   }
 
-  function closePanel() {
+  function closeMemberModal() {
     state.selectedId = null;
-    if (panel) {
-      panel.hidden = true;
+    if (memberModal && memberModal.open) {
+      // The `close` listener below handles focus return and the re-render.
+      memberModal.close();
+    } else {
+      render();
     }
-    root.classList.remove('has-panel');
-    render();
   }
 
-  function syncPanel() {
-    var node = state.lookup[String(state.selectedId)];
-    if (!panel || !node) {
+  function fillSupervisorOptions(node) {
+    var supervisor = panelField('parent_id');
+    if (!supervisor) {
       return;
     }
 
-    setValue('name', node.name);
-    setValue('position', node.position);
-    setValue('department_id', node.department_id);
-
-    var supervisor = panelField('parent_id');
-    if (supervisor) {
-      var blocked = window.OrgChart.subtreeIds(state.roots, node.id);
-      supervisor.innerHTML = '<option value="">No supervisor (top of the chart)</option>';
-      window.OrgChart.flatten(state.roots).forEach(function (candidate) {
-        if (blocked[String(candidate.id)]) {
-          return;
-        }
-        var option = document.createElement('option');
-        option.value = String(candidate.id);
-        option.textContent = candidate.name + (candidate.position ? ' · ' + candidate.position : '');
-        supervisor.appendChild(option);
-      });
-      supervisor.value = node.parent_id ? String(node.parent_id) : '';
-    }
-
-    var preview = panel.querySelector('[data-ob-panel-preview]');
-    if (preview) {
-      preview.innerHTML = '';
-      if (node.photo_path) {
-        var img = document.createElement('img');
-        img.src = '/storage/' + node.photo_path;
-        img.alt = node.name;
-        preview.appendChild(img);
-      } else {
-        var span = document.createElement('span');
-        span.className = 'ob-card-node__initials';
-        span.textContent = initials(node.name);
-        preview.appendChild(span);
+    // Editing: everything except the member's own subtree, so a card can never
+    // be made to report to itself. Creating: anyone on this chart.
+    var blocked = node ? window.OrgChart.subtreeIds(state.roots, node.id) : {};
+    supervisor.innerHTML = '<option value="">No supervisor (top of the chart)</option>';
+    window.OrgChart.flatten(state.roots).forEach(function (candidate) {
+      if (blocked[String(candidate.id)]) {
+        return;
       }
+      var option = document.createElement('option');
+      option.value = String(candidate.id);
+      option.textContent = candidate.name + (candidate.position ? ' · ' + candidate.position : '');
+      supervisor.appendChild(option);
+    });
+    supervisor.value = node && node.parent_id ? String(node.parent_id) : '';
+  }
+
+  function fillPreview(node) {
+    if (!preview) {
+      return;
     }
 
-    var pinNote = panel.querySelector('[data-ob-pin-note]');
-    if (pinNote) {
-      pinNote.hidden = !window.OrgChart.isPinned(node);
+    preview.innerHTML = '';
+    if (node && node.photo_path) {
+      var img = document.createElement('img');
+      img.src = '/storage/' + node.photo_path;
+      img.alt = node.name;
+      preview.appendChild(img);
+    } else {
+      var span = document.createElement('span');
+      span.className = 'ob-card-node__initials';
+      span.textContent = node ? initials(node.name) : '—';
+      preview.appendChild(span);
     }
   }
 
@@ -674,56 +791,58 @@
     }
   }
 
-  bindClick('[data-ob-panel-close]', closePanel);
-
-  var panelForm = panel ? panel.querySelector('[data-ob-panel-form]') : null;
-  if (panelForm) {
-    panelForm.addEventListener('submit', function (event) {
+  if (memberModal) {
+    // ESC: intercept so focus returns to the trigger the same way an explicit
+    // close does. Same shape as news-dashboard.js's body modal.
+    memberModal.addEventListener('cancel', function (event) {
       event.preventDefault();
+      closeMemberModal();
+    });
 
-      var node = state.lookup[String(state.selectedId)];
-      if (!node) {
-        return;
+    memberModal.addEventListener('click', function (event) {
+      if (event.target === memberModal) {
+        closeMemberModal();
       }
+    });
 
-      var photoInput = panelField('photo_path');
-      var file = photoInput && photoInput.files ? photoInput.files[0] : null;
-
-      post(
-        urls.update,
-        {
-          member_id: node.id,
-          name: (panelField('name') || {}).value || '',
-          position: (panelField('position') || {}).value || '',
-          department_id: (panelField('department_id') || {}).value || '',
-          parent_id: (panelField('parent_id') || {}).value || ''
-        },
-        { photo_path: file }
-      )
-        .then(function (payload) {
-          toast('Member updated.');
-
-          if (payload.moved_department) {
-            // The member left this canvas — follow them to their new department.
-            departmentSelect.value = String(payload.department_id);
-            state.selectedId = null;
-            closePanel();
-            loadDepartment(payload.department_id, { fit: true });
-            return;
-          }
-
-          if (photoInput) {
-            photoInput.value = '';
-          }
-          applyPayload(payload);
-        })
-        .catch(function (error) {
-          toast(error.message || 'Could not update the member.', true);
-        });
+    memberModal.addEventListener('close', function () {
+      state.selectedId = null;
+      if (memberModalTrigger && memberModalTrigger.isConnected) {
+        memberModalTrigger.focus();
+      } else if (addMemberButton) {
+        addMemberButton.focus();
+      }
+      memberModalTrigger = null;
+      render();
     });
   }
 
-  bindClick('[data-ob-panel-delete]', function () {
+  bindAll('[data-ob-member-modal-close]', closeMemberModal);
+  bindAll('[data-ob-member-modal-open]', function (event, trigger) {
+    openMemberModal(null, trigger);
+  });
+
+  if (memberForm) {
+    memberForm.addEventListener('upload:success', function (event) {
+      var payload = event.detail || {};
+      var wasEditing = !!state.selectedId;
+
+      closeMemberModal();
+      toast(wasEditing ? 'Member updated.' : 'Member added.');
+
+      if (payload.organization_id
+        && String(payload.organization_id) !== String(state.organizationId)) {
+        // The member landed on another chart — follow them there.
+        organizationSelect.value = String(payload.organization_id);
+        loadOrganization(payload.organization_id, { fit: true });
+        return;
+      }
+
+      applyPayload(payload);
+    });
+  }
+
+  bindAll('[data-ob-member-delete]', function () {
     var node = state.lookup[String(state.selectedId)];
     if (!node) {
       return;
@@ -734,7 +853,7 @@
       ? 'Removing ' + node.name + ' also moves their ' + subordinates +
         (subordinates === 1 ? ' direct report' : ' direct reports') +
         ' up to report to ' + node.name + '’s own supervisor. Nobody is deleted with them.'
-      : 'Removing ' + node.name + ' from this department cannot be undone.';
+      : 'Removing ' + node.name + ' from this organization cannot be undone.';
 
     var ask = window.ConfirmModal && window.ConfirmModal.ask
       ? window.ConfirmModal.ask({
@@ -753,7 +872,7 @@
 
       post(urls.destroy, { member_id: node.id })
         .then(function (payload) {
-          closePanel();
+          closeMemberModal();
           applyPayload(payload);
           toast('Member removed.');
         })
@@ -763,20 +882,20 @@
     });
   });
 
-  // ===== department switching & new members =====
+  // ===== organization switching =====
 
-  departmentSelect.addEventListener('change', function () {
-    closePanel();
-    loadDepartment(departmentSelect.value, { fit: true });
-    syncUrl(departmentSelect.value);
+  organizationSelect.addEventListener('change', function () {
+    closeMemberModal();
+    loadOrganization(organizationSelect.value, { fit: true });
+    syncUrl(organizationSelect.value);
   });
 
-  function syncUrl(departmentId) {
+  function syncUrl(organizationId) {
     try {
       var url = new URL(window.location.href);
       url.searchParams.set('page', 'org-board');
-      if (departmentId) {
-        url.searchParams.set('department', String(departmentId));
+      if (organizationId) {
+        url.searchParams.set('organization', String(organizationId));
       }
       window.history.replaceState({}, '', url.toString());
     } catch (error) {
@@ -784,24 +903,76 @@
     }
   }
 
-  var addForm = root.querySelector('[data-ob-add-form]');
-  if (addForm) {
-    addForm.addEventListener('upload:success', function (event) {
-      var payload = event.detail || {};
-      if (String(payload.department_id) === String(state.departmentId)) {
-        applyPayload(payload);
-      } else if (payload.department_id) {
-        departmentSelect.value = String(payload.department_id);
-        loadDepartment(payload.department_id, { fit: true });
+  // ===== keeping the organization dropdowns current =====
+  //
+  // Adding or deleting an organization refreshes the managed list through the
+  // normal dashboard-live fragment, which re-emits the grouped options as JSON.
+  // Rebuilding the three selects from that means an editor can add an
+  // organization and immediately assign a member to it, with no page reload.
+  // Each select keeps its own current value if that row still exists.
+  function syncOrganizationSelects(scope) {
+    var source = scope.querySelector('[data-ob-organization-groups]');
+    if (!source) return;
+
+    var groups;
+    try {
+      groups = JSON.parse(source.textContent || '[]');
+    } catch (error) {
+      return;
+    }
+
+    var selects = document.querySelectorAll('[data-ob-organization-select]');
+    Array.prototype.forEach.call(selects, function (select) {
+      var previous = select.value;
+      // Only the add-member select carries a "choose one" placeholder; keep it.
+      var placeholder = select.querySelector('option[value=""]');
+      select.innerHTML = '';
+      if (placeholder) {
+        select.appendChild(placeholder);
+      }
+
+      groups.forEach(function (group) {
+        if (!group.rows || !group.rows.length) return;
+        var optgroup = document.createElement('optgroup');
+        optgroup.label = group.label + 's';
+        group.rows.forEach(function (row) {
+          var option = document.createElement('option');
+          option.value = String(row.id);
+          option.textContent = row.name;
+          optgroup.appendChild(option);
+        });
+        select.appendChild(optgroup);
+      });
+
+      if (previous && select.querySelector('option[value="' + previous + '"]')) {
+        select.value = previous;
       }
     });
+
+    // Nothing to add a member to until at least one organization exists.
+    if (addMemberButton) {
+      addMemberButton.disabled = !organizationSelect.querySelector('option[value]:not([value=""])');
+    }
+
+    // The canvas may have been showing an organization that just got deleted.
+    if (state.organizationId && !organizationSelect.querySelector(
+      'option[value="' + state.organizationId + '"]'
+    )) {
+      loadOrganization(organizationSelect.value, { fit: true });
+    }
   }
+
+  document.addEventListener('live:refreshed', function (event) {
+    var detail = event.detail || {};
+    if (detail.section !== 'org-board-organizations') return;
+    syncOrganizationSelects(event.target || document);
+  });
 
   var orgBoardTab = document.querySelector('[data-page-link="org-board"]');
   if (orgBoardTab) {
     orgBoardTab.addEventListener('click', function () {
       window.requestAnimationFrame(function () {
-        syncUrl(state.departmentId);
+        syncUrl(state.organizationId);
         // The panel has no size until its tab is visible, so fit once it is.
         if (state.placed.length) {
           fitToView();
@@ -812,18 +983,18 @@
 
   // ===== boot =====
 
-  var initialDepartment = departmentSelect.value;
+  var initialOrganization = organizationSelect.value;
   try {
-    var requested = new URL(window.location.href).searchParams.get('department');
-    if (requested && departmentSelect.querySelector('option[value="' + requested + '"]')) {
-      departmentSelect.value = requested;
-      initialDepartment = requested;
+    var requested = new URL(window.location.href).searchParams.get('organization');
+    if (requested && organizationSelect.querySelector('option[value="' + requested + '"]')) {
+      organizationSelect.value = requested;
+      initialOrganization = requested;
     }
   } catch (error) {
     // Fall back to whatever the select already had.
   }
 
-  loadDepartment(initialDepartment, { fit: true });
+  loadOrganization(initialOrganization, { fit: true });
 
   window.addEventListener('resize', function () {
     if (state.placed.length) {

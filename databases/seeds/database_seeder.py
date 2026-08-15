@@ -3,7 +3,7 @@ from masoniteorm.seeds import Seeder
 
 from .user_table_seeder import UserTableSeeder
 from .admin_gears_table_seeder_table_seeder import AdminGearsTableSeederTableSeeder
-from .departments_table_seeder import DepartmentsTableSeeder
+from .organizations_table_seeder import OrganizationsTableSeeder
 from .locations_table_seeder import LocationsTableSeeder
 
 
@@ -17,6 +17,6 @@ class DatabaseSeeder(Seeder):
             
             LocationsTableSeeder,
 
-            DepartmentsTableSeeder
+            OrganizationsTableSeeder
             
             )

@@ -11,16 +11,16 @@
       href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/assets/css/kiosk-tokens.css">
+    <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}">
 
     {% block head %}
-    <!-- <link rel="stylesheet" href="/assets/css/app.css"> -->
+    <!-- <link rel="stylesheet" href="{{ asset_url('css/app.css') }}"> -->
     {% endblock %}
   </head>
   <body>
     {% block content %}{% endblock %}
     {% block js %}
-    <!-- <script src="/assets/js/app.js"></script> -->
+    <!-- <script src="{{ asset_url('js/app.js') }}"></script> -->
     {% endblock %}
   </body>
 </html>

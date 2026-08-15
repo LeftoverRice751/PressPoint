@@ -2,7 +2,13 @@
 
 Both the dashboard editor and the public kiosk render the same hierarchy, so the
 tree is assembled here once instead of inside a controller.
+
+`organization_id` in the node shape below is part of the JSON contract that
+templates/kiosk/org-board.html and resources/js/org-board-editor.js read — it
+cannot be renamed on one side alone.
 """
+
+from app.models.Organization import Organization
 
 
 def _field(row, name, default=None):
@@ -12,6 +18,20 @@ def _field(row, name, default=None):
     else:
         value = getattr(row, name, default)
     return default if value is None else value
+
+
+def organization_sort_key(row):
+    """Departments first, then organizations, each alphabetical.
+
+    Shared by the dashboard context and the kiosk controller so the dropdown,
+    the managed list and the public deck can never disagree about ordering.
+    """
+    kind = Organization.normalize_kind(_field(row, "kind", None)) or Organization.KIND_DEPARTMENT
+    return (
+        Organization.KINDS.index(kind),
+        str(_field(row, "name", "") or "").strip().lower(),
+        int(_field(row, "id", 0) or 0),
+    )
 
 
 def member_sort_key(row):
@@ -32,7 +52,7 @@ def member_node(member):
         "name": _field(member, "name", "") or "",
         "position": _field(member, "position", "") or "",
         "photo_path": _field(member, "photo_path", "") or "",
-        "department_id": _field(member, "department_id", None),
+        "organization_id": _field(member, "organization_id", None),
         "parent_id": _field(member, "parent_id", None),
         "sort_order": int(_field(member, "sort_order", 0) or 0),
         "pos_x": int(pos_x) if pos_x is not None and pos_x != "" else None,
@@ -42,9 +62,9 @@ def member_node(member):
 
 
 def build_member_tree(members):
-    """Return {department_id: [root nodes]} with children sorted in place."""
+    """Return {organization_id: [root nodes]} with children sorted in place."""
     node_lookup = {}
-    roots_by_department = {}
+    roots_by_organization = {}
 
     for member in members:
         node = member_node(member)
@@ -52,45 +72,45 @@ def build_member_tree(members):
 
     for node in sorted(node_lookup.values(), key=member_sort_key):
         parent_node = node_lookup.get(node["parent_id"])
-        if parent_node and parent_node["department_id"] == node["department_id"]:
+        if parent_node and parent_node["organization_id"] == node["organization_id"]:
             parent_node["children"].append(node)
         else:
-            roots_by_department.setdefault(node["department_id"], []).append(node)
+            roots_by_organization.setdefault(node["organization_id"], []).append(node)
 
     def sort_branch(node):
         node["children"].sort(key=member_sort_key)
         for child in node["children"]:
             sort_branch(child)
 
-    for roots in roots_by_department.values():
+    for roots in roots_by_organization.values():
         roots.sort(key=member_sort_key)
         for root in roots:
             sort_branch(root)
 
-    return roots_by_department
+    return roots_by_organization
 
 
-def build_org_board_departments(departments, locations, members):
-    """Return one row per department, each carrying its own member tree."""
-    location_lookup = {
-        getattr(location, "id", None): location
-        for location in locations
-    }
+def build_org_board_organizations(organizations, members):
+    """Return one row per organization, each carrying its own member tree.
 
-    roots_by_department = build_member_tree(members)
+    This used to take `locations` too, and emitted the building's name and type
+    for the card header. Organizations have no campus location — see
+    app/models/Organization.py — so the card is labelled by its `kind` instead.
+    """
+    roots_by_organization = build_member_tree(members)
 
-    department_rows = []
-    for department in departments:
-        department_id = getattr(department, "id", None)
-        location = location_lookup.get(getattr(department, "location_id", None))
-        department_rows.append(
+    organization_rows = []
+    for organization in organizations:
+        organization_id = getattr(organization, "id", None)
+        kind = Organization.normalize_kind(getattr(organization, "kind", None))
+        organization_rows.append(
             {
-                "id": department_id,
-                "name": getattr(department, "name", "") or "",
-                "location_name": getattr(location, "name", "") if location else "",
-                "location_type": getattr(location, "type", "") if location else "",
-                "members": roots_by_department.get(department_id, []),
+                "id": organization_id,
+                "name": getattr(organization, "name", "") or "",
+                "kind": kind or Organization.KIND_DEPARTMENT,
+                "kind_label": Organization.label_for(kind),
+                "members": roots_by_organization.get(organization_id, []),
             }
         )
 
-    return department_rows
+    return organization_rows
