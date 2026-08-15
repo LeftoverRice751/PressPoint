@@ -129,8 +129,36 @@ class MainSlotAssignButtonTestCase(TestCase):
     def test_editor_sees_assign_button_when_lead_is_empty(self):
         html = _render_slots(editor=True)
 
-        self.assertIn("data-news-assign-slot", html)
-        self.assertIn('data-news-slot-type="main"', html)
+        # Fix round 1, Minor 4: scoped past the <template
+        # data-news-main-empty-template> clone source the same way the
+        # "lead filled" test below already is. That inert copy always
+        # carries this exact markup once news_editor is true (see
+        # _news_slots.html's own comment on why), so a blind substring
+        # search against the WHOLE document would stay green even if the
+        # live `{% else %}` button were deleted outright -- this test
+        # existed but could never actually fail.
+        live_html = html.split("</template>", 1)[1]
+        self.assertIn("data-news-assign-slot", live_html)
+        self.assertIn('data-news-slot-type="main"', live_html)
+        self.assertIn('data-news-slot-position="1"', live_html)
+
+    def test_template_and_live_button_carry_matching_attributes(self):
+        """_news_slots.html's own comment: syncPlaceholders() clones
+        <template data-news-main-empty-template> instead of hardcoding the
+        button string itself, precisely so the template copy and the
+        `{% else %}` branch's live copy can't drift apart. Pin that they
+        currently don't: both must carry the same three data attributes the
+        JS reads (data-news-assign-slot, slot-type, slot-position)."""
+        html = _render_slots(editor=True)
+        template_html, live_html = html.split("</template>", 1)
+
+        for attribute in (
+            "data-news-assign-slot",
+            'data-news-slot-type="main"',
+            'data-news-slot-position="1"',
+        ):
+            self.assertIn(attribute, template_html)
+            self.assertIn(attribute, live_html)
 
     def test_kiosk_never_sees_assign_button_when_lead_is_empty(self):
         html = _render_slots(editor=False)

@@ -1048,6 +1048,20 @@ import Sortable from 'sortablejs';
   // badge/"Continue reading": those belong to cards that already have a
   // real id and a place in the persisted canvas order; a scratch has
   // neither yet.
+  //
+  // Fix round 1, Important 1: also deliberately NO per-card "Edit Full
+  // Article Body" button, unlike the real feature-story markup. That button
+  // reads `event.target.closest('[data-news-id]')` for its id and only
+  // re-selects the story when the id is truthy (news-dashboard.js's click
+  // delegation, ~line 986) — on an id-less scratch that check is falsy, so
+  // the click would silently open the modal against whatever story was
+  // ALREADY active (e.g. some other real secondary card the editor was just
+  // looking at) instead of the blank lead. Typing there and saving would
+  // overwrite that OTHER story's body while the editor believed they were
+  // writing the new lead's. The inspector's always-present "Edit Full
+  // Article Body" (templates/gears/dashboard.html) already covers a new
+  // story's body without this hazard — SCRATCH_SECONDARY_HTML has never
+  // carried a per-card copy of this button for the same reason.
   var SCRATCH_MAIN_HTML =
     '<article class="feature-story is-scratch" data-news-id="">' +
       '<figure class="feature-story__figure">' +
@@ -1064,7 +1078,6 @@ import Sortable from 'sortablejs';
         '<p class="feature-story__excerpt" data-news-edit="excerpt"></p>' +
         '<div class="feature-story__meta">By <span data-news-edit="source"></span> &middot; <span data-news-edit="location"></span></div>' +
         '<div class="feature-story__copy drop-cap" data-news-edit="body"></div>' +
-        '<button type="button" class="feature-story__edit-body-btn ghost-button" data-news-edit-body>Edit Full Article Body</button>' +
       '</div>' +
     '</article>';
 
@@ -1161,12 +1174,19 @@ import Sortable from 'sortablejs';
   // occupy): there is now exactly one numbering scheme for every write
   // path that owns the whole canvas.
   var CANVAS_LIST_SELECTOR = {
-    // :not(.is-scratch) — same reason the secondary entry already excludes
-    // it below: an unsaved "+ Add main headline" scratch (Task 2) has no
-    // real id, so letting it register as a Sortable list item here would
-    // let a dragged-in real card land ALONGSIDE it instead of being swapped
-    // for it (`filter` below only blocks the scratch from STARTING a drag,
-    // not from being counted as an existing item other drags land next to).
+    // :not(.is-scratch), matching the secondary entry below, now that main
+    // can carry an unsaved "+ Add main headline" scratch (Task 2) too. Fix
+    // round 1, Minor 6: this only keeps the scratch out of Sortable's own
+    // item indexing at (re)init time (`draggable` — see the comment on
+    // `initCanvasSortable()`) — it does NOT stop a dragged-in real card from
+    // landing alongside the scratch instead of being swapped for it. That
+    // capacity check is `fixOverflow()`, which counts via `realCardNodes()`
+    // and never sees the scratch at all (its `data-news-id=""` is excluded
+    // by design), so a real card dropped onto a scratch-occupied main can
+    // still leave two `<article>`s in the container until the next
+    // uncontested server refresh reconciles it — a known, narrow gap the
+    // fix-round-1 review scoped OUT of `realCardNodes()` itself (Important
+    // 2 fixed the separate, in-scope occupancy bug in canvasMainId()).
     main: '.feature-story:not(.is-scratch)',
     secondary: '.secondary-story:not(.is-scratch)',
     widget: '.info-card'
@@ -1289,11 +1309,17 @@ import Sortable from 'sortablejs';
       } else if (mainOccupiedNow && mainEmpty) {
         mainEmpty.remove();
       }
-      // "+ Add main headline" only ever makes sense while the lead is
-      // genuinely open — a saved story OR an unsaved scratch both count
-      // (mainSlotOccupied), otherwise a second click would insert a second
-      // scratch card into a capacity-1 slot.
-      if (addMainBtn) addMainBtn.disabled = mainOccupiedNow;
+      // Fix round 1, Minor 3: only a SAVED story disables "+ Add main
+      // headline" — a scratch-only lead leaves it enabled, on purpose. Once
+      // the scratch exists the assign-story placeholder is gone (it's not
+      // an empty slot) and "Remove from Front Page"/Delete both need a real
+      // article_id a scratch doesn't have yet, so if this button also
+      // disabled on the scratch there would be no in-app way back to it
+      // short of a reload that throws the dirty edits away — exactly the
+      // dead end this task exists to remove. ensureNewStoryScratch()'s
+      // "is there already a scratch?" branch re-selects the existing one
+      // rather than inserting a second, so re-clicking is always safe.
+      if (addMainBtn) addMainBtn.disabled = realCardNodes(lists.main).length > 0;
     }
     if (lists.secondary) {
       Array.prototype.slice.call(lists.secondary.querySelectorAll('.paper-empty')).forEach(function (el) { el.remove(); });
@@ -1798,10 +1824,30 @@ import Sortable from 'sortablejs';
     return [];
   }
 
+  // Fix round 1, Important 2: a lead scratch ("+ Add main headline") was
+  // invisible here — `[data-news-id]` matches the scratch too (the
+  // attribute is present, just empty), so `art.getAttribute(...) || ''`
+  // fell through to '', and mainOccupant()/slotCounts() read the lead as
+  // free. That let firstFreeTarget() target main for a SECOND placement
+  // while the scratch was still live: the POST succeeds immediately (no
+  // dirty gate on writes, only on the canvas refresh), so it isn't a
+  // race — it fires on ordinary use of the toolbar Story Library. Worse,
+  // it never self-corrects: creating the scratch calls markDirty(), and
+  // only Publish or a reload ever clears it, so refreshCanvasFragment()'s
+  // dirty gate (which would otherwise reconcile the canvas and reveal the
+  // collision) is guaranteed skipped for the scratch's entire lifetime.
+  // The result is two layout_type='main' rows; group_news_slots() keeps
+  // only the lowest (priority, id) as main_news and excludes the other from
+  // every bucket, so the loser publishes but renders nowhere. Reusing
+  // mainSlotOccupied() (already the single source of truth for "does a
+  // scratch count as occupying the lead") fixes this at the root instead
+  // of adding a second, possibly-drifting occupancy check.
   function canvasMainId() {
     if (!mainSlotSection) return '';
     var art = mainSlotSection.querySelector('.feature-story[data-news-id]');
-    return (art && art.getAttribute('data-news-id')) || '';
+    var id = (art && art.getAttribute('data-news-id')) || '';
+    if (!id && mainSlotOccupied(mainSlotSection)) return '__scratch__';
+    return id;
   }
 
   // Lazily snapshots the canvas into the overlay on first use, so a run of
