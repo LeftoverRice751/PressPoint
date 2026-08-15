@@ -1541,6 +1541,45 @@ import Sortable from 'sortablejs';
     return true;
   }
 
+  // Fix round 3: the actual "what should happen to this scratch" decision,
+  // pulled out as a pure function of two booleans — no DOM reads or
+  // writes — specifically so it's reviewable (and, if this repo ever grows
+  // a JS test runner, testable) on its own, independent of the DOM
+  // plumbing around it in reconcileMainScratchCollision(). 'unassigned'
+  // over a second capacity-bounded slot (round 2 tried 'secondary' and it
+  // could silently overflow the 4-cap and publish invisibly — see the
+  // comment on reconcileMainScratchCollision() below) because 'unassigned'
+  // has no cap to overflow.
+  function scratchCollisionOutcome(hasRealCard, isEmpty) {
+    if (!hasRealCard) return 'stays-main';
+    return isEmpty ? 'discard' : 'unassigned';
+  }
+
+  // A persistent, always-visible marker on the card itself — not a toast,
+  // which auto-dismisses in 3.5s (round 2's second bug: the editor could
+  // keep typing into what still looked like an ordinary lead hero block
+  // while it silently filed elsewhere). `is-pending-unassigned` drives a
+  // dashed outline (resources/css/news-dashboard.css) and the badge text
+  // names the actual destination so the screen never disagrees with what
+  // Publish will write.
+  var SCRATCH_PENDING_BADGE_HTML =
+    '<span class="feature-story__pending-badge" data-news-scratch-pending-badge>' +
+      'Will be saved to the Story Library' +
+    '</span>';
+
+  function markScratchPendingUnassigned(scratch) {
+    if (scratch.classList.contains('is-pending-unassigned')) return; // idempotent
+    scratch.classList.add('is-pending-unassigned');
+    scratch.insertAdjacentHTML('afterbegin', SCRATCH_PENDING_BADGE_HTML);
+  }
+
+  function unmarkScratchPendingUnassigned(scratch) {
+    if (!scratch.classList.contains('is-pending-unassigned')) return;
+    scratch.classList.remove('is-pending-unassigned');
+    var badge = scratch.querySelector('[data-news-scratch-pending-badge]');
+    if (badge) badge.remove();
+  }
+
   // Fix round 2 — reopened finding: a real card landing in the lead (via
   // drag OR Move Up/Down) while an unsaved "+ Add main headline" scratch
   // was still sitting there went unnoticed. containerHasRoom()/
@@ -1564,42 +1603,91 @@ import Sortable from 'sortablejs';
   // at the scratch instead, from the one seam both the drag and Move
   // Up/Down paths already funnel through (afterCanvasMutation(), below).
   //
-  // Never silently discards typed content (chosen over an explicit confirm
-  // dialog — see the fix-round-2 report for why): an EMPTY/untouched
-  // scratch (scratchIsEmpty()) is removed outright, same as it always was
-  // safe to walk away from an unedited "+ Add a story" scratch. A scratch
-  // that DOES carry content is never deleted or rewritten — if it's the
-  // one currently driving the hidden form, only its Publish DESTINATION is
-  // retargeted to Secondary (setSlot(), no text/image field touched), so
-  // Publish can no longer write it as a second main row. If it isn't the
-  // active story, there is nothing left to defuse: an id-less card can't
-  // be re-selected by clicking (the generic click-select path requires a
+  // Fix round 3 — round 2's first attempt retargeted a content-bearing
+  // scratch to 'secondary', which just relocated the collision: secondary
+  // has its own cap of 4, NewsController bumps a new story's priority to
+  // max+1 (always sorts last), and group_news_slots() slices secondary to
+  // [:4] — so if secondary was already full when e.g. a WIDGET card got
+  // promoted into the (scratch-occupied) lead, the retargeted scratch
+  // published as a real, capacity-excluded 5th secondary row: published,
+  // invisible, undiscoverable, the exact "renders nowhere" failure this
+  // whole chain exists to kill. Round 2 also never moved the DOM node, so
+  // the editor was left looking at two full hero blocks stacked under
+  // "Main Headline Slot" with only an auto-dismissing 3.5s toast as the
+  // signal that one of them now files somewhere else. The pattern across
+  // three rounds is that an id-less scratch inside ANY capacity-bounded
+  // slot collides with whatever else wants that slot — moving it to a
+  // DIFFERENT capacity-bounded slot just relocates the collision one hop
+  // over. 'unassigned' is the fix: it's a first-class state this codebase
+  // already uses for exactly "exists in the Story Library, not placed on
+  // the page" (NewsController's "Remove from Front Page" flow writes it),
+  // group_news_slots() excludes it from EVERY bucket including the main
+  // fallback, and it has no cap — so it cannot overflow, no matter what
+  // else is on the page.
+  //
+  // Never silently discards typed content: an EMPTY/untouched scratch
+  // (scratchIsEmpty()) is removed outright, same as it always was safe to
+  // walk away from an unedited "+ Add a story" scratch. A scratch that DOES
+  // carry content is never deleted or rewritten and never physically moved
+  // (see scratchCollisionOutcome()'s comment for why relocating the DOM
+  // node itself was rejected again this round) — if it's the one currently
+  // driving the hidden form, only its Publish DESTINATION changes
+  // (setSlot('unassigned'), no text/image field touched), and
+  // markScratchPendingUnassigned() gives it a PERSISTENT on-card marker
+  // (round 3: a toast alone was the round-2 bug, not just an omission —
+  // the screen has to keep matching what will actually be written for as
+  // long as that's true, not just for 3.5 seconds). If it isn't the active
+  // story, there is nothing left to defuse: an id-less card can't be
+  // re-selected by clicking (the generic click-select path requires a
   // truthy story id) and "+ Add main headline" just disabled itself
   // because realCardNodes(lists.main) is no longer empty, so there is no
   // remaining path back to layout_type="main" for it at all.
+  //
+  // Symmetric on the way back out, too: if a later mutation removes the
+  // real card again (e.g. Move Up/Down relocates it elsewhere) and the
+  // scratch is once more the lead's sole occupant, that's round 1 Minor
+  // 3's normal state — undo the retarget so it reads as "main" again
+  // rather than leaving a stale "Story Library" marker on a card that is,
+  // once again, simply the in-progress lead.
   function reconcileMainScratchCollision() {
     var lists = slotListContainers();
     if (!lists.main) return;
     var scratch = lists.main.querySelector('.feature-story[data-news-id=""]');
-    if (!scratch || realCardNodes(lists.main).length === 0) return;
+    if (!scratch) return;
 
-    if (scratchIsEmpty(scratch)) {
+    var hasRealCard = realCardNodes(lists.main).length > 0;
+
+    if (!hasRealCard) {
+      if (scratch.classList.contains('is-pending-unassigned')) {
+        unmarkScratchPendingUnassigned(scratch);
+        if (scratch === activeArt) { activeSlotType = 'main'; setSlot('main'); }
+      }
+      return;
+    }
+
+    var outcome = scratchCollisionOutcome(hasRealCard, scratchIsEmpty(scratch));
+
+    if (outcome === 'discard') {
       var wasActive = scratch === activeArt;
       scratch.remove();
       if (wasActive) clearActiveStory();
       return;
     }
 
+    // outcome === 'unassigned' from here down.
+    if (scratch.classList.contains('is-pending-unassigned')) return; // already reconciled
+
+    markScratchPendingUnassigned(scratch);
     if (scratch === activeArt) {
-      activeSlotType = 'secondary';
-      setSlot('secondary');
+      activeSlotType = 'unassigned';
+      setSlot('unassigned');
       markDirty();
-      toast(
-        'The lead now belongs to the story you just moved there. Your unpublished draft ' +
-          'was kept and retargeted to Secondary so it will not be lost or collide with it.',
-        false
-      );
     }
+    toast(
+      'The lead now belongs to the story you just moved there. Your draft was kept — it will ' +
+        'publish to the Story Library instead, so you can place it wherever you like.',
+      false
+    );
   }
 
   // Runs after every canvas mutation (drag end or Move Up/Down): rebuild

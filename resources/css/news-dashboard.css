@@ -1211,6 +1211,32 @@
     opacity: 1;
 }
 
+/* Fix round 3: a lead scratch whose collision with a real card in the same
+   slot retargeted its Publish destination to the Story Library
+   (news-dashboard.js's reconcileMainScratchCollision()) gets a PERSISTENT
+   on-card marker, not just a toast — round 2's toast-only version left the
+   card looking like an ordinary lead hero block for as long as the editor
+   kept looking at it, which is exactly how a mismatch between what's shown
+   and what Publish will write goes unnoticed. Dashed outline + badge both
+   stay for the card's whole "pending" lifetime, not a few seconds. */
+.news-editor .feature-story.is-pending-unassigned {
+    outline: 2px dashed var(--kiosk-terracotta, #cc5a1f);
+    outline-offset: -2px;
+}
+.feature-story__pending-badge {
+    display: inline-block;
+    margin-bottom: 0.6rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 9999px;
+    background: var(--kiosk-terracotta, #cc5a1f);
+    color: #fff;
+    font-family: var(--kiosk-font-ui, "Gilroy", "Century Gothic", sans-serif);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
 .news-card-position {
     display: inline-flex;
     align-items: center;
