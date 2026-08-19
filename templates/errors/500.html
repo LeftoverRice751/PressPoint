@@ -5,15 +5,25 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Error 500</title>
-  <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+  <title>Error 500 &middot; The Gears</title>
+  <link rel="icon" href="{{ site_logo() }}">
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset_url('css/error-page.css') }}">
 </head>
 
-<body>
+<body class="error-page">
   {% block content %}
-  <div class="h-screen flex flex-col items-center text-center justify-center">
-    <p class="text-center">Oops an error happened !</p>
-  </div>
+  <main class="error-card">
+    <svg class="error-card__mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+      <path d="M12 3.5l8.5 15h-17L12 3.5z" stroke-linejoin="round"/>
+      <path d="M12 10v4" stroke-linecap="round"/>
+      <circle cx="12" cy="16.6" r="0.15" fill="currentColor" stroke="currentColor" stroke-width="1.4"/>
+    </svg>
+    <p class="error-card__code">500</p>
+    <h1 class="error-card__title">Something broke back there</h1>
+    <p class="error-card__text">Not you — us. Something tripped up mid-request on our end. We've got a note about it; give it another try in a moment.</p>
+    <p class="error-card__actions"><a class="error-card__link" href="/kiosk">Back to the kiosk</a></p>
+  </main>
   {% endblock %}
 </body>
 

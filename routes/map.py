@@ -6,7 +6,7 @@ ROUTES = [
     Route.get("/api/tour-scenes", "TourController@mappings"),
 
     # Kiosk -> server: mint a QR-shared route session.
-    Route.post("/api/route-sessions", "MapController@create_route_session"),
+    Route.post("/api/route-sessions", "MapController@create_route_session").middleware("throttle:route-sessions"),
 
     # Phone -> server: read the route to draw, and mark it finished.
     Route.get("/api/route-sessions/@token", "MapController@route_session_data"),

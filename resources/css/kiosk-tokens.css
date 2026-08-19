@@ -1,114 +1,173 @@
-/*
- * Kiosk design tokens.
- *
- * Single source of truth for the PressPoint kiosk + Gears dashboard:
- *   - Client brand palette (cream, amber, terracotta, crimson, maroon,
- *     espresso, charcoal). NEVER use gradients; solid fills only.
- *   - Editorial type pair: Fraunces (display) + Newsreader (body).
- *   - Fluid type and spatial scale via clamp() so the kiosk renders
- *     legibly from 360px (phone) to 1920px (desktop monitor) without
- *     media-query gymnastics.
- *   - Touch target floor that softens on tiny screens.
- *
- * Loaded from base.html so every kiosk and dashboard page inherits it.
- */
-/*
- * Brand font files must be placed in resources/fonts/ by the developer.
- * Paths below match the copy target set in webpack.mix.js so they are
- * served from /assets/fonts/. Until the files are added, browsers fall
- * back to the system-ui stacks defined on each variable below.
- */
-@font-face {
-  font-family: "Columna";
-  src: url("/assets/fonts/Columna/columna-regular.woff2") format("woff2"),
-       url("/assets/fonts/Columna/columna-regular.woff")  format("woff");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Gilroy";
-  src: url("/assets/fonts/Gilroy/gilroy-semibold.woff2") format("woff2"),
-       url("/assets/fonts/Gilroy/gilroy-semibold.woff")  format("woff");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Gilroy";
-  src: url("/assets/fonts/Gilroy/gilroy-bold.woff2") format("woff2"),
-       url("/assets/fonts/Gilroy/gilroy-bold.woff")  format("woff");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Gilroy";
-  src: url("/assets/fonts/Gilroy/gilroy-extrabold.woff2") format("woff2"),
-       url("/assets/fonts/Gilroy/gilroy-extrabold.woff")  format("woff");
-  font-weight: 800;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Gotham";
-  src: url("/assets/fonts/Gotham/gotham-book.woff2") format("woff2"),
-       url("/assets/fonts/Gotham/gotham-book.woff")  format("woff");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Gotham";
-  src: url("/assets/fonts/Gotham/gotham-medium.woff2") format("woff2"),
-       url("/assets/fonts/Gotham/gotham-medium.woff")  format("woff");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Gotham";
-  src: url("/assets/fonts/Gotham/gotham-bold.woff2") format("woff2"),
-       url("/assets/fonts/Gotham/gotham-bold.woff")  format("woff");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap");
 
+/*
+ * PressPoint design tokens — The Gears Publication '26–'27 branding.
+ *
+ * Single source of truth for the kiosk AND the GEARS CMS. Loaded from
+ * base.html plus every standalone kiosk page, so edits here propagate
+ * everywhere.
+ *
+ * The file is layered, and the layer you consume matters:
+ *
+ *   1. Brand constants   — the ONLY place the three brand hexes appear.
+ *   2. Derived shades    — hover/pressed/tint steps off those three.
+ *   3. Neutrals + semantics — greys and ok/warn/danger. A strict three-colour
+ *      UI cannot render a form error, so this set exists on purpose. Keep it small.
+ *   4. Semantic roles    — surface/ink/rule/accent. *** Stylesheets consume
+ *      THESE and nothing above them. *** Redefined wholesale for the dark
+ *      staff theme under [data-theme="gears"], so anything built on layer 4
+ *      themes for free and anything built on layers 1–2 does not.
+ *   5. Type, scale, motion.
+ *
+ * NEVER use gradients for decoration; solid fills only. (Pattern gradients —
+ * dot grids, select chevrons, rule grids — are fine, they aren't colour ramps.)
+ *
+ * Brand font binaries are licensed and deliberately not committed. Drop them
+ * into resources/fonts/ per resources/fonts/README.md; webpack.mix.js copies
+ * that directory to /assets/fonts/, which is what the @font-face urls below
+ * point at. Until they land, the fallback stacks render instead.
+ */
+
+/* ── Layer 1: brand constants ───────────────────────────────────────────── */
+
 :root {
-  /* Client palette */
-  --kiosk-cream: #EAE3D9;
-  --kiosk-amber: #E89A1C;
-  --kiosk-terracotta: #CC5A1F;
-  --kiosk-crimson: #B11E2A;
-  --kiosk-maroon: #4A1A12;
-  --kiosk-espresso: #1F0F0C;
-  --kiosk-charcoal: #1A1A1A;
+  --brand-maroon: #6b2516;
+  --brand-gold:   #f4be27;
+  --brand-cream:  #e9dac4;
 
-  /* Semantic aliases */
-  --kiosk-bg: var(--kiosk-cream);
-  --kiosk-ink: var(--kiosk-espresso);
-  --kiosk-ink-muted: rgba(31, 15, 12, 0.62);
-  --kiosk-ink-faint: rgba(31, 15, 12, 0.28);
-  --kiosk-accent: var(--kiosk-crimson);
-  --kiosk-accent-hot: var(--kiosk-amber);
-  --kiosk-accent-warm: var(--kiosk-terracotta);
-  --kiosk-rule: rgba(31, 15, 12, 0.18);
-  --kiosk-paper: #F4EFE6;
+  /* Channel triplets, so tints can be written rgb(var(--x) / 0.18) without
+     re-hardcoding the colour. Must be kept in sync with the three above. */
+  --brand-maroon-rgb: 107 37 22;
+  --brand-gold-rgb:   244 190 39;
+  --brand-cream-rgb:  233 218 196;
 
-  /* Gears brand type trio */
-  --kiosk-font-display: "Columna", "Trajan Pro", "Times New Roman", serif;
-  --kiosk-font-ui:      "Gilroy", "Futura", "Century Gothic", sans-serif;
-  --kiosk-font-body:    "Gotham", "Gill Sans", "Century Gothic", sans-serif;
-  --kiosk-font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* ── Layer 2: derived shades ──────────────────────────────────────────── */
+
+  --brand-maroon-lift: #82301d;  /* maroon lightened ~12% — hover on maroon fills */
+  --brand-maroon-dark: #4e1b10;  /* maroon darkened ~28%  — pressed, dark-theme raised */
+  --brand-maroon-deep: #2f0f08;  /* maroon darkened ~60%  — dark-theme page ground */
+
+  --brand-gold-lift:   #f7cf5c;  /* gold lightened ~18%   — focus glow */
+  --brand-gold-dark:   #d9a412;  /* gold darkened ~12%    — hover/pressed on gold */
+
+  --brand-cream-light: #f4ece0;  /* cream lightened ~8%   — raised paper */
+  --brand-cream-dark:  #d5c2a5;  /* cream darkened ~10%   — sunken wells, rules */
+
+  /* ── Layer 3: neutrals + semantics ────────────────────────────────────── */
+
+  --n-white: #ffffff;
+  --n-050:   #faf7f2;
+  --n-200:   #ddd4c6;
+  /* Darkened from #7d6f5f, which measured 4.16:1 on cream — under the floor,
+     and this is a *text* neutral (the legacy palettes' muted greys all map
+     here), not a border colour. */
+  --n-500:   #6b5e50;
+  --n-900:   #241009;  /* warm near-black; never pure #000 against cream */
+
+  /* Channel triplets for the neutrals that carry alpha (scrims, hairlines). */
+  --n-white-rgb: 255 255 255;
+  --n-500-rgb:   125 111 95;
+  --n-900-rgb:   36 16 9;
+
+  --ok:     #2f7d32;
+  --warn:   #b26a00;
+  --danger: #b3261e;
+  --ok-rgb:     47 125 50;
+  --warn-rgb:   178 106 0;
+  --danger-rgb: 179 38 30;
+  --ok-tint:     rgb(var(--ok-rgb) / 0.12);
+  --warn-tint:   rgb(var(--warn-rgb) / 0.12);
+  --danger-tint: rgb(var(--danger-rgb) / 0.10);
+
+  /* ── Layer 4: semantic roles — the consumable API ─────────────────────── */
+  /* Light (kiosk): cream ground, maroon ink, gold accent. */
+
+  --surface:        var(--brand-cream);
+  --surface-raised: var(--brand-cream-light);
+  --surface-sunken: var(--brand-cream-dark);
+  --surface-invert: var(--brand-maroon);
+  /* A deliberately saturated brand field (nav rails, mastheads). Carries
+     --ink-invert as its text in this theme, --ink in the dark one. */
+  --surface-brand:  var(--brand-maroon);
+
+  --ink:        var(--brand-maroon);
+  --ink-strong: var(--n-900);
+  /* 0.80, not the 0.68 this started at: measured on the running kiosk, 0.68
+     composites to 4.17:1 on cream and 3.83:1 on paper — both just under the
+     4.5:1 floor, and it is the colour most body copy and every caption uses.
+     0.80 measures 5.1:1. Do not lower it without re-running the audit. */
+  --ink-muted:  rgb(var(--brand-maroon-rgb) / 0.80);
+  /* Hairlines, disabled glyphs, decorative marks. NEVER type — at 1.8:1 it
+     fails by a mile. If you want quiet text, you want --ink-muted. */
+  --ink-faint:  rgb(var(--brand-maroon-rgb) / 0.34);
+  --ink-invert: var(--brand-cream);
+
+  --rule:        rgb(var(--brand-maroon-rgb) / 0.20);
+  --rule-strong: rgb(var(--brand-maroon-rgb) / 0.45);
+
+  --accent:       var(--brand-gold);
+  --accent-ink:   var(--brand-maroon);  /* text/icons sitting ON --accent */
+  --accent-hover: var(--brand-gold-dark);
+  --accent-tint:  rgb(var(--brand-gold-rgb) / 0.18);
+
+  /* Accent used AS TEXT on --surface. Not the same token as --accent: gold on
+     cream is ~1.6:1, nowhere near readable, so on the light kiosk the accent
+     role has to be carried by maroon when it's type rather than a fill. Under
+     the dark theme the relationship inverts and gold is the readable one.
+     Rule of thumb: gold is a FILL colour, --accent-text is a TYPE colour. */
+  --accent-text: var(--brand-maroon);
+
+  --focus-ring: var(--brand-maroon);
+
+  --border-rule:  2px solid var(--ink);
+  --shadow-press: 0 6px 0 0 var(--ink);
+  --shadow-lift:  0 12px 28px rgb(var(--brand-maroon-rgb) / 0.18);
+
+  /* ── Legacy aliases ───────────────────────────────────────────────────── */
+  /* ~10 stylesheets still consume the old --kiosk-* colour names. Repointing
+     them here re-brands those files without touching them. Do not add new
+     uses; new code consumes layer 4. The old palette had seven colours where
+     the brand has three, so terracotta/crimson/amber all collapse onto gold
+     and the two near-blacks collapse onto one. */
+  --kiosk-cream:      var(--brand-cream);
+  --kiosk-amber:      var(--brand-gold);
+  --kiosk-terracotta: var(--brand-gold-dark);
+  --kiosk-crimson:    var(--brand-maroon);
+  --kiosk-maroon:     var(--brand-maroon);
+  --kiosk-espresso:   var(--n-900);
+  --kiosk-charcoal:   var(--n-900);
+
+  --kiosk-bg:          var(--surface);
+  --kiosk-ink:         var(--ink);
+  --kiosk-ink-muted:   var(--ink-muted);
+  --kiosk-ink-faint:   var(--ink-faint);
+  --kiosk-accent:      var(--accent);
+  --kiosk-accent-hot:  var(--accent);
+  --kiosk-accent-warm: var(--accent-hover);
+  --kiosk-rule:        var(--rule);
+  --kiosk-paper:       var(--surface-raised);
+
+  --kiosk-border-rule:  var(--border-rule);
+  --kiosk-shadow-press: var(--shadow-press);
+  --kiosk-shadow-lift:  var(--shadow-lift);
+
+  /* ── Layer 5: type ────────────────────────────────────────────────────── */
+  /* Branding sheet '26–'27: Moderniz (display) + Gilroy Black / Gilroy Regular.
+     Columna and Gotham are retired — they were never licensed or installed. */
+
+  --font-display: "Moderniz", "Gilroy", "Futura", "Century Gothic", sans-serif;
+  --font-heading: "Gilroy", "Futura", "Century Gothic", "Avenir Next", sans-serif;
+  --font-body:    "Gilroy", "Futura", "Century Gothic", "Avenir Next", sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --weight-display: 400;  /* Moderniz ships one weight */
+  --weight-heading: 900;  /* Gilroy Black */
+  --weight-body:    400;  /* Gilroy Regular */
+
+  --kiosk-font-display: var(--font-display);
+  --kiosk-font-ui:      var(--font-heading);
+  --kiosk-font-body:    var(--font-body);
+  --kiosk-font-mono:    var(--font-mono);
 
   /* Fluid type scale — min @ ~360px viewport, max @ 1440px+ */
   --kiosk-text-xs:   clamp(0.70rem, 0.62rem + 0.30vw, 0.85rem);
@@ -135,9 +194,6 @@
   --kiosk-radius-sm: 4px;
   --kiosk-radius-md: 12px;
   --kiosk-radius-lg: 20px;
-  --kiosk-border-rule: 2px solid var(--kiosk-espresso);
-  --kiosk-shadow-press: 0 6px 0 0 var(--kiosk-espresso);
-  --kiosk-shadow-lift: 0 12px 28px rgba(31, 15, 12, 0.18);
 
   /* Motion */
   --kiosk-ease: cubic-bezier(0.2, 0, 0, 1);
@@ -145,6 +201,60 @@
   --kiosk-dur-fast: 160ms;
   --kiosk-dur-med: 280ms;
   --kiosk-dur-slow: 480ms;
+}
+
+/*
+ * Dark staff theme. Set data-theme="gears" on <html> for the GEARS CMS and the
+ * auth surfaces, so an editor can tell at a glance they are not on the kiosk.
+ * ONLY layer 4 is redefined here — that is the whole point of the layering.
+ */
+[data-theme="gears"] {
+  /* The ground is a deep warm near-black, NOT saturated maroon. A hue this
+     strong makes a poor canvas: at page scale it flattens everything onto one
+     value, so cards stop separating from the page and the brand colour ends up
+     doing a neutral's job. Letting the ground recede buys two things — real
+     elevation steps, and maroon back as a *structural* colour (the sidebar
+     field, card rules, active markers) rather than as the whole screen.
+     Measured against cream #e9dac4: ground 13:1, raised 11:1, brand 7.9:1.
+     Raised-to-ground is ~1.18:1 — a normal dark-UI elevation step, which reads
+     clearly once the --rule hairline below sits on top of it. */
+  --surface:        #1b0e09;
+  --surface-raised: #2e1811;
+  --surface-sunken: #120806;
+  --surface-invert: var(--brand-cream);
+  /* The one saturated brand field on the whole staff surface. */
+  --surface-brand:  var(--brand-maroon);
+
+  --ink:        var(--brand-cream);
+  --ink-strong: var(--n-white);
+  --ink-muted:  rgb(var(--brand-cream-rgb) / 0.70);
+  --ink-faint:  rgb(var(--brand-cream-rgb) / 0.38);
+  --ink-invert: var(--brand-maroon);
+
+  --rule:        rgb(var(--brand-cream-rgb) / 0.18);
+  --rule-strong: rgb(var(--brand-cream-rgb) / 0.40);
+
+  --accent:       var(--brand-gold);
+  --accent-ink:   var(--brand-maroon-deep);
+  --accent-hover: var(--brand-gold-lift);
+  --accent-tint:  rgb(var(--brand-gold-rgb) / 0.16);
+  --accent-text:  var(--brand-gold);  /* inverts: gold IS readable on maroon */
+
+  --focus-ring: var(--brand-gold);
+
+  --border-rule:  2px solid var(--rule-strong);
+  --shadow-press: 0 6px 0 0 rgb(0 0 0 / 0.55);
+  --shadow-lift:  0 12px 28px rgb(0 0 0 / 0.45);
+
+  /* Semantics lift a step so they stay legible on the maroon ground. The
+     triplets move with them, or alpha tints would still be mixed from the
+     dark-on-light values and disappear into the ground. */
+  --ok:     #6fbf73;
+  --warn:   #e8a33d;
+  --danger: #ef6b62;
+  --ok-rgb:     111 191 115;
+  --warn-rgb:   232 163 61;
+  --danger-rgb: 239 107 98;
 }
 
 @media (max-width: 540px) {
@@ -160,4 +270,61 @@
     transition-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/* ── Brand @font-face ───────────────────────────────────────────────────── */
+/* Files absent from git by design; see resources/fonts/README.md. */
+
+@font-face {
+  font-family: "Moderniz";
+  src: url("/assets/fonts/Moderniz/moderniz-regular.woff2") format("woff2"),
+       url("/assets/fonts/Moderniz/moderniz-regular.woff")  format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/assets/fonts/Gilroy/gilroy-regular.woff2") format("woff2"),
+       url("/assets/fonts/Gilroy/gilroy-regular.woff")  format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/assets/fonts/Gilroy/gilroy-medium.woff2") format("woff2"),
+       url("/assets/fonts/Gilroy/gilroy-medium.woff")  format("woff");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/assets/fonts/Gilroy/gilroy-semibold.woff2") format("woff2"),
+       url("/assets/fonts/Gilroy/gilroy-semibold.woff")  format("woff");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/assets/fonts/Gilroy/gilroy-bold.woff2") format("woff2"),
+       url("/assets/fonts/Gilroy/gilroy-bold.woff")  format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/assets/fonts/Gilroy/gilroy-black.woff2") format("woff2"),
+       url("/assets/fonts/Gilroy/gilroy-black.woff")  format("woff");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
 }

@@ -13,8 +13,8 @@
   height: 56px;
   display: flex;
   align-items: stretch;
-  background: var(--kiosk-espresso, #1F0F0C);
-  border-top: 1px solid rgba(234, 227, 217, 0.12);
+  background: var(--kiosk-espresso);
+  border-top: 1px solid rgb(var(--brand-cream-rgb) / 0.12);
 }
 
 .kiosk-nav__item {
@@ -26,8 +26,8 @@
   gap: 2px;
   padding: 6px 4px;
   text-decoration: none;
-  color: rgba(234, 227, 217, 0.52);
-  font-family: var(--kiosk-font-ui, "Gilroy", "Century Gothic", sans-serif);
+  color: rgb(var(--brand-cream-rgb) / 0.52);
+  font-family: var(--font-heading);
   font-size: clamp(0.50rem, 0.72vw, 0.66rem);
   font-weight: 700;
   letter-spacing: 0.10em;
@@ -35,8 +35,8 @@
   border: 0;
   background: transparent;
   cursor: pointer;
-  transition: color var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, cubic-bezier(0.2,0,0,1)),
-              background var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, cubic-bezier(0.2,0,0,1));
+  transition: color var(--kiosk-dur-fast) var(--kiosk-ease, cubic-bezier(0.2,0,0,1)),
+              background var(--kiosk-dur-fast) var(--kiosk-ease, cubic-bezier(0.2,0,0,1));
   position: relative;
 }
 
@@ -47,20 +47,20 @@
   left: 18%;
   right: 18%;
   height: 2px;
-  background: var(--kiosk-crimson, #B11E2A);
+  background: var(--kiosk-crimson);
   transform: scaleX(0);
-  transition: transform var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, cubic-bezier(0.2,0,0,1));
+  transition: transform var(--kiosk-dur-fast) var(--kiosk-ease, cubic-bezier(0.2,0,0,1));
 }
 
 .kiosk-nav__item:hover,
 .kiosk-nav__item:focus-visible {
-  color: var(--kiosk-cream, #EAE3D9);
-  background: rgba(234, 227, 217, 0.06);
+  color: var(--kiosk-cream);
+  background: rgb(var(--brand-cream-rgb) / 0.06);
   outline: none;
 }
 
 .kiosk-nav__item.is-active {
-  color: var(--kiosk-cream, #EAE3D9);
+  color: var(--kiosk-cream);
 }
 
 .kiosk-nav__item.is-active::before {

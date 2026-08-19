@@ -1,16 +1,27 @@
 :root {
-  --ob-cream: #F1ECE3;
-  --ob-paper: #FBF8F1;
-  --ob-marigold: #F39518;
-  --ob-terracotta: #D15B26;
-  --ob-vermillion: #B82221;
-  --ob-oxblood: #491511;
-  --ob-soot: #1F1716;
-  --ob-rule: rgba(31, 23, 22, 0.14);
-  --ob-rule-strong: rgba(31, 23, 22, 0.28);
-  --ob-muted: #6B5E55;
-  --ob-font-display: "Fraunces", Georgia, "Times New Roman", serif;
-  --ob-font-ui: "Inter Tight", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Aliases onto kiosk-tokens.css. This set was a verbatim clone of the
+     --ink-* palette in gears-dashboard.css, which was itself a clone of
+     --arch-* in kiosk-archives.css — three copies of the same off-brand hexes
+     that had to be edited in lockstep. They now all resolve to one source. */
+  --ob-cream: var(--surface);
+  --ob-paper: var(--surface-raised);
+  --ob-marigold: var(--accent);
+  --ob-terracotta: var(--accent-hover);
+  --ob-vermillion: var(--accent);
+  /* FILL-ONLY, like --ink-oxblood in gears-dashboard.css. This file was a
+     verbatim copy of that palette and carried the same latent bug: a frozen
+     dark constant used as both dark text and dark fills. It only ever rendered
+     correctly because the kiosk org board never sets data-theme. Its nine
+     foreground uses now read --ink / --accent-ink so the page survives a theme. */
+  --ob-oxblood: var(--surface-brand);
+  --ob-soot: var(--ink);
+  --ob-rule: var(--rule);
+  --ob-rule-strong: var(--rule-strong);
+  --ob-muted: var(--ink-muted);
+  /* Was Fraunces + Inter Tight — neither had a @font-face, a <link> or an
+     @import anywhere, so the board silently rendered Georgia and system-ui. */
+  --ob-font-display: var(--font-display);
+  --ob-font-ui: var(--font-body);
 }
 
 * {
@@ -57,7 +68,7 @@ body {
   font-weight: 800;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--ob-terracotta);
+  color: var(--accent-text);
 }
 
 .ob-masthead__hint {
@@ -72,7 +83,7 @@ body {
   font-size: clamp(2.2rem, 4.5vw, 3.6rem);
   line-height: 1;
   letter-spacing: -0.025em;
-  color: var(--ob-oxblood);
+  color: var(--ink);
   text-transform: uppercase;
 }
 
@@ -123,7 +134,7 @@ body {
   background: var(--ob-paper);
   border: 1px solid var(--ob-rule);
   border-radius: 6px;
-  box-shadow: 0 8px 28px rgba(73, 21, 17, 0.08);
+  box-shadow: 0 8px 28px rgb(var(--brand-maroon-rgb) / 0.08);
   overflow: hidden;
 }
 
@@ -137,7 +148,7 @@ body {
   display: inline-block;
   padding: 0.35rem 0.7rem;
   background: var(--ob-marigold);
-  color: var(--ob-oxblood);
+  color: var(--accent-ink);
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.18em;
@@ -153,7 +164,7 @@ body {
   font-size: clamp(2rem, 3.5vw, 3rem);
   line-height: 1;
   letter-spacing: -0.025em;
-  color: var(--ob-oxblood);
+  color: var(--ink);
   text-transform: uppercase;
 }
 
@@ -169,7 +180,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ob-terracotta);
+  color: var(--accent-text);
 }
 
 .ob-card__body {
@@ -238,7 +249,7 @@ body {
   font-family: var(--ob-font-display);
   font-weight: 800;
   font-size: 1.2rem;
-  color: var(--ob-oxblood);
+  color: var(--ink);
 }
 
 .ob-card__empty-copy {
@@ -270,7 +281,7 @@ body {
   overflow: hidden;
   display: grid;
   place-items: center;
-  color: var(--ob-oxblood);
+  color: var(--ink);
 }
 
 .ob-chart__avatar img {
@@ -297,7 +308,7 @@ body {
   font-family: var(--ob-font-display);
   font-weight: 800;
   font-size: 0.98rem;
-  color: var(--ob-oxblood);
+  color: var(--ink);
   line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -328,7 +339,7 @@ body {
   font-weight: 800;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--ob-terracotta);
+  color: var(--accent-text);
 }
 
 .ob-empty-state__title {
@@ -336,7 +347,7 @@ body {
   font-family: var(--ob-font-display);
   font-weight: 900;
   font-size: clamp(1.6rem, 3vw, 2.4rem);
-  color: var(--ob-oxblood);
+  color: var(--ink);
   text-transform: uppercase;
   letter-spacing: -0.02em;
 }
@@ -408,7 +419,7 @@ body {
   font-weight: 900;
   font-size: 0.95rem;
   letter-spacing: 0.06em;
-  color: var(--ob-terracotta);
+  color: var(--accent-text);
 }
 
 .ob-dock__counter-sep {
@@ -420,7 +431,7 @@ body {
   font-family: var(--ob-font-display);
   font-weight: 800;
   font-size: 1.4rem;
-  color: var(--ob-oxblood);
+  color: var(--ink);
   letter-spacing: -0.01em;
   line-height: 1;
 }
@@ -459,8 +470,8 @@ body {
   gap: 0.65rem;
   padding: 0.85rem 1.6rem;
   background: var(--ob-cream);
-  color: var(--ob-oxblood);
-  border: 1px solid var(--ob-oxblood);
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
   border-radius: 4px;
   font-family: var(--ob-font-ui);
   font-size: 0.85rem;

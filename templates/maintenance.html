@@ -5,15 +5,23 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Server Maintenance</title>
-  <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+  <title>Server Maintenance &middot; The Gears</title>
+  
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset_url('css/error-page.css') }}">
 </head>
 
-<body>
+<body class="error-page">
   {% block content %}
-  <div class="h-screen flex flex-col items-center justify-center">
-    <p class="text-center">Sorry, this site is currently down for maintenance.</p>
-  </div>
+  <main class="error-card">
+    <svg class="error-card__mark error-card__mark--spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+      <circle cx="12" cy="12" r="2.6"/>
+      <path d="M12 3.5v2.4M12 18.1v2.4M20.5 12h-2.4M5.9 12H3.5M17.6 6.4l-1.7 1.7M8.1 15.9l-1.7 1.7M17.6 17.6l-1.7-1.7M8.1 8.1L6.4 6.4" stroke-linecap="round"/>
+    </svg>
+    <p class="error-card__code">&#9881;</p>
+    <h1 class="error-card__title">Be right back</h1>
+    <p class="error-card__text">PressPoint's getting some work done under the hood. Hang tight — we'll be back online shortly.</p>
+  </main>
   {% endblock %}
 </body>
 

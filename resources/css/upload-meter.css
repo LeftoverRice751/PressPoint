@@ -22,7 +22,7 @@
     background: var(--ink-paper);
     border: 1px solid var(--ink-rule);
     border-radius: var(--radius-md, 6px);
-    box-shadow: 0 14px 28px rgba(31, 23, 22, 0.18);
+    box-shadow: 0 14px 28px rgb(var(--brand-maroon-rgb) / 0.18);
     transform: translateX(110%);
     opacity: 0;
     transition: transform 0.32s ease, opacity 0.32s ease;
@@ -73,7 +73,7 @@
 
 .upload-meter__close:hover {
     background: var(--ink-cream);
-    color: var(--ink-oxblood);
+    color: var(--ink);
 }
 
 .upload-meter__filename {
@@ -81,7 +81,7 @@
     font-family: var(--font-display);
     font-weight: 800;
     font-size: 1rem;
-    color: var(--ink-oxblood);
+    color: var(--ink);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -118,7 +118,7 @@
 }
 
 .upload-meter__toast.is-complete .upload-meter__eyebrow {
-    color: var(--ink-oxblood);
+    color: var(--ink);
 }
 
 .upload-meter__toast.is-error .upload-meter__fill {

@@ -10,17 +10,19 @@
  */
 
 :root {
-  --book-cream: #F1ECE3;
-  --book-paper: #FBF8F1;
-  --book-vermillion: #B82221;
-  --book-terracotta: #D15B26;
-  --book-soot: #1F1716;
-  --book-muted: #6B5E55;
-  --book-rule: rgba(31, 23, 22, 0.14);
-  --book-backdrop: rgba(31, 23, 22, 0.92);
-  --book-font-display: var(--kiosk-font-display, "Trajan Pro", "Times New Roman", serif);
-  --book-font-ui: var(--kiosk-font-ui, "Futura", "Century Gothic", sans-serif);
-  --book-font-mono: var(--kiosk-font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  --book-cream: var(--surface);
+  --book-paper: var(--surface-raised);
+  --book-vermillion: var(--accent);
+  --book-terracotta: var(--accent-hover);
+  --book-soot: var(--ink);
+  --book-muted: var(--ink-muted);
+  --book-rule: var(--rule);
+  /* Reader backdrop stays near-opaque so scanned pages read against a neutral
+     ground rather than a tinted one — brand maroon at 0.92 would cast on them. */
+  --book-backdrop: rgb(var(--brand-maroon-rgb) / 0.94);
+  --book-font-display: var(--font-display);
+  --book-font-ui: var(--font-heading);
+  --book-font-mono: var(--font-mono);
   --book-zoom-duration: 520ms;
   --book-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -146,7 +148,7 @@
   margin: 0 auto clamp(12px, 2.4vh, 28px);
   background: var(--book-paper);
   border: 1px solid var(--book-rule);
-  box-shadow: 0 10px 30px rgba(31, 23, 22, 0.25);
+  box-shadow: 0 10px 30px rgb(var(--brand-maroon-rgb) / 0.25);
 }
 
 .reader-scroll__page img {

@@ -35,7 +35,7 @@
 
 .dropzone:focus-within {
     border-color: var(--ink-marigold);
-    box-shadow: 0 0 0 3px rgba(243, 149, 24, 0.22);
+    box-shadow: 0 0 0 3px rgb(var(--brand-gold-rgb) / 0.22);
     outline: none;
 }
 
@@ -47,7 +47,7 @@
 
 .dropzone.is-invalid {
     border-color: var(--ink-vermillion);
-    background: rgba(184, 34, 33, 0.06);
+    background: rgb(var(--brand-maroon-rgb) / 0.06);
 }
 
 .dropzone__input {
@@ -79,7 +79,7 @@
     border-radius: 999px;
     background: var(--ink-paper);
     border: 1px solid var(--ink-rule-strong);
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-family: var(--font-display);
     font-weight: 900;
     font-size: 1.15rem;
@@ -87,7 +87,7 @@
 }
 
 .dropzone__title {
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-weight: 800;
     font-size: 0.98rem;
     letter-spacing: -0.005em;
@@ -119,7 +119,7 @@
 }
 
 .dropzone__filename {
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-family: var(--font-display);
     font-weight: 800;
     font-size: 0.98rem;
@@ -145,7 +145,7 @@
     border-radius: 999px;
     border: 1px solid var(--ink-rule-strong);
     background: var(--ink-cream);
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-size: 1.1rem;
     line-height: 1;
     font-weight: 800;
@@ -158,5 +158,5 @@
 .dropzone__clear:hover {
     background: var(--ink-vermillion);
     border-color: var(--ink-vermillion);
-    color: var(--ink-paper);
+    color: var(--accent-ink);
 }

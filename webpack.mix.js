@@ -9,6 +9,7 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/auth-login.js', 'storage/compiled/js')
   .js('resources/js/auth-change-password.js', 'storage/compiled/js')
   .js('resources/js/auth-otp-code.js', 'storage/compiled/js')
+  .js('resources/js/rate-limit-modal.js', 'storage/compiled/js')
   .js('resources/js/gears-dashboard.js', 'storage/compiled/js')
   .js('resources/js/dashboard-live.js', 'storage/compiled/js')
   .js('resources/js/upload-meter.js', 'storage/compiled/js')
@@ -79,6 +80,12 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .postCss('resources/css/kiosk-loading.css', 'storage/compiled/css', [
     //
   ])
+  .postCss('resources/css/error-page.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/rate-limit-modal.css', 'storage/compiled/css', [
+    //
+  ])
   .postCss('resources/css/kiosk-tour.css', 'storage/compiled/css', [
     //
   ])
@@ -86,6 +93,9 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
     //
   ])
   .postCss('resources/css/kiosk-news.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/newsletter-type.css', 'storage/compiled/css', [
     //
   ])
   .postCss('resources/css/welcome-lock.css', 'storage/compiled/css', [
@@ -140,10 +150,34 @@ mix.copy(
   "node_modules/quill/dist/quill.snow.css",
   "storage/compiled/css/quill.snow.css",
 )
-// Brand fonts — drop files into resources/fonts/{Columna,Gilroy,Gotham}/
-// before deploying. The copy is a no-op if the directory is empty.
-if (require('fs').existsSync('resources/fonts')) {
-  mix.copy('resources/fonts', 'storage/compiled/fonts');
+// Brand fonts — resources/fonts/{Moderniz,Gilroy}/ → /assets/fonts/, which is
+// what the @font-face urls in resources/css/kiosk-tokens.css point at.
+//
+// This copy used to sit behind `if (fs.existsSync('resources/fonts'))`. The
+// directory didn't exist, so the copy silently never registered and every page
+// fired seven font 404s that nobody saw — nginx has `access_log off` on
+// /assets/. The guard is gone on purpose: a missing directory must now fail the
+// build loudly. resources/fonts/ is committed (README + .gitkeep); the licensed
+// binaries are not, so a fresh clone builds but renders fallback faces until
+// they're dropped in. `npm run prod` prints the warning below when that's the case.
+mix.copy("resources/fonts", "storage/compiled/fonts")
+
+const brandFontCount = require("fs")
+  .readdirSync("resources/fonts", { withFileTypes: true })
+  .filter((e) => e.isDirectory())
+  .reduce(
+    (n, dir) =>
+      n +
+      require("fs")
+        .readdirSync(`resources/fonts/${dir.name}`)
+        .filter((f) => /\.(woff2?|otf|ttf)$/i.test(f)).length,
+    0,
+  )
+if (brandFontCount === 0) {
+  console.warn(
+    "\n  ⚠  No brand font binaries in resources/fonts/ — Moderniz and Gilroy\n" +
+      "     will render as fallback faces. See resources/fonts/README.md.\n",
+  )
 }
 
 // ensure root directory of mix is project root

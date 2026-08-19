@@ -16,23 +16,30 @@
  */
 
 :root {
-    --paper:        var(--kiosk-bg, #EAE3D9);
-    --paper-soft:   var(--kiosk-paper, #F4EFE6);
-    --ink:          var(--kiosk-ink, #1F0F0C);
-    --ink-soft:     var(--kiosk-ink-muted, rgba(31,15,12,0.62));
-    --ink-mute:     var(--kiosk-ink-faint, rgba(31,15,12,0.28));
-    --rule:         var(--kiosk-rule, rgba(31,15,12,0.14));
-    --orange:       var(--kiosk-crimson, #B11E2A);
-    --orange-deep:  var(--kiosk-maroon, #4A1A12);
-    --orange-tint:  rgba(177, 30, 42, 0.08);
+    --paper:        var(--surface);
+    --paper-soft:   var(--surface-raised);
+    /* --ink and --rule are NOT defined here any more. They are layer-4 token
+       names, and defining them locally as var(--kiosk-ink) / var(--kiosk-rule)
+       made each reference the other through the token file's aliases — a
+       custom-property cycle, which resolves to guaranteed-invalid and would
+       have dropped the map's text colour entirely. The global values mean the
+       same thing, so the ~10 var(--ink)/var(--rule) uses below are unchanged. */
+    --ink-soft:     var(--ink-muted);
+    --ink-mute:     var(--ink-faint);
+    /* "orange" is historical — the wayfinding accent is brand gold now. */
+    --orange:       var(--accent);
+    --orange-deep:  var(--brand-maroon);
+    --orange-tint:  var(--accent-tint);
 
-    --shadow-1: var(--kiosk-shadow-card, 0 6px 20px rgba(31,15,12,0.08));
-    --shadow-2: var(--kiosk-shadow-lift, 0 12px 28px rgba(31,15,12,0.18));
-    --shadow-3: 0 30px 70px rgba(31,15,12,0.26);
+    --shadow-1: 0 6px 20px rgb(var(--brand-maroon-rgb) / 0.08);
+    --shadow-2: var(--shadow-lift);
+    --shadow-3: 0 30px 70px rgb(var(--brand-maroon-rgb) / 0.26);
 
-    --display-font: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
-    --body-font:    var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
-    --mono-font:    var(--kiosk-font-mono, "JetBrains Mono", monospace);
+    /* This used to map --display-font onto the UI face, so the map never
+       actually rendered the display face. Corrected. */
+    --display-font: var(--font-display);
+    --body-font:    var(--font-body);
+    --mono-font:    var(--font-mono);
 }
 
 * { box-sizing: border-box; }
@@ -55,7 +62,7 @@ html, body {
     overflow: hidden;
     /* faint dot grid — reads as transit-blueprint chrome under the chrome */
     background-image:
-        radial-gradient(circle at 0 0, rgba(10, 10, 10, 0.045) 1px, transparent 1.4px);
+        radial-gradient(circle at 0 0, rgb(var(--brand-maroon-rgb) / 0.045) 1px, transparent 1.4px);
     background-size: 14px 14px;
 }
 
@@ -96,7 +103,7 @@ html, body {
     display: block;
     object-fit: contain;
     flex-shrink: 0;
-    filter: drop-shadow(0 4px 8px rgba(10, 10, 10, 0.18));
+    filter: drop-shadow(0 4px 8px rgb(var(--brand-maroon-rgb) / 0.18));
 }
 
 .map-header__brand-text {
@@ -132,7 +139,7 @@ html, body {
     font-family: var(--display-font);
     font-size: 1.8rem;
     line-height: 1;
-    color: var(--orange);
+    color: var(--accent-text);
 }
 
 .map-header__title-text {
@@ -188,7 +195,7 @@ html, body {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    box-shadow: inset 0 0 90px rgba(10, 10, 10, 0.08);
+    box-shadow: inset 0 0 90px rgb(var(--brand-maroon-rgb) / 0.08);
     z-index: 5;
 }
 
@@ -200,7 +207,7 @@ html, body {
 
 /* Tame Leaflet attribution into the palette. */
 .campus-map-page__map .leaflet-control-attribution {
-    background: rgba(255, 255, 255, 0.85);
+    background: rgb(var(--n-white-rgb) / 0.85);
     color: var(--ink-mute);
     font-family: var(--mono-font);
     font-size: 0.6rem;
@@ -222,7 +229,7 @@ html, body {
     color: var(--paper);
     border-radius: 0;
     padding: 0.32rem 0.62rem 0.34rem;
-    box-shadow: 0 8px 18px rgba(10, 10, 10, 0.22);
+    box-shadow: 0 8px 18px rgb(var(--brand-maroon-rgb) / 0.22);
     font-family: var(--display-font);
     font-size: 0.7rem;
     letter-spacing: 0.06em;
@@ -253,7 +260,7 @@ html, body {
     border-radius: 50%;
     background: var(--orange);
     border: 3px solid var(--paper);
-    box-shadow: 0 0 0 2px var(--ink), 0 8px 16px rgba(214, 63, 0, 0.5);
+    box-shadow: 0 0 0 2px var(--ink), 0 8px 16px rgb(var(--brand-gold-rgb) / 0.5);
 }
 
 .kiosk-here__pulse {
@@ -261,7 +268,7 @@ html, body {
     left: -20px; top: -20px;
     width: 40px; height: 40px;
     border-radius: 50%;
-    background: rgba(255, 91, 19, 0.4);
+    background: rgb(var(--brand-gold-rgb) / 0.4);
     animation: kiosk-here-pulse 1.6s ease-out infinite;
 }
 
@@ -285,7 +292,7 @@ html, body {
     text-transform: uppercase;
     padding: 0.3rem 0.65rem 0.32rem;
     white-space: nowrap;
-    box-shadow: 0 8px 16px rgba(214, 63, 0, 0.4);
+    box-shadow: 0 8px 16px rgb(var(--brand-gold-rgb) / 0.4);
 }
 
 /* ── Pins (semantic by category) ────────────────────────────────── */
@@ -304,7 +311,7 @@ html, body {
     width: 32px; height: 32px;
     background: var(--ink);
     border: 3px solid var(--paper);
-    box-shadow: 0 0 0 2px var(--ink), 0 6px 14px rgba(10, 10, 10, 0.22);
+    box-shadow: 0 0 0 2px var(--ink), 0 6px 14px rgb(var(--brand-maroon-rgb) / 0.22);
     pointer-events: auto;
     cursor: pointer;
     transition: transform 0.15s ease;
@@ -330,7 +337,7 @@ html, body {
 /* Buildings — white square with orange ring. */
 .kiosk-pin--buildings .kiosk-pin__dot {
     background: var(--paper);
-    box-shadow: inset 0 0 0 5px var(--orange), 0 0 0 2px var(--ink), 0 6px 14px rgba(10, 10, 10, 0.22);
+    box-shadow: inset 0 0 0 5px var(--orange), 0 0 0 2px var(--ink), 0 6px 14px rgb(var(--brand-maroon-rgb) / 0.22);
     border-radius: 4px;
 }
 
@@ -349,7 +356,7 @@ html, body {
 .kiosk-pin--places .kiosk-pin__dot {
     background: var(--ink);
     border-radius: 50%;
-    box-shadow: inset 0 0 0 4px var(--ink), inset 0 0 0 8px var(--orange), 0 0 0 2px var(--ink), 0 6px 14px rgba(10, 10, 10, 0.22);
+    box-shadow: inset 0 0 0 4px var(--ink), inset 0 0 0 8px var(--orange), 0 0 0 2px var(--ink), 0 6px 14px rgb(var(--brand-maroon-rgb) / 0.22);
 }
 
 /* ── Category chips (filter + legend in one) ────────────────────── */
@@ -500,7 +507,10 @@ html, body {
     font-family: var(--mono-font);
     font-size: 0.62rem;
     letter-spacing: 0.16em;
-    color: var(--orange);
+    /* --accent, not --accent-text: this header is one of the few dark fills on
+       the kiosk (background: var(--ink) above), so gold is the readable accent
+       here and maroon would be maroon-on-maroon. */
+    color: var(--accent);
     text-transform: uppercase;
 }
 
@@ -589,7 +599,7 @@ html, body {
     margin-left: auto;
     font-family: var(--display-font);
     font-size: 1.5rem;
-    color: var(--orange);
+    color: var(--accent-text);
     flex-shrink: 0;
 }
 
@@ -619,7 +629,7 @@ html, body {
     height: min(36vh, 320px);
     background: var(--paper);
     border-top: 4px solid var(--ink);
-    box-shadow: 0 -28px 60px rgba(10, 10, 10, 0.28);
+    box-shadow: 0 -28px 60px rgb(var(--brand-maroon-rgb) / 0.28);
     padding: 1.1rem 1.4rem 1.2rem;
     z-index: 40;
     transition: transform 0.32s cubic-bezier(.25, .8, .35, 1);
@@ -746,7 +756,9 @@ html, body {
     font-family: var(--display-font);
     font-size: 0.6rem;
     letter-spacing: 0.18em;
-    color: var(--ink-mute);
+    /* --ink-mute (--ink-faint) is a hairline token and measured 1.83:1 here.
+       These are 10px labels a visitor actually reads, so they take --ink-muted. */
+    color: var(--ink-muted);
     font-weight: 700;
 }
 
@@ -903,7 +915,7 @@ html, body {
     width: 40px;
     height: 40px;
     flex: 0 0 40px;
-    color: var(--orange);
+    color: var(--accent-text);
     display: grid;
     place-items: center;
 }
@@ -925,7 +937,7 @@ html, body {
 }
 
 .search-bar__input::placeholder {
-    color: rgba(255, 255, 255, 0.55);
+    color: rgb(var(--n-white-rgb) / 0.55);
     letter-spacing: 0.06em;
     font-size: 0.95rem;
     text-transform: uppercase;
@@ -1001,7 +1013,7 @@ html, body {
 
 .keyboard__key {
     flex: 1;
-    border: 2px solid rgba(255, 255, 255, 0.06);
+    border: 2px solid rgb(var(--n-white-rgb) / 0.06);
     background: var(--ink-soft);
     color: var(--paper);
     font-family: var(--display-font);

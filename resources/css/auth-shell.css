@@ -1,20 +1,22 @@
 /* auth-shell.css — Gears Publication brand. Flat, editorial. No gradients. */
 
 :root {
-  --auth-bg:            var(--kiosk-cream, #EAE3D9);
-  --auth-surface:       var(--kiosk-paper, #F4EFE6);
-  --auth-rail:          var(--kiosk-maroon, #4A1A12);
-  --auth-ink:           var(--kiosk-espresso, #1F0F0C);
-  --auth-ink-muted:     var(--kiosk-ink-muted, rgba(31,15,12,0.62));
-  --auth-ink-faint:     var(--kiosk-ink-faint, rgba(31,15,12,0.28));
-  --auth-accent:        var(--kiosk-crimson, #B11E2A);
-  --auth-rule:          var(--kiosk-rule, rgba(31,15,12,0.18));
-  --auth-rule-strong:   rgba(31, 15, 12, 0.40);
-  --auth-cream-on-dark: var(--kiosk-cream, #EAE3D9);
-  --auth-success:       #2E7D32;
-  --auth-font-ui:       var(--kiosk-font-ui, "Gilroy", "Century Gothic", sans-serif);
-  --auth-font-body:     var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
-  --auth-font-display:  var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+  --auth-bg:            var(--surface);
+  --auth-surface:       var(--surface-raised);
+  --auth-rail:          var(--surface-sunken);
+  --auth-ink:           var(--ink);
+  --auth-ink-muted:     var(--ink-muted);
+  --auth-ink-faint:     var(--ink-faint);
+  --auth-accent:        var(--accent);
+  --auth-rule:          var(--rule);
+  --auth-rule-strong:   var(--rule-strong);
+  --auth-cream-on-dark: var(--brand-cream);
+  /* Was a hardcoded var(--ok) that tracked nothing. --ok lifts a step under
+     [data-theme="gears"] so it stays legible on the dark maroon ground. */
+  --auth-success:       var(--ok);
+  --auth-font-ui:       var(--font-heading);
+  --auth-font-body:     var(--font-body);
+  --auth-font-display:  var(--font-display);
 }
 
 html,
@@ -87,7 +89,7 @@ body.auth-body {
   gap: 2.5rem;
   background: var(--auth-rail);
   color: var(--auth-cream-on-dark);
-  border-right: 1px solid rgba(234, 227, 217, 0.10);
+  border-right: 1px solid rgb(var(--brand-cream-rgb) / 0.10);
 }
 
 .auth-brand {
@@ -111,7 +113,7 @@ body.auth-body {
 }
 
 .auth-brand__eyebrow {
-  color: rgba(234, 227, 217, 0.55);
+  color: rgb(var(--brand-cream-rgb) / 0.55);
   font-family: var(--auth-font-ui);
   font-size: 0.68rem;
   font-weight: 700;
@@ -129,7 +131,7 @@ body.auth-body {
 }
 
 .auth-rail__eyebrow {
-  color: rgba(234, 227, 217, 0.55);
+  color: rgb(var(--brand-cream-rgb) / 0.55);
   font-family: var(--auth-font-ui);
   font-size: 0.68rem;
   font-weight: 700;
@@ -154,7 +156,7 @@ body.auth-body {
 
 .auth-rail__text {
   margin: 0;
-  color: rgba(234, 227, 217, 0.68);
+  color: rgb(var(--brand-cream-rgb) / 0.68);
   font-size: 0.92rem;
   line-height: 1.65;
 }
@@ -171,8 +173,8 @@ body.auth-body {
   gap: 0.6rem;
   width: fit-content;
   padding: 0.6rem 0.9rem;
-  border: 1px solid rgba(234, 227, 217, 0.18);
-  color: rgba(234, 227, 217, 0.82);
+  border: 1px solid rgb(var(--brand-cream-rgb) / 0.18);
+  color: rgb(var(--brand-cream-rgb) / 0.82);
   font-family: var(--auth-font-ui);
   font-size: 0.76rem;
   font-weight: 700;
@@ -189,7 +191,7 @@ body.auth-body {
 
 .auth-rail__fineprint {
   margin: 0;
-  color: rgba(234, 227, 217, 0.42);
+  color: rgb(var(--brand-cream-rgb) / 0.42);
   font-size: 0.82rem;
   line-height: 1.65;
 }
@@ -219,7 +221,7 @@ body.auth-body {
   background: var(--auth-surface);
   border: 1px solid var(--auth-rule);
   border-radius: 16px;
-  box-shadow: 0 18px 50px rgba(31, 15, 12, 0.12);
+  box-shadow: 0 18px 50px rgb(var(--brand-maroon-rgb) / 0.12);
 }
 
 .auth-panel--narrow {
@@ -298,7 +300,7 @@ body.auth-body {
 .auth-alert {
   padding: 0.85rem 1rem;
   border: 1px solid var(--auth-accent);
-  background: rgba(177, 30, 42, 0.07);
+  background: rgb(var(--brand-maroon-rgb) / 0.07);
   color: var(--auth-accent);
   margin-bottom: 1rem;
 }
@@ -355,7 +357,7 @@ body.auth-body {
 
 .auth-form__input:focus {
   border-color: var(--auth-accent);
-  box-shadow: 0 0 0 3px rgba(177, 30, 42, 0.14);
+  box-shadow: 0 0 0 3px rgb(var(--brand-maroon-rgb) / 0.14);
 }
 
 .auth-form__button {
@@ -375,7 +377,7 @@ body.auth-body {
 }
 
 .auth-form__button:hover {
-  background: var(--kiosk-maroon, #4A1A12);
+  background: var(--kiosk-maroon);
 }
 
 .auth-form__footer {
@@ -526,14 +528,14 @@ body.auth-body {
 
 .otp-digit:focus {
   border-color: var(--auth-accent);
-  box-shadow: 0 0 0 3px rgba(177, 30, 42, 0.14);
+  box-shadow: 0 0 0 3px rgb(var(--brand-maroon-rgb) / 0.14);
 }
 
 /* ── Password strength (folded in from orphaned auth-change-password.css) ── */
 .strength-meter {
   height: 6px;
   border-radius: 9999px;
-  background: rgba(31, 15, 12, 0.12);
+  background: rgb(var(--brand-maroon-rgb) / 0.12);
   overflow: hidden;
 }
 
@@ -568,7 +570,7 @@ body.auth-body {
 }
 
 .auth-table th {
-  background: rgba(31, 15, 12, 0.05);
+  background: rgb(var(--brand-maroon-rgb) / 0.05);
   color: var(--auth-ink);
   font-family: var(--auth-font-ui);
   font-size: 0.72rem;
@@ -603,7 +605,7 @@ body.auth-body {
 }
 
 .auth-mini-button:hover {
-  background: rgba(31, 15, 12, 0.06);
+  background: rgb(var(--brand-maroon-rgb) / 0.06);
 }
 
 .auth-mini-button--danger {
@@ -612,7 +614,7 @@ body.auth-body {
 }
 
 .auth-mini-button--danger:hover {
-  background: rgba(177, 30, 42, 0.08);
+  background: rgb(var(--brand-maroon-rgb) / 0.08);
 }
 
 .auth-card-grid {

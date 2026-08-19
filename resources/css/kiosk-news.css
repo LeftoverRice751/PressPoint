@@ -15,15 +15,17 @@
  *     .paper-slot--secondary    "ALSO IN THIS ISSUE", 2-up cards
  *     .paper-slot--widget       "BULLETIN" — boxed, a different object
  *   .news-reader                full-screen reader overlay
- *   .news-back                  88px fixed crimson stripe (mirrors .map-back)
+ *   .news-back                  88px fixed gold stripe (mirrors .map-back)
  *
  * Type: display face for masthead + headlines only; body face for all
  * running copy at 1.25rem/1.6. Hierarchy comes from SIZE, not weight,
  * and headlines are mixed case — all-caps destroys word-shape
  * recognition, which is what makes text scannable at kiosk distance.
  *
- * Accent (crimson) is spent in exactly three places: the kicker, the
+ * Accent (brand gold) is spent in exactly three places: the kicker, the
  * drop cap, and the back stripe. Solid fills only; never gradients.
+ * Gold on cream is low-contrast, so anywhere gold carries TEXT it must be
+ * a fill with --accent-ink on top, not gold type on the cream ground.
  *
  * This file also styles the Gears dashboard news editor, which includes
  * the same kiosk/_news_slots.html partial. Kiosk-only rules are scoped
@@ -31,13 +33,13 @@
  */
 
 :root {
-    --paper-white:  var(--kiosk-cream,     #EAE3D9);
-    --paper-cream:  var(--kiosk-paper,     #F4EFE6);
-    --paper-ink:    var(--kiosk-espresso,  #1F0F0C);
-    --paper-muted:  var(--kiosk-ink-muted, rgba(31,15,12,0.62));
-    --paper-line:   var(--kiosk-rule,      rgba(31,15,12,0.18));
-    --paper-orange: var(--kiosk-crimson,   #B11E2A);
-    --paper-deep:   var(--kiosk-maroon,    #4A1A12);
+    --paper-white:  var(--surface);
+    --paper-cream:  var(--surface-raised);
+    --paper-ink:    var(--ink);
+    --paper-muted:  var(--ink-muted);
+    --paper-line:   var(--rule);
+    --paper-orange: var(--accent);
+    --paper-deep:   var(--brand-maroon);
 
     --paper-stripe-h: 88px;
 }
@@ -56,11 +58,11 @@ body.newspaper-bg {
     display: flex;
     flex-direction: column;
     min-height: 100dvh;
-    padding: var(--kiosk-s-4, 20px) var(--kiosk-s-3, 14px)
-             calc(var(--paper-stripe-h) + var(--kiosk-s-5, 28px));
+    padding: var(--kiosk-s-4) var(--kiosk-s-3)
+             calc(var(--paper-stripe-h) + var(--kiosk-s-5));
     background: var(--paper-white);
     color: var(--paper-ink);
-    font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
+    font-family: var(--font-body);
 }
 
 .paper-container {
@@ -83,11 +85,11 @@ body.newspaper-bg .paper-slot__label {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--kiosk-s-3, 12px);
+    gap: var(--kiosk-s-3);
     padding-bottom: 10px;
     border-bottom: 1px solid var(--paper-line);
     color: var(--paper-muted);
-    font-family: var(--kiosk-font-mono, "JetBrains Mono", monospace);
+    font-family: var(--font-mono);
     font-size: 0.72rem;
     font-weight: 500;
     letter-spacing: 0.18em;
@@ -112,15 +114,24 @@ body.newspaper-bg .paper-slot__label {
 }
 
 /* One line, always — a broadsheet nameplate never wraps. Sized so
-   "THE GEARS PUBLICATION" fits the 768px kiosk content box with room. */
+   "THE GEARS PUBLICATION" fits the 768px kiosk content box with room.
+   Times New Roman is a stated requirement for this nameplate and overrides the
+   '26–'27 brand sheet here, and only here — everything else stays on the brand
+   faces. --font-masthead falls through to Tinos, which is metrically identical
+   to Times, so the Linux kiosk (which has no Times New Roman) sets the same
+   widths and breaks as an editor's Windows machine.
+   Tracking is 0.02em, down from the 0.06em this rule carried for the display
+   face: Times has a wider natural sidebearing at these sizes, and with nowrap
+   the old value pushed "THE GEARS PUBLICATION" past the 768px measure.
+   Measured 360-1440px — it fits at every step, with no horizontal overflow. */
 .paper-masthead {
     margin: clamp(14px, 2vw, 22px) 0 0;
     color: var(--paper-ink);
-    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-family: var(--font-masthead);
+    letter-spacing: 0.02em;
     font-size: clamp(2rem, 5.2vw, 4.2rem);
     font-weight: 700;
     line-height: 0.94;
-    letter-spacing: 0.06em;
     text-align: center;
     text-transform: uppercase;
     white-space: nowrap;
@@ -139,11 +150,11 @@ body.newspaper-bg .paper-slot__label {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--kiosk-s-3, 12px);
+    gap: var(--kiosk-s-3);
     margin-top: 8px;
     padding-bottom: clamp(16px, 2.2vw, 26px);
     color: var(--paper-muted);
-    font-family: var(--kiosk-font-mono, "JetBrains Mono", monospace);
+    font-family: var(--font-mono);
     font-size: 0.68rem;
     letter-spacing: 0.2em;
     text-transform: uppercase;
@@ -174,7 +185,7 @@ body.newspaper-bg .paper-slot__label {
     object-fit: cover;
     display: block;
     border: 1px solid var(--paper-line);
-    background: rgba(31, 15, 12, 0.08);
+    background: rgb(var(--brand-maroon-rgb) / 0.08);
 }
 
 /* Cutline: caption reads as running copy; the credit is agate — small,
@@ -199,7 +210,7 @@ body.newspaper-bg .paper-slot__label {
 .feature-story__credit {
     flex: 0 0 auto;
     color: var(--paper-muted);
-    font-family: var(--kiosk-font-mono, "JetBrains Mono", monospace);
+    font-family: var(--font-mono);
     font-size: 0.66rem;
     font-weight: 500;
     letter-spacing: 0.16em;
@@ -209,8 +220,8 @@ body.newspaper-bg .paper-slot__label {
 
 .feature-story__kicker {
     display: block;
-    color: var(--paper-orange);
-    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    color: var(--accent-text);
+    font-family: var(--font-heading);
     font-size: 0.82rem;
     font-weight: 700;
     letter-spacing: 0.22em;
@@ -220,7 +231,7 @@ body.newspaper-bg .paper-slot__label {
 .feature-story__title {
     margin: 10px 0 0;
     color: var(--paper-ink);
-    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-family: var(--font-display);
     font-size: clamp(2.1rem, 5.4vw, 3.25rem);
     font-weight: 700;
     line-height: 1.04;
@@ -283,8 +294,8 @@ body.newspaper-bg .feature-story__copy {
     float: left;
     margin-right: 0.08em;
     margin-top: 0.04em;
-    color: var(--paper-orange);
-    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    color: var(--accent-text);
+    font-family: var(--font-display);
     font-size: 3.4rem;
     line-height: 0.82;
     font-weight: 700;
@@ -295,19 +306,19 @@ body.newspaper-bg .feature-story__copy {
     display: none;
     align-items: center;
     gap: 0.7rem;
-    min-height: var(--kiosk-touch-min, 56px);
+    min-height: var(--kiosk-touch-min);
     padding: 0 1.5rem;
     background: transparent;
     border: 2px solid var(--paper-ink);
     color: var(--paper-ink);
-    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    font-family: var(--font-heading);
     font-size: 1rem;
     font-weight: 700;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     cursor: pointer;
-    transition: background var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, ease),
-                color var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, ease);
+    transition: background var(--kiosk-dur-fast) var(--kiosk-ease),
+                color var(--kiosk-dur-fast) var(--kiosk-ease);
 }
 
 .feature-story__more.is-visible {
@@ -324,10 +335,10 @@ body.newspaper-bg .feature-story__copy {
 .paper-section-head {
     display: flex;
     align-items: center;
-    gap: var(--kiosk-s-3, 14px);
+    gap: var(--kiosk-s-3);
     margin-bottom: clamp(16px, 2.2vw, 24px);
     color: var(--paper-ink);
-    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    font-family: var(--font-heading);
     font-size: 0.86rem;
     font-weight: 700;
     letter-spacing: 0.24em;
@@ -367,14 +378,14 @@ body.newspaper-bg .feature-story__copy {
     height: 108px;
     object-fit: cover;
     display: block;
-    background: rgba(31, 15, 12, 0.08);
+    background: rgb(var(--brand-maroon-rgb) / 0.08);
     border: 1px solid var(--paper-line);
 }
 
 .secondary-story__title {
     margin: 0;
     color: var(--paper-ink);
-    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-family: var(--font-display);
     font-size: 1.35rem;
     font-weight: 700;
     line-height: 1.14;
@@ -390,7 +401,7 @@ body.newspaper-bg .feature-story__copy {
 
 .secondary-story__date {
     color: var(--paper-muted);
-    font-family: var(--kiosk-font-mono, "JetBrains Mono", monospace);
+    font-family: var(--font-mono);
     font-size: 0.7rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -408,8 +419,8 @@ body.newspaper-bg .feature-story__copy {
 .paper-slot__eyebrow {
     display: block;
     margin-bottom: 10px;
-    color: var(--paper-orange);
-    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    color: var(--accent-text);
+    font-family: var(--font-heading);
     font-size: 0.74rem;
     font-weight: 700;
     letter-spacing: 0.24em;
@@ -440,7 +451,7 @@ body.newspaper-bg .feature-story__copy {
 .info-card__title {
     margin: 0;
     color: var(--paper-ink);
-    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-family: var(--font-display);
     font-size: 1.25rem;
     font-weight: 700;
     line-height: 1.16;
@@ -495,8 +506,8 @@ body.newspaper-bg .feature-story__copy {
 
 .news-reader__kicker {
     display: block;
-    color: var(--paper-orange);
-    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    color: var(--accent-text);
+    font-family: var(--font-heading);
     font-size: 0.82rem;
     font-weight: 700;
     letter-spacing: 0.22em;
@@ -506,7 +517,7 @@ body.newspaper-bg .feature-story__copy {
 .news-reader__title {
     margin: 10px 0 0;
     color: var(--paper-ink);
-    font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+    font-family: var(--font-display);
     font-size: clamp(1.9rem, 4.6vw, 2.6rem);
     font-weight: 700;
     line-height: 1.08;
@@ -554,7 +565,7 @@ body.newspaper-bg .feature-story__copy {
     border: 0;
     border-top: 4px solid var(--paper-ink);
     color: var(--paper-cream);
-    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
+    font-family: var(--font-heading);
     text-align: left;
     cursor: pointer;
 }
@@ -591,14 +602,20 @@ body.newspaper-bg .feature-story__copy {
     padding: 0 1.5rem;
     background: var(--paper-orange);
     border-top: 4px solid var(--paper-ink);
-    color: var(--paper-cream);
+    /* Maroon on gold (8.2:1), not cream on gold — cream measured 1.46:1 on the
+       running kiosk, i.e. the primary way out of this screen was unreadable at
+       arm's length. Gold is a fill; what sits on it is --accent-ink. */
+    color: var(--accent-ink);
     text-decoration: none;
-    font-family: var(--kiosk-font-ui, "Gilroy", "Futura", sans-serif);
-    transition: background var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, ease);
+    font-family: var(--font-heading);
+    transition: background var(--kiosk-dur-fast) var(--kiosk-ease);
 }
 
+/* Pressed state inverts to the deep maroon field, so the label has to invert
+   with it or it repeats the same maroon-on-maroon failure on touch. */
 .news-back:active {
     background: var(--paper-deep);
+    color: var(--brand-cream);
 }
 
 .news-back__arrow {
@@ -614,7 +631,7 @@ body.newspaper-bg .feature-story__copy {
 }
 
 .news-back__hint {
-    font-family: var(--kiosk-font-mono, "JetBrains Mono", monospace);
+    font-family: var(--font-mono);
     font-size: 0.7rem;
     letter-spacing: 0.16em;
     text-transform: uppercase;

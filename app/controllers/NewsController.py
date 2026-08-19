@@ -22,12 +22,77 @@ from app.services.ImageDerivatives import generate_variants, variant_path, varia
 from app.services.StorageRouter import absolute_path, is_safe_path
 
 
+# The fonts an editor may choose. THIS LIST IS THE AUTHORITY: a ql-font-* class
+# naming anything not in here is stripped on save, so adding a face to the CSS
+# or the editor without adding it here means it silently vanishes on publish.
+# Keep in sync with resources/css/newsletter-type.css and the FONTS array in
+# resources/js/news-dashboard.js — the header comment in the CSS lists all four
+# places that have to agree.
+NEWSLETTER_FONTS = [
+    "playfair",
+    "lora",
+    "tinos",
+    "archivo-black",
+    "bebas",
+    "alfa-slab",
+    "space-grotesk",
+    "caveat",
+    "jetbrains-mono",
+]
+_NEWSLETTER_SIZES = ["small", "large", "huge"]  # "normal" is the absence of a class
+
 # The story body is authored in a rich-text editor (Quill) and rendered as HTML
 # on the kiosk news page, so it MUST be sanitized on write. Only this small,
 # formatting-only allowlist survives; everything else (scripts, event handlers,
 # style, iframes, etc.) is stripped.
-_ALLOWED_TAGS = ["p", "br", "strong", "em", "u", "s", "h2", "h3", "blockquote", "ul", "ol", "li", "a"]
-_ALLOWED_ATTRS = {"a": ["href", "title", "rel", "target"]}
+_ALLOWED_TAGS = [
+    "p", "br", "strong", "em", "u", "s", "h2", "h3", "blockquote", "ul", "ol", "li", "a",
+    # Quill's carrier for an inline font/size run. It has no semantics of its
+    # own and no attributes beyond the class filter below.
+    "span",
+]
+
+# Every class Quill can legitimately emit, as an exact set. Building it here
+# rather than matching a regex like r"ql-font-[\w-]+" means an attacker cannot
+# invent `ql-font-anything` and have it survive: the value must be a member.
+_ALLOWED_CLASSES = frozenset(
+    [f"ql-font-{slug}" for slug in NEWSLETTER_FONTS]
+    + [f"ql-size-{name}" for name in _NEWSLETTER_SIZES]
+    + ["ql-align-center", "ql-align-right", "ql-align-justify"]
+    + [f"ql-indent-{n}" for n in (1, 2, 3)]
+)
+
+
+def _allow_class(tag, name, value):
+    """bleach attribute filter: permit only known Quill formatting classes.
+
+    bleach hands us the raw attribute value, which for `class` may hold several
+    space-separated names (Quill stacks them — `ql-font-bebas ql-size-huge`).
+    bleach's filter API is all-or-nothing per attribute, so a single unknown
+    name drops the whole attribute rather than being quietly filtered out of it;
+    that is the conservative direction and it cannot be used to smuggle one in.
+    """
+    if name != "class":
+        return False
+    names = value.split()
+    return bool(names) and all(n in _ALLOWED_CLASSES for n in names)
+
+
+# `class` is allowed only on the elements Quill actually puts formatting on.
+# Before this, no element allowed `class` at all, which meant alignment and
+# indent were silently destroyed on every save even though the editor offered
+# them. Note `style` is still allowed nowhere: fonts are carried by class, so
+# there is no reason to accept inline CSS (and no need for bleach's optional
+# tinycss2 dependency, which isn't installed).
+_ALLOWED_ATTRS = {
+    "a": ["href", "title", "rel"],
+    "span": _allow_class,
+    "p": _allow_class,
+    "li": _allow_class,
+    "h2": _allow_class,
+    "h3": _allow_class,
+    "blockquote": _allow_class,
+}
 
 
 def _sanitize_news_html(raw_html):
@@ -39,8 +104,21 @@ def _sanitize_news_html(raw_html):
         protocols=["http", "https", "mailto"],
         strip=True,
     )
-    # Force external links to open safely.
+    # Auto-link bare URLs. `nofollow` is an SEO hint, not a security control —
+    # the actual safety here is that `target` is no longer an allowed attribute,
+    # so a stored target="_blank" can't reach the kiosk without rel="noopener"
+    # and hand the opened page a window.opener handle back to us.
     return bleach.linkify(cleaned, callbacks=[bleach.callbacks.nofollow]) if cleaned else cleaned
+
+
+def normalize_headline_font(value):
+    """Slug for the per-story furniture font, or None for the brand face.
+
+    Validated against the same list the sanitizer uses, so the dropdown and the
+    body allowlist can never drift apart.
+    """
+    slug = (value or "").strip().lower()
+    return slug if slug in NEWSLETTER_FONTS else None
 
 
 def _html_to_text(html):
@@ -142,7 +220,7 @@ def _pusher_configured():
 # reloads every 30s per device — but written rarely (an editor publishing/
 # deleting a story), so it's cached and explicitly invalidated on write
 # rather than re-scanning the whole table on every single request.
-_NEWS_CACHE_KEY = "kiosk:news:index:v3"  # bump on projection changes to drop stale entries
+_NEWS_CACHE_KEY = "kiosk:news:index:v4"  # bump on projection changes to drop stale entries
 _NEWS_CACHE_TTL = 300  # seconds — safety net only; writes invalidate explicitly.
 
 
@@ -172,6 +250,7 @@ def _news_item_to_dict(item, disk=None):
         "image_caption": getattr(item, "image_caption", None),
         "image_credit": getattr(item, "image_credit", None),
         "layout_type": getattr(item, "layout_type", None),
+        "headline_font": getattr(item, "headline_font", None),
         "priority": getattr(item, "priority", None),
         "status": getattr(item, "status", None),
         "published_at": published_at.isoformat() if hasattr(published_at, "isoformat") else None,
@@ -267,6 +346,10 @@ class NewsController(Controller):
         # in from the contenteditable region. Optional; the front page falls
         # back to a truncated body when it's blank (kiosk/_news_slots.html).
         excerpt = _html_to_text(request.input("excerpt") or "").strip()
+        # Unrecognised slugs normalise to None (the brand face) rather than
+        # erroring — the dropdown is the only legitimate source, so a bad value
+        # means a stale form, not something worth failing an editor's publish over.
+        headline_font = normalize_headline_font(request.input("headline_font"))
         image_caption = _html_to_text(request.input("image_caption") or "").strip()
         image_credit = _html_to_text(request.input("image_credit") or "").strip()
         layout_type = (request.input("layout_type") or "secondary").strip().lower() or "secondary"
@@ -384,6 +467,7 @@ class NewsController(Controller):
                 existing.location = location or None
                 existing.dek = dek or None
                 existing.excerpt = excerpt or None
+                existing.headline_font = headline_font
                 existing.image_caption = image_caption or None
                 existing.image_credit = image_credit or None
                 existing.layout_type = layout_type
@@ -411,6 +495,7 @@ class NewsController(Controller):
                     location=location or None,
                     dek=dek or None,
                     excerpt=excerpt or None,
+                    headline_font=headline_font,
                     image_caption=image_caption or None,
                     image_credit=image_credit or None,
                     layout_type=layout_type,

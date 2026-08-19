@@ -64,6 +64,13 @@
         form.addEventListener('submit', function () {
             syncOtp();
         });
+
+        // Must be wired after the syncOtp listener above: submit listeners
+        // fire in registration order, so the hidden `otp` field is already
+        // populated by the time guardForm's handler reads the form's data.
+        if (window.RateLimitModal) {
+            window.RateLimitModal.guardForm(form);
+        }
     }
 
     if (inputs[0]) {

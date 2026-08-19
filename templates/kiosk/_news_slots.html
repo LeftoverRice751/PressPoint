@@ -38,7 +38,7 @@
   <div{% if news_editor %} data-news-slot-list="main"{% endif %}>
   {% if main_story %}
   {% set ns.pos = ns.pos + 1 %}
-  <article class="feature-story" data-news-id="{{ main_story.id }}"{% if news_editor %} data-news-context-menu="main"{% endif %}>
+  <article class="feature-story{% if main_story.headline_font %} story-font-{{ main_story.headline_font }}{% endif %}" data-news-id="{{ main_story.id }}"{% if news_editor %} data-news-context-menu="main"{% endif %}>
     {% if news_editor %}
     <div class="news-card-controls" role="group" aria-label="Reorder {{ main_story.title }}">
       <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
@@ -123,7 +123,7 @@
   <div class="secondary-grid"{% if news_editor %} data-news-slot-list="secondary"{% endif %}>
     {% for news in secondary_stories %}
     {% set ns.pos = ns.pos + 1 %}
-    <article class="secondary-story" data-news-id="{{ news.id }}"{% if news_editor %} data-news-context-menu="secondary"{% endif %}>
+    <article class="secondary-story{% if news.headline_font %} story-font-{{ news.headline_font }}{% endif %}" data-news-id="{{ news.id }}"{% if news_editor %} data-news-context-menu="secondary"{% endif %}>
       {% if news_editor %}
       <div class="news-card-controls" role="group" aria-label="Reorder {{ news.title }}">
         <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
@@ -192,7 +192,7 @@
     {% for widget in widget_news %}
     <div class="widget-grid__cell"{% if news_editor %} data-news-slot-list="widget" data-news-slot-position="{{ loop.index }}"{% endif %}>
       {% set ns.pos = ns.pos + 1 %}
-      <article class="info-card" data-news-id="{{ widget.id }}"{% if news_editor %} data-news-context-menu="widget"{% endif %}>
+      <article class="info-card{% if widget.headline_font %} story-font-{{ widget.headline_font }}{% endif %}" data-news-id="{{ widget.id }}"{% if news_editor %} data-news-context-menu="widget"{% endif %}>
         {% if news_editor %}
         <div class="news-card-controls" role="group" aria-label="Reorder {{ widget.title }}">
           <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>

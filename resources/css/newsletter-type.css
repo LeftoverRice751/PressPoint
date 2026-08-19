@@ -1,0 +1,262 @@
+/*
+ * Newsletter typography — the fonts an editor can pick in the news composer,
+ * and the classes that carry that choice onto the kiosk.
+ *
+ * Loaded by BOTH surfaces (templates/kiosk/news.html and
+ * templates/gears/dashboard.html) and that is not optional: the kiosk never
+ * loads quill.snow.css, so if these classes lived in Quill's stylesheet the
+ * editor would show a font the kiosk could not render.
+ *
+ * Every face here is OFL or Apache-2.0 and self-hosted from /assets/fonts/,
+ * with its licence text in resources/fonts/LICENSES/. The families in
+ * resources/newsletter-fonts/ are deliberately NOT used — most of them forbid
+ * exactly this (Gotham: "you may not host it from any location"; Circular Std:
+ * "excludes storing on publicly available servers"), and several are trial,
+ * demo or self-identified rips. See resources/fonts/README.md.
+ *
+ * Self-hosted rather than linked from Google's CDN because the kiosk is a
+ * campus terminal that has to keep working when the campus wifi does not.
+ *
+ * ── Adding a font ───────────────────────────────────────────────────────────
+ * Four places, and all four must agree or the choice silently degrades:
+ *   1. resources/fonts/<Family>/  + its licence in resources/fonts/LICENSES/
+ *   2. an @font-face here, plus .ql-font-<slug> and .story-font-<slug>
+ *   3. NEWSLETTER_FONTS in app/controllers/NewsController.py  (the server enum)
+ *   4. FONTS in resources/js/news-dashboard.js                (the editor list)
+ * The server enum is the authority: a class it does not recognise is stripped
+ * on save, so a font added everywhere except (3) will vanish when published.
+ */
+
+/* ── Faces ──────────────────────────────────────────────────────────────── */
+/* Latin subsets only — the kiosk renders English and Filipino, and pulling
+   cyrillic/greek would roughly triple the bytes for glyphs nothing shows. */
+
+@font-face {
+  font-family: "Tinos";
+  src: url("/assets/fonts/Tinos/tinos-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Tinos";
+  src: url("/assets/fonts/Tinos/tinos-bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* The five below are variable fonts: one file covers the whole weight axis,
+   declared as a range. Shipping a copy per weight would have doubled the
+   bytes for byte-identical files. */
+@font-face {
+  font-family: "Playfair Display";
+  src: url("/assets/fonts/PlayfairDisplay/playfair-variable.woff2") format("woff2");
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Lora";
+  src: url("/assets/fonts/Lora/lora-variable.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("/assets/fonts/SpaceGrotesk/space-grotesk-variable.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Caveat";
+  src: url("/assets/fonts/Caveat/caveat-variable.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/fonts/JetBrainsMono/jetbrains-mono-variable.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Archivo Black";
+  src: url("/assets/fonts/ArchivoBlack/archivo-black-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bebas Neue";
+  src: url("/assets/fonts/BebasNeue/bebas-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alfa Slab One";
+  src: url("/assets/fonts/AlfaSlabOne/alfa-slab-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Font stacks ────────────────────────────────────────────────────────── */
+/* Named once so the run classes, the story classes and the picker preview all
+   resolve to the same stack. --font-masthead is the Times New Roman slot: an
+   editor on Windows or macOS gets the real face, and the Linux kiosk (which
+   has no Times New Roman) falls to Tinos, which is metrically identical —
+   same widths, same line breaks, so the nameplate measures the same anywhere. */
+:root {
+  --font-masthead:      "Times New Roman", "Tinos", "Liberation Serif", Times, serif;
+  --nl-playfair:        "Playfair Display", Georgia, serif;
+  --nl-lora:            "Lora", Georgia, serif;
+  --nl-tinos:           "Tinos", "Times New Roman", Times, serif;
+  --nl-archivo-black:   "Archivo Black", Impact, sans-serif;
+  --nl-bebas:           "Bebas Neue", "Arial Narrow", sans-serif;
+  --nl-alfa-slab:       "Alfa Slab One", Rockwell, Georgia, serif;
+  --nl-space-grotesk:   "Space Grotesk", "Helvetica Neue", sans-serif;
+  --nl-caveat:          "Caveat", "Comic Sans MS", cursive;
+  --nl-jetbrains-mono:  "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+/* ── Inline runs inside a story body ────────────────────────────────────── */
+/* Quill emits <span class="ql-font-x">. The kiosk renders that body through
+   TWO unrelated selectors — .feature-story__copy on the front page, and
+   .news-reader__body in the reader overlay, which kiosk-news.js populates by
+   copying innerHTML across. Anything scoped to only one of them appears on the
+   page and vanishes when a reader taps "Continue reading", so these are left
+   deliberately unscoped. */
+.ql-font-playfair       { font-family: var(--nl-playfair); }
+.ql-font-lora           { font-family: var(--nl-lora); }
+.ql-font-tinos          { font-family: var(--nl-tinos); }
+.ql-font-archivo-black  { font-family: var(--nl-archivo-black); }
+.ql-font-bebas          { font-family: var(--nl-bebas); }
+.ql-font-alfa-slab      { font-family: var(--nl-alfa-slab); }
+.ql-font-space-grotesk  { font-family: var(--nl-space-grotesk); }
+.ql-font-caveat         { font-family: var(--nl-caveat); }
+.ql-font-jetbrains-mono { font-family: var(--nl-jetbrains-mono); }
+
+/* ── Size ───────────────────────────────────────────────────────────────── */
+/* Relative to the surrounding copy, never absolute: the kiosk body is 1.25rem
+   on the front page and 1.4rem in the reader, so a fixed px size would be
+   wrong in one of them. A fixed set of four, because free numeric entry is how
+   a story gets published at 8px or 90px and breaks the column. */
+.ql-size-small { font-size: 0.82em; }
+.ql-size-large { font-size: 1.35em; line-height: 1.35; }
+.ql-size-huge  { font-size: 1.9em;  line-height: 1.2; }
+
+/* Display faces carry far more visual weight than the body face at the same
+   nominal size; Bebas in particular is condensed and reads small. */
+.ql-font-bebas.ql-size-huge,
+.ql-font-bebas.ql-size-large { letter-spacing: 0.02em; }
+
+/* ── Alignment and indent ───────────────────────────────────────────────── */
+/* These were already reachable in the editor but the sanitizer allowed no
+   class attribute at all, so they were silently destroyed on save. */
+.ql-align-center  { text-align: center; }
+.ql-align-right   { text-align: right; }
+.ql-align-justify { text-align: justify; }
+
+.ql-indent-1 { padding-left: 3em; }
+.ql-indent-2 { padding-left: 6em; }
+.ql-indent-3 { padding-left: 9em; }
+
+/* A centred or right-aligned line inside the kiosk's justified broadsheet
+   column has to win, or body.newspaper-bg's `text-align: justify` overrides it. */
+body.newspaper-bg .feature-story__copy .ql-align-center  { text-align: center; }
+body.newspaper-bg .feature-story__copy .ql-align-right   { text-align: right; }
+
+/* ── Per-story furniture font ───────────────────────────────────────────── */
+/* Set from the composer's "Headline font" dropdown and rendered as a class on
+   the story root. The headline/dek/kicker columns stay plain text and stay
+   escaped — this deliberately adds no new HTML sink. Body copy is excluded so
+   a display face chosen for a headline can't land on a paragraph of running
+   text, where faces like Alfa Slab or Caveat are unreadable at kiosk distance. */
+.story-font-playfair       .feature-story__title,
+.story-font-playfair       .secondary-story__title,
+.story-font-playfair       .info-card__title       { font-family: var(--nl-playfair); }
+.story-font-lora           .feature-story__title,
+.story-font-lora           .secondary-story__title,
+.story-font-lora           .info-card__title       { font-family: var(--nl-lora); }
+.story-font-tinos          .feature-story__title,
+.story-font-tinos          .secondary-story__title,
+.story-font-tinos          .info-card__title       { font-family: var(--nl-tinos); }
+.story-font-archivo-black  .feature-story__title,
+.story-font-archivo-black  .secondary-story__title,
+.story-font-archivo-black  .info-card__title       { font-family: var(--nl-archivo-black); }
+.story-font-bebas          .feature-story__title,
+.story-font-bebas          .secondary-story__title,
+.story-font-bebas          .info-card__title       { font-family: var(--nl-bebas); }
+.story-font-alfa-slab      .feature-story__title,
+.story-font-alfa-slab      .secondary-story__title,
+.story-font-alfa-slab      .info-card__title       { font-family: var(--nl-alfa-slab); }
+.story-font-space-grotesk  .feature-story__title,
+.story-font-space-grotesk  .secondary-story__title,
+.story-font-space-grotesk  .info-card__title       { font-family: var(--nl-space-grotesk); }
+.story-font-caveat         .feature-story__title,
+.story-font-caveat         .secondary-story__title,
+.story-font-caveat         .info-card__title       { font-family: var(--nl-caveat); }
+
+/* ── Picker previews (editor only) ──────────────────────────────────────── */
+/* Quill renders the dropdown from data-value, so each option is labelled and
+   set in its own face — an editor picks a font by seeing it, not by reading a
+   name. The ::before content is what puts a readable label there at all;
+   without it Quill shows the raw slug. */
+.ql-snow .ql-picker.ql-font { width: 152px; }
+
+.ql-snow .ql-picker.ql-font .ql-picker-label::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item::before { content: "Brand"; }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="playfair"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="playfair"]::before
+  { content: "Playfair"; font-family: var(--nl-playfair); }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="lora"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="lora"]::before
+  { content: "Lora"; font-family: var(--nl-lora); }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="tinos"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="tinos"]::before
+  { content: "Tinos"; font-family: var(--nl-tinos); }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="archivo-black"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="archivo-black"]::before
+  { content: "Archivo"; font-family: var(--nl-archivo-black); }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="bebas"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="bebas"]::before
+  { content: "Bebas"; font-family: var(--nl-bebas); }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="alfa-slab"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="alfa-slab"]::before
+  { content: "Alfa Slab"; font-family: var(--nl-alfa-slab); }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="space-grotesk"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="space-grotesk"]::before
+  { content: "Grotesk"; font-family: var(--nl-space-grotesk); }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="caveat"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="caveat"]::before
+  { content: "Caveat"; font-family: var(--nl-caveat); }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="jetbrains-mono"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="jetbrains-mono"]::before
+  { content: "Mono"; font-family: var(--nl-jetbrains-mono); }
+
+.ql-snow .ql-picker.ql-size { width: 96px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item::before { content: "Normal"; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="small"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="small"]::before
+  { content: "Small"; font-size: 0.82em; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="large"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="large"]::before
+  { content: "Large"; font-size: 1.3em; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="huge"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="huge"]::before
+  { content: "Huge"; font-size: 1.7em; }
