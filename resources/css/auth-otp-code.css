@@ -7,21 +7,21 @@
 .otp-digit {
   width: 100%;
   height: 3.5rem;
-  border: 1px solid rgba(31, 15, 12, 0.40);
+  border: 1px solid rgb(var(--brand-maroon-rgb) / 0.40);
   border-radius: 0;
   text-align: center;
   font-size: 1.5rem;
   font-weight: 700;
-  font-family: var(--kiosk-font-ui, "Gilroy", "Century Gothic", sans-serif);
-  color: var(--kiosk-espresso, #1F0F0C);
-  background: var(--kiosk-cream, #EAE3D9);
+  font-family: var(--font-heading);
+  color: var(--kiosk-espresso);
+  background: var(--kiosk-cream);
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .otp-digit:focus {
-  border-color: var(--kiosk-crimson, #B11E2A);
-  box-shadow: 0 0 0 3px rgba(177, 30, 42, 0.14);
+  border-color: var(--kiosk-crimson);
+  box-shadow: 0 0 0 3px rgb(var(--brand-maroon-rgb) / 0.14);
 }
 
 @media (max-width: 480px) {

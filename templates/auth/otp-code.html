@@ -49,6 +49,11 @@
 </section>
 {% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="{{ asset_url('css/rate-limit-modal.css') }}">
+{% endblock %}
+
 {% block js %}
+<script src="{{ asset_url('js/rate-limit-modal.js') }}" defer></script>
 <script src="{{ asset_url('js/auth-otp-code.js') }}" defer></script>
 {% endblock %}

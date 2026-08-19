@@ -2,11 +2,12 @@
  * Mobile route page — phone viewport.
  *
  * Layout:
- *   header (title)
+ *   header (title, destination, live-tracking status pill)
  *   map        <- flex-grow, takes everything left
- *   finish button (sticky bottom)
+ *   finish button (sticky bottom, now a fallback since GPS arrival is automatic)
  *
  * The expired notice and the success modal are overlays sitting on top.
+ * Flat colors throughout, no gradients — same rule as the rest of the kiosk.
  */
 
 * { box-sizing: border-box; }
@@ -14,8 +15,8 @@
 html, body {
     margin: 0;
     height: 100%;
-    background: #0f172a;
-    color: #e2e8f0;
+    background: var(--n-900);
+    color: var(--n-200);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -27,7 +28,11 @@ html, body {
 }
 
 .mobile-route__header {
-    padding: 1rem 1.25rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+    padding: 1.25rem 1.25rem 0.75rem;
     flex: 0 0 auto;
 }
 
@@ -39,37 +44,71 @@ html, body {
 }
 
 .mobile-route__subtitle {
-    margin: 0.25rem 0 0;
+    margin: 0;
     font-size: 0.9rem;
-    color: #94a3b8;
+    color: var(--n-500);
+}
+
+/* Live-tracking status pill: waiting -> tracking -> unavailable. Empty
+   textContent (before the fetch resolves) collapses it via :empty so it
+   never flashes blank on load. */
+.mobile-route__status {
+    margin: 0;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    background: rgb(var(--n-500-rgb) / 0.16);
+    color: var(--n-200);
+}
+
+.mobile-route__status:empty,
+.mobile-route__status--hidden {
+    display: none;
+}
+
+.mobile-route__status[data-state="tracking"] {
+    background: rgb(var(--ok-rgb) / 0.16);
+    color: #7fd88a;
+}
+
+.mobile-route__status[data-state="unavailable"] {
+    background: rgb(var(--danger-rgb) / 0.16);
+    color: #e5978f;
 }
 
 .mobile-route__map {
     flex: 1 1 auto;
     margin: 0.75rem 1rem;
-    border-radius: 1rem;
+    border-radius: 1.25rem;
     overflow: hidden;
-    background: #1e293b;
+    background: var(--n-900);
+    box-shadow: 0 1px 0 rgb(var(--n-500-rgb) / 0.25) inset;
 }
 
 /* Leaflet defaults to a white background on the container; force the
    dark theme so the campus map image sits cleanly inside our card. */
 .mobile-route__map.leaflet-container {
-    background: #1e293b;
+    background: var(--n-900);
 }
 
 .mobile-route__finish {
     flex: 0 0 auto;
     margin: 0 1rem 1.25rem;
-    padding: 1rem;
-    border: 0;
+    padding: 0.9rem;
+    border: 1.5px solid rgb(var(--n-500-rgb) / 0.4);
     border-radius: 1rem;
-    background: #2563eb;
-    color: white;
-    font-size: 1.1rem;
+    background: transparent;
+    color: var(--n-200);
+    font-size: 1rem;
     font-weight: 700;
     cursor: pointer;
-    transition: opacity 0.15s ease, transform 0.05s ease;
+    transition: opacity 0.15s ease, transform 0.05s ease, background 0.15s ease;
+}
+
+.mobile-route__finish:hover:not(:disabled) {
+    background: rgb(var(--n-500-rgb) / 0.12);
 }
 
 .mobile-route__finish:disabled {
@@ -85,9 +124,9 @@ html, body {
     margin: 1rem;
     padding: 1.25rem;
     border-radius: 1rem;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    color: #fecaca;
+    background: rgb(var(--danger-rgb) / 0.1);
+    border: 1px solid rgb(var(--danger-rgb) / 0.4);
+    color: var(--danger-tint);
     text-align: center;
     font-size: 0.95rem;
 }
@@ -97,39 +136,51 @@ html, body {
 .mobile-route__modal {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.85);
+    background: rgb(var(--n-900-rgb) / 0.92);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 2rem;
     z-index: 1000;
+    animation: mobile-route-fade 0.2s ease;
 }
 
 .mobile-route__modal--hidden { display: none; }
 
 .mobile-route__modal-card {
-    background: #1e293b;
+    background: var(--brand-maroon, #6b2516);
+    border: 1px solid rgb(var(--brand-gold-rgb, 244 190 39) / 0.35);
     border-radius: 1.5rem;
-    padding: 2rem;
+    padding: 2.25rem 2rem;
     text-align: center;
     max-width: 22rem;
     width: 100%;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    animation: mobile-route-pop 0.32s var(--kiosk-ease-spring, ease-out);
 }
 
 .mobile-route__modal-emoji {
-    font-size: 3rem;
-    margin-bottom: 0.5rem;
+    font-size: 2.75rem;
+    margin-bottom: 0.6rem;
 }
 
 .mobile-route__modal-title {
     margin: 0;
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     font-weight: 800;
     color: white;
 }
 
 .mobile-route__modal-body {
     margin: 0.5rem 0 0;
-    color: #cbd5e1;
+    color: rgb(var(--brand-cream-rgb, 233 218 196) / 0.9);
+}
+
+@keyframes mobile-route-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes mobile-route-pop {
+    from { opacity: 0; transform: scale(0.92) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
 }

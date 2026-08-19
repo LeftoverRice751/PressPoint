@@ -1,19 +1,51 @@
+/*
+ * The --ink-* names are a legacy palette namespace ("the ink palette"), not
+ * text colours. They used to hold their own seven hexes, none of which was a
+ * brand colour. They're now thin aliases onto the semantic roles in
+ * kiosk-tokens.css, which re-brands all 219 uses in this file without touching
+ * them — and makes the dashboard follow [data-theme="gears"] for free.
+ *
+ * Note the collapse: the old palette had marigold AND terracotta AND vermillion
+ * where the brand has one accent (gold). Anything that needs to read as
+ * destructive must move to --danger explicitly; it can no longer rely on
+ * vermillion being visually distinct from marigold.
+ *
+ * --ink-oxblood is FILL-ONLY. In the old light design it was the dark ink and
+ * did double duty as both dark text and dark fills; under a dark theme one
+ * token cannot be both, and pointing it at a frozen brand constant made every
+ * one of its 36 foreground uses dark-on-dark (the .stat-card__value and
+ * .field__label were literally #4e1b10 on #4e1b10). Those uses now read --ink /
+ * --ink-strong / --accent-ink depending on what they sit on. Do not reintroduce
+ * `color: var(--ink-oxblood)` — if you want dark text, you want --ink.
+ */
 :root {
-    --ink-cream: #F1ECE3;
-    --ink-paper: #FBF8F1;
-    --ink-marigold: #F39518;
-    --ink-terracotta: #D15B26;
-    --ink-vermillion: #B82221;
-    --ink-oxblood: #491511;
-    --ink-soot: #1F1716;
-    --ink-charcoal: #262321;
-    --ink-rule: rgba(31, 23, 22, 0.14);
-    --ink-rule-strong: rgba(31, 23, 22, 0.28);
-    --ink-muted: #6B5E55;
+    --ink-cream: var(--surface);
+    --ink-paper: var(--surface-raised);
+    --ink-marigold: var(--accent);
+    --ink-terracotta: var(--accent-hover);
+    --ink-vermillion: var(--accent);
+    --ink-oxblood: var(--surface-brand);
+    --ink-soot: var(--ink);
+    --ink-charcoal: var(--surface-sunken);
+    --ink-rule: var(--rule);
+    --ink-rule-strong: var(--rule-strong);
+    /* Referenced at .about-section-tab:hover and .gears-toast but never defined
+       anywhere in the repo, so `background: var(--ink-body)` was invalid at
+       computed-value time and fell back to transparent — the toast has had no
+       pill behind it at all. Predates the re-brand. */
+    --ink-body: var(--surface-raised);
+    /* --ink-muted deleted: it meant exactly what layer 4's --ink-muted means,
+       and being defined here it *shadowed* the global one on every dashboard
+       page. Deleting lets the token file's value through unchanged. */
 
-    --font-display: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
-    --font-ui:      var(--kiosk-font-ui,      "Gilroy",  "Century Gothic", sans-serif);
-    --font-body:    var(--kiosk-font-body,    "Gotham",  "Gill Sans", sans-serif);
+    /* --font-display and --font-body deleted for a sharper reason: they were
+       defined here as var(--kiosk-font-display) / var(--kiosk-font-body),
+       while the token file defines --kiosk-font-display as var(--font-display).
+       Each referenced the other, and a CSS custom-property reference cycle
+       makes BOTH resolve to guaranteed-invalid — every font on the dashboard
+       would have silently dropped to the initial value. Both names are
+       defined globally in kiosk-tokens.css already. */
+    --font-ui: var(--font-heading);
 
     --radius-sm: 4px;
     --radius-md: 6px;
@@ -56,7 +88,7 @@ body {
     flex-direction: column;
     gap: 1.25rem;
     background: var(--ink-oxblood);
-    color: var(--ink-cream);
+    color: var(--ink);
     border-right: 1px solid var(--ink-rule);
 
     /* Scrolls, but shows no scrollbar. The nav is a short fixed list against
@@ -79,7 +111,7 @@ body {
     align-items: center;
     gap: 0.9rem;
     padding: 0.25rem 0.25rem 1.1rem;
-    border-bottom: 1px solid rgba(241, 236, 227, 0.12);
+    border-bottom: 1px solid rgb(var(--brand-cream-rgb) / 0.12);
 }
 
 .gears-sidebar__mark {
@@ -89,7 +121,7 @@ body {
     display: grid;
     place-items: center;
     background: var(--ink-cream);
-    border: 1px solid rgba(241, 236, 227, 0.2);
+    border: 1px solid rgb(var(--brand-cream-rgb) / 0.2);
     overflow: hidden;
     flex: 0 0 auto;
 }
@@ -111,7 +143,7 @@ body {
 }
 
 .gears-sidebar__title {
-    color: var(--ink-cream);
+    color: var(--ink);
     font-family: var(--font-display);
     font-size: 1.5rem;
     font-weight: 900;
@@ -128,7 +160,7 @@ body {
 .dashboard-nav__group-label {
     margin: 1rem 0 0.4rem;
     padding-left: 0.85rem;
-    color: rgba(241, 236, 227, 0.55);
+    color: rgb(var(--brand-cream-rgb) / 0.55);
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.16em;
@@ -148,7 +180,7 @@ body {
     align-items: center;
     gap: 0.75rem;
     background: transparent;
-    color: rgba(241, 236, 227, 0.78);
+    color: rgb(var(--brand-cream-rgb) / 0.78);
     font-family: var(--font-ui);
     font-size: 0.94rem;
     font-weight: 600;
@@ -170,8 +202,8 @@ body {
 }
 
 .dashboard-nav__link:hover {
-    color: var(--ink-cream);
-    background: rgba(241, 236, 227, 0.05);
+    color: var(--ink);
+    background: rgb(var(--brand-cream-rgb) / 0.05);
 }
 
 .dashboard-nav__link:hover::before {
@@ -180,7 +212,7 @@ body {
 
 .dashboard-nav__link.is-active {
     background: var(--ink-marigold);
-    color: var(--ink-oxblood);
+    color: var(--accent-ink);
     font-weight: 800;
 }
 
@@ -213,7 +245,7 @@ body {
     margin-top: 0.75rem;
     padding: 0.55rem 0.95rem;
     border-radius: var(--radius-sm);
-    color: rgba(241, 236, 227, 0.55);
+    color: rgb(var(--brand-cream-rgb) / 0.55);
     font-size: 0.82rem;
     font-weight: 600;
     text-decoration: none;
@@ -222,8 +254,8 @@ body {
 }
 .gears-sidebar__logout:hover,
 .gears-sidebar__logout:focus-visible {
-    background: rgba(241, 236, 227, 0.07);
-    color: var(--ink-cream);
+    background: rgb(var(--brand-cream-rgb) / 0.07);
+    color: var(--ink);
     outline: none;
 }
 
@@ -272,7 +304,7 @@ body {
     font-weight: 900;
     letter-spacing: -0.02em;
     line-height: 1.05;
-    color: var(--ink-oxblood);
+    color: var(--ink-strong);
 }
 
 .gears-hero__subtitle {
@@ -292,7 +324,7 @@ body {
     border-radius: 9999px;
     border: 1px solid var(--ink-rule-strong);
     background: var(--ink-cream);
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.1em;
@@ -311,7 +343,7 @@ body {
 .gears-hero__chip--dirty {
     border-color: var(--ink-vermillion);
     background: var(--ink-vermillion);
-    color: var(--ink-cream);
+    color: var(--accent-ink);
 }
 
 .gears-page {
@@ -383,7 +415,7 @@ body {
     font-size: clamp(2.4rem, 3.5vw, 3.4rem);
     font-weight: 900;
     letter-spacing: -0.03em;
-    color: var(--ink-oxblood);
+    color: var(--ink-strong);
     line-height: 1;
 }
 
@@ -434,7 +466,7 @@ body {
     font-weight: 900;
     letter-spacing: -0.01em;
     text-transform: none;
-    color: var(--ink-oxblood);
+    color: var(--ink-strong);
     line-height: 1.15;
 }
 
@@ -471,7 +503,7 @@ body {
 }
 
 .empty-state__title {
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-weight: 800;
     font-size: 0.95rem;
 }
@@ -505,7 +537,7 @@ body {
 .events-table thead th {
     padding: 0.9rem 1rem;
     background: var(--ink-cream);
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-size: 0.74rem;
     font-weight: 800;
     letter-spacing: 0.14em;
@@ -527,7 +559,7 @@ body {
 
 .events-table tbody td:first-child {
     font-weight: 700;
-    color: var(--ink-oxblood);
+    color: var(--ink);
 }
 
 /* LISTS */
@@ -582,7 +614,7 @@ body {
 .location-card__name,
 .video-card__title,
 .kiosk-card__status-label {
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-family: var(--font-display);
     font-size: 1.1rem;
     font-weight: 800;
@@ -617,12 +649,12 @@ body {
 
 .category-row__badge {
     background: var(--ink-marigold);
-    color: var(--ink-oxblood);
+    color: var(--accent-ink);
 }
 
 .status-pill--published {
     background: var(--ink-marigold);
-    color: var(--ink-oxblood);
+    color: var(--accent-ink);
 }
 
 .status-pill--draft {
@@ -633,8 +665,8 @@ body {
 
 .status-pill--neutral {
     background: transparent;
-    color: var(--ink-oxblood);
-    border: 1px solid var(--ink-oxblood);
+    color: var(--ink);
+    border: 1px solid var(--rule-strong);
 }
 
 .progress-track {
@@ -725,7 +757,7 @@ body {
 }
 
 .field__label {
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-size: 0.78rem;
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -752,7 +784,7 @@ body {
 
 .field__input:focus {
     border-color: var(--ink-marigold);
-    box-shadow: 0 0 0 3px rgba(243, 149, 24, 0.18);
+    box-shadow: 0 0 0 3px rgb(var(--brand-gold-rgb) / 0.18);
 }
 
 .field__input--file {
@@ -767,7 +799,12 @@ body {
 
 .field__input--select {
     appearance: none;
-    background-image: linear-gradient(45deg, transparent 50%, var(--ink-oxblood) 50%), linear-gradient(135deg, var(--ink-oxblood) 50%, transparent 50%);
+    /* The chevron is a foreground glyph drawn through a background property, so
+       a colour-only sweep misses it — it stayed dark on the dark select and the
+       dropdown lost its only affordance. --ink-muted keeps it quieter than the
+       label while still tracking the theme. (These two gradients are geometry,
+       not decoration; the no-gradient brand rule is about colour ramps.) */
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-muted) 50%), linear-gradient(135deg, var(--ink-muted) 50%, transparent 50%);
     background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 12px) calc(1em + 2px);
     background-size: 6px 6px, 6px 6px;
     background-repeat: no-repeat;
@@ -794,12 +831,12 @@ body {
     padding: 0.85rem 1.2rem;
     border-radius: var(--radius-sm);
     background: var(--ink-marigold);
-    color: var(--ink-oxblood);
+    color: var(--accent-ink);
 }
 
 .primary-button:hover {
     background: var(--ink-terracotta);
-    color: var(--ink-paper);
+    color: var(--accent-ink);
     transform: translateY(-1px);
 }
 
@@ -807,7 +844,7 @@ body {
     padding: 0.78rem 1rem;
     border-radius: var(--radius-sm);
     background: var(--ink-oxblood);
-    color: var(--ink-cream);
+    color: var(--ink);
 }
 
 .secondary-button:hover {
@@ -819,13 +856,13 @@ body {
     padding: 0.78rem 1rem;
     border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--ink-oxblood);
-    border: 1px solid var(--ink-oxblood);
+    color: var(--ink);
+    border: 1px solid var(--rule-strong);
 }
 
 .ghost-button:hover {
     background: var(--ink-oxblood);
-    color: var(--ink-cream);
+    color: var(--ink);
 }
 
 /* VIDEO PREVIEW */
@@ -855,7 +892,7 @@ body {
     display: grid;
     place-items: center;
     padding: 1.5rem;
-    color: var(--ink-cream);
+    color: var(--ink);
     text-align: center;
     background: var(--ink-charcoal);
     font-size: 0.9rem;
@@ -889,7 +926,7 @@ body {
     display: grid;
     place-items: center;
     background: var(--ink-marigold);
-    color: var(--ink-oxblood);
+    color: var(--accent-ink);
     font-size: 1rem;
     font-weight: 900;
     flex: 0 0 auto;
@@ -911,9 +948,9 @@ body {
    kiosk attract clip. Active state is filled amber so editors can spot
    the live attract video at a glance across the library grid. */
 .video-card__idle-toggle.is-active {
-    background: var(--kiosk-amber, #E89A1C);
-    color: var(--kiosk-espresso, #1F0F0C);
-    border-color: var(--kiosk-amber, #E89A1C);
+    background: var(--kiosk-amber);
+    color: var(--kiosk-espresso);
+    border-color: var(--kiosk-amber);
     font-weight: 700;
 }
 
@@ -924,8 +961,8 @@ body {
     margin-top: 0.35rem;
     padding: 0.18rem 0.5rem;
     border-radius: 999px;
-    background: var(--kiosk-amber, #E89A1C);
-    color: var(--kiosk-espresso, #1F0F0C);
+    background: var(--kiosk-amber);
+    color: var(--kiosk-espresso);
     font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.08em;
@@ -934,8 +971,8 @@ body {
 }
 
 .video-card--idle-active {
-    border-color: var(--kiosk-amber, #E89A1C);
-    box-shadow: 0 0 0 2px var(--kiosk-amber, #E89A1C) inset;
+    border-color: var(--kiosk-amber);
+    box-shadow: 0 0 0 2px var(--kiosk-amber) inset;
 }
 
 .video-upload-card,
@@ -986,7 +1023,7 @@ body {
 }
 
 .tour-mapping-row__scene-id {
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-family: var(--font-display);
     font-size: 1.15rem;
     font-weight: 900;
@@ -1064,7 +1101,7 @@ body {
 }
 
 .archive-card__title {
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-family: var(--font-display);
     font-size: 1.05rem;
     font-weight: 900;
@@ -1103,7 +1140,7 @@ body {
 .about-subheading,
 .about-card__subheading {
     margin: 0;
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-family: var(--font-display);
     font-size: 1.1rem;
     font-weight: 900;
@@ -1209,7 +1246,7 @@ body {
     border-radius: var(--radius-sm);
     padding: 0.78rem 1rem;
     background: var(--ink-vermillion);
-    color: var(--ink-paper);
+    color: var(--accent-ink);
     font: inherit;
     font-family: var(--font-ui);
     font-weight: 800;
@@ -1250,7 +1287,7 @@ body {
     padding: 0.3rem 0.6rem;
     border-radius: 2px;
     background: var(--ink-marigold);
-    color: var(--ink-oxblood);
+    color: var(--accent-ink);
     font-size: 0.7rem;
     font-weight: 800;
     letter-spacing: 0.12em;
@@ -1311,7 +1348,7 @@ body {
     min-height: 5.25rem;
     border-radius: var(--radius-sm);
     padding: 1rem 1.25rem;
-    color: var(--ink-cream);
+    color: var(--ink);
     font-size: 0.92rem;
 }
 
@@ -1370,14 +1407,14 @@ body {
 }
 
 .article-modal::backdrop {
-    background: rgba(31, 23, 22, 0.7);
+    background: rgb(var(--brand-maroon-rgb) / 0.7);
 }
 
 .article-modal__panel {
     border-radius: var(--radius-md);
-    border: 1px solid var(--ink-oxblood);
+    border: 1px solid var(--rule-strong);
     background: var(--ink-paper);
-    box-shadow: 0 24px 48px rgba(31, 23, 22, 0.25);
+    box-shadow: 0 24px 48px rgb(var(--brand-maroon-rgb) / 0.25);
     padding: 1.5rem;
 }
 
@@ -1397,7 +1434,7 @@ body {
     font-size: 1.45rem;
     font-weight: 900;
     letter-spacing: -0.01em;
-    color: var(--ink-oxblood);
+    color: var(--ink);
 }
 
 .article-modal__subtitle {
@@ -1408,10 +1445,10 @@ body {
 }
 
 .article-modal__close {
-    border: 1px solid var(--ink-oxblood);
+    border: 1px solid var(--rule-strong);
     border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--ink-oxblood);
+    color: var(--ink);
     padding: 0.55rem 0.85rem;
     font-weight: 700;
     font-size: 0.78rem;
@@ -1422,7 +1459,7 @@ body {
 
 .article-modal__close:hover {
     background: var(--ink-oxblood);
-    color: var(--ink-cream);
+    color: var(--ink);
 }
 
 .article-modal__footer {
@@ -1637,7 +1674,7 @@ body {
 }
 
 .ob-card-node:hover {
-    border-color: var(--ink-oxblood);
+    border-color: var(--rule-strong);
 }
 
 .ob-card-node:focus-visible {
@@ -1650,8 +1687,8 @@ body {
 }
 
 .ob-card-node.is-selected {
-    border-color: var(--ink-oxblood);
-    box-shadow: 0 0 0 2px var(--ink-oxblood);
+    border-color: var(--rule-strong);
+    box-shadow: 0 0 0 2px var(--rule-strong);
 }
 
 .ob-card-node.is-pinned::after {
@@ -1694,7 +1731,7 @@ body {
 }
 
 .ob-card-node__initials {
-    color: var(--ink-oxblood);
+    color: var(--ink);
     font-family: var(--font-display);
     font-size: 1.1rem;
     font-weight: 900;
@@ -1738,7 +1775,7 @@ body {
 
 .ghost-button--danger:hover {
     background: var(--ink-vermillion);
-    color: var(--ink-cream);
+    color: var(--accent-ink);
 }
 
 /* The member editor's warning that a card is hand-placed. Sits above the form
@@ -1930,7 +1967,7 @@ body {
 
 .about-section-tab.is-active {
     background: var(--ink-paper);
-    color: var(--ink-oxblood);
+    color: var(--ink);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10);
 }
 
@@ -1960,8 +1997,8 @@ body {
     transform: translateX(-50%) translateY(1rem);
     opacity: 0;
     pointer-events: none;
-    background: var(--ink-body, #1F170F);
-    color: var(--ink-paper, #FBF8F1);
+    background: var(--ink-body);
+    color: var(--ink);
     font-family: var(--font-ui);
     font-size: 0.88rem;
     font-weight: 600;
@@ -1981,7 +2018,7 @@ body {
 }
 
 .gears-toast--error {
-    background: var(--ink-vermillion, #C0392B);
+    background: var(--ink-vermillion);
 }
 
 /* BRANDING (site logo) */
@@ -2036,7 +2073,7 @@ body {
 }
 
 .branding-swatch--dark .branding-swatch__caption {
-    color: rgba(241, 236, 227, 0.72);
+    color: rgb(var(--brand-cream-rgb) / 0.72);
 }
 
 .branding-note {

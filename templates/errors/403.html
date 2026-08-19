@@ -5,15 +5,25 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Permission Denied</title>
-  <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+  <title>Permission Denied &middot; The Gears</title>
+  <link rel="icon" href="{{ site_logo() }}">
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset_url('css/error-page.css') }}">
 </head>
 
-<body>
+<body class="error-page">
   {% block content %}
-  <div class="h-screen flex flex-col items-center text-center justify-center">
-    <p class="text-center">Oops looks like you don't have access to this page !</p>
-  </div>
+  <main class="error-card">
+    <svg class="error-card__mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+      <rect x="4.5" y="10.5" width="15" height="9.5" rx="1.2"/>
+      <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>
+      <circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none"/>
+    </svg>
+    <p class="error-card__code">403</p>
+    <h1 class="error-card__title">You're not on the list</h1>
+    <p class="error-card__text">This page belongs to a role you don't have. If that seems wrong, find a GEARS administrator and have them fix your account — we just guard the door here.</p>
+    <p class="error-card__actions"><a class="error-card__link" href="/kiosk">Back to the kiosk</a></p>
+  </main>
   {% endblock %}
 </body>
 

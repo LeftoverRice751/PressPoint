@@ -60,7 +60,7 @@
       minZoomExtrude: -Infinity,
       labelProperty: 'label',
       labelFont: '600 11px ' + cssVar('--font-body', 'ui-sans-serif, system-ui, sans-serif'),
-      labelColor: cssVar('--fg', '#161310'),
+      labelColor: cssVar('--ink', '#6b2516'),
       minLabelArea: 900, // only applies to labels longer than 2 characters
       interactive: true,
       pane: 'overlayPane'
@@ -2343,7 +2343,7 @@
    "properties": {
     "id": "site",
     "name": "Campus boundary",
-    "color": "#EFEAE0",
+    "color": "#e9dac4",
     "height": 0,
     "kind": "ground"
    },

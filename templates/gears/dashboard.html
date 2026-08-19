@@ -1,12 +1,15 @@
 {% extends "base.html" %}
-{% block title %}{% endblock %}
+{% block title %}GEARS CMS{% endblock %}
+{# Staff surface: dark maroon theme, so an editor can never mistake the
+   dashboard for the public kiosk. Defined in kiosk-tokens.css. #}
+{% block html_attrs %} data-theme="gears"{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ asset_url('css/gears-dashboard.css') }}" />
-<link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/quill.snow.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/news-dashboard.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/newsletter-type.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/dropzone.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/upload-meter.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/confirm-modal.css') }}" />
@@ -267,6 +270,9 @@
           <input type="hidden" name="excerpt"       data-news-field="excerpt">
           <input type="hidden" name="image_caption" data-news-field="caption">
           <input type="hidden" name="image_credit"  data-news-field="credit">
+          {# Mirrors the properties panel's "Headline font" select, which sits
+             outside this form and so would never be submitted on its own. #}
+          <input type="hidden" name="headline_font" data-news-field="headline_font">
           <input type="hidden" name="layout_type"  value="main" data-news-layout-field>
           {# Was hardcoded to "published", which is why the Story Library's
              "Drafts"/"Scheduled" filters could never match anything. The
@@ -348,6 +354,30 @@
               <button type="button" class="news-slot-choice"
                       data-news-slot-choice="unassigned" aria-pressed="false">Story Library</button>
             </div>
+          </div>
+
+          {# One font for this story's headline and dek. It is a dropdown, not
+             rich text, because the headline/dek/kicker columns are rendered
+             ESCAPED — only the body carries `| safe`. Storing a slug and
+             emitting it as a `story-font-<slug>` class keeps those columns
+             plain text, so this adds no new HTML sink. The values must match
+             NEWSLETTER_FONTS in NewsController; anything else normalises back
+             to the brand face on save. Body copy is unaffected — fonts inside
+             the story are set per-run in the body editor. #}
+          <div class="news-prop-section">
+            <div class="news-prop-section__label">Headline font</div>
+            <select class="field__input field__input--select" data-news-prop="headline_font"
+                    aria-label="Headline font for this story">
+              <option value="">Brand (default)</option>
+              <option value="playfair">Playfair Display</option>
+              <option value="lora">Lora</option>
+              <option value="tinos">Tinos</option>
+              <option value="archivo-black">Archivo Black</option>
+              <option value="bebas">Bebas Neue</option>
+              <option value="alfa-slab">Alfa Slab One</option>
+              <option value="space-grotesk">Space Grotesk</option>
+              <option value="caveat">Caveat</option>
+            </select>
           </div>
 
           <!-- WordPress-style Publish box: status on the left, the two ways

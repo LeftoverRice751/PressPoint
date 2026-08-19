@@ -11,7 +11,7 @@
       position: fixed;
       inset: 0;
       z-index: 9999;
-      background: #000;
+      background: var(--n-900);
       overflow: hidden;
       cursor: pointer;
     }
@@ -29,8 +29,8 @@
       justify-content: center;
       flex-direction: column;
       gap: 0.9rem;
-      background: rgba(15, 23, 42, 0.96);
-      color: #e2e8f0;
+      background: rgb(var(--brand-maroon-rgb) / 0.96);
+      color: var(--n-200);
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.2s ease;
@@ -49,7 +49,7 @@
       align-items: stretch;
       justify-content: stretch;
       padding: 0;
-      background: rgba(2, 6, 23, 0.94);
+      background: rgb(var(--brand-maroon-rgb) / 0.94);
       cursor: default;
     }
 
@@ -63,7 +63,7 @@
       z-index: 5;
       width: 100%;
       height: 100%;
-      background: #000;
+      background: var(--n-900);
       overflow: hidden;
       opacity: 0;
       transform: scale(1);
@@ -80,7 +80,7 @@
       height: 100%;
       object-fit: cover;
       vertical-align: middle;
-      background: #000;
+      background: var(--n-900);
     }
 
     #kiosk-status {
@@ -90,7 +90,7 @@
       bottom: 1rem;
       z-index: 4;
       margin: 0;
-      color: #cbd5e1;
+      color: var(--n-200);
       font-size: 0.95rem;
       text-align: center;
       text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
@@ -127,12 +127,12 @@
       pointer-events: none;
       border-radius: 999px;
       padding: 0.9rem 1.15rem;
-      background: rgba(15, 23, 42, 0.92);
-      color: #f8fafc;
+      background: rgb(var(--brand-maroon-rgb) / 0.92);
+      color: var(--n-050);
       font-size: 0.95rem;
       line-height: 1.35;
       letter-spacing: 0.01em;
-      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.32);
+      box-shadow: 0 12px 32px rgb(var(--brand-maroon-rgb) / 0.32);
       transition: opacity 0.2s ease, transform 0.2s ease;
     }
 
@@ -142,15 +142,15 @@
     }
 
     #kiosk-notice[data-tone="success"] {
-      background: rgba(21, 128, 61, 0.95);
+      background: rgb(var(--ok-rgb) / 0.95);
     }
 
     #kiosk-notice[data-tone="warning"] {
-      background: rgba(180, 83, 9, 0.95);
+      background: rgb(var(--warn-rgb) / 0.95);
     }
 
     #kiosk-notice[data-tone="danger"] {
-      background: rgba(153, 27, 27, 0.95);
+      background: rgb(var(--danger-rgb) / 0.95);
     }
 
     .hero {
@@ -172,8 +172,8 @@
 
     .hero__title {
       margin: 0;
-      color: #111111;
-      font-family: var(--kiosk-font-display, "Columna", "Trajan Pro", serif);
+      color: var(--n-900);
+      font-family: var(--font-display);
       font-size: clamp(2rem, 4.6vw, 5.6rem);
       font-weight: 900;
       letter-spacing: 0.22em;
@@ -184,8 +184,8 @@
     .hero__subtitle {
       margin: 0;
       max-width: 30rem;
-      color: #111111;
-      font-family: var(--kiosk-font-body, "Gotham", "Gill Sans", sans-serif);
+      color: var(--n-900);
+      font-family: var(--font-body);
       font-size: clamp(0.88rem, 1.3vw, 1.2rem);
       line-height: 1.4;
       letter-spacing: 0.03em;

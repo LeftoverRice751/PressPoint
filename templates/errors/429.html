@@ -5,15 +5,25 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Too Many Attempts</title>
-  <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+  <title>Too Many Attempts &middot; The Gears</title>
+  <link rel="icon" href="{{ site_logo() }}">
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset_url('css/error-page.css') }}">
 </head>
 
-<body>
+<body class="error-page">
   {% block content %}
-  <div class="h-screen flex flex-col items-center text-center justify-center">
-    <p class="text-center">Too many attempts. Please wait a minute and try again.</p>
-  </div>
+  <main class="error-card">
+    <svg class="error-card__mark error-card__mark--spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+      <circle cx="12" cy="13" r="8"/>
+      <path d="M12 9v4l2.6 2.6" stroke-linecap="round"/>
+      <path d="M9.5 2h5" stroke-linecap="round"/>
+    </svg>
+    <p class="error-card__code">429</p>
+    <h1 class="error-card__title">Okay, we get it, slow down</h1>
+    <p class="error-card__text">You've hit this a few too many times in the last minute. Take a breath — the limit resets fast, and your next try will go through.</p>
+    <p class="error-card__actions"><a class="error-card__link" href="/kiosk">Back to the kiosk</a></p>
+  </main>
   {% endblock %}
 </body>
 

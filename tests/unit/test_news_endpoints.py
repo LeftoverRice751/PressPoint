@@ -2,7 +2,12 @@ import os
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
 
-from app.controllers.NewsController import NewsController
+from app.controllers.NewsController import (
+    NEWSLETTER_FONTS,
+    NewsController,
+    _sanitize_news_html,
+    normalize_headline_font,
+)
 from app.services.StorageRouter import public_base
 from tests import TestCase
 
@@ -596,3 +601,93 @@ class FeaturedImageRemovalTestCase(TestCase):
         record = self._store_with(self._existing_record(), {})
 
         self.assertEqual(record.image, "news/photo.jpg")
+
+
+class NewsHtmlSanitizerTestCase(TestCase):
+    """The body is the one field rendered with `| safe` on the kiosk, so this
+    allowlist is the security boundary between an editor's keyboard and a
+    public screen. These pin both halves: what a font run is allowed to keep,
+    and what must never survive."""
+
+    def test_known_font_class_survives(self):
+        html = '<p><span class="ql-font-playfair">Hi</span></p>'
+
+        self.assertEqual(_sanitize_news_html(html), html)
+
+    def test_stacked_font_and_size_classes_survive(self):
+        # Quill stacks formats onto one span; bleach hands the filter the whole
+        # attribute value, so the multi-name case needs its own guard.
+        html = '<p><span class="ql-font-bebas ql-size-huge">Hi</span></p>'
+
+        self.assertEqual(_sanitize_news_html(html), html)
+
+    def test_align_and_indent_survive(self):
+        # These regressed silently for the life of the composer: Quill offered
+        # them, but no element allowed `class` so every save destroyed them.
+        self.assertIn('class="ql-align-center"', _sanitize_news_html('<p class="ql-align-center">M</p>'))
+        self.assertIn('class="ql-indent-1"', _sanitize_news_html('<ul><li class="ql-indent-1">x</li></ul>'))
+
+    def test_unknown_font_class_is_stripped(self):
+        # The whole point of an exact-membership set rather than a
+        # `ql-font-\w+` regex — an invented slug must not reach the page.
+        out = _sanitize_news_html('<p><span class="ql-font-evil">Hi</span></p>')
+
+        self.assertNotIn("ql-font-evil", out)
+        self.assertIn("Hi", out)
+
+    def test_one_unknown_name_drops_the_whole_class_attribute(self):
+        out = _sanitize_news_html('<p><span class="ql-font-lora sneaky">Hi</span></p>')
+
+        self.assertNotIn("sneaky", out)
+        self.assertNotIn("ql-font-lora", out)
+
+    def test_arbitrary_class_is_stripped(self):
+        self.assertNotIn("made-up", _sanitize_news_html('<p class="made-up">Hi</p>'))
+
+    def test_inline_style_is_still_stripped(self):
+        # Fonts are carried by class precisely so `style` never has to be
+        # allowed; if this ever passes, arbitrary CSS is reaching the kiosk.
+        out = _sanitize_news_html('<p style="position:fixed;top:0;z-index:9999">Hi</p>')
+
+        self.assertNotIn("style", out)
+
+    def test_script_and_event_handlers_are_stripped(self):
+        self.assertNotIn("<script>", _sanitize_news_html("<p>ok</p><script>alert(1)</script>"))
+        self.assertNotIn("onerror", _sanitize_news_html('<p onerror="alert(1)">Hi</p>'))
+        self.assertNotIn("<img", _sanitize_news_html('<img src=x onerror=alert(1)>'))
+
+    def test_javascript_href_is_rejected(self):
+        self.assertNotIn("javascript:", _sanitize_news_html('<a href="javascript:alert(1)">x</a>'))
+
+    def test_target_blank_is_stripped(self):
+        # target="_blank" without rel="noopener" hands the opened page a
+        # window.opener handle back to the kiosk. `target` is simply not
+        # allowed rather than paired with a rel we would have to enforce.
+        out = _sanitize_news_html('<a href="https://x.test" target="_blank">x</a>')
+
+        self.assertNotIn("target", out)
+        self.assertIn('href="https://x.test"', out)
+
+
+class NormalizeHeadlineFontTestCase(TestCase):
+    def test_known_slug_passes_through(self):
+        self.assertEqual(normalize_headline_font("playfair"), "playfair")
+
+    def test_case_and_whitespace_are_normalized(self):
+        self.assertEqual(normalize_headline_font("  Playfair  "), "playfair")
+
+    def test_unknown_slug_falls_back_to_the_brand_face(self):
+        # A stale form or a hand-crafted POST must not put an unknown slug into
+        # a class attribute on the kiosk.
+        self.assertIsNone(normalize_headline_font("../../etc/passwd"))
+        self.assertIsNone(normalize_headline_font("gotham"))
+
+    def test_blank_is_the_brand_face(self):
+        self.assertIsNone(normalize_headline_font(""))
+        self.assertIsNone(normalize_headline_font(None))
+
+    def test_every_offered_font_is_accepted(self):
+        # Guards the CSS/JS/server three-way contract from one side: every slug
+        # the server advertises must also validate.
+        for slug in NEWSLETTER_FONTS:
+            self.assertEqual(normalize_headline_font(slug), slug)

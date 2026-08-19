@@ -2,6 +2,7 @@ from masonite.providers import Provider
 from masonite.facades import RateLimiter
 from masonite.views import View
 
+from app.exceptions.InvalidCSRFTokenHandler import InvalidCSRFTokenHandler
 from app.rate_limiters import GuestAuthLimiter
 from app.services import Branding
 from app.services.AssetVersion import asset_url
@@ -40,7 +41,25 @@ class AppProvider(Provider):
         # an `asset(alias, filename)` helper that resolves filesystem disks.
         self.application.make(View).share({"asset_url": asset_url})
 
+        # Dispatched by masonite.exceptions.ExceptionHandler.handle(), which
+        # looks up a container binding named exactly f"{ExceptionClass}Handler"
+        # before falling back to its generic 500/debug-page path — see
+        # InvalidCSRFTokenHandler's own docstring for why this one exists.
+        self.application.bind(
+            "InvalidCSRFTokenHandler", InvalidCSRFTokenHandler(self.application)
+        )
+
     def boot(self):
         # Named limiter used by the login / OTP routes as `throttle:auth`.
         # Per-client (see GuestAuthLimiter) so bad attempts can't lock everyone out.
         RateLimiter.register("auth", GuestAuthLimiter("5/minute"))
+
+        # Public, unauthenticated route-session minting (QR handoff to a phone).
+        # Looser than auth since it's not a credential-guessing surface, but still
+        # per-client so a script can't mint unlimited tokens/emails.
+        RateLimiter.register("route-sessions", GuestAuthLimiter("10/minute"))
+
+        # Public archive page rendering — a cache miss triggers PyMuPDF
+        # rasterization, so this exists to cap CPU spend from a scripted hit on
+        # unwarmed pages, not to slow down normal kiosk reading.
+        RateLimiter.register("archive-pages", GuestAuthLimiter("30/minute"))

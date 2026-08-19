@@ -97,10 +97,12 @@ import Sortable from 'sortablejs';
     image:       field('image'),
     removeImage: field('remove_image'),
     status:      field('status'),
+    headlineFont: field('headline_font'),
     layout:      form.querySelector('[data-news-layout-field]')
   };
   var propPriority = props ? props.querySelector('[data-news-prop="priority"]') : null;
   var propDate     = props ? props.querySelector('[data-news-prop="published_at"]') : null;
+  var propFont     = props ? props.querySelector('[data-news-prop="headline_font"]') : null;
 
   // ── Toast ─────────────────────────────────────────────
   function toast(msg, isError) {
@@ -166,8 +168,32 @@ import Sortable from 'sortablejs';
   // confirmed discard makes the warning true.
   var bodyModalSnapshot = '';
 
+  // Fonts an editor can pick. MUST match NEWSLETTER_FONTS in
+  // app/controllers/NewsController.py — the server strips any ql-font-* class
+  // it doesn't recognise, so a slug listed only here vanishes on publish. The
+  // leading `false` is "Brand", i.e. no class and the page's own face.
+  var FONTS = [
+    false, 'playfair', 'lora', 'tinos', 'archivo-black',
+    'bebas', 'alfa-slab', 'space-grotesk', 'caveat', 'jetbrains-mono'
+  ];
+  var SIZES = [false, 'small', 'large', 'huge'];
+
   function ensureQuill() {
     if (quill || !bodyEditorHost) return quill;
+
+    // Register CLASS-based attributors, which is what Quill does by default for
+    // font/size but not for the whitelist — without registering, Quill only
+    // accepts its own built-in values ('serif'/'monospace', 'small'/'large'/
+    // 'huge') and drops ours. Class-based, never inline styles: the persisted
+    // HTML then holds a finite set of class names the server can check against
+    // a list, instead of CSS it would have to parse.
+    var FontAttr = Quill.import('attributors/class/font');
+    var SizeAttr = Quill.import('attributors/class/size');
+    FontAttr.whitelist = FONTS.filter(Boolean);
+    SizeAttr.whitelist = SIZES.filter(Boolean);
+    Quill.register(FontAttr, true);
+    Quill.register(SizeAttr, true);
+
     // Construct first, THEN bind the change handler on the next statement —
     // Quill fires `text-change` synchronously inside its own constructor
     // while processing the (empty) host it was given. Binding before
@@ -176,11 +202,22 @@ import Sortable from 'sortablejs';
     quill = new Quill(bodyEditorHost, {
       theme: 'snow',
       placeholder: 'Write the story…',
+      // Without an explicit whitelist Quill permits its ENTIRE default format
+      // registry — colour, background, image, video, code-block — none of
+      // which the toolbar offers but all of which arrive via paste, and all of
+      // which the server then strips. That mismatch let an editor paste
+      // styled text, see it render in the modal, and watch it flatten on save.
+      // This list is exactly what _sanitize_news_html keeps.
+      formats: [
+        'header', 'bold', 'italic', 'underline', 'strike',
+        'list', 'indent', 'blockquote', 'link', 'align', 'font', 'size'
+      ],
       modules: {
         toolbar: [
           [{ header: [2, 3, false] }],
+          [{ font: FONTS }, { size: SIZES }],
           ['bold', 'italic', 'underline'],
-          [{ list: 'ordered' }, { list: 'bullet' }],
+          [{ list: 'ordered' }, { list: 'bullet' }, { align: [] }],
           ['blockquote', 'link'],
           ['clean']
         ]
@@ -695,6 +732,7 @@ import Sortable from 'sortablejs';
     if (f.articleId)   f.articleId.value = data.id || '';
     if (f.priority)    f.priority.value = data.priority || '0';
     if (propPriority)  propPriority.value = data.priority || '0';
+    if (propFont)      propFont.value = data.headline_font || '';
     try { if (f.image) f.image.value = ''; } catch (_) {}
 
     setSlot(activeSlotType);
@@ -755,6 +793,7 @@ import Sortable from 'sortablejs';
     if (f.articleId) f.articleId.value = '';
     if (f.priority)  f.priority.value = '0';
     if (propPriority) propPriority.value = '0';
+    if (propFont) propFont.value = '';
     if (f.removeImage) f.removeImage.value = '';
     try { if (f.image) f.image.value = ''; } catch (_) {}
     if (draft && draft.file) {
@@ -800,6 +839,7 @@ import Sortable from 'sortablejs';
     if (f.credit  && region(activeArt, 'credit'))    f.credit.value = getText(activeArt, 'credit');
     if (f.priority && propPriority) f.priority.value = propPriority.value;
     if (f.publishedAt && propDate) f.publishedAt.value = propDate.value;
+    if (f.headlineFont && propFont) f.headlineFont.value = propFont.value;
   }
 
   function postForm(onOk) {
@@ -1391,6 +1431,16 @@ import Sortable from 'sortablejs';
     btn.addEventListener('click', function () { setSlot(btn.getAttribute('data-news-slot-choice')); markDirty(); });
   });
   if (propDate) propDate.addEventListener('input', function () { if (f.publishedAt) f.publishedAt.value = propDate.value; markDirty(); });
+  // Reflect the choice onto the canvas card immediately — the class the kiosk
+  // will render is the same one applied here, so the composer previews truly.
+  if (propFont) propFont.addEventListener('change', function () {
+    if (f.headlineFont) f.headlineFont.value = propFont.value;
+    if (activeArt) {
+      activeArt.className = activeArt.className.replace(/\bstory-font-[\w-]+/g, '').trim();
+      if (propFont.value) activeArt.classList.add('story-font-' + propFont.value);
+    }
+    markDirty();
+  });
 
   // ── Canvas drag-and-drop + Move Up/Down + position badges (Task 6) ────
   // The canvas is modeled as several capacity-bounded Sortable "lists" that

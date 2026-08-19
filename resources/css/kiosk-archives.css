@@ -1,10 +1,9 @@
 /*
  * Gears Archives — coverflow.
  *
- * Palette mirrors gears-dashboard.css (the official Gears identity).
- * Type comes from the kiosk-tokens.css brand trio (Columna / Gilroy /
- * Gotham) — no font imports here. Solid fills only; gradients are
- * banned by the brand rules in kiosk-tokens.css.
+ * Palette and type both alias onto kiosk-tokens.css — no local hexes and
+ * no font imports here. Solid fills only; gradients are banned by the
+ * brand rules in kiosk-tokens.css.
  *
  * The carousel is Swiper (effect: coverflow); slide geometry lives in
  * CSS (clamp width + aspect-ratio) so the flow scales from phone to
@@ -13,21 +12,21 @@
  */
 
 :root {
-  --arch-cream: #F1ECE3;
-  --arch-paper: #FBF8F1;
-  --arch-marigold: #F39518;
-  --arch-terracotta: #D15B26;
-  --arch-vermillion: #B82221;
-  --arch-oxblood: #491511;
-  --arch-soot: #1F1716;
-  --arch-muted: #6B5E55;
-  --arch-rule: rgba(31, 23, 22, 0.14);
-  --arch-rule-strong: rgba(31, 23, 22, 0.28);
+  --arch-cream: var(--surface);
+  --arch-paper: var(--surface-raised);
+  --arch-marigold: var(--accent);
+  --arch-terracotta: var(--accent-hover);
+  --arch-vermillion: var(--accent);
+  --arch-oxblood: var(--brand-maroon-dark);
+  --arch-soot: var(--ink);
+  --arch-muted: var(--ink-muted);
+  --arch-rule: var(--rule);
+  --arch-rule-strong: var(--rule-strong);
 
-  --arch-font-display: var(--kiosk-font-display, "Trajan Pro", "Times New Roman", serif);
-  --arch-font-ui: var(--kiosk-font-ui, "Futura", "Century Gothic", sans-serif);
-  --arch-font-body: var(--kiosk-font-body, "Gill Sans", "Century Gothic", sans-serif);
-  --arch-font-mono: var(--kiosk-font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  --arch-font-display: var(--font-display);
+  --arch-font-ui: var(--font-heading);
+  --arch-font-body: var(--font-body);
+  --arch-font-mono: var(--font-mono);
 
   --arch-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -103,7 +102,7 @@ button {
 }
 
 .archive-header__eyebrow {
-  color: var(--arch-marigold);
+  color: var(--accent-text);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.24em;
@@ -139,7 +138,7 @@ button {
   font-size: clamp(24px, 3.2vw, 34px);
   font-weight: 700;
   line-height: 1;
-  color: var(--arch-vermillion);
+  color: var(--accent-text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -196,7 +195,7 @@ button {
   border-top: 1px solid var(--arch-rule);
   border-right: 1px solid var(--arch-rule);
   border-bottom: 1px solid var(--arch-rule);
-  box-shadow: 14px 16px 40px rgba(31, 23, 22, 0.22);
+  box-shadow: 14px 16px 40px rgb(var(--brand-maroon-rgb) / 0.22);
 }
 
 .archive-card__cover {
@@ -237,7 +236,7 @@ button {
 .archive-card__fallback-type {
   display: block;
   margin-top: 8px;
-  color: var(--arch-terracotta);
+  color: var(--accent-text);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.26em;
@@ -351,7 +350,7 @@ button {
 }
 
 .archive-details__eyebrow {
-  color: var(--arch-terracotta);
+  color: var(--accent-text);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.28em;
@@ -549,7 +548,7 @@ button {
 }
 
 .archive-year-button.is-active {
-  color: var(--arch-vermillion);
+  color: var(--accent-text);
   font-size: 30px;
 }
 

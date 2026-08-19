@@ -8,7 +8,7 @@ from masonite.views import View
 
 from app.models.Locations import Locations
 from app.models.RouteSessions import RouteSessions
-from app.services import Campus25dMapping, MapWayfinderService
+from app.services import Campus25dMapping, CampusGeoTransform, MapWayfinderService
 
 
 # How long a QR-shared route stays valid on the phone after the kiosk
@@ -115,11 +115,18 @@ class MapController(Controller):
             Locations.all(), session.start_location_id
         )
 
+        destination_payload = self._serialize_location(destination, route_map)
+        destination_payload["wgs84"] = self._destination_wgs84(destination_payload)
+
         return response.json(
             {
                 "status": "active",
                 "start": self._serialize_location(start, route_map),
-                "destination": self._serialize_location(destination, route_map),
+                "destination": destination_payload,
+                # WGS84->pixel, for the phone to place its own GPS reading
+                # against the route polyline (same space as `route`/`map_x`/
+                # `map_y`). Only mobile-route.js consumes this today.
+                "geo_transform": CampusGeoTransform.wgs84_to_pixel_matrix(),
                 "expires_at": str(session.expires_at),
             }
         )
@@ -176,6 +183,20 @@ class MapController(Controller):
             "route": (route_map or {}).get(location_id),
             "feature_id": Campus25dMapping.feature_id_for(location_id),
         }
+
+    def _destination_wgs84(self, destination_payload):
+        """[lat, lng] for the destination, derived from its own map_x/map_y.
+
+        This is for the mobile route page's arrival check ONLY -- a
+        haversine distance against the phone's live GPS reading. It must
+        never be drawn with (fed into a Leaflet CRS.Simple call): that is
+        the same one-image-height-off mistake `Campus25dMapping.py` exists
+        to prevent, just arriving through a new field instead of the old
+        `latitude`/`longitude` columns.
+        """
+        x, y = destination_payload["map_x"], destination_payload["map_y"]
+        lat, lng = CampusGeoTransform.layer_point_to_wgs84(x, y)
+        return [lat, lng]
 
     def _find_start_location(self):
         for location in Locations.all():

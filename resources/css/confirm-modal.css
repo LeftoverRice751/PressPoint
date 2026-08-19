@@ -8,14 +8,14 @@
 }
 
 .confirm-modal::backdrop {
-    background: rgba(31, 23, 22, 0.7);
+    background: rgb(var(--brand-maroon-rgb) / 0.7);
 }
 
 .confirm-modal__panel {
     border-radius: var(--radius-md, 6px);
-    border: 1px solid var(--ink-oxblood);
+    border: 1px solid var(--rule-strong);
     background: var(--ink-paper);
-    box-shadow: 0 24px 48px rgba(31, 23, 22, 0.28);
+    box-shadow: 0 24px 48px rgb(var(--brand-maroon-rgb) / 0.28);
     padding: 1.4rem 1.5rem 1.25rem;
     display: grid;
     gap: 0.95rem;
@@ -28,7 +28,7 @@
     font-weight: 900;
     font-size: 1.4rem;
     letter-spacing: -0.01em;
-    color: var(--ink-oxblood);
+    color: var(--ink);
     line-height: 1.15;
 }
 
@@ -52,9 +52,9 @@
 
 .confirm-modal__button {
     appearance: none;
-    border: 1px solid var(--ink-oxblood);
+    border: 1px solid var(--rule-strong);
     background: transparent;
-    color: var(--ink-oxblood);
+    color: var(--ink);
     padding: 0.7rem 1.15rem;
     font: 800 0.8rem/1 var(--font-ui);
     letter-spacing: 0.12em;
@@ -66,35 +66,35 @@
 
 .confirm-modal__button:hover {
     background: var(--ink-oxblood);
-    color: var(--ink-cream);
+    color: var(--ink);
     transform: translateY(-1px);
 }
 
 .confirm-modal__button--primary {
     background: var(--ink-marigold);
     border-color: var(--ink-marigold);
-    color: var(--ink-oxblood);
+    color: var(--accent-ink);
 }
 
 .confirm-modal__button--primary:hover {
     background: var(--ink-terracotta);
     border-color: var(--ink-terracotta);
-    color: var(--ink-paper);
+    color: var(--accent-ink);
 }
 
 .confirm-modal__button--danger {
     background: var(--ink-vermillion);
     border-color: var(--ink-vermillion);
-    color: var(--ink-paper);
+    color: var(--accent-ink);
 }
 
 .confirm-modal__button--danger:hover {
     background: var(--ink-oxblood);
-    border-color: var(--ink-oxblood);
-    color: var(--ink-paper);
+    border-color: var(--rule-strong);
+    color: var(--ink);
 }
 
 .confirm-modal__button:focus-visible {
-    outline: 3px solid rgba(243, 149, 24, 0.55);
+    outline: 3px solid rgb(var(--brand-gold-rgb) / 0.55);
     outline-offset: 2px;
 }

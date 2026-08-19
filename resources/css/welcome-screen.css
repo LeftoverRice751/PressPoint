@@ -7,7 +7,7 @@
  * Notes:
  *   1. Colours all resolve to kiosk-tokens.css via the --w-* aliases
  *      below. The page previously hardcoded nine values, two of which
- *      (#8f1e24, #ff7a1a) were in no palette at all.
+ *      (var(--brand-maroon), var(--accent-hover)) were in no palette at all.
  *   2. Solid fills only — the project forbids gradients.
  *   3. Every fixed pixel dimension on the shell, hero, cards and ticker
  *      is fluid (clamp / vw / dvh) so the page fills any viewport —
@@ -20,16 +20,16 @@
 :root {
     /* Every colour below resolves to kiosk-tokens.css. Oxblood is the brand
        name for what the shared palette calls --kiosk-maroon; the Gears
-       dashboard carries its own drifted copy as --ink-oxblood (#491511).
+       dashboard carries its own drifted copy as --ink-oxblood (var(--brand-maroon-dark)).
        Don't introduce a third name for it. */
-    --w-ground:  var(--kiosk-paper, #F4EFE6);
-    --w-card:    #ffffff;
-    --w-ink:     var(--kiosk-espresso, #1F0F0C);
-    --w-muted:   var(--kiosk-ink-muted, rgba(31, 15, 12, 0.62));
-    --w-oxblood: var(--kiosk-maroon, #4A1A12);
-    --w-accent:  var(--kiosk-terracotta, #CC5A1F);
-    --w-cream:   var(--kiosk-cream, #EAE3D9);
-    --w-rule:    var(--kiosk-rule, rgba(31, 15, 12, 0.18));
+    --w-ground:  var(--kiosk-paper);
+    --w-card:    var(--n-white);
+    --w-ink:     var(--kiosk-espresso);
+    --w-muted:   var(--kiosk-ink-muted, rgb(var(--brand-maroon-rgb) / 0.62));
+    --w-oxblood: var(--kiosk-maroon);
+    --w-accent:  var(--kiosk-terracotta);
+    --w-cream:   var(--kiosk-cream);
+    --w-rule:    var(--kiosk-rule, rgb(var(--brand-maroon-rgb) / 0.18));
 }
 
 html,
@@ -40,7 +40,7 @@ body {
     overflow: hidden;
     background: var(--w-ground);
     color: var(--w-ink);
-    font-family: var(--kiosk-font-body);
+    font-family: var(--font-body);
 }
 
 * {
@@ -78,9 +78,9 @@ body {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: var(--kiosk-s-3, 12px);
+    gap: var(--kiosk-s-3);
     color: var(--w-muted);
-    font-family: var(--kiosk-font-ui);
+    font-family: var(--font-heading);
     font-size: clamp(0.72rem, 1.1vw, 0.95rem);
     letter-spacing: 0.01em;
 }
@@ -105,7 +105,7 @@ body {
     max-height: clamp(96px, 18vh, 240px);
     height: auto;
     object-fit: contain;
-    filter: drop-shadow(0 16px 26px rgba(76, 53, 35, 0.16));
+    filter: drop-shadow(0 16px 26px rgb(var(--brand-maroon-rgb) / 0.16));
 }
 
 /*
@@ -134,7 +134,7 @@ body {
     border: 1px solid var(--w-rule);
     border-radius: clamp(10px, 1.2vw, 16px);
     background: var(--w-card);
-    box-shadow: 0 10px 24px rgba(31, 15, 12, 0.07);
+    box-shadow: 0 10px 24px rgb(var(--brand-maroon-rgb) / 0.07);
     min-height: 0;
     padding: clamp(12px, 2vw, 32px) clamp(12px, 1.6vw, 26px);
     display: grid;
@@ -145,7 +145,7 @@ body {
     cursor: pointer;
     overflow: hidden;
     transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease;
-    animation: kiosk-card-enter var(--kiosk-dur-slow, 480ms) var(--kiosk-ease, cubic-bezier(0.2,0,0,1)) both;
+    animation: kiosk-card-enter var(--kiosk-dur-slow) var(--kiosk-ease, cubic-bezier(0.2,0,0,1)) both;
 }
 
 .feature-card:nth-child(1) { animation-delay:  60ms; }
@@ -163,15 +163,15 @@ body {
 .feature-card:hover,
 .feature-card:focus-visible {
     transform: translateY(-2px);
-    box-shadow: 0 18px 36px rgba(31, 15, 12, 0.14);
+    box-shadow: 0 18px 36px rgb(var(--brand-maroon-rgb) / 0.14);
     outline: none;
 }
 
 .feature-card.is-selected {
     background: var(--w-oxblood);
-    border-color: rgba(255, 255, 255, 0.08);
+    border-color: rgb(var(--n-white-rgb) / 0.08);
     color: var(--w-cream);
-    box-shadow: 0 24px 48px rgba(74, 26, 18, 0.28);
+    box-shadow: 0 24px 48px rgb(var(--brand-maroon-rgb) / 0.28);
 }
 
 /* Bare oxblood glyph sitting directly on the card — the svg inherits via
@@ -205,7 +205,7 @@ body {
 
 .feature-card__label {
     margin: 0;
-    font-family: var(--kiosk-font-ui);
+    font-family: var(--font-heading);
     font-size: clamp(1.1rem, 1.8vw, 2rem);
     font-weight: 800;
     letter-spacing: 0.02em;
@@ -214,7 +214,7 @@ body {
 
 .feature-card__hint {
     margin: 0;
-    font-family: var(--kiosk-font-body);
+    font-family: var(--font-body);
     font-size: clamp(0.78rem, 1.1vw, 1.15rem);
     color: inherit;
     opacity: 0.62;
@@ -230,7 +230,7 @@ body {
     overflow: hidden;
     background: var(--w-card);
     border: 1px solid var(--w-rule);
-    box-shadow: 0 10px 24px rgba(31, 15, 12, 0.07);
+    box-shadow: 0 10px 24px rgb(var(--brand-maroon-rgb) / 0.07);
     min-height: clamp(48px, 6.5vh, 72px);
 }
 
@@ -240,7 +240,7 @@ body {
     padding: 0 clamp(10px, 1.4vw, 24px);
     background: var(--w-oxblood);
     color: var(--w-cream);
-    font-family: var(--kiosk-font-ui);
+    font-family: var(--font-heading);
     font-size: clamp(0.72rem, 1vw, 1.05rem);
     font-weight: 800;
     letter-spacing: 0.14em;
@@ -287,7 +287,7 @@ body {
 }
 
 .news-ticker__headline {
-    font-family: var(--kiosk-font-ui);
+    font-family: var(--font-heading);
     font-weight: 800;
 }
 
@@ -341,7 +341,7 @@ body {
     border-radius: clamp(20px, 2.6vw, 36px);
     background: var(--w-card);
     border: 1px solid var(--w-rule);
-    box-shadow: 0 30px 70px rgba(31, 15, 12, 0.18);
+    box-shadow: 0 30px 70px rgb(var(--brand-maroon-rgb) / 0.18);
     text-align: center;
 }
 
@@ -402,13 +402,13 @@ body {
 .kiosk-loading-title {
     font-weight: 700;
     font-size: clamp(1.05rem, 1.4vw, 1.4rem);
-    color: #f8fafc;
+    color: var(--n-050);
     letter-spacing: 0.04em;
 }
 
 .kiosk-loading-subtitle {
     font-size: clamp(0.78rem, 1vw, 1rem);
-    color: #cbd5e1;
+    color: var(--n-200);
     letter-spacing: 0.18em;
     text-transform: uppercase;
 }
@@ -426,12 +426,12 @@ body {
     gap: clamp(8px, 1vw, 14px);
     min-height: clamp(56px, 8vw, 88px);
     padding: clamp(12px, 1.4vw, 20px) clamp(20px, 2.4vw, 36px);
-    background: var(--kiosk-amber, #E89A1C);
-    color: var(--kiosk-espresso, #1F0F0C);
+    background: var(--kiosk-amber);
+    color: var(--kiosk-espresso);
     border: 0;
     border-radius: 12px;
-    box-shadow: 0 6px 0 0 var(--kiosk-espresso, #1F0F0C);
-    font-family: var(--kiosk-font-ui);
+    box-shadow: 0 6px 0 0 var(--kiosk-espresso);
+    font-family: var(--font-heading);
     font-weight: 800;
     font-size: clamp(0.85rem, 1.1vw, 1.1rem);
     letter-spacing: 0.22em;
@@ -449,7 +449,7 @@ body.kiosk-idle-active .kiosk-idle-cta {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: var(--kiosk-crimson, #B11E2A);
+    background: var(--kiosk-crimson);
     animation: kiosk-pulse 1.2s ease-in-out infinite;
     flex: 0 0 auto;
 }

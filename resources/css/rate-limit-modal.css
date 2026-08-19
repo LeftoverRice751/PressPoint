@@ -1,0 +1,90 @@
+/* Rate-limit popup for the login / forgot-password / OTP forms — a native
+   <dialog>, same shape as confirm-modal.css, but informational (single
+   dismiss action, no confirm/cancel pair). Built on the --auth-* tokens
+   (auth-shell.css) since it only ever renders on the auth pages, not the
+   dashboard, so the --ink-* editorial aliases from gears-dashboard.css
+   aren't in scope here. */
+
+.rate-limit-modal {
+    width: min(420px, calc(100vw - 2rem));
+    border: 0;
+    padding: 0;
+    background: transparent;
+}
+
+.rate-limit-modal::backdrop {
+    background: rgb(var(--brand-maroon-rgb) / 0.7);
+}
+
+.rate-limit-modal__panel {
+    border-radius: 6px;
+    border: 1px solid var(--auth-rule-strong);
+    background: var(--auth-surface);
+    box-shadow: var(--shadow-lift);
+    padding: 1.6rem 1.6rem 1.4rem;
+    display: grid;
+    gap: 0.75rem;
+    text-align: center;
+    font-family: var(--auth-font-body);
+}
+
+.rate-limit-modal__mark {
+    width: 2.75rem;
+    height: 2.75rem;
+    margin: 0 auto 0.25rem;
+    color: var(--auth-accent);
+}
+
+.rate-limit-modal__title {
+    margin: 0;
+    font-family: var(--auth-font-display);
+    font-weight: 900;
+    font-size: 1.3rem;
+    letter-spacing: -0.01em;
+    color: var(--auth-ink);
+    line-height: 1.15;
+}
+
+.rate-limit-modal__body {
+    margin: 0;
+    color: var(--auth-ink-muted);
+    font-size: 0.95rem;
+    line-height: 1.55;
+}
+
+.rate-limit-modal__footer {
+    display: flex;
+    justify-content: center;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--auth-rule);
+    margin-top: 0.35rem;
+}
+
+.rate-limit-modal__button {
+    appearance: none;
+    border: 2px solid var(--auth-ink);
+    background: var(--auth-accent);
+    color: var(--accent-ink);
+    padding: 0.7rem 1.5rem;
+    font: 800 0.8rem/1 var(--auth-font-ui);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: var(--shadow-press);
+    transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.rate-limit-modal__button:hover {
+    background: var(--accent-hover);
+}
+
+.rate-limit-modal__button:active {
+    transform: translateY(4px);
+    box-shadow: none;
+}
+
+.rate-limit-modal__button:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+}

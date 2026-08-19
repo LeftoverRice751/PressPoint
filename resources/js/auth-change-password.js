@@ -55,7 +55,9 @@
         var score      = evaluation.score;
 
         var width = score === 0 ? 0 : score === 1 ? 33 : score === 2 ? 66 : 100;
-        var color = score < 2 ? '#B11E2A' : score === 2 ? '#E89A1C' : '#2E7D32';
+        // Token names, not hexes: an inline style resolves var() against the element,
+        // so the meter follows [data-theme="gears"] like everything else.
+        var color = score < 2 ? 'var(--danger)' : score === 2 ? 'var(--warn)' : 'var(--ok)';
 
         bar.style.width           = width + '%';
         bar.style.backgroundColor = color;
@@ -67,7 +69,7 @@
 
         if (score === 3) {
             label.textContent  = 'Strong password.';
-            label.style.color  = '#2E7D32';
+            label.style.color  = 'var(--ok)';
         } else {
             label.textContent = 'Needs: ' + missing.join(', ');
             label.style.color = '';

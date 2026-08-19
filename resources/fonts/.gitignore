@@ -1,0 +1,9 @@
+# Commercial binaries stay out of git (see README.md). Production serves from
+# this checkout, so the files on disk are what nginx reads — git is not the
+# delivery path for them. A fresh clone builds fine and renders fallbacks.
+Gilroy/
+Moderniz/
+
+# Everything else here is OFL/Apache and IS committed. Those families are
+# redistributable, the kiosk must build them from a clean clone, and OFL
+# requires the licence text to travel with the binaries — see LICENSES/.
