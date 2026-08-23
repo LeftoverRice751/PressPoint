@@ -63,7 +63,13 @@
       labelColor: cssVar('--ink', '#6b2516'),
       minLabelArea: 900, // only applies to labels longer than 2 characters
       interactive: true,
-      pane: 'overlayPane'
+      pane: 'overlayPane',
+      // Feature ids (f.properties.id, as strings) to paint at full strength
+      // while every other non-ground feature dims to `dimAlpha`. null/unset
+      // means "no dimming" -- the kiosk's own usage never sets this, so its
+      // rendering is unchanged. Set via setFocusFeatures(), not directly.
+      focusFeatureIds: null,
+      dimAlpha: 0.42
     },
 
     initialize: function (geojson, options) {
@@ -192,13 +198,17 @@
 
     _drawOne: function (ctx, d, unit) {
       const o = this.options, color = d.f.props[o.colorProperty] || '#cccccc';
+      const isGround = d.f.props[o.kindProperty] === 'ground';
+      const dimmed = o.focusFeatureIds && !isGround && !o.focusFeatureIds.has(String(d.f.props.id));
+      ctx.globalAlpha = dimmed ? o.dimAlpha : 1;
 
       if (d.flat) {
         ctx.beginPath(); tracePath(ctx, d.base);
         ctx.fillStyle = color; ctx.fill('evenodd');
-        if (d.f.props[o.kindProperty] === 'ground') { ctx.strokeStyle = 'rgba(22,19,16,0.55)'; ctx.lineWidth = 1.5; ctx.stroke(); }
+        if (isGround) { ctx.strokeStyle = 'rgba(22,19,16,0.55)'; ctx.lineWidth = 1.5; ctx.stroke(); }
         this._label(ctx, d);
         this._hit.push(d);
+        ctx.globalAlpha = 1;
         return;
       }
 
@@ -241,6 +251,7 @@
 
       this._label(ctx, d);
       this._hit.push(d);
+      ctx.globalAlpha = 1;
     },
 
     _strokeRoof: function (ctx, d, color) {
@@ -285,7 +296,15 @@
     },
 
     setCameraDistance: function (v) { this.options.cameraDistance = v; this._render(); return this; },
-    setHeightScale: function (v) { this.options.heightScale = v; this._render(); return this; }
+    setHeightScale: function (v) { this.options.heightScale = v; this._render(); return this; },
+
+    /** Dim every non-ground feature except the given ids (strings or
+     * numbers, coerced to strings). Pass null/undefined to clear. */
+    setFocusFeatures: function (ids) {
+      this.options.focusFeatureIds = ids ? new Set(Array.from(ids, String)) : null;
+      this._render();
+      return this;
+    }
   });
 
   function tracePath(ctx, rings) {

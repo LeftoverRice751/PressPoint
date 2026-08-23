@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Kiosk</title>
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-palette.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-shell.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/welcome-screen.css') }}" />
   <style>
     #kiosk-stage {
@@ -152,49 +154,10 @@
     #kiosk-notice[data-tone="danger"] {
       background: rgb(var(--danger-rgb) / 0.95);
     }
-
-    .hero {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.55rem;
-      padding-top: 0.25rem;
-      text-align: center;
-    }
-
-    .hero__logo {
-      width: clamp(96px, 16vw, 260px);
-      max-height: clamp(96px, 16vh, 220px);
-      height: auto;
-      display: block;
-      filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.35));
-    }
-
-    .hero__title {
-      margin: 0;
-      color: var(--n-900);
-      font-family: var(--font-display);
-      font-size: clamp(2rem, 4.6vw, 5.6rem);
-      font-weight: 900;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      line-height: 1;
-    }
-
-    .hero__subtitle {
-      margin: 0;
-      max-width: 30rem;
-      color: var(--n-900);
-      font-family: var(--font-body);
-      font-size: clamp(0.88rem, 1.3vw, 1.2rem);
-      line-height: 1.4;
-      letter-spacing: 0.03em;
-    }
   </style>
 </head>
-<body>
-  <div class="kiosk-shell">
-    <main class="kiosk-app" aria-label="Kiosk terminal">
+<body class="kiosk-body">
+  <div class="kiosk-shell" aria-label="Kiosk terminal">
       <!-- Status bar. No aria-live: a clock that announces itself every
            minute is noise for screen-reader users. welcome-screen.js fills
            both spans and sets the datetime attribute. -->
@@ -206,106 +169,74 @@
         </time>
       </header>
 
-      <section class="hero" aria-label="Brand mark">
-        <img class="hero__logo" src="{{ site_logo() }}" alt="Gears logo" />
-        <h1 class="hero__title">PRESS POINT</h1>
-        <p class="hero__subtitle">The Gears Publication Works</p>
+      <!-- Masthead: brand identity only — no live indicator, no unit label. -->
+      <section class="wc-masthead" aria-label="Press Point">
+        <img class="wc-masthead__mark" src="{{ site_logo() }}" alt="Gears logo" />
+        <div class="wc-masthead__type">
+          <span class="wc-masthead__kicker">The Gears Publication Works</span>
+          <h1 class="wc-masthead__wordmark">Press Point</h1>
+        </div>
+        <span class="wc-masthead__meta">Santa Cruz<br>Campus</span>
       </section>
 
-      <section class="feature-grid" aria-label="Kiosk actions">
-        <button class="feature-card" type="button" data-card="Latest News" data-target="/kiosk/latest-news">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M5 6h14"></path>
-              <path d="M5 10h14"></path>
-              <path d="M5 14h9"></path>
-              <path d="M5 18h6"></path>
-            </svg>
-          </span>
+      <!-- Six destinations, equal weight: two columns of three, each card its
+           own container. No ranking index — the grid reads left-to-right,
+           top-to-bottom, and nothing here is more important than the rest. -->
+      <section class="feature-grid" aria-label="Kiosk destinations">
+        <a class="feature-card" href="{{ route('kiosk.latest-news', {}, False) }}">
+          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 6h14"></path><path d="M5 10h14"></path><path d="M5 14h9"></path><path d="M5 18h6"></path></svg></span>
           <span class="feature-card__label">Latest News</span>
           <span class="feature-card__hint">Read recent updates</span>
-        </button>
+        </a>
 
-        <button class="feature-card" type="button" data-card="Campus Map" data-target="/kiosk/campus-map">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M9 5 3 7.8v11.2l6-2.8 6 2.8 6-2.8V5l-6 2.8L9 5Z"></path>
-              <path d="M9 7.8v11.2"></path>
-              <path d="M15 8.6v11"></path>
-            </svg>
-          </span>
+        <a class="feature-card" href="/kiosk/campus-map">
+          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 5 3 7.8v11.2l6-2.8 6 2.8 6-2.8V5l-6 2.8L9 5Z"></path><path d="M9 7.8v11.2"></path><path d="M15 8.6v11"></path></svg></span>
           <span class="feature-card__label">Campus Map</span>
-          <span class="feature-card__hint">Find every location</span>
-        </button>
+          <span class="feature-card__hint">Find every building, office and route</span>
+        </a>
 
-        <button class="feature-card" type="button" data-card="Gears Archive" data-target="{{ route('kiosk.gears-archive') }}">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M8 11.5a4 4 0 1 1 8 0"></path>
-              <path d="M6.5 18.5a6.8 6.8 0 0 1 11 0"></path>
-              <path d="M12 5.5v2"></path>
-              <path d="M16.3 7.2 15.1 8.4"></path>
-              <path d="M7.7 7.2 8.9 8.4"></path>
-            </svg>
-          </span>
+        <!-- Literal path, not route('kiosk.gears-archive'): that name is registered
+             on two paths ("/" and "/kiosk/gears-archive"), route() resolves the
+             first, and the relative form renders "/" as an empty string — a card
+             that goes nowhere. -->
+        <a class="feature-card" href="/kiosk/gears-archive">
+          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16"></path><path d="M5 7v12h14V7"></path><path d="M9 11h6"></path><path d="M9 15h6"></path></svg></span>
           <span class="feature-card__label">Gears Archive</span>
-          <span class="feature-card__hint">Browse our archives</span>
-        </button>
+          <span class="feature-card__hint">Read all published archives of The Gears</span>
+        </a>
 
-        <button class="feature-card" type="button" data-card="Virtual Tour" data-target="/kiosk/virtual-tour">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M7 5.5 17.5 12 7 18.5V5.5Z"></path>
-            </svg>
-          </span>
+        <a class="feature-card" href="/kiosk/virtual-tour">
+          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 5.5 17.5 12 7 18.5V5.5Z"></path></svg></span>
           <span class="feature-card__label">Virtual Tour</span>
-          <span class="feature-card__hint">Preview the campus</span>
-        </button>
+          <span class="feature-card__hint">Walk the campus in 360&deg;</span>
+        </a>
 
-        <button class="feature-card" type="button" data-card="About LSPU" data-target="{{ route('kiosk.about-lspu') }}">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="8.5"></circle>
-              <path d="M12 11v5.5"></path>
-              <path d="M12 7.75v.5"></path>
-            </svg>
-          </span>
+        <a class="feature-card" href="{{ route('kiosk.about-lspu', {}, False) }}">
+          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 11v5.5"></path><path d="M12 7.75v.5"></path></svg></span>
           <span class="feature-card__label">About LSPU</span>
-          <span class="feature-card__hint">Learn about the university</span>
-        </button>
+          <span class="feature-card__hint">Mission, history, hymn and seal</span>
+        </a>
 
-        <button class="feature-card" type="button" data-card="LSPU Organizational Chart" data-target="{{ route('kiosk.org-board') }}">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <rect x="9.5" y="3.5" width="5" height="4" rx="0.6"></rect>
-              <rect x="3.5" y="15.5" width="5" height="4" rx="0.6"></rect>
-              <rect x="9.5" y="15.5" width="5" height="4" rx="0.6"></rect>
-              <rect x="15.5" y="15.5" width="5" height="4" rx="0.6"></rect>
-              <path d="M12 7.5v3"></path>
-              <path d="M6 15.5v-2.5h12v2.5"></path>
-              <path d="M12 13v2.5"></path>
-            </svg>
-          </span>
+        <a class="feature-card" href="{{ route('kiosk.org-board', {}, False) }}">
+          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="9.5" y="3.5" width="5" height="4" rx="0.6"></rect><rect x="3.5" y="15.5" width="5" height="4" rx="0.6"></rect><rect x="9.5" y="15.5" width="5" height="4" rx="0.6"></rect><rect x="15.5" y="15.5" width="5" height="4" rx="0.6"></rect><path d="M12 7.5v3"></path><path d="M6 15.5v-2.5h12v2.5"></path><path d="M12 13v2.5"></path></svg></span>
           <span class="feature-card__label">LSPU Org Chart</span>
-          <span class="feature-card__hint">View leadership structure</span>
-        </button>
+          <span class="feature-card__hint">Who leads which office</span>
+        </a>
       </section>
 
       <section class="news-ticker" aria-label="Flash updates">
-        <div class="news-ticker__label">FLASH UPDATES</div>
+        <div class="news-ticker__label">Flash</div>
         <div class="news-ticker__viewport">
           <div class="news-ticker__track" id="ticker-track"></div>
         </div>
       </section>
-    </main>
-
   </div>
 
   <div
     id="kiosk-config"
     data-pusher-key="{{ pusher_key }}"
     data-pusher-cluster="{{ pusher_cluster }}"
-    data-flash-updates-url="{{ route('welcome.flash-updates') }}"
+    data-flash-updates-url="{{ route('welcome.flash-updates', {}, False) }}"
   ></div>
 
   <div id="kiosk-stage" hidden aria-live="polite">
@@ -331,6 +262,48 @@
 
   <div id="kiosk-notice" role="status" aria-live="polite" aria-atomic="true"></div>
 
+  <!-- Speculation rules: the kiosk menu is a fixed set of six destinations on
+       idle hardware, which is the ideal case for prerendering. Chromium runs
+       each listed page to completion in a hidden frame — HTML, CSS, JS, Leaflet
+       init and all — so the tap swaps in an already-painted page instead of
+       starting a navigation.
+
+       Two tiers on purpose. The two lightest, most-tapped destinations render
+       eagerly while the menu sits idle. The rest wait for "moderate", which
+       fires on pointerdown — the ~150ms between finger-down and finger-up is
+       enough to win most of the load — because prerendering Archives (314KB of
+       pdf.js) and the 360 tour (Leaflet + tour data) up front would hold far
+       more memory than a 768x1024 panel should carry at rest.
+
+       prefetch covers all six regardless: if a prerender is evicted or the
+       concurrency cap is hit, the document still comes from cache.
+
+       Not cached in the service worker, deliberately — see sw-kiosk.js. These
+       responses carry a per-session CSRF token that the Campus Map and tour QR
+       handoff POSTs depend on, so the document must stay fresh from the server.
+       Prerender keeps it fresh; a stale cached copy would 302 the POST. -->
+  <script type="speculationrules">
+  {
+    "prerender": [
+      {
+        "urls": ["{{ route('kiosk.latest-news', {}, False) }}", "/kiosk/campus-map"],
+        "eagerness": "immediate"
+      },
+      {
+        "where": { "selector_matches": ".feature-card" },
+        "eagerness": "moderate"
+      }
+    ],
+    "prefetch": [
+      {
+        "where": { "selector_matches": ".feature-card" },
+        "eagerness": "immediate"
+      }
+    ]
+  }
+  </script>
+
+  <script src="{{ asset_url('js/kiosk-clock.js') }}" defer></script>
   <script src="{{ asset_url('js/welcome-screen.js') }}" defer></script>
   <script src="{{ asset_url('js/app.js') }}" defer></script>
   <script src="{{ asset_url('js/welcome-lock.js') }}" defer></script>

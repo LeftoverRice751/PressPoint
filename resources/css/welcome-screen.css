@@ -1,465 +1,459 @@
 /*
- * Welcome screen — PressPoint kiosk attract page.
+ * Welcome screen — the kiosk's main menu.
  *
- * Layout: status bar (org + live clock) · hero · 2x3 card grid · flash
- * ticker, stacked in one full-height grid.
+ * A grid of six equal tiles: two columns of three, each destination its own
+ * container. This replaced a ranked stack (a lead-story hero band numbered 001
+ * over five 002–006 rows) — the ranking was editorial, not navigational, and a
+ * passer-by scanning for one destination reads six equal boxes faster than a
+ * priority order they have to parse first.
  *
- * Notes:
- *   1. Colours all resolve to kiosk-tokens.css via the --w-* aliases
- *      below. The page previously hardcoded nine values, two of which
- *      (var(--brand-maroon), var(--accent-hover)) were in no palette at all.
- *   2. Solid fills only — the project forbids gradients.
- *   3. Every fixed pixel dimension on the shell, hero, cards and ticker
- *      is fluid (clamp / vw / dvh) so the page fills any viewport —
- *      phone, kiosk hardware, laptop, monitor — instead of capping at
- *      the 768x1024 touchscreen size.
- *   4. The .kiosk-idle-cta and .kiosk-logo-spin styles required by the
- *      idle attract feature live at the bottom of the file.
+ *   status 44px · masthead 148px · six cards in a 2×3 grid (1fr) · ticker 58px
+ *
+ * Shell, status bar and back-bar rules live in kiosk-shell.css; colours in
+ * kiosk-palette.css. Solid fills only.
  */
 
-:root {
-    /* Every colour below resolves to kiosk-tokens.css. Oxblood is the brand
-       name for what the shared palette calls --kiosk-maroon; the Gears
-       dashboard carries its own drifted copy as --ink-oxblood (var(--brand-maroon-dark)).
-       Don't introduce a third name for it. */
-    --w-ground:  var(--kiosk-paper);
-    --w-card:    var(--n-white);
-    --w-ink:     var(--kiosk-espresso);
-    --w-muted:   var(--kiosk-ink-muted, rgb(var(--brand-maroon-rgb) / 0.62));
-    --w-oxblood: var(--kiosk-maroon);
-    --w-accent:  var(--kiosk-terracotta);
-    --w-cream:   var(--kiosk-cream);
-    --w-rule:    var(--kiosk-rule, rgb(var(--brand-maroon-rgb) / 0.18));
+/* ── Masthead ──────────────────────────────────────────────────────── */
+
+.wc-masthead {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 2.6vw, 22px);
+  height: clamp(96px, 14.5vh, 148px);
+  padding: 0 clamp(14px, 3vw, 26px);
+  background: var(--kiosk-espresso);
+  border-bottom: 5px solid var(--kiosk-amber);
 }
 
-html,
-body {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    overflow: hidden;
-    background: var(--w-ground);
-    color: var(--w-ink);
-    font-family: var(--font-body);
+.wc-masthead__mark {
+  flex: 0 0 auto;
+  width: clamp(46px, 12vw, 92px);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
 }
 
-* {
-    box-sizing: border-box;
+.wc-masthead__type {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(3px, 0.7vh, 8px);
 }
 
-body {
-    display: grid;
-    place-items: center;
+.wc-masthead__kicker {
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.5rem, 1.5vw, 0.75rem);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--kiosk-amber);
 }
 
-.kiosk-shell {
-    position: relative;
-    width: 100vw;
-    height: 100dvh;
-    max-width: none;
-    overflow: hidden;
-    background: var(--w-ground);
+.wc-masthead__wordmark {
+  margin: 0;
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(1.75rem, 6vw, 2.875rem);
+  line-height: 1;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--kiosk-paper);
+  white-space: nowrap;
 }
 
-.kiosk-app {
-    position: relative;
-    height: 100%;
-    padding: clamp(16px, 3vh, 56px) clamp(18px, 3vw, 60px) clamp(14px, 2.4vh, 40px);
-    display: grid;
-    /* status · hero · cards · ticker. The minmax(0, 1fr) on the card row is
-       what lets cards shrink below min-content on a 1024px-tall screen. */
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
-    gap: clamp(12px, 2vh, 36px);
+/* Below ~360px the wordmark can't hold both its tracking and one line beside
+   the mark. Tightening the tracking buys the ~12px needed to keep it unbroken
+   rather than letting it clip. */
+@media (max-width: 360px) {
+  .wc-masthead__wordmark {
+    font-size: clamp(1.35rem, 5.4vw, 1.75rem);
+    letter-spacing: 0.06em;
+  }
+  .wc-masthead { gap: 8px; }
 }
 
-/* ── Status bar ──────────────────────────────────────────────────── */
-
-.kiosk-status {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--kiosk-s-3);
-    color: var(--w-muted);
-    font-family: var(--font-heading);
-    font-size: clamp(0.72rem, 1.1vw, 0.95rem);
-    letter-spacing: 0.01em;
+.wc-masthead__meta {
+  flex: 0 0 auto;
+  text-align: right;
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.5rem, 1.4vw, 0.6875rem);
+  line-height: 1.6;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--kiosk-on-dark-faint);
 }
 
-.kiosk-status__stamp {
-    display: flex;
-    gap: clamp(10px, 1.6vw, 26px);
-    white-space: nowrap;
-    /* Without tabular figures the time jitters sideways as digits change. */
-    font-variant-numeric: tabular-nums;
-}
-
-.hero {
-    display: grid;
-    place-items: center;
-    padding-top: clamp(4px, 1vh, 16px);
-}
-
-.hero__logo {
-    display: block;
-    width: clamp(96px, 18vw, 260px);
-    max-height: clamp(96px, 18vh, 240px);
-    height: auto;
-    object-fit: contain;
-    filter: drop-shadow(0 16px 26px rgb(var(--brand-maroon-rgb) / 0.16));
-}
+/* ── The six cards ─────────────────────────────────────────────────── */
 
 /*
- * The feature grid fills the 1fr row between hero and ticker, with three
- * card rows that each grab an equal share of the remaining height. The
- * minmax(0, 1fr) on the row template is what lets the cards SHRINK below
- * any intrinsic min-content height — without it, three rows of 200px+
- * cards would overflow the 1024px-tall kiosk shell.
+ * The grid takes the shell's one flexible row and splits it into two columns
+ * of three. grid-auto-rows: minmax(0, 1fr) is what lets the cards SHRINK below
+ * their intrinsic min-content height — without it three rows of cards overflow
+ * the 1024px-tall kiosk panel instead of sharing what's left of it.
  */
 .feature-grid {
-    align-self: stretch;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: minmax(0, 1fr);
-    gap: clamp(10px, 1.8vw, 32px);
-    padding: clamp(2px, 0.5vh, 8px) 0 0;
-    width: 100%;
-    height: 100%;
-    min-height: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: clamp(8px, 2vw, 18px);
+  padding: clamp(8px, 2vw, 18px);
 }
 
+/* An <a>, not a <button>: these are navigations, and only a real link gives
+   Chromium something to prerender on press (the "moderate" speculation rule
+   in welcome.html matches this selector). */
 .feature-card {
-    appearance: none;
-    position: relative;
-    z-index: 1;
-    border: 1px solid var(--w-rule);
-    border-radius: clamp(10px, 1.2vw, 16px);
-    background: var(--w-card);
-    box-shadow: 0 10px 24px rgb(var(--brand-maroon-rgb) / 0.07);
-    min-height: 0;
-    padding: clamp(12px, 2vw, 32px) clamp(12px, 1.6vw, 26px);
-    display: grid;
-    place-items: center;
-    gap: clamp(8px, 1.2vw, 22px);
-    text-align: center;
-    color: var(--w-ink);
-    cursor: pointer;
-    overflow: hidden;
-    transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease;
-    animation: kiosk-card-enter var(--kiosk-dur-slow) var(--kiosk-ease, cubic-bezier(0.2,0,0,1)) both;
+  appearance: none;
+  text-decoration: none;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: clamp(6px, 1.4vh, 14px);
+  padding: clamp(10px, 2vw, 22px);
+  /* Squared and hairlined, like every other panel in the kiosk shell. The
+     rounded, drop-shadowed tile this grid is descended from read as a floaty
+     island once the rest of the chrome went flat. */
+  border: 1px solid var(--kiosk-hairline);
+  border-radius: 0;
+  background: var(--kiosk-paper);
+  color: var(--kiosk-ink);
+  text-align: center;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background-color var(--kiosk-dur) var(--kiosk-ease);
+  animation: kiosk-enter var(--kiosk-dur) var(--kiosk-ease) both;
 }
 
-.feature-card:nth-child(1) { animation-delay:  60ms; }
-.feature-card:nth-child(2) { animation-delay: 120ms; }
-.feature-card:nth-child(3) { animation-delay: 180ms; }
-.feature-card:nth-child(4) { animation-delay: 240ms; }
-.feature-card:nth-child(5) { animation-delay: 300ms; }
-.feature-card:nth-child(6) { animation-delay: 360ms; }
+/* Reading order, not importance: the stagger sweeps the grid the way an eye
+   crosses it. kiosk-enter is the shared primitive from kiosk-palette.css —
+   a local copy would sit outside its prefers-reduced-motion override. */
+.feature-card:nth-child(1) { animation-delay:  40ms; }
+.feature-card:nth-child(2) { animation-delay:  80ms; }
+.feature-card:nth-child(3) { animation-delay: 120ms; }
+.feature-card:nth-child(4) { animation-delay: 160ms; }
+.feature-card:nth-child(5) { animation-delay: 200ms; }
+.feature-card:nth-child(6) { animation-delay: 240ms; }
 
-@keyframes kiosk-card-enter {
-    from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: translateY(0); }
+/* Hover is gated on a real pointer. On a touchscreen the :hover state latches
+   after a tap and stays until something else is tapped, so an un-gated hover
+   fill leaves a stuck highlight showing a selection nobody made. Focus stays
+   outside the query: keyboard users need it on every device. */
+@media (hover: hover) {
+  .feature-card:hover { background: var(--kiosk-cream); }
 }
 
-.feature-card:hover,
 .feature-card:focus-visible {
-    transform: translateY(-2px);
-    box-shadow: 0 18px 36px rgb(var(--brand-maroon-rgb) / 0.14);
-    outline: none;
+  background: var(--kiosk-cream);
+  outline: none;
 }
 
-.feature-card.is-selected {
-    background: var(--w-oxblood);
-    border-color: rgb(var(--n-white-rgb) / 0.08);
-    color: var(--w-cream);
-    box-shadow: 0 24px 48px rgb(var(--brand-maroon-rgb) / 0.28);
+/* Tap acknowledgement: the same press language as the back bar, so the whole
+   kiosk answers a finger the same way. Transient by construction — :active
+   ends when the finger lifts, so unlike the old .is-selected fill it cannot
+   survive the navigation and greet the next visitor. */
+.feature-card:active {
+  transform: translateY(2px);
 }
 
-/* Bare oxblood glyph sitting directly on the card — the svg inherits via
-   currentColor. The span keeps the old tile footprint so card heights
-   are unchanged. */
 .feature-card__icon {
-    width: clamp(44px, 5.5vw, 84px);
-    height: clamp(44px, 5.5vw, 84px);
-    color: var(--w-oxblood);
-    display: grid;
-    place-items: center;
-    transition: color 180ms ease, transform 180ms ease;
+  width: clamp(40px, 8vw, 68px);
+  height: clamp(40px, 8vw, 68px);
+  display: grid;
+  place-items: center;
+  color: var(--kiosk-maroon);
 }
 
-.feature-card.is-selected .feature-card__icon {
-    color: var(--w-cream);
-    transform: scale(1.03);
-}
-
-/* Every glyph's paths sit within 3–21 of the 24 viewBox, so filling the
-   span leaves enough margin for the round stroke caps. */
+/* Every glyph's paths sit within 3–21 of the 24 viewBox, so filling the span
+   leaves enough margin for the round stroke caps. */
 .feature-card__icon svg {
-    width: 100%;
-    height: 100%;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .feature-card__label {
-    margin: 0;
-    font-family: var(--font-heading);
-    font-size: clamp(1.1rem, 1.8vw, 2rem);
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    line-height: 1.1;
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(1rem, 3.2vw, 1.5rem);
+  line-height: 1.1;
 }
 
 .feature-card__hint {
-    margin: 0;
-    font-family: var(--font-body);
-    font-size: clamp(0.78rem, 1.1vw, 1.15rem);
-    color: inherit;
-    opacity: 0.62;
+  font-size: clamp(0.66rem, 1.8vw, 0.85rem);
+  line-height: 1.3;
+  color: var(--kiosk-ink-soft);
 }
 
+/* ── Flash ticker ──────────────────────────────────────────────────── */
+
 .news-ticker {
-    position: relative;
-    z-index: 2;
-    display: grid;
-    grid-template-columns: clamp(110px, 18vw, 240px) 1fr;
-    align-items: stretch;
-    border-radius: 0;
-    overflow: hidden;
-    background: var(--w-card);
-    border: 1px solid var(--w-rule);
-    box-shadow: 0 10px 24px rgb(var(--brand-maroon-rgb) / 0.07);
-    min-height: clamp(48px, 6.5vh, 72px);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  height: clamp(44px, 6vh, 58px);
+  background: var(--kiosk-espresso);
+  overflow: hidden;
 }
 
 .news-ticker__label {
-    display: grid;
-    place-items: center;
-    padding: 0 clamp(10px, 1.4vw, 24px);
-    background: var(--w-oxblood);
-    color: var(--w-cream);
-    font-family: var(--font-heading);
-    font-size: clamp(0.72rem, 1vw, 1.05rem);
-    font-weight: 800;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 0 clamp(10px, 2.4vw, 20px);
+  background: var(--kiosk-amber);
+  color: var(--kiosk-espresso);
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.5rem, 1.4vw, 0.6875rem);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
 }
 
 .news-ticker__viewport {
-    overflow: hidden;
-    position: relative;
-    padding: 0 clamp(10px, 1.2vw, 22px);
-    display: grid;
-    align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  overflow: hidden;
+  padding: 0 clamp(10px, 2.4vw, 18px);
 }
 
 .news-ticker__track {
-    display: flex;
-    width: max-content;
-    gap: clamp(14px, 1.6vw, 28px);
-    align-items: center;
-    will-change: transform;
-    animation: ticker-scroll 50s linear infinite;
+  display: flex;
+  width: max-content;
+  gap: clamp(14px, 1.6vw, 28px);
+  align-items: center;
+  will-change: transform;
+  animation: ticker-scroll 50s linear infinite;
 }
 
 .news-ticker__group {
-    display: flex;
-    align-items: center;
-    gap: clamp(14px, 1.6vw, 28px);
-    padding-right: clamp(14px, 1.6vw, 28px);
-    white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 1.6vw, 28px);
+  padding-right: clamp(14px, 1.6vw, 28px);
+  white-space: nowrap;
 }
 
 .news-ticker__item {
-    display: inline-flex;
-    align-items: center;
-    gap: clamp(8px, 1vw, 16px);
-    font-size: clamp(0.85rem, 1.1vw, 1.15rem);
-    color: var(--w-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(8px, 1vw, 16px);
+  font-size: clamp(0.68rem, 1.8vw, 0.875rem);
+  color: var(--kiosk-on-dark);
 }
 
-.news-ticker__bullet {
-    color: var(--w-accent);
-    font-weight: 900;
-    letter-spacing: 0.05em;
-}
+/* Nothing published yet: the band explains itself rather than scrolling
+   an empty track under a FLASH tab that labels nothing. */
+.news-ticker__item--empty { color: var(--kiosk-on-dark-faint); }
+.news-ticker__track:has(.news-ticker__item--empty) { animation: none; }
 
-.news-ticker__headline {
-    font-family: var(--font-heading);
-    font-weight: 800;
-}
-
-.news-ticker__copy {
-    color: var(--w-muted);
-}
-
-.news-ticker__date {
-    color: var(--w-muted);
-    font-weight: 700;
-}
+.news-ticker__bullet { color: var(--kiosk-amber); font-weight: 700; }
+.news-ticker__headline { font-family: var(--kiosk-font-ui); font-weight: 700; }
+.news-ticker__copy,
+.news-ticker__date { color: var(--kiosk-on-dark-faint); }
 
 @keyframes ticker-scroll {
-    from { transform: translateX(0); }
-    to   { transform: translateX(-50%); }
-}
-
-/* Landscape uplift — give wide screens a 3-column card deck so the
-   layout feels designed-for-desktop rather than a stretched phone. */
-@media (orientation: landscape) and (min-width: 960px) {
-    .feature-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .news-ticker__track {
-        animation: none;
-    }
-
-    .feature-card,
-    .feature-card__icon {
-        transition: none;
-    }
+  .news-ticker__track { animation: none; }
 }
 
-/* Coming-soon screens preserve the same surface treatment as the
-   primary kiosk shell so the cream paper feels consistent. */
-.coming-soon-shell {
-    width: 100vw;
-    height: 100dvh;
-    display: grid;
-    place-items: center;
-    background: var(--w-ground);
+/* ── Phone ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  /* Two columns at phone width leave each card about 160px to hold a glyph,
+     a title and a hint — the hint wraps to three lines and the title breaks.
+     One column instead, and the cards stop sharing the leftover height for a
+     fixed touch-sized one so six of them can't be squeezed under the readable
+     minimum. The grid scrolls; the status bar and the ticker stay pinned. */
+  .feature-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .feature-card {
+    min-height: max(74px, var(--kiosk-touch-min, 48px));
+  }
 }
 
-.coming-soon-card {
-    width: min(100%, clamp(360px, 70vw, 640px));
-    margin: clamp(16px, 3vw, 40px);
-    padding: clamp(28px, 4vw, 56px) clamp(24px, 3vw, 44px) clamp(24px, 3vw, 40px);
-    border-radius: clamp(20px, 2.6vw, 36px);
-    background: var(--w-card);
-    border: 1px solid var(--w-rule);
-    box-shadow: 0 30px 70px rgb(var(--brand-maroon-rgb) / 0.18);
-    text-align: center;
+/* ── Short landscape ───────────────────────────────────────────────── */
+
+@media (max-height: 620px) {
+  .wc-masthead { height: 76px; }
+  .feature-grid {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .feature-card { min-height: 60px; }
 }
 
-.coming-soon-card__eyebrow {
-    margin: 0 0 clamp(10px, 1.2vw, 18px);
-    font-size: clamp(0.78rem, 1vw, 1rem);
-    font-weight: 800;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--w-muted);
-}
-
-.coming-soon-card__title {
-    margin: 0;
-    color: var(--w-oxblood);
-    font-size: clamp(2.2rem, 4vw, 4rem);
-    line-height: 1;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-}
-
-.coming-soon-card__label {
-    margin: clamp(10px, 1.2vw, 18px) 0 0;
-    font-size: clamp(0.95rem, 1.2vw, 1.2rem);
-    font-weight: 800;
-    color: var(--w-ink);
-}
-
-.coming-soon-card__back {
-    display: inline-block;
-    margin-top: clamp(18px, 2.2vw, 30px);
-    padding: clamp(10px, 1.2vw, 18px) clamp(16px, 1.8vw, 28px);
-    border-radius: 999px;
-    background: var(--w-oxblood);
-    color: var(--w-cream);
-    text-decoration: none;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-/* ─── Idle loading spinner ───────────────────────────────────────────── */
+/* ── Idle attract loop (video overlay chrome) ──────────────────────── */
 
 .kiosk-logo-spin {
-    width: clamp(56px, 9vw, 96px);
-    height: clamp(56px, 9vw, 96px);
-    /* The logo is editor-uploaded and may not be square — letterbox it into
-       the fixed spinner box rather than stretching it. */
-    object-fit: contain;
-    animation: kiosk-logo-spin 2s linear infinite;
+  width: clamp(56px, 9vw, 96px);
+  height: clamp(56px, 9vw, 96px);
+  /* The logo is editor-uploaded and may not be square — letterbox it into
+     the fixed spinner box rather than stretching it. */
+  object-fit: contain;
+  animation: kiosk-logo-spin 2s linear infinite;
 }
 
 @keyframes kiosk-logo-spin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 .kiosk-loading-title {
-    font-weight: 700;
-    font-size: clamp(1.05rem, 1.4vw, 1.4rem);
-    color: var(--n-050);
-    letter-spacing: 0.04em;
+  font-weight: 700;
+  font-size: clamp(1.05rem, 1.4vw, 1.4rem);
+  color: var(--kiosk-paper);
+  letter-spacing: 0.04em;
 }
 
 .kiosk-loading-subtitle {
-    font-size: clamp(0.78rem, 1vw, 1rem);
-    color: var(--n-200);
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+  font-size: clamp(0.78rem, 1vw, 1rem);
+  color: var(--kiosk-on-dark-faint);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-/* ─── Idle "CLICK TO START KIOSK" CTA ────────────────────────────────── */
-
+/* The idle attract video plays full-bleed, so this is the only thing telling a
+   passer-by the screen is interactive at all. It used to be a small pill at the
+   bottom — legible from a metre away, invisible from across the lobby. It is now
+   a full-width band: nobody has to find it, and the whole thing is one big touch
+   target on a screen people jab at with a thumb. */
 .kiosk-idle-cta {
-    position: absolute;
-    left: 50%;
-    bottom: clamp(28px, 6vh, 80px);
-    transform: translateX(-50%);
-    z-index: 6;
-    display: none;
-    align-items: center;
-    gap: clamp(8px, 1vw, 14px);
-    min-height: clamp(56px, 8vw, 88px);
-    padding: clamp(12px, 1.4vw, 20px) clamp(20px, 2.4vw, 36px);
-    background: var(--kiosk-amber);
-    color: var(--kiosk-espresso);
-    border: 0;
-    border-radius: 12px;
-    box-shadow: 0 6px 0 0 var(--kiosk-espresso);
-    font-family: var(--font-heading);
-    font-weight: 800;
-    font-size: clamp(0.85rem, 1.1vw, 1.1rem);
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    cursor: pointer;
-    pointer-events: auto;
+  position: absolute;
+  left: clamp(16px, 3vw, 40px);
+  right: clamp(16px, 3vw, 40px);
+  bottom: clamp(28px, 6vh, 80px);
+  z-index: 6;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2vw, 26px);
+  min-height: clamp(96px, 13vh, 150px);
+  padding: clamp(18px, 2.4vw, 30px) clamp(24px, 3vw, 44px);
+  background: var(--kiosk-amber);
+  color: var(--kiosk-espresso);
+  border: 0;
+  box-shadow: 0 10px 0 0 var(--kiosk-espresso);
+  font-family: var(--kiosk-font-ui);
+  font-weight: 700;
+  font-size: clamp(1.25rem, 3.4vw, 2rem);
+  line-height: 1.1;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 body.kiosk-idle-active .kiosk-idle-cta {
-    display: inline-flex;
-    animation: kiosk-cta-rise 480ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  display: flex;
+  /* Enters once, then breathes forever. Motion is what actually catches an eye
+     that is already watching the video, so the band keeps moving instead of
+     settling into scenery. */
+  animation:
+    kiosk-enter var(--kiosk-dur) var(--kiosk-ease) both,
+    kiosk-cta-breathe 2.4s ease-in-out 600ms infinite;
 }
 
 .kiosk-idle-cta__pulse {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--kiosk-crimson);
-    animation: kiosk-pulse 1.2s ease-in-out infinite;
-    flex: 0 0 auto;
+  width: clamp(16px, 2.2vw, 26px);
+  height: clamp(16px, 2.2vw, 26px);
+  border-radius: 50%;
+  background: var(--kiosk-crimson);
+  animation: kiosk-pulse 1.2s ease-in-out infinite;
+  flex: 0 0 auto;
 }
 
 @keyframes kiosk-pulse {
-    0%, 100% { transform: scale(1);    opacity: 1; }
-    50%      { transform: scale(1.45); opacity: 0.55; }
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.45); opacity: 0.55; }
 }
 
-@keyframes kiosk-cta-rise {
-    from { opacity: 0; transform: translate(-50%, 18px); }
-    to   { opacity: 1; transform: translate(-50%, 0); }
+@keyframes kiosk-cta-breathe {
+  0%, 100% { transform: scale(1);     box-shadow: 0 10px 0 0 var(--kiosk-espresso); }
+  50%      { transform: scale(1.025); box-shadow: 0 14px 0 0 var(--kiosk-espresso); }
+}
+
+/* The band still has to be findable without motion, so only the animation goes;
+   the size, the colour and the pulse dot's colour carry it on their own. */
+@media (prefers-reduced-motion: reduce) {
+  body.kiosk-idle-active .kiosk-idle-cta {
+    animation: none;
+  }
+
+  .kiosk-idle-cta__pulse {
+    animation: none;
+  }
+}
+
+/* ── Coming-soon screens ───────────────────────────────────────────── */
+
+.coming-soon-shell {
+  width: 100%;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: var(--kiosk-cream);
+}
+
+.coming-soon-card {
+  width: min(100%, clamp(360px, 70vw, 640px));
+  margin: clamp(16px, 3vw, 40px);
+  padding: clamp(28px, 4vw, 56px) clamp(24px, 3vw, 44px) clamp(24px, 3vw, 40px);
+  background: var(--kiosk-paper);
+  border: 1px solid var(--kiosk-hairline);
+  text-align: center;
+}
+
+.coming-soon-card__eyebrow {
+  margin: 0 0 clamp(10px, 1.2vw, 18px);
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.78rem, 1vw, 1rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--kiosk-ink-soft);
+}
+
+.coming-soon-card__title {
+  margin: 0;
+  color: var(--kiosk-maroon);
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(2.2rem, 4vw, 4rem);
+  line-height: 1;
+  letter-spacing: 0.08em;
+}
+
+.coming-soon-card__label {
+  margin: clamp(10px, 1.2vw, 18px) 0 0;
+  font-size: clamp(0.95rem, 1.2vw, 1.2rem);
+  font-weight: 700;
+  color: var(--kiosk-ink);
+}
+
+.coming-soon-card__back {
+  display: inline-block;
+  margin-top: clamp(18px, 2.2vw, 30px);
+  padding: clamp(10px, 1.2vw, 18px) clamp(16px, 1.8vw, 28px);
+  background: var(--kiosk-maroon);
+  color: var(--kiosk-paper);
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }

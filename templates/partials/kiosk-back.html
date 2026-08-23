@@ -1,0 +1,76 @@
+{# Shared kiosk back bar — the single way out of any kiosk page.
+
+   Include inside a {% with %} that sets the label and the destination:
+
+     {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False) %}
+       {% include 'partials/kiosk-back.html' %}
+     {% endwith %}
+
+   back_href renders an <a>. Leave it undefined and set back_action instead
+   to render a <button data-back="..."> for JS-driven navigation — About
+   LSPU's detail panes are client-rendered views of one URL, so they have no
+   address to link back to. Use exactly one of the two per include.
+
+   back_fixed=True pins the bar to the viewport instead of letting it sit as
+   the shell's last flex row. Only for pages that are a fixed fullscreen
+   surface with no flex shell to be the last row of — the 360 tour. #}
+{% if back_href %}
+{# data-back-history: prefer history.back() over following the href.
+
+   The href is still the real destination and still what the link announces,
+   what a keyboard activates and what works with JS off — but going *back*
+   through history restores the kiosk menu from the browser's back/forward
+   cache, which is instant and keeps its ticker and scroll position. Following
+   the href instead is a forward navigation: a fresh server render, a new
+   session cookie and a Pusher reconnect every time someone leaves a page.
+
+   The handler below only takes over when the previous document really is this
+   href, so a deep-linked page with no history still follows the link. #}
+<a class="kiosk-back{% if back_fixed %} kiosk-back--fixed{% endif %}"
+   href="{{ back_href }}"
+   data-back-history>
+  <span class="kiosk-back__arrow" aria-hidden="true">&#9664;</span>
+  <span class="kiosk-back__label">{{ back_label }}</span>
+</a>
+{# Inline rather than a compiled entry: the behaviour belongs to this partial,
+   and every kiosk page includes it without also agreeing on a shared script
+   bundle (campus-map and org-board extend base.html and load no kiosk JS at
+   all). The guard matters because About LSPU includes this partial twice. #}
+<script>
+  (function () {
+    if (window.__kioskBackHistory) return;
+    window.__kioskBackHistory = true;
+
+    document.addEventListener('click', function (event) {
+      var link = event.target.closest('a[data-back-history]');
+      if (!link) return;
+
+      // Modified clicks are the user asking for a real navigation.
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+      // Only swap in history.back() when the document we would go back to is
+      // the one this link points at. Without the referrer check, a kiosk page
+      // opened directly (QR scan, typed URL, a redirect) would send the
+      // visitor to whatever happened to be in history instead of the menu.
+      if (!document.referrer) return;
+      var from, to;
+      try {
+        from = new URL(document.referrer);
+        to = new URL(link.getAttribute('href'), window.location.href);
+      } catch (_) {
+        return;
+      }
+      if (from.origin !== to.origin || from.pathname !== to.pathname) return;
+
+      event.preventDefault();
+      window.history.back();
+    });
+  })();
+</script>
+{% else %}
+<button type="button" class="kiosk-back" data-back="{{ back_action or 'hub' }}">
+  <span class="kiosk-back__arrow" aria-hidden="true">&#9664;</span>
+  <span class="kiosk-back__label">{{ back_label }}</span>
+</button>
+{% endif %}

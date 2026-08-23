@@ -1,95 +1,76 @@
-/* Persistent kiosk bottom navigation strip.
- * Sits on all inner kiosk pages (archives, news, map, about, tour, org-board).
- * The welcome hub does not use this strip — it IS the hub.
- * Page shell classes get 56px padding-bottom so content never hides behind it.
+/*
+ * Shared kiosk back bar — exactly one per page, the last row of the kiosk
+ * shell's flex column. Markup: templates/partials/kiosk-back.html.
+ *
+ * The kiosk is a wall-mounted touch panel: the way out is the single most
+ * used control on every screen, so it is a full-width bar rather than a
+ * corner pill, and its height is the one dimension never sacrificed when
+ * the viewport gets short.
  */
 
-.kiosk-nav {
+.kiosk-back {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  /* 104px at kiosk size, never below the 64px touch floor. */
+  height: clamp(64px, 10vh, 104px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 1.6vw, 16px);
+  background: var(--kiosk-maroon);
+  color: var(--kiosk-paper);
+  font-family: var(--kiosk-font-ui);
+  font-weight: 700;
+  font-size: clamp(1rem, 2.6vw, 1.375rem);
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--kiosk-dur) var(--kiosk-ease),
+              transform var(--kiosk-dur) var(--kiosk-ease);
+}
+
+/* For pages that are a fixed fullscreen surface (the 360 tour) and so have no
+   flex shell for the bar to be the last row of. */
+.kiosk-back--fixed {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 50;
-  height: 56px;
-  display: flex;
-  align-items: stretch;
-  background: var(--kiosk-espresso);
-  border-top: 1px solid rgb(var(--brand-cream-rgb) / 0.12);
+  /* Above the tour's panorama viewport and its route overlay, below the
+     keyboard//modal layers that must cover everything. */
+  z-index: 9000;
 }
 
-.kiosk-nav__item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 6px 4px;
-  text-decoration: none;
-  color: rgb(var(--brand-cream-rgb) / 0.52);
-  font-family: var(--font-heading);
-  font-size: clamp(0.50rem, 0.72vw, 0.66rem);
-  font-weight: 700;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  transition: color var(--kiosk-dur-fast) var(--kiosk-ease, cubic-bezier(0.2,0,0,1)),
-              background var(--kiosk-dur-fast) var(--kiosk-ease, cubic-bezier(0.2,0,0,1));
-  position: relative;
+/* Hover only where there is a real pointer: on a touchscreen :hover latches
+   after a tap, leaving the lifted maroon stuck on the bar until something else
+   is touched. */
+@media (hover: hover) {
+  .kiosk-back:hover { background: var(--kiosk-maroon-lift); }
 }
 
-.kiosk-nav__item::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 18%;
-  right: 18%;
-  height: 2px;
-  background: var(--kiosk-crimson);
-  transform: scaleX(0);
-  transition: transform var(--kiosk-dur-fast) var(--kiosk-ease, cubic-bezier(0.2,0,0,1));
-}
-
-.kiosk-nav__item:hover,
-.kiosk-nav__item:focus-visible {
-  color: var(--kiosk-cream);
-  background: rgb(var(--brand-cream-rgb) / 0.06);
+.kiosk-back:focus-visible {
+  background: var(--kiosk-maroon-lift);
   outline: none;
 }
 
-.kiosk-nav__item.is-active {
-  color: var(--kiosk-cream);
+.kiosk-back:focus-visible {
+  outline: 3px solid var(--kiosk-amber);
+  outline-offset: -6px;
 }
 
-.kiosk-nav__item.is-active::before {
-  transform: scaleX(1);
+.kiosk-back:active {
+  background: var(--kiosk-maroon-lift);
+  transform: translateY(2px);
 }
 
-.kiosk-nav__icon {
-  width: 20px;
-  height: 20px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  flex-shrink: 0;
+.kiosk-back__arrow {
+  font-size: clamp(1.05rem, 3vw, 1.625rem);
+  line-height: 1;
 }
 
-/* Push page content above the fixed strip so nothing is hidden underneath */
-.archive-shell,
-.campus-map-page,
-.kiosk-about-shell,
-.org-board-shell,
-.kiosk-tour-shell {
-  padding-bottom: 56px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .kiosk-nav__item,
-  .kiosk-nav__item::before {
-    transition: none;
-  }
+.kiosk-back__label {
+  line-height: 1;
 }

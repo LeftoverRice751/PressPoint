@@ -64,6 +64,60 @@ button {
   background: var(--arch-cream);
 }
 
+/* ── Phone handoff strip ────────────────────────────────── */
+/*
+ * Sits above the masthead as the first thing on screen. Ships hidden and is
+ * revealed by kiosk-archives.js only once a QR has actually been drawn, so a
+ * CDN outage leaves nothing behind (see renderHandoffQr).
+ */
+
+.archive-handoff {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(12px, 2vw, 28px);
+  flex: none;
+  margin-bottom: 10px;
+  padding: 10px clamp(12px, 1.6vw, 20px);
+  background: var(--arch-oxblood);
+  border-radius: var(--kiosk-radius-sm);
+}
+
+.archive-handoff[hidden] {
+  display: none;
+}
+
+.archive-handoff__message {
+  margin: 0;
+  font-family: var(--arch-font-ui);
+  font-size: clamp(1rem, 1.9vw, 1.35rem);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--arch-cream);
+  /* Keeps the sentence to two tidy lines at kiosk width instead of one long
+     ribbon that pushes the code to the far edge. */
+  max-width: 22ch;
+}
+
+/*
+ * The code MUST sit on white with a quiet zone. Drawn straight onto the
+ * oxblood field it loses the light-module contrast scanners rely on, and
+ * phones fail to lock on -- especially through kiosk glass.
+ */
+.archive-handoff__code {
+  flex: none;
+  display: flex;
+  padding: 6px;
+  background: var(--n-white);
+  border-radius: 2px;
+  line-height: 0; /* kill the inline-image gap under the generated canvas */
+}
+
+.archive-handoff__code img,
+.archive-handoff__code canvas {
+  display: block;
+}
+
 /* ── Header ─────────────────────────────────────────────── */
 
 .archive-header {
@@ -625,6 +679,32 @@ button {
 
   .archive-categories__rule {
     display: none; /* decorative only; the space is worth more to the covers */
+  }
+}
+
+/*
+ * Kiosk portrait, with the handoff strip in play.
+ *
+ * The strip costs ~90px of column height, and the card cannot give it back:
+ * its height is derived from a fixed width plus aspect-ratio, so the stage
+ * overflowed and pushed the year strip 33px below the fold on the 768x1024
+ * terminal. Driving the card off height instead lets the cover shrink to fit.
+ *
+ * Bounded on all three sides on purpose: min-width keeps phones on their own
+ * width-driven rules above, min-height keeps landscape phones out (they are
+ * handled by the block below), and max-height leaves genuinely tall displays
+ * alone since they were never short of room.
+ */
+@media (min-width: 700px) and (min-height: 700px) and (max-height: 1100px) {
+  .swiper-slide.archive-card {
+    width: auto;
+    max-width: clamp(150px, 30vw, 300px);
+    /* Measured, not guessed. On the 768x1024 terminal the fixed rows spend
+       ~715px (shell padding 43, strip 162, masthead 61, details 104, tabs 44,
+       years 70, back button 102, stage gaps ~49) plus the swiper's own
+       vertical padding, which leaves roughly 290px for the cover. 28vh lands
+       there with margin to spare and still shrinks on a shorter display. */
+    height: clamp(230px, 28vh, 320px);
   }
 }
 

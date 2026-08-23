@@ -1,0 +1,119 @@
+/*
+ * Kiosk shell — the frame every public kiosk screen is built in.
+ *
+ * Three rows, always in this order:
+ *   status bar (44px)  ·  content (the only thing that may scroll)  ·  back bar
+ *
+ * The panel is designed at 768x1024 portrait, but the shell is fluid, never a
+ * hardcoded 1024px box: min-height:100dvh with an svh fallback, so it fills a
+ * phone, a tablet and the kiosk hardware alike. Wider than the panel, it stops
+ * growing and sits centred on a dark desk — what a developer sees on a laptop
+ * is then the same composition that ships to the terminal.
+ *
+ * Chrome never scrolls. Only .kiosk-content may overflow, and the back bar's
+ * height is the one dimension never given up to make room.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body.kiosk-body {
+  margin: 0;
+  padding: 0;
+  background: var(--kiosk-desk);
+  color: var(--kiosk-ink);
+  font-family: var(--kiosk-font-body);
+  /* No horizontal scroll at any width, ever. */
+  overflow-x: hidden;
+}
+
+.kiosk-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;   /* older mobile Safari */
+  min-height: 100dvh;   /* wins where supported */
+  /* Capped as well as floored. Without the cap a pane whose intrinsic height
+     exceeds the viewport grows the shell and pushes the back bar off-screen —
+     the way out has to stay on screen, so the pane scrolls instead. */
+  max-height: 100svh;
+  max-height: 100dvh;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  background: var(--kiosk-cream);
+  overflow: hidden;
+}
+
+/* ── Status bar ────────────────────────────────────────────────────── */
+
+.kiosk-status {
+  flex: 0 0 auto;
+  height: clamp(34px, 4.6vh, 44px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kiosk-s-3);
+  padding: 0 clamp(12px, 2.4vw, 22px);
+  background: var(--kiosk-paper);
+  border-bottom: 1px solid var(--kiosk-hairline);
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.55rem, 1.5vw, 0.6875rem);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--kiosk-ink-soft);
+  white-space: nowrap;
+}
+
+.kiosk-status__org {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kiosk-status__stamp {
+  display: flex;
+  gap: clamp(6px, 1.4vw, 14px);
+  /* Without tabular figures the clock jitters sideways as digits change. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Content row ───────────────────────────────────────────────────── */
+
+.kiosk-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--kiosk-cream);
+}
+
+/* Panes that are taller than the row scroll here and nowhere else. */
+.kiosk-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Desk surround on anything wider than the panel ────────────────── */
+
+@media (min-width: 1025px) {
+  .kiosk-shell {
+    border-left: 1px solid rgb(var(--kiosk-paper-rgb) / 0.12);
+    border-right: 1px solid rgb(var(--kiosk-paper-rgb) / 0.12);
+  }
+}
+
+/* ── Short landscape viewports ─────────────────────────────────────── */
+/* Give back one step of vertical padding and let the content row scroll.
+   The back bar keeps its height; it is the way out. */
+@media (max-height: 620px) {
+  .kiosk-content {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}

@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-archives.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-archive-book.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-loading.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-nav.css') }}" />
 </head>
 <body>
   <div
@@ -16,6 +17,18 @@
     data-archive-shell
     data-selected-year="{{ selected_year if selected_year else '' }}"
   >
+    {#
+      Phone handoff. The strip removes itself when the QR cannot be drawn
+      (missing URL, or the qrcodejs CDN unreachable) -- see kiosk-archives.js.
+      An empty white box on a public screen is worse than no invitation.
+    #}
+    {% if mobile_archives_url %}
+    <aside class="archive-handoff" data-archive-handoff hidden>
+      <p class="archive-handoff__message">Scan this QR and continue reading our archives!</p>
+      <div class="archive-handoff__code" data-archive-qr data-qr-url="{{ mobile_archives_url }}"></div>
+    </aside>
+    {% endif %}
+
     <header class="archive-header">
       <div class="archive-header__brand">
         <div class="archive-header__name">
@@ -139,6 +152,8 @@
 
     </main>
 
+    {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False) %}{% include 'partials/kiosk-back.html' %}{% endwith %}
+
     <!-- Reader overlay: one mount per reading mode, adapters attach at runtime -->
     <div class="archive-book-overlay" data-archive-book hidden aria-hidden="true">
       <div class="kiosk-loader" data-archive-loader hidden>
@@ -171,6 +186,7 @@
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="{{ asset_url('js/kiosk-archives.js') }}" defer></script>
   <script src="{{ asset_url('js/kiosk-archive-book.js') }}" defer></script>
 </body>

@@ -7,10 +7,12 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}PressPoint{% endblock %}</title>
     <link rel="icon" href="{{ site_logo() }}">
-    <link
-      href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css"
-      rel="stylesheet"
-    />
+    <!-- No Tailwind. This used to pull tailwindcss@^2 from unpkg.com: 2.8 MB of
+         render-blocking, cross-origin CSS on every page extending this base —
+         measured at 10.3s to fetch — for which the codebase had exactly zero
+         utility classes. Every template here is BEM against its own stylesheet.
+         The kiosk must not block first paint on a third-party CDN it cannot
+         reach when the campus link is down. -->
     <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}">
 
     {% block head %}

@@ -23,6 +23,7 @@
     "webpack-dev-server": "4.7.3"
   },
   "dependencies": {
+    "leaflet": "^1.9.4",
     "loader": "^2.1.1",
     "marzipano": "^0.10.2",
     "openseadragon": "^4.1.1",

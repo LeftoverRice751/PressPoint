@@ -1,5 +1,4 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const cards = Array.from(document.querySelectorAll(".feature-card"));
   const tickerTrack = document.getElementById("ticker-track");
   const configEl = document.getElementById("kiosk-config");
   const flashUpdatesUrl = configEl ? (configEl.getAttribute("data-flash-updates-url") || "").trim() : "";
@@ -9,63 +8,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const flashUpdatesEvent = "new-news";
   const pusherScriptId = "welcome-flash-pusher-script";
 
-  // ── Status-bar clock ────────────────────────────────────────────
-  //
-  // Pinned to campus time so a kiosk whose system clock is set to the
-  // wrong zone still shows the right hour.
-  const CLOCK_TZ = "Asia/Manila";
-  const clockDateEl = document.querySelector("[data-clock-date]");
-  const clockTimeEl = document.querySelector("[data-clock-time]");
-  const clockStampEl = document.querySelector("[data-kiosk-clock]");
-
-  const clockDateFmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: CLOCK_TZ,
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-  const clockTimeFmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: CLOCK_TZ,
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-
-  let clockTimer = null;
-
-  // Re-reads the system clock every tick and re-arms on the next minute
-  // boundary. A fixed setInterval would drift over the multi-week uptime
-  // this terminal sees, and ticking every second would repaint 60x more
-  // often than the display actually changes.
-  function renderClock() {
-    if (!clockDateEl || !clockTimeEl) {
-      return;
-    }
-
-    const now = new Date();
-    clockDateEl.textContent = clockDateFmt.format(now);
-    clockTimeEl.textContent = clockTimeFmt.format(now);
-    if (clockStampEl) {
-      clockStampEl.setAttribute("datetime", now.toISOString());
-    }
-
-    if (clockTimer) {
-      clearTimeout(clockTimer);
-    }
-    const msToNextMinute = 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
-    clockTimer = setTimeout(renderClock, msToNextMinute + 50);
-  }
-
-  if (clockDateEl && clockTimeEl) {
-    renderClock();
-    // Background tabs get their timers throttled, so the first frame after
-    // waking would otherwise show a stale minute.
-    document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) {
-        renderClock();
-      }
-    });
-  }
+  // The status-bar clock lives in kiosk-clock.js, which every kiosk screen
+  // loads. It used to be duplicated here as well and both ran — this file
+  // rendered a long "FRIDAY, AUGUST 21" over the short tracked format the
+  // design calls for, so the one the mockup specifies never survived.
 
   function escapeHtml(value) {
     return String(value)
@@ -82,7 +28,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (!window.flashArticles.length) {
-      tickerTrack.innerHTML = "";
+      // The FLASH block is a fixed part of the masthead furniture, so an empty
+      // track leaves an orange tab labelling nothing. Say what the band is for
+      // instead — it fills again on the next `new-news` broadcast.
+      tickerTrack.innerHTML =
+        '<div class="news-ticker__group">' +
+        '<span class="news-ticker__item news-ticker__item--empty">' +
+        "Campus bulletins appear here as they are published." +
+        "</span></div>";
       return;
     }
 
@@ -221,23 +174,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   window.flashArticles = createReactiveArray([]);
 
-  function setSelectedCard(activeCard) {
-    cards.forEach((card) => {
-      const isActive = card === activeCard;
-      card.classList.toggle("is-selected", isActive);
-      card.setAttribute("aria-pressed", String(isActive));
-    });
-  }
-
-  cards.forEach((card) => {
-    card.addEventListener("click", () => {
-      setSelectedCard(card);
-      const target = card.dataset.target;
-      if (target) {
-        window.location.href = target;
-      }
-    });
-  });
+  // No click handler for the cards: they are plain <a href> elements and the
+  // browser navigates them itself. They used to be <button data-target> with a
+  // location.href assignment here, which cost two things — the speculation
+  // rules in welcome.html have no link to prerender on press, and a script
+  // failure anywhere above this line left the whole menu dead.
+  //
+  // Nothing on this screen is ever "selected" either. The cards used to latch
+  // an .is-selected maroon fill and aria-pressed="true" on tap. Both were
+  // wrong: aria-pressed announces a toggle button, and the fill outlived the
+  // click — coming back to the menu restores the page from the bfcache with
+  // the class still set, so the card the *previous* visitor tapped stayed
+  // highlighted for the next one, showing a selection nobody made. Tap
+  // acknowledgement is the :active press state in welcome-screen.css instead,
+  // which cannot outlive the finger.
 
   renderTicker();
   loadFlashArticles();

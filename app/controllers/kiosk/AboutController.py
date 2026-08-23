@@ -10,6 +10,7 @@ from masonite.views import View
 
 from app.models.AboutMilestone import AboutMilestone
 from app.models.AboutSection import AboutSection
+from app.services import AboutValues
 from app.services.AboutContent import AboutContent, SECTION_SLUGS
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.StorageRouter import gearsnas_base
@@ -20,6 +21,27 @@ from app.services.ImageUploads import save_uploaded_image
 _SEAL_NAS_SUBDIR = "About"
 _MILESTONE_NAS_SUBDIR = "About/milestones"
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
+
+#: Callouts on the university seal, as percentage positions within the artwork.
+#: These are properties of the seal image itself, not editorial content, so they
+#: live in code rather than the database — an editor replacing the seal file
+#: keeps the same emblem and therefore the same anchor points. The template
+#: positions each dot inside an aspect-ratio:1 wrapper, so the percentages
+#: resolve against the artwork and stay glued to it at any size.
+SEAL_HOTSPOTS = [
+    {"key": "torch", "label": "Torch and flame", "x": 50, "y": 41,
+     "note": "Enlightenment carried into the province."},
+    {"key": "book", "label": "The open book", "x": 50, "y": 52,
+     "note": "Instruction and research: the university teaches, and it publishes."},
+    {"key": "agriculture", "label": "Agriculture", "x": 27, "y": 33,
+     "note": "The rice stalk, for the farming towns the school was founded to serve."},
+    {"key": "fisheries", "label": "Fisheries", "x": 72, "y": 31,
+     "note": "The fish of Laguna de Bay, on whose shoreline the first campus opened."},
+    {"key": "technology", "label": "Technology", "x": 50, "y": 73,
+     "note": "Gear and earth — the polytechnic mandate in industry and the trades."},
+    {"key": "founding", "label": "1952 · 2007", "x": 50, "y": 91,
+     "note": "Founding year on the ring; 2007 at the centre, when R.A. 9402 made LSPU a university."},
+]
 
 
 def _editor_redirect(response: Response):
@@ -32,13 +54,41 @@ class AboutController(Controller):
 
     def kiosk(self, view: View):
         data = AboutContent.load_all()
+        sections = data["sections"]
+
+        # The kiosk lays these sections out as structured objects (a values
+        # strip, an acrostic grid, a pull quote, sung lines) while the editor
+        # authors them as free Quill HTML. AboutValues derives the shapes; each
+        # one degrades to empty and the template falls back to the raw HTML, so
+        # reformatting in the editor never breaks the pane.
+        values = sections.get("values")
+        value_subs = (values.subsections or []) if values else []
+        core_html = value_subs[0].get("body_html") if len(value_subs) > 0 else ""
+        pledge_html = value_subs[1].get("body_html") if len(value_subs) > 1 else ""
+
+        quality = sections.get("quality")
+        statement, support = AboutValues.split_statement(
+            quality.body_html if quality else ""
+        )
+
+        hymn = sections.get("hymn")
+
         return view.render(
             "kiosk/about-lspu",
             {
-                "sections": data["sections"],
+                "sections": sections,
                 "ordered_slugs": data["ordered_slugs"],
                 "milestones": data["milestones"],
                 "active_nav": "about",
+                "group_values": AboutValues.group_values(core_html),
+                "core_acrostic": AboutValues.acrostic(core_html, "STUDENTS"),
+                "pledge_lines": AboutValues.pledge_lines(pledge_html),
+                "core_html": core_html,
+                "pledge_html": pledge_html,
+                "quality_statement": statement,
+                "quality_support": support,
+                "hymn_lines": AboutValues.hymn_lines(hymn.body_html if hymn else ""),
+                "seal_hotspots": SEAL_HOTSPOTS,
             },
         )
 

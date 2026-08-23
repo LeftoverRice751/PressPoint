@@ -11,6 +11,7 @@ from masonite.views import View
 from app.models.Archives import Archives
 from app.services.ArchiveServices import ArchiveServices
 from app.services.StorageRouter import absolute_path, gearsnas_base
+from app.services.PublicUrl import public_url
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.FileVerificationService import FileVerificationService
 
@@ -78,20 +79,40 @@ class ArchivesController(Controller):
             "selected_year": selected_year,
         }
 
-    def show(self, view: View):
-        payload = Cache.remember(_ARCHIVES_CACHE_KEY, lambda cache: cache.put(
+    def _cached_payload(self):
+        return Cache.remember(_ARCHIVES_CACHE_KEY, lambda cache: cache.put(
             _ARCHIVES_CACHE_KEY, self._build_archives_payload(), seconds=_ARCHIVES_CACHE_TTL
         ))
 
-        return view.render(
+    def _render_index(self, view: View, template, extra=None):
+        payload = self._cached_payload()
+
+        context = {
+            "archives": payload["archives"],
+            "archive_years": payload["archive_years"],
+            "selected_year": payload["selected_year"],
+            "active_nav": "archives",
+        }
+        context.update(extra or {})
+
+        return view.render(template, context)
+
+    def show(self, view: View):
+        # The kiosk offers a QR handoff to the phone page. Built from APP_URL,
+        # never the request host -- the scanning phone is not on the kiosk's
+        # network path. See app/services/PublicUrl.py.
+        return self._render_index(
+            view,
             "kiosk/archives",
-            {
-                "archives": payload["archives"],
-                "archive_years": payload["archive_years"],
-                "selected_year": payload["selected_year"],
-                "active_nav": "archives",
-            },
+            {"mobile_archives_url": public_url("/m/archives")},
         )
+
+    def mobile(self, view: View):
+        # Same data, same cache entry, different skin. The kiosk template is
+        # laid out for a 768x1024 terminal; this one is for a phone held in
+        # one hand. Keeping both on one payload builder means an editor's
+        # upload can never appear on one surface and not the other.
+        return self._render_index(view, "mobile/archives")
     
     def store(self, request: Request, storage: Storage, response: Response):
         # Failures redirect to the dashboard GET route, not `back()`. The

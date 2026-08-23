@@ -1,186 +1,780 @@
 /*
- * Mobile route page — phone viewport.
+ * Mobile route page — full-bleed map with floating chrome over it.
  *
- * Layout:
- *   header (title, destination, live-tracking status pill)
- *   map        <- flex-grow, takes everything left
- *   finish button (sticky bottom, now a fallback since GPS arrival is automatic)
+ * Layer stack (all position:absolute inside the viewport-height root):
+ *   1. map            — L.campus25d canvas + Leaflet SVG overlay panes
+ *   2. status bar      — clock / brand / battery, fixed 44px strip
+ *   3. floating cards   — destination card, instruction chip, map controls
+ *   4. bottom sheet     — live metrics + primary CTA
+ * The expired notice and the arrival overlay sit above everything.
  *
- * The expired notice and the success modal are overlays sitting on top.
- * Flat colors throughout, no gradients — same rule as the rest of the kiosk.
+ * Flat colors only — no gradients anywhere in this file. Fonts are Space
+ * Grotesk (UI) and JetBrains Mono (all numerics/labels), substituted for
+ * Geist/Geist Mono: those aren't vendored in this repo and everything here
+ * is self-hosted rather than pulled from a font CDN, matching the kiosk's
+ * offline-friendly asset setup. Both substitutes are already vendored for
+ * the newsroom composer (see resources/css/newsletter-type.css).
  */
+
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("/assets/fonts/SpaceGrotesk/space-grotesk-variable.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/fonts/JetBrainsMono/jetbrains-mono-variable.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
 
 * { box-sizing: border-box; }
 
-html, body {
-    margin: 0;
-    height: 100%;
-    background: var(--n-900);
-    color: var(--n-200);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-
 .mobile-route {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    height: 100dvh;
+  --pp-ink: #24110D;
+  --pp-ink-deep: #1B0C09;
+  --pp-paper: #F7EDE2;
+  --pp-map: #E3D4B6;
+  --pp-accent: #FF6A00;
+  --pp-accent-press: #E85E00;
+  --pp-mute: #B49A8C;
+  --pp-mute-2: #8E7768;
+  --pp-live: #35C46B;
+  --pp-puck: #2547C8;
+  --pp-line: rgba(247, 237, 226, .14);
+  --pp-font-ui: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --pp-font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  /* Notch / home-indicator insets. The fallbacks matter: on any browser
+     without env() these collapse to 0px rather than to an invalid value
+     that would take the whole calc() down with it. Needs the
+     `viewport-fit=cover` viewport meta in the template to be non-zero. */
+  --pp-safe-t: env(safe-area-inset-top, 0px);
+  --pp-safe-b: env(safe-area-inset-bottom, 0px);
+  --pp-safe-l: env(safe-area-inset-left, 0px);
+  --pp-safe-r: env(safe-area-inset-right, 0px);
+
+  /* Single gutter token so the card, the instruction chip and the map
+     controls stay on one optical margin at every width. */
+  --pp-edge: 14px;
+  --pp-stack-gap: 12px;
 }
 
-.mobile-route__header {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.4rem;
-    padding: 1.25rem 1.25rem 0.75rem;
-    flex: 0 0 auto;
+html, body {
+  margin: 0;
+  height: 100%;
+  /* The map fills the viewport, so any vertical drag that reaches the
+     document is a mis-hit -- without this, dragging the map downward
+     triggers pull-to-refresh on Android Chrome and reloads the route. */
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  background: var(--pp-ink);
+  color: var(--pp-paper);
+  font-family: var(--pp-font-ui);
+}
+
+/*
+ * The floating chrome used to be four independently absolutely-positioned
+ * layers pinned at hardcoded offsets (card at top:56px, instruction chip and
+ * map controls both at top:148px). Those numbers only held for one screen
+ * width and one line of destination text: a name long enough to wrap the
+ * subtitle to its second line grew the card straight down through the
+ * instruction chip underneath it. This is a grid instead, so every row is
+ * measured from the real height of the row above it and nothing can collide.
+ *
+ * The map deliberately stays absolute/inset:0 rather than becoming a grid
+ * item -- Leaflet needs a stable full-viewport box to size its panes against,
+ * and taking it out of flow keeps the chrome rows from ever shrinking it.
+ */
+.mobile-route {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto auto 1fr auto;
+  row-gap: var(--pp-stack-gap);
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--pp-map);
+}
+
+/* ---- map layer -------------------------------------------------- */
+
+.mobile-route__map {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--pp-map);
+}
+
+.mobile-route__map.leaflet-container {
+  background: var(--pp-map);
+}
+
+/* ---- status bar ---------------------------------------------------- */
+
+.mobile-route__statusbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-height: 44px;
+  padding-top: var(--pp-safe-t);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: calc(16px + var(--pp-safe-r));
+  padding-left: calc(16px + var(--pp-safe-l));
+  background: var(--pp-ink);
+  color: var(--pp-paper);
+  font-family: var(--pp-font-mono);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: .04em;
+}
+
+.mobile-route__brand {
+  opacity: .6;
+}
+
+.mobile-route__clock,
+.mobile-route__battery {
+  white-space: nowrap;
+  min-width: 3.5em;
+}
+
+.mobile-route__battery {
+  text-align: right;
+}
+
+/* ---- destination card ------------------------------------------- */
+
+.mobile-route__card {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin-right: calc(var(--pp-edge) + var(--pp-safe-r));
+  margin-left: calc(var(--pp-edge) + var(--pp-safe-l));
+  min-width: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: rgba(36, 17, 13, .92);
+  border: 1px solid var(--pp-line);
+  border-radius: 10px;
+  animation: mobile-route-enter 320ms cubic-bezier(.22, .61, .36, 1);
+}
+
+.mobile-route__card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mobile-route__eyebrow {
+  font-family: var(--pp-font-mono);
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: .14em;
+  color: var(--pp-mute);
+  white-space: nowrap;
+}
+
+.mobile-route__pill {
+  font-family: var(--pp-font-mono);
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: .1em;
+  color: var(--pp-live);
+  white-space: nowrap;
+}
+
+.mobile-route__pill::before {
+  content: "●";
+  margin-right: 4px;
+  font-size: 8px;
+}
+
+.mobile-route__pill:empty,
+.mobile-route__status--hidden {
+  display: none;
+}
+
+.mobile-route__pill[data-state="searching"],
+.mobile-route__pill[data-state="waiting"] {
+  color: var(--pp-mute);
+  animation: mobile-route-pulse-text 1.2s ease-in-out infinite;
+}
+
+.mobile-route__pill[data-state="unavailable"] {
+  color: #E5978F;
 }
 
 .mobile-route__title {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
+  display: none; /* the destination name renders via the subtitle below */
 }
 
 .mobile-route__subtitle {
-    margin: 0;
-    font-size: 0.9rem;
-    color: var(--n-500);
+  margin: 0;
+  /* Fluid rather than fixed: 22px overflows a 320px-wide iPhone SE on a
+     long department name, and looks undersized on a 430px Pro Max. */
+  font-size: clamp(18px, 5.6vw, 24px);
+  font-weight: 500;
+  letter-spacing: -.02em;
+  color: var(--pp-paper);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* Live-tracking status pill: waiting -> tracking -> unavailable. Empty
-   textContent (before the fetch resolves) collapses it via :empty so it
-   never flashes blank on load. */
-.mobile-route__status {
-    margin: 0;
-    padding: 0.3rem 0.7rem;
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    background: rgb(var(--n-500-rgb) / 0.16);
-    color: var(--n-200);
+/* ---- instruction chip -------------------------------------------- */
+
+.mobile-route__instruction {
+  grid-column: 1;
+  grid-row: 3;
+  justify-self: start;
+  align-self: start;
+  z-index: 20;
+  margin: 0 0 0 calc(var(--pp-edge) + var(--pp-safe-l));
+  /* min-width:0 lets the chip actually shrink inside its 1fr track --
+     without it the nowrap text sets the track's min-content width and the
+     ellipsis never engages, pushing the map controls off-screen. */
+  min-width: 0;
+  max-width: 100%;
+  padding: 9px 13px;
+  border-radius: 999px;
+  background: var(--pp-accent);
+  color: var(--pp-ink);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: mobile-route-enter 280ms cubic-bezier(.22, .61, .36, 1);
 }
 
-.mobile-route__status:empty,
-.mobile-route__status--hidden {
-    display: none;
+.mobile-route__instruction:empty,
+.mobile-route__instruction--hidden {
+  display: none;
 }
 
-.mobile-route__status[data-state="tracking"] {
-    background: rgb(var(--ok-rgb) / 0.16);
-    color: #7fd88a;
+/* ---- map controls -------------------------------------------------- */
+
+.mobile-route__controls {
+  grid-column: 2;
+  grid-row: 3;
+  justify-self: end;
+  align-self: start;
+  margin-right: calc(var(--pp-edge) + var(--pp-safe-r));
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.mobile-route__status[data-state="unavailable"] {
-    background: rgb(var(--danger-rgb) / 0.16);
-    color: #e5978f;
+.mobile-route__control {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--pp-line);
+  background: rgba(36, 17, 13, .92);
+  color: var(--pp-paper);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
 }
 
-.mobile-route__map {
-    flex: 1 1 auto;
-    margin: 0.75rem 1rem;
-    border-radius: 1.25rem;
-    overflow: hidden;
-    background: var(--n-900);
-    box-shadow: 0 1px 0 rgb(var(--n-500-rgb) / 0.25) inset;
+.mobile-route__control:active {
+  transform: translateY(1px);
 }
 
-/* Leaflet defaults to a white background on the container; force the
-   dark theme so the campus map image sits cleanly inside our card. */
-.mobile-route__map.leaflet-container {
-    background: var(--n-900);
+/* ---- bottom sheet ---------------------------------------------------- */
+
+.mobile-route__sheet {
+  grid-column: 1 / -1;
+  grid-row: 5;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 12px;
+  padding-right: calc(20px + var(--pp-safe-r));
+  padding-bottom: calc(26px + var(--pp-safe-b));
+  padding-left: calc(20px + var(--pp-safe-l));
+  background: var(--pp-ink);
+  border-top: 1px solid var(--pp-line);
+  border-radius: 16px 16px 0 0;
+  animation: mobile-route-enter 320ms cubic-bezier(.22, .61, .36, 1);
+}
+
+.mobile-route__sheet-handle {
+  width: 44px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(247, 237, 226, .22);
+  margin: 0 auto;
+}
+
+.mobile-route__metrics {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mobile-route__metrics-distance {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.mobile-route__distance-value {
+  font-family: var(--pp-font-mono);
+  font-weight: 500;
+  font-size: clamp(30px, 10.5vw, 44px);
+  letter-spacing: -.03em;
+  color: var(--pp-paper);
+}
+
+.mobile-route__distance-unit {
+  font-family: var(--pp-font-mono);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--pp-mute);
+  white-space: nowrap;
+}
+
+.mobile-route__metrics-time {
+  text-align: right;
+  white-space: nowrap;
+  font-family: var(--pp-font-mono);
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mobile-route__eta {
+  display: block;
+  color: var(--pp-paper);
+}
+
+.mobile-route__arrive-at {
+  display: block;
+  color: var(--pp-mute);
+}
+
+.mobile-route__progress-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--pp-line);
+  overflow: hidden;
+}
+
+.mobile-route__progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  background: var(--pp-accent);
+  transition: width 400ms cubic-bezier(.22, .61, .36, 1);
+}
+
+.mobile-route__progress-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+  font-family: var(--pp-font-mono);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: .08em;
+  color: var(--pp-mute-2);
+}
+
+.mobile-route__progress-labels span {
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-route__progress-labels span:last-child {
+  text-align: right;
 }
 
 .mobile-route__finish {
-    flex: 0 0 auto;
-    margin: 0 1rem 1.25rem;
-    padding: 0.9rem;
-    border: 1.5px solid rgb(var(--n-500-rgb) / 0.4);
-    border-radius: 1rem;
-    background: transparent;
-    color: var(--n-200);
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: opacity 0.15s ease, transform 0.05s ease, background 0.15s ease;
+  height: 54px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pp-accent);
+  color: var(--pp-ink);
+  font-family: var(--pp-font-ui);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease;
 }
 
 .mobile-route__finish:hover:not(:disabled) {
-    background: rgb(var(--n-500-rgb) / 0.12);
+  background: var(--pp-accent-press);
 }
 
 .mobile-route__finish:disabled {
-    opacity: 0.4;
-    cursor: progress;
+  opacity: .4;
+  cursor: progress;
 }
 
 .mobile-route__finish:active:not(:disabled) {
-    transform: scale(0.98);
+  background: var(--pp-accent-press);
+  transform: translateY(2px);
 }
 
+/* ---- expired notice -------------------------------------------------- */
+
 .mobile-route__notice {
-    margin: 1rem;
-    padding: 1.25rem;
-    border-radius: 1rem;
-    background: rgb(var(--danger-rgb) / 0.1);
-    border: 1px solid rgb(var(--danger-rgb) / 0.4);
-    color: var(--danger-tint);
-    text-align: center;
-    font-size: 0.95rem;
+  position: absolute;
+  inset: auto 1rem 1.5rem;
+  z-index: 30;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: rgba(179, 38, 30, .12);
+  border: 1px solid rgba(229, 151, 143, .4);
+  color: #E5978F;
+  text-align: center;
+  font-size: .95rem;
 }
 
 .mobile-route__notice--hidden { display: none; }
 
+/* ---- arrival overlay -------------------------------------------------- */
+
 .mobile-route__modal {
-    position: fixed;
-    inset: 0;
-    background: rgb(var(--n-900-rgb) / 0.92);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    z-index: 1000;
-    animation: mobile-route-fade 0.2s ease;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(21, 9, 6, .94);
+  animation: mobile-route-fade 320ms ease;
 }
 
 .mobile-route__modal--hidden { display: none; }
 
 .mobile-route__modal-card {
-    background: var(--brand-maroon, #6b2516);
-    border: 1px solid rgb(var(--brand-gold-rgb, 244 190 39) / 0.35);
-    border-radius: 1.5rem;
-    padding: 2.25rem 2rem;
-    text-align: center;
-    max-width: 22rem;
-    width: 100%;
-    animation: mobile-route-pop 0.32s var(--kiosk-ease-spring, ease-out);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 22rem;
+  width: 100%;
+  text-align: center;
 }
 
-.mobile-route__modal-emoji {
-    font-size: 2.75rem;
-    margin-bottom: 0.6rem;
+.mobile-route__modal-check {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: 3px solid var(--pp-live);
+  color: var(--pp-live);
+  font-size: 40px;
+  line-height: 90px;
+  margin-bottom: 6px;
+}
+
+.mobile-route__modal-eyebrow {
+  margin: 0;
+  font-family: var(--pp-font-mono);
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: .18em;
+  color: var(--pp-mute-2);
 }
 
 .mobile-route__modal-title {
-    margin: 0;
-    font-size: 1.4rem;
-    font-weight: 800;
-    color: white;
+  margin: 0;
+  font-size: 30px;
+  font-weight: 300;
+  letter-spacing: -.025em;
+  color: var(--pp-paper);
 }
 
 .mobile-route__modal-body {
-    margin: 0.5rem 0 0;
-    color: rgb(var(--brand-cream-rgb, 233 218 196) / 0.9);
+  margin: 0;
+  font-family: var(--pp-font-mono);
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--pp-mute);
+}
+
+.mobile-route__modal-done {
+  width: 100%;
+  height: 52px;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pp-accent);
+  color: var(--pp-ink);
+  font-family: var(--pp-font-ui);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+.mobile-route__modal-done:active {
+  background: var(--pp-accent-press);
+  transform: translateY(2px);
+}
+
+/* ---- puck / pin markers -------------------------------------------- */
+
+.mobile-route__puck,
+.mobile-route__pin {
+  overflow: visible !important;
+}
+
+.mobile-route__puck {
+  transition: transform 600ms cubic-bezier(.22, .61, .36, 1);
+}
+
+.mobile-route__puck-dot {
+  position: absolute;
+  left: -12px;
+  top: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.mobile-route__puck-dot::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: var(--pp-puck);
+}
+
+.mobile-route__puck-ring {
+  position: absolute;
+  left: -22px;
+  top: -22px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--pp-puck);
+  opacity: .55;
+}
+
+.mobile-route__puck--stale .mobile-route__puck-dot,
+.mobile-route__puck--stale .mobile-route__puck-ring {
+  opacity: .6;
+}
+
+.mobile-route__pin-body {
+  position: absolute;
+  left: -14px;
+  top: -34px;
+  width: 28px;
+  height: 34px;
+  animation: mobile-route-pin-drop 620ms cubic-bezier(.22, .61, .36, 1) both;
+}
+
+.mobile-route__pin-body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--pp-ink);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+}
+
+.mobile-route__pin-dot {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--pp-accent);
+}
+
+.mobile-route__pin--arrived .mobile-route__pin-body::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 3px solid var(--pp-accent);
+}
+
+/* ---- animations ------------------------------------------------------ */
+
+@keyframes mobile-route-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes mobile-route-fade {
-    from { opacity: 0; }
-    to { opacity: 1; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-@keyframes mobile-route-pop {
-    from { opacity: 0; transform: scale(0.92) translateY(8px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
+@keyframes mobile-route-pin-drop {
+  from { opacity: 0; transform: translateY(-14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes mobile-route-pulse-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mobile-route__route-dash-anim {
+    animation: mobile-route-dash-march 1.1s linear infinite;
+  }
+
+  .mobile-route__puck-ring {
+    animation: mobile-route-puck-pulse 2s cubic-bezier(.22, .61, .36, 1) infinite;
+  }
+
+  .mobile-route__pin--arrived .mobile-route__pin-body::after {
+    animation: mobile-route-arrival-ring 1.4s cubic-bezier(.22, .61, .36, 1) infinite;
+  }
+
+  @keyframes mobile-route-dash-march {
+    to { stroke-dashoffset: -44; }
+  }
+
+  @keyframes mobile-route-puck-pulse {
+    0% { transform: scale(.32); opacity: .55; }
+    100% { transform: scale(1); opacity: 0; }
+  }
+
+  @keyframes mobile-route-arrival-ring {
+    0% { transform: scale(1); opacity: .8; }
+    100% { transform: scale(2.9); opacity: 0; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-route__puck-ring,
+  .mobile-route__pin--arrived .mobile-route__pin-body::after {
+    display: none;
+  }
+}
+
+
+/* ---- responsive ------------------------------------------------------
+ *
+ * Three real cases, not arbitrary breakpoints:
+ *   1. narrow phones (<=360px)  -- iPhone SE / Galaxy A-series, where the
+ *      gutters and the metrics row are the first things to overflow.
+ *   2. short viewports (<=520px tall) -- almost always a phone turned
+ *      landscape. The card and the sheet together can eat the entire map,
+ *      so the chrome gets compressed and the sheet loses its big numeral.
+ *   3. wide viewports (>=600px) -- tablets and unfolded foldables, where a
+ *      full-bleed 700px-wide CTA looks broken rather than generous.
+ */
+
+@media (max-width: 360px) {
+  .mobile-route {
+    --pp-edge: 10px;
+    --pp-stack-gap: 8px;
+  }
+
+  .mobile-route__card { padding: 11px 13px; }
+  .mobile-route__sheet { gap: 12px; }
+  .mobile-route__distance-unit { font-size: 12px; }
+  .mobile-route__metrics-time { font-size: 11px; }
+  .mobile-route__instruction { font-size: 11px; padding: 8px 11px; }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .mobile-route {
+    --pp-stack-gap: 6px;
+  }
+
+  /* The clock/brand/battery strip is the least useful thing on screen when
+     vertical space is the scarce resource -- the phone draws its own. */
+  .mobile-route__statusbar { display: none; }
+
+  .mobile-route__card {
+    margin-top: calc(var(--pp-edge) + var(--pp-safe-t));
+    padding: 9px 13px;
+    gap: 4px;
+  }
+
+  .mobile-route__subtitle {
+    font-size: 16px;
+    -webkit-line-clamp: 1;
+  }
+
+  .mobile-route__sheet {
+    gap: 8px;
+    padding-top: 8px;
+    padding-bottom: calc(12px + var(--pp-safe-b));
+  }
+
+  .mobile-route__sheet-handle { display: none; }
+  .mobile-route__distance-value { font-size: 24px; }
+  .mobile-route__finish { height: 44px; font-size: 15px; }
+  .mobile-route__progress-labels { display: none; }
+}
+
+@media (min-width: 600px) {
+  /* One shared 520px band. The sheet and the status bar stay full-bleed so
+     they still read as edge-anchored surfaces; everything that floats over
+     the map lines up to the same measure instead of each layer flying out
+     to its own screen edge. max() keeps the gutter from going below the
+     normal edge inset in the 600-548px overlap.
+
+     100vw, not 100%: a custom property is substituted as raw tokens and the
+     percentage would then resolve against each *using* element's own grid
+     area -- the 44px control box and the 1fr chip track -- so the two ends
+     of the row landed on different gutters. The viewport is the one width
+     they both actually need to be measured against. */
+  .mobile-route {
+    --pp-band: max(var(--pp-edge), calc((100vw - 520px) / 2));
+  }
+
+  .mobile-route__metrics,
+  .mobile-route__progress,
+  .mobile-route__finish {
+    width: 100%;
+    max-width: 520px;
+    margin-inline: auto;
+  }
+
+  .mobile-route__card {
+    max-width: 520px;
+    margin-inline: auto;
+  }
+
+  .mobile-route__instruction {
+    margin-left: var(--pp-band);
+  }
+
+  .mobile-route__controls {
+    margin-right: var(--pp-band);
+  }
+}
+
+/* Coarse pointers get the full 44px target even where the compact
+   breakpoints shrink the surrounding type. */
+@media (pointer: coarse) {
+  .mobile-route__control {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }

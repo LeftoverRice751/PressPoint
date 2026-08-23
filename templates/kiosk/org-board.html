@@ -3,6 +3,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="{{ asset_url('css/org-board.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-nav.css') }}" />
 {% endblock %}
 
 {% block content %}
@@ -96,12 +97,9 @@
       </button>
     </div>
     {% endif %}
-
-    <a class="ob-back" href="{{ route('kiosk') }}">
-      <span class="ob-back__icon" aria-hidden="true">&larr;</span>
-      <span class="ob-back__label">Back to kiosk</span>
-    </a>
   </footer>
+
+  {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False) %}{% include 'partials/kiosk-back.html' %}{% endwith %}
 </div>
 {% endblock %}
 

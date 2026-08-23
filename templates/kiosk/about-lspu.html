@@ -2,191 +2,282 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>About LSPU</title>
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}" />
-
-  <link rel="stylesheet" href="{{ asset_url('css/welcome-screen.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-palette.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-shell.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-nav.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/about-lspu-kiosk.css') }}" />
 </head>
-<body>
-  <div class="kiosk-shell">
-    <main class="kiosk-app about-app" data-view="hub" aria-label="About LSPU">
+<body class="kiosk-body">
+  {% set tile_meta = {
+    'mission': {'label': 'Mission, Vision & Mandate', 'short': 'Mission', 'hint': 'What the university is chartered to do'},
+    'values':  {'label': 'Group Values & Pledge',     'short': 'Values',  'hint': 'Integrity, professionalism, innovation'},
+    'history': {'label': 'Historical Development',    'short': 'History', 'hint': '1952 to now, milestone by milestone'},
+    'quality': {'label': 'Quality Policy',            'short': 'Quality', 'hint': 'The commitment, in one statement'},
+    'hymn':    {'label': 'University Hymn',           'short': 'Hymn',    'hint': 'Play it, and follow the words'},
+    'seal':    {'label': 'University Seal',           'short': 'Seal',    'hint': 'Every mark on it, explained'}
+  } %}
 
-      <section class="hero" aria-label="Brand mark">
-        <img class="hero__logo" src="{{ site_logo() }}" alt="Gears logo" />
-      </section>
+  <div class="kiosk-shell about-app" data-view="hub">
+    <header class="kiosk-status">
+      <span class="kiosk-status__org">Laguna State Polytechnic University</span>
+      <time class="kiosk-status__stamp" data-kiosk-clock>
+        <span class="kiosk-status__date" data-clock-date></span>
+        <span class="kiosk-status__time" data-clock-time></span>
+      </time>
+    </header>
 
-      {# ===== HUB ===== #}
-      <section class="feature-grid about-hub" data-pane="hub" aria-label="About LSPU sections">
+    {# ===== HUB ===== #}
+    <div class="kiosk-content about-hub-view" data-pane="hub">
+      <header class="about-hero">
+        <div class="about-hero__type">
+          <span class="about-hero__kicker">Six sections &middot; tap to read</span>
+          <h1 class="about-hero__title">About LSPU</h1>
+          <p class="about-hero__lead">The university&rsquo;s charter, its values, and the seventy years behind the name on the gate.</p>
+        </div>
+        {% set seal_section = sections.get('seal') %}
+        {% if seal_section and seal_section.image_path %}
+          <img class="about-hero__seal" src="/storage/{{ seal_section.image_path }}" alt="" aria-hidden="true">
+        {% endif %}
+      </header>
 
-        {% set tile_meta = {
-          'mission': {'label': 'Mission, Vision & Mandate', 'hint': 'What we stand for'},
-          'values':  {'label': 'Group Values & Pledge',     'hint': 'How we work together'},
-          'history': {'label': 'Historical Development',    'hint': 'Milestones over the years'},
-          'quality': {'label': 'Quality Policy',            'hint': 'Our commitment to quality'},
-          'hymn':    {'label': 'University Hymn',           'hint': 'Sing with the campus'},
-          'seal':    {'label': 'University Seal',           'hint': 'Symbols and meaning'}
-        } %}
+      <nav class="about-index" aria-label="About LSPU sections">
+        {% for slug in ordered_slugs %}
+          {% set section = sections.get(slug) %}
+          <button class="about-index__row" type="button" data-target="{{ slug }}">
+            <span class="about-index__num">{{ '%03d' % loop.index }}</span>
+            <span class="about-index__text">
+              <span class="about-index__title">{{ section.title if section else tile_meta[slug].label }}</span>
+              <span class="about-index__hint">{{ tile_meta[slug].hint }}</span>
+            </span>
+            <span class="about-index__arrow" aria-hidden="true">&rarr;</span>
+          </button>
+        {% endfor %}
+      </nav>
+    </div>
 
-        <button class="feature-card" type="button" data-target="mission">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9"></circle>
-              <circle cx="12" cy="12" r="5"></circle>
-              <circle cx="12" cy="12" r="1.6"></circle>
-            </svg>
-          </span>
-          <span class="feature-card__label">{{ tile_meta.mission.label }}</span>
-          <span class="feature-card__hint">{{ tile_meta.mission.hint }}</span>
-        </button>
+    {# ===== DETAIL PANES ===== #}
+    {% for slug in ordered_slugs %}
+      {% set section = sections.get(slug) %}
+      {% set prev_slug = ordered_slugs[loop.index0 - 1] if loop.index0 > 0 else ordered_slugs[-1] %}
+      {% set next_slug = ordered_slugs[loop.index0 + 1] if not loop.last else ordered_slugs[0] %}
 
-        <button class="feature-card" type="button" data-target="values">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M12 19.5s-7-4.3-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 9.5c0 5.7-7 10-7 10Z"></path>
-              <path d="M9.5 11.5 11 13l3.5-3.5"></path>
-            </svg>
-          </span>
-          <span class="feature-card__label">{{ tile_meta['values'].label }}</span>
-          <span class="feature-card__hint">{{ tile_meta['values'].hint }}</span>
-        </button>
+      <div class="kiosk-content about-detail" data-pane="{{ slug }}">
+        <header class="about-crumb">
+          <span class="about-crumb__num">{{ '%03d' % loop.index }}</span>
+          <span class="about-crumb__sep" aria-hidden="true">&middot;</span>
+          <span class="about-crumb__title">{{ section.title if section else tile_meta[slug].label }}</span>
+        </header>
 
-        <button class="feature-card" type="button" data-target="history">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9"></circle>
-              <path d="M12 7v5l3.5 2"></path>
-            </svg>
-          </span>
-          <span class="feature-card__label">{{ tile_meta.history.label }}</span>
-          <span class="feature-card__hint">{{ tile_meta.history.hint }}</span>
-        </button>
+        <div class="about-body about-body--{{ slug }}">
+          {% if not section %}
+            <p class="about-empty">Coming soon.</p>
 
-        <button class="feature-card" type="button" data-target="quality">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M12 3l2.6 5.5 6 .9-4.4 4.2 1.1 6L12 17l-5.3 2.6 1.1-6L3.4 9.4l6-.9L12 3Z"></path>
-            </svg>
-          </span>
-          <span class="feature-card__label">{{ tile_meta.quality.label }}</span>
-          <span class="feature-card__hint">{{ tile_meta.quality.hint }}</span>
-        </button>
-
-        <button class="feature-card" type="button" data-target="hymn">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3Z"></path>
-              <path d="M20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3Z"></path>
-              <path d="M9 18V5l11-2v13"></path>
-            </svg>
-          </span>
-          <span class="feature-card__label">{{ tile_meta.hymn.label }}</span>
-          <span class="feature-card__hint">{{ tile_meta.hymn.hint }}</span>
-        </button>
-
-        <button class="feature-card" type="button" data-target="seal">
-          <span class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M12 3l8 3v5c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-3Z"></path>
-              <path d="M9 12l2 2 4-4"></path>
-            </svg>
-          </span>
-          <span class="feature-card__label">{{ tile_meta.seal.label }}</span>
-          <span class="feature-card__hint">{{ tile_meta.seal.hint }}</span>
-        </button>
-      </section>
-
-      {# ===== DETAIL PANES ===== #}
-      {% for slug in ordered_slugs %}
-        {% set section = sections.get(slug) %}
-        <section class="about-detail" data-pane="{{ slug }}" aria-hidden="true">
-          <header class="about-detail__head">
-            <h2 class="about-detail__title">{{ section.title if section else tile_meta[slug].label }}</h2>
-          </header>
-          <div class="about-detail__scroll">
-            {% if not section %}
-              <p class="about-detail__empty">Coming soon.</p>
-
-            {% elif slug == 'mission' or slug == 'values' %}
-              <div class="about-subcards">
-                {% for sub in (section.subsections or []) %}
-                  <article class="about-subcard">
-                    <h3 class="about-subcard__heading">{{ sub.heading }}</h3>
-                    <div class="about-subcard__body">{{ sub.body_html|safe }}</div>
-                  </article>
-                {% endfor %}
-              </div>
-
-            {% elif slug == 'history' %}
-              {% if section.body_html %}
-                <div class="about-history__intro">{{ section.body_html|safe }}</div>
-              {% endif %}
-              <ol class="about-timeline">
-                {% for m in milestones %}
-                  <li class="about-timeline__item">
-                    <span class="about-timeline__year">{{ m.year }}</span>
-                    <article class="about-timeline__card">
-                      <h3 class="about-timeline__heading">{{ m.heading }}</h3>
-                      {% if m.image_path %}
-                        <img class="about-timeline__image" src="/storage/{{ m.image_path }}" alt="">
-                      {% endif %}
-                      <div class="about-timeline__body">{{ m.body_html|safe }}</div>
-                    </article>
-                  </li>
-                {% endfor %}
-                {% if not milestones %}
-                  <li class="about-detail__empty">No milestones yet.</li>
+          {# ── Mission: three stacked full-bleed blocks, no scrolling ── #}
+          {% elif slug == 'mission' %}
+            {% set subs = section.subsections or [] %}
+            {% set by_heading = {} %}
+            {% for sub in subs %}{% set _ = by_heading.update({(sub.heading or '')|lower: sub}) %}{% endfor %}
+            <div class="mission">
+              {% for key in ['vision', 'mission', 'mandate'] %}
+                {% set sub = by_heading.get(key) %}
+                {% if sub %}
+                  <section class="mission__block mission__block--{{ key }}">
+                    <span class="mission__label">{{ sub.heading }}{% if key == 'mandate' %}<em class="mission__tag">Republic Act 9402</em>{% endif %}</span>
+                    <div class="mission__text">
+                      {%- if key == 'mission' -%}
+                        {{ sub.body_html | replace('LEADS', '<b class="mission__lead">LEADS</b>') | replace('LEADers', '<b class="mission__lead">LEAD</b>ers') | safe }}
+                      {%- else -%}
+                        {{ sub.body_html|safe }}
+                      {%- endif -%}
+                    </div>
+                  </section>
                 {% endif %}
-              </ol>
+              {% endfor %}
+            </div>
 
-            {% elif slug == 'quality' %}
-              <article class="about-statement">{{ section.body_html|safe }}</article>
-
-            {% elif slug == 'hymn' %}
-              <article class="about-hymn">
-                {% if section.audio_path %}
-                <div class="about-hymn__player">
-                  <audio class="about-hymn__audio" controls preload="metadata"
-                         src="/storage/{{ section.audio_path | replace('\\', '/') }}">
-                    Your browser does not support audio.
-                  </audio>
+          {# ── Values: triad strip, STUDENTS acrostic, pledge footer ── #}
+          {% elif slug == 'values' %}
+            <div class="values">
+              {% if group_values %}
+                <div class="values__strip">
+                  {% for gv in group_values %}
+                    <div class="values__col">
+                      <span class="values__col-name">{{ gv.name }}</span>
+                      <span class="values__col-qualities">{{ gv.qualities | join(' &middot; ') | safe }}</span>
+                    </div>
+                  {% endfor %}
                 </div>
-                {% endif %}
-                <div class="about-hymn__lyrics">{{ section.body_html|safe }}</div>
-              </article>
+              {% endif %}
 
-            {% elif slug == 'seal' %}
-              <div class="about-seal">
-                {% if section.image_path %}
-                  <img class="about-seal__image" src="/storage/{{ section.image_path }}" alt="University Seal">
-                {% else %}
-                  <div class="about-seal__placeholder" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><path d="M12 3l8 3v5c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-3Z"></path><path d="M9 12l2 2 4-4"></path></svg>
-                  </div>
-                {% endif %}
-                <div class="about-seal__description">{{ section.body_html|safe }}</div>
+              {% if core_acrostic %}
+                <span class="values__band">Core values &mdash; LSPU develops</span>
+                <div class="values__acrostic">
+                  {% for item in core_acrostic %}
+                    <div class="values__letter-row">
+                      <span class="values__letter">{{ item.letter }}</span>
+                      <span class="values__word">{{ item.rest }}</span>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% elif not group_values %}
+                {# Editor reformatted the field — show what they wrote. #}
+                <div class="values__raw">{{ core_html|safe }}</div>
+              {% endif %}
+
+              <footer class="values__pledge">
+                <span class="values__pledge-label">Performance<br>pledge</span>
+                <div class="values__pledge-body">
+                  {% if pledge_lines %}
+                    {% for line in pledge_lines %}
+                      <p class="values__pledge-line">
+                        {%- if line.letter %}<b>{{ line.letter }}</b>{% endif %}{{ line.rest }}
+                      </p>
+                    {% endfor %}
+                  {% else %}
+                    {{ pledge_html|safe }}
+                  {% endif %}
+                </div>
+              </footer>
+            </div>
+
+          {# ── History: milestone pager, one at a time ── #}
+          {% elif slug == 'history' %}
+            {% if milestones %}
+              <div class="history" data-history>
+                <nav class="history__chips" aria-label="Milestone years">
+                  {% for m in milestones %}
+                    <button type="button" class="history__chip{% if loop.first %} is-active{% endif %}"
+                            data-history-chip data-index="{{ loop.index0 }}">{{ m.year }}</button>
+                  {% endfor %}
+                </nav>
+
+                <div class="history__stage">
+                  {% for m in milestones %}
+                    <article class="history__slide{% if loop.first %} is-active{% endif %}" data-history-slide data-index="{{ loop.index0 }}">
+                      <span class="history__ghost" aria-hidden="true">{{ m.year }}</span>
+                      <div class="history__text">
+                        <h2 class="history__heading">{{ m.heading }}</h2>
+                        <div class="history__copy">{{ m.body_html|safe }}</div>
+                      </div>
+                      {% if m.image_path %}
+                        <img class="history__photo" src="/storage/{{ m.image_path }}" alt="">
+                      {% endif %}
+                    </article>
+                  {% endfor %}
+                </div>
+
+                <div class="history__controls">
+                  <button type="button" class="history__prev" data-history-prev aria-label="Previous milestone">&larr;</button>
+                  <button type="button" class="history__next" data-history-next>Next milestone &rarr;</button>
+                </div>
               </div>
+            {% else %}
+              <div class="about-longform">{{ section.body_html|safe }}</div>
             {% endif %}
-          </div>
-        </section>
-      {% endfor %}
 
-      {# ===== Footer (back buttons mirror welcome.html news-ticker placement) ===== #}
-      <section class="about-foot" aria-label="Navigation">
-        <button type="button" class="about-back about-back--hub-return" data-back>
-          <span class="about-back__icon" aria-hidden="true">◀</span>
-          <span class="about-back__label">Back to About LSPU</span>
-        </button>
-        <a class="about-back about-back--kiosk" href="/kiosk">
-          <span class="about-back__icon" aria-hidden="true">◀</span>
-          <span class="about-back__label">Back to Kiosk</span>
-        </a>
-      </section>
+          {# ── Quality: full-bleed maroon pull quote ── #}
+          {% elif slug == 'quality' %}
+            <section class="quality">
+              <span class="quality__mark" aria-hidden="true">&ldquo;</span>
+              <blockquote class="quality__statement">{{ quality_statement }}</blockquote>
+              {% if quality_support %}<p class="quality__support">{{ quality_support }}</p>{% endif %}
+              <footer class="quality__footer">
+                <span>Quality management system</span>
+                <span>ISO 9001:2015 certified</span>
+              </footer>
+              {% if seal_section and seal_section.image_path %}
+                <img class="quality__watermark" src="/storage/{{ seal_section.image_path }}" alt="" aria-hidden="true">
+              {% endif %}
+            </section>
 
-    </main>
+          {# ── Hymn: player + line-synced lyrics ── #}
+          {% elif slug == 'hymn' %}
+            <section class="hymn" data-hymn
+                     data-timings='{{ (section.lyric_timings or []) | tojson }}'>
+              {% if section.audio_path %}
+                <div class="hymn__player">
+                  <button type="button" class="hymn__play" data-hymn-play aria-label="Play the university hymn">
+                    <span class="hymn__play-glyph" data-hymn-glyph aria-hidden="true">&#9654;</span>
+                  </button>
+                  <div class="hymn__meta">
+                    <span class="hymn__title">{{ section.title }}</span>
+                    <div class="hymn__bar" data-hymn-bar>
+                      <span class="hymn__bar-fill" data-hymn-fill></span>
+                    </div>
+                    <div class="hymn__time">
+                      <span data-hymn-elapsed>0:00</span>
+                      <span data-hymn-total>0:00</span>
+                    </div>
+                  </div>
+                  <audio data-hymn-audio preload="metadata"
+                         src="/storage/{{ section.audio_path | replace('\\', '/') }}"></audio>
+                </div>
+              {% endif %}
+
+              <div class="hymn__lyrics" data-hymn-lyrics>
+                {% for line in hymn_lines %}
+                  <p class="hymn__line" data-hymn-line data-index="{{ loop.index0 }}">{{ line }}</p>
+                {% else %}
+                  <div>{{ section.body_html|safe }}</div>
+                {% endfor %}
+              </div>
+            </section>
+
+          {# ── Seal: hotspots pinned to the artwork + legend grid ── #}
+          {% elif slug == 'seal' %}
+            <section class="seal">
+              <div class="seal__stage">
+                {% if section.image_path %}
+                  <img class="seal__art" src="/storage/{{ section.image_path }}" alt="The LSPU university seal">
+                {% else %}
+                  <div class="seal__art seal__art--empty" aria-hidden="true"></div>
+                {% endif %}
+                {% for h in seal_hotspots %}
+                  <button type="button" class="seal__dot" data-seal-dot data-key="{{ h.key }}"
+                          style="left: {{ h.x }}%; top: {{ h.y }}%;"
+                          aria-label="{{ h.label }}">{{ loop.index }}</button>
+                {% endfor %}
+              </div>
+
+              <span class="seal__cue">Tap a symbol</span>
+
+              <div class="seal__legend">
+                {% for h in seal_hotspots %}
+                  <button type="button" class="seal__card" data-seal-card data-key="{{ h.key }}">
+                    <span class="seal__card-num">{{ '%02d' % loop.index }}</span>
+                    <span class="seal__card-name">{{ h.label }}</span>
+                    <span class="seal__card-note">{{ h.note }}</span>
+                  </button>
+                {% endfor %}
+              </div>
+            </section>
+          {% endif %}
+        </div>
+
+        <nav class="about-prevnext" aria-label="Nearby sections">
+          <button type="button" class="about-prevnext__btn" data-target="{{ prev_slug }}">
+            <span aria-hidden="true">&larr;</span> {{ tile_meta[prev_slug].short }}
+          </button>
+          <button type="button" class="about-prevnext__btn about-prevnext__btn--next" data-target="{{ next_slug }}">
+            {{ tile_meta[next_slug].short }} <span aria-hidden="true">&rarr;</span>
+          </button>
+        </nav>
+      </div>
+    {% endfor %}
+
+    {# One back control per view: the hub leaves the section, a pane returns to the hub. #}
+    <div class="about-back about-back--hub">
+      {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False) %}{% include 'partials/kiosk-back.html' %}{% endwith %}
+    </div>
+    <div class="about-back about-back--detail">
+      {% with back_label='About LSPU', back_action='hub' %}{% include 'partials/kiosk-back.html' %}{% endwith %}
+    </div>
   </div>
 
-  <script src="{{ asset_url('js/about-lspu-kiosk.js') }}"></script>
+  <script src="{{ asset_url('js/kiosk-clock.js') }}" defer></script>
+  <script src="{{ asset_url('js/about-lspu-kiosk.js') }}" defer></script>
 </body>
 </html>

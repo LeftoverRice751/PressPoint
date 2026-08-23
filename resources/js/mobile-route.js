@@ -1,29 +1,4 @@
-/*
- * Mobile route page.
- *
- * Lifecycle:
- *   1. Read the token + expired flag the server stamped onto the root element.
- *   2. If expired, show the notice and bail — no map, no fetch.
- *   3. Otherwise fetch /api/route-sessions/<token> for start + destination,
- *      which now also carries `geo_transform` (WGS84->layer-pixel matrix)
- *      and `destination.wgs84` (real lat/lng, for the arrival check only).
- *   4. Draw the 2.5D campus (L.campus25d — same self-contained plugin the
- *      kiosk uses; see resources/js/campus-2.5d.layer.js) and overlay the
- *      selected route polyline from the serialized location coordinates.
- *   5. Ask for the phone's location (navigator.geolocation.watchPosition).
- *      Each reading is pushed through the same projective transform
- *      app/services/CampusGeoTransform.py derives server-side, landing it in
- *      the route polyline's own pixel space, then projected onto the
- *      polyline to trim off the walked portion — the line "decreasing" is
- *      this trim, redrawn on every reading. Arrival is judged separately, in
- *      real meters (haversine against `destination.wgs84`), because the
- *      trim above is cosmetic and only as good as a 4-point homography plus
- *      phone GPS noise — good enough to watch a line shrink, not to place a
- *      person to the pixel.
- *   6. Wire the Finish button -> POST /api/route-sessions/<token>/finish as
- *      a manual fallback for denied/unavailable/inaccurate GPS; arrival
- *      detected live calls the same endpoint automatically.
- */
+
 document.addEventListener('DOMContentLoaded', () => {
     const root = document.querySelector('.mobile-route');
     if (!root || typeof L === 'undefined') {
@@ -32,23 +7,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const token = root.dataset.token;
     const startedExpired = root.dataset.expired === 'true';
-    const subtitle = document.getElementById('mobile-route-subtitle');
-    const statusPill = document.getElementById('mobile-route-status');
-    const finishButton = document.getElementById('mobile-route-finish');
-    const expiredNotice = document.getElementById('mobile-route-expired');
-    const modal = document.getElementById('mobile-route-modal');
 
-    // Meters from the destination's real WGS84 point within which the walk
-    // counts as "arrived." Wider than a building's footprint on purpose:
-    // phone GPS is typically 5-15m accurate outdoors, worse near buildings,
-    // and the transform itself is a 4-point fit -- a tight radius would
-    // just make arrival never fire.
-    const ARRIVAL_RADIUS_METERS = 15;
+    const els = {
+        clock: document.getElementById('mobile-route-clock'),
+        battery: document.getElementById('mobile-route-battery'),
+        eyebrow: document.getElementById('mobile-route-eyebrow'),
+        subtitle: document.getElementById('mobile-route-subtitle'),
+        statusPill: document.getElementById('mobile-route-status'),
+        instruction: document.getElementById('mobile-route-instruction'),
+        recenter: document.getElementById('mobile-route-recenter'),
+        finishButton: document.getElementById('mobile-route-finish'),
+        expiredNotice: document.getElementById('mobile-route-expired'),
+        modal: document.getElementById('mobile-route-modal'),
+        modalStats: document.getElementById('mobile-route-modal-stats'),
+        modalDone: document.getElementById('mobile-route-modal-done'),
+        distance: document.getElementById('mobile-route-distance'),
+        distanceUnit: document.getElementById('mobile-route-distance-unit'),
+        eta: document.getElementById('mobile-route-eta'),
+        arriveAt: document.getElementById('mobile-route-arrive-at'),
+        progressFill: document.getElementById('mobile-route-progress-fill'),
+        originLabel: document.getElementById('mobile-route-origin-label'),
+        destinationLabel: document.getElementById('mobile-route-destination-label'),
+    };
 
-    // Skip redrawing the trimmed route line for GPS jitter under this many
-    // pixels of movement in layer space -- otherwise a stationary phone's
-    // GPS noise redraws the polyline on every reading for no visible change.
+    // Meters from the destination's real WGS84 point within which a single
+    // reading counts as "arrived" for the manual-adjacent coarse check;
+    // AUTO_ARRIVAL_* below is the stricter one that actually fires
+    // completeRoute automatically. Phone GPS is typically 5-15m accurate
+    // outdoors, worse near buildings, and the transform itself is a 4-point
+    // fit -- a tight radius would just make arrival never fire.
+    const AUTO_ARRIVAL_RADIUS_METERS = 10;
+    // Require this many consecutive close readings before auto-finishing,
+    // so one noisy GPS fix near the destination doesn't end the walk early.
+    const AUTO_ARRIVAL_STREAK = 3;
+
+    // Skip redrawing the trimmed route line / recomputing metrics for GPS
+    // jitter under this many pixels of movement in layer space -- otherwise
+    // a stationary phone's GPS noise redraws everything on every reading
+    // for no visible change.
     const TRACK_MIN_PIXEL_DELTA = 3;
+
+    // No reading for this long flips the status pill to "searching" and
+    // fades the puck -- tells the user tracking hasn't died, just stalled.
+    const SEARCHING_TIMEOUT_MS = 10000;
+
+    // Campus walking pace in meters/minute (~4.5 km/h), used for the ETA
+    // readout. Deliberately unhurried: this is indoor/campus foot traffic,
+    // not open-road walking speed.
+    const WALK_SPEED_M_PER_MIN = 75;
+
+    // Buildings within this many pixels of the route polyline count as
+    // "on the corridor" and stay at full brightness; everything else dims.
+    // There's no corridor->building mapping in the data model, so this is a
+    // proximity heuristic, not a computed relationship -- tune by eye
+    // against the campus's actual scale if buildings that obviously flank
+    // the path end up dimmed (or the reverse).
+    const FOCUS_RADIUS_PX = 90;
+
+    const STARTED_AT_KEY = 'presspoint.route.startedAt';
 
     const DRONE_BASE_CAMERA_DISTANCE = 1.7;
     const DRONE_BASE_HEIGHT_SCALE = 1;
@@ -56,14 +72,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const DRONE_FOCUS_HEIGHT_SCALE = 1.5;
     const DRONE_FOCUS_ZOOM_BUMP = 1.8;
     const DRONE_DESCENT_MS = 1400;
-    const ROUTE_STYLE = {
-        color: '#ff5b13',
-        weight: 6,
-        opacity: 0.95,
-        dashArray: '12, 8',
-        lineCap: 'square',
-        lineJoin: 'miter',
-    };
+
+    const ROUTE_CASING_STYLE = { color: '#24110D', weight: 11, opacity: 0.18, lineCap: 'round', lineJoin: 'round' };
+    const ROUTE_FILL_STYLE = { color: '#FF6A00', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round' };
+    const ROUTE_DASH_STYLE = { color: '#FFF3E6', weight: 2.5, opacity: 0.85, dashArray: '3 9', lineCap: 'round' };
 
     // Declared ahead of showExpired() below: the expired-on-load path calls
     // it immediately, before the rest of the tracking machinery is set up.
@@ -78,17 +90,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const showExpired = (message) => {
         stopTracking();
         if (message) {
-            expiredNotice.textContent = message;
+            els.expiredNotice.textContent = message;
         }
-        expiredNotice.classList.remove('mobile-route__notice--hidden');
-        finishButton.style.display = 'none';
-        subtitle.textContent = '';
-        if (statusPill) statusPill.classList.add('mobile-route__status--hidden');
+        els.expiredNotice.classList.remove('mobile-route__notice--hidden');
+        document.getElementById('mobile-route-sheet').style.display = 'none';
+        document.getElementById('mobile-route-card').style.display = 'none';
+        els.instruction.classList.add('mobile-route__instruction--hidden');
+        if (els.statusPill) els.statusPill.classList.add('mobile-route__status--hidden');
     };
 
     if (startedExpired) {
         showExpired();
         return;
+    }
+
+    // --- status-bar clock -------------------------------------------------
+    // Aligned to the minute boundary rather than a 1s interval: a HUD clock
+    // that's only ever accurate to the minute doesn't need per-second ticks.
+    const formatClock = (date) => {
+        const hh = String(date.getHours()).padStart(2, '0');
+        const mm = String(date.getMinutes()).padStart(2, '0');
+        return `${hh}:${mm}`;
+    };
+    const scheduleClockTick = () => {
+        const now = new Date();
+        els.clock.textContent = formatClock(now);
+        const msToNextMinute = 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
+        setTimeout(() => {
+            scheduleClockTick();
+        }, msToNextMinute);
+    };
+    scheduleClockTick();
+
+    // --- battery ------------------------------------------------------
+    if (navigator.getBattery) {
+        navigator.getBattery().then((battery) => {
+            const render = () => {
+                els.battery.textContent = `${Math.round(battery.level * 100)}%`;
+            };
+            render();
+            battery.addEventListener('levelchange', render);
+        }).catch(() => { els.battery.style.display = 'none'; });
+    } else {
+        els.battery.style.display = 'none';
     }
 
     const map = L.map('mobile-route-map', {
@@ -102,7 +146,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let layer = null;
     let layerBounds = null;
-    let routeLayer = null;
+    let routeCasing = null;
+    let routeFill = null;
+    let routeDash = null;
+    let puckMarker = null;
+    let pinMarker = null;
     let animationToken = 0;
 
     // Same centroid helper as the kiosk: average the outer ring of a
@@ -191,25 +239,135 @@ document.addEventListener('DOMContentLoaded', () => {
     // The full, un-trimmed route -- what live tracking below trims against.
     // Set once per session by drawRouteLine(); untouched by updateRoutePath().
     let fullRoutePath = null;
+    // Parallel WGS84 [lat, lng] pairs, same length/order as fullRoutePath,
+    // when the server had a walkway-routed polyline to convert. Null for the
+    // straight-line fallback, in which case metrics fall back to a plain
+    // haversine-to-destination estimate.
+    let fullRouteWgs84 = null;
+    let totalRouteMetres = null;
+
+    // Sum of haversine segment lengths over a WGS84 polyline.
+    const routeLengthMeters = (wgs84Path) => {
+        let total = 0;
+        for (let i = 0; i < wgs84Path.length - 1; i += 1) {
+            const [lat1, lng1] = wgs84Path[i];
+            const [lat2, lng2] = wgs84Path[i + 1];
+            total += haversineMeters(lat1, lng1, lat2, lng2);
+        }
+        return total;
+    };
+
+    // Places dots along the route at 1/6th intervals — a light visual
+    // waypoint cue, not tied to the actual graph nodes (which aren't part
+    // of this payload).
+    let waypointMarkers = [];
+    const drawWaypoints = (path) => {
+        waypointMarkers.forEach((m) => map.removeLayer(m));
+        waypointMarkers = [];
+        if (!path || path.length < 2) return;
+        const steps = 6;
+        for (let i = 1; i < steps; i += 1) {
+            const idx = Math.round((i / steps) * (path.length - 1));
+            const [y, x] = path[idx];
+            waypointMarkers.push(
+                L.circleMarker([y, x], {
+                    radius: 3.5,
+                    color: '#FF6A00',
+                    weight: 0,
+                    fillOpacity: 0.55,
+                    interactive: false,
+                }).addTo(map),
+            );
+        }
+    };
+
+    const puckIcon = () => L.divIcon({
+        className: 'mobile-route__puck',
+        html: '<span class="mobile-route__puck-ring"></span><span class="mobile-route__puck-dot"></span>',
+        iconSize: [0, 0],
+    });
+
+    const pinIcon = () => L.divIcon({
+        className: 'mobile-route__pin',
+        html: '<span class="mobile-route__pin-body"><span class="mobile-route__pin-dot"></span></span>',
+        iconSize: [0, 0],
+    });
 
     const drawRouteLine = (start, destination) => {
-        if (routeLayer) {
-            map.removeLayer(routeLayer);
-            routeLayer = null;
-        }
+        [routeCasing, routeFill, routeDash].forEach((l) => { if (l) map.removeLayer(l); });
+        routeCasing = routeFill = routeDash = null;
 
         fullRoutePath = routePathFor(start, destination);
+        fullRouteWgs84 = Array.isArray(destination.route_wgs84) && destination.route_wgs84.length === (fullRoutePath || []).length
+            ? destination.route_wgs84
+            : null;
+        totalRouteMetres = fullRouteWgs84 ? routeLengthMeters(fullRouteWgs84) : null;
+
         if (!fullRoutePath || fullRoutePath.length < 2) return;
 
-        routeLayer = L.polyline(fullRoutePath, ROUTE_STYLE).addTo(map);
-        map.fitBounds(routeLayer.getBounds(), { padding: [32, 32] });
+        routeCasing = L.polyline(fullRoutePath, ROUTE_CASING_STYLE).addTo(map);
+        routeFill = L.polyline(fullRoutePath, ROUTE_FILL_STYLE).addTo(map);
+        routeDash = L.polyline(fullRoutePath, ROUTE_DASH_STYLE).addTo(map);
+        markDashAnimated();
+        drawWaypoints(fullRoutePath);
+
+        puckMarker = L.marker(fullRoutePath[0], { icon: puckIcon(), interactive: false, zIndexOffset: 500 }).addTo(map);
+        pinMarker = L.marker(fullRoutePath[fullRoutePath.length - 1], { icon: pinIcon(), interactive: false, zIndexOffset: 400 }).addTo(map);
+
+        els.originLabel.textContent = (start && start.name) || '';
+        els.destinationLabel.textContent = (destination && destination.name) || '';
+
+        map.fitBounds(routeFill.getBounds(), { padding: [32, 120] });
+        applyCorridorFocus(fullRoutePath, destination.feature_id);
+    };
+
+    // CSS drives the marching-ants look via stroke-dashoffset; Leaflet only
+    // owns stroke-dasharray (from the `dashArray` option). Re-applying the
+    // class after every setLatLngs() is cheap and idempotent — classList.add
+    // is a no-op if it's already there.
+    const markDashAnimated = () => {
+        const el = routeDash && routeDash.getElement && routeDash.getElement();
+        if (el) el.classList.add('mobile-route__route-dash-anim');
     };
 
     // Redraws the route with just the remaining path -- no fitBounds, so
     // walking doesn't fight the user's own pan/zoom every GPS reading.
     const updateRoutePath = (path) => {
-        if (!routeLayer || !path || path.length < 2) return;
-        routeLayer.setLatLngs(path);
+        if (!routeCasing || !path || path.length < 2) return;
+        routeCasing.setLatLngs(path);
+        routeFill.setLatLngs(path);
+        routeDash.setLatLngs(path);
+        markDashAnimated();
+        if (puckMarker) puckMarker.setLatLng(path[0]);
+    };
+
+    // --- building focus / dim ------------------------------------------
+    //
+    // Which buildings count as "on the route" isn't data the app has (the
+    // wayfinding graph's nodes are walkway vertices, not buildings) — this
+    // approximates it by distance from each feature's centroid to the drawn
+    // polyline, using the same point-to-polyline projection the live
+    // tracking below uses for trimming.
+    const applyCorridorFocus = (path, destinationFeatureId) => {
+        if (!layer || typeof layer.setFocusFeatures !== 'function') return;
+        const data = L.CAMPUS_25D_DATA;
+        if (!data || !Array.isArray(data.features)) return;
+
+        const ids = new Set();
+        if (destinationFeatureId) ids.add(String(destinationFeatureId));
+
+        data.features.forEach((feature) => {
+            const props = feature.properties || {};
+            if (!props.id || props.kind === 'ground') return;
+            const center = featureCenter(props.id);
+            if (!center) return;
+            const projection = projectOntoPath([center.lat, center.lng], path);
+            if (projection && Math.sqrt(projection.distSq) <= FOCUS_RADIUS_PX) {
+                ids.add(String(props.id));
+            }
+        });
+
+        layer.setFocusFeatures(ids);
     };
 
     const renderMap = (data) => {
@@ -250,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Real-world great-circle distance in meters. This is the arrival
     // authority -- independent of the pixel transform's approximation,
     // because it never leaves WGS84.
-    const haversineMeters = (lat1, lng1, lat2, lng2) => {
+    function haversineMeters(lat1, lng1, lat2, lng2) {
         const radius = 6371000;
         const toRad = (deg) => (deg * Math.PI) / 180;
         const dPhi = toRad(lat2 - lat1);
@@ -258,12 +416,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const a = Math.sin(dPhi / 2) ** 2
             + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLambda / 2) ** 2;
         return 2 * radius * Math.asin(Math.sqrt(a));
-    };
+    }
 
     // Closest point on a [y, x]-pair polyline to a [y, x] point, as
-    // { segmentIndex, point }. Used to trim the drawn route down to wherever
-    // the phone currently projects onto it.
-    const projectOntoPath = (point, path) => {
+    // { segmentIndex, t, point, distSq }. `t` (0..1, how far along the
+    // segment) lets callers interpolate a parallel array (e.g. the WGS84
+    // route) at the same position. Used to trim the drawn route, focus-dim
+    // buildings, and compute real remaining distance.
+    function projectOntoPath(point, path) {
         const [py, px] = point;
         let best = null;
         for (let i = 0; i < path.length - 1; i += 1) {
@@ -278,33 +438,153 @@ document.addEventListener('DOMContentLoaded', () => {
             const cy = ay + t * dy;
             const distSq = (px - cx) ** 2 + (py - cy) ** 2;
             if (!best || distSq < best.distSq) {
-                best = { segmentIndex: i, point: [cy, cx], distSq };
+                best = { segmentIndex: i, t, point: [cy, cx], distSq };
             }
         }
         return best;
-    };
+    }
 
     const trimPathFromProjection = (path, projection) => (
         projection ? [projection.point, ...path.slice(projection.segmentIndex + 1)] : path
     );
 
+    // --- turn-instruction synthesis ----------------------------------
+    //
+    // There's no turn-by-turn data anywhere in the app -- MapWayfinderService
+    // only returns a shortest-path polyline. This approximates instructions
+    // from the geometry itself: the bearing change between the segment the
+    // user is on and the next one. In this layer space x is east-ish and y
+    // increases "up" (see CLAUDE.md's note on the 2.5D layer's y-down-negative
+    // convention -- less negative is further up/north), so a plain
+    // atan2(dy, dx) behaves like a standard math angle; only the sign of the
+    // turn matters here, not true compass heading.
+    const bearingDeg = (a, b) => {
+        const [ay, ax] = a;
+        const [by, bx] = b;
+        return Math.atan2(by - ay, bx - ax) * (180 / Math.PI);
+    };
+
+    const normalizeAngle = (deg) => {
+        let d = deg % 360;
+        if (d > 180) d -= 360;
+        if (d < -180) d += 360;
+        return d;
+    };
+
+    const instructionFor = (path, segmentIndex) => {
+        if (!path || segmentIndex >= path.length - 2) {
+            return { text: 'Arrive at destination', arrow: '●' };
+        }
+        const current = bearingDeg(path[segmentIndex], path[segmentIndex + 1]);
+        const next = bearingDeg(path[segmentIndex + 1], path[segmentIndex + 2]);
+        const delta = normalizeAngle(next - current);
+        const abs = Math.abs(delta);
+        if (abs < 20) return { text: 'Continue straight', arrow: '↑' };
+        if (delta > 0) return abs < 100 ? { text: 'Turn left ahead', arrow: '↖' } : { text: 'Turn left', arrow: '←' };
+        return abs < 100 ? { text: 'Turn right ahead', arrow: '↗' } : { text: 'Turn right', arrow: '→' };
+    };
+
+    const setInstruction = (path, segmentIndex) => {
+        const { text, arrow } = instructionFor(path, segmentIndex);
+        els.instruction.textContent = `${arrow}  ${text}`;
+    };
+
+    // --- live metrics: distance / ETA / arrival clock ------------------
+    const median = (values) => {
+        const sorted = [...values].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    };
+
+    const lerp = (a, b, t) => a + (b - a) * t;
+
+    // Remaining real-world distance from the phone's projected position to
+    // the destination, walking the WGS84-converted route rather than a
+    // straight line -- falls back to a plain haversine-to-destination if the
+    // session has no walkway-routed polyline (the straight-line fallback
+    // case noted on `route` in MapController._serialize_location).
+    const remainingMetersAlongRoute = (projection, destinationWgs84) => {
+        if (!fullRouteWgs84 || !projection) {
+            return null;
+        }
+        const { segmentIndex, t } = projection;
+        const [lat1, lng1] = fullRouteWgs84[segmentIndex];
+        const [lat2, lng2] = fullRouteWgs84[segmentIndex + 1];
+        const here = [lerp(lat1, lat2, t), lerp(lng1, lng2, t)];
+        let total = haversineMeters(here[0], here[1], lat2, lng2);
+        for (let i = segmentIndex + 1; i < fullRouteWgs84.length - 1; i += 1) {
+            const [a1, a2] = fullRouteWgs84[i];
+            const [b1, b2] = fullRouteWgs84[i + 1];
+            total += haversineMeters(a1, a2, b1, b2);
+        }
+        return total;
+    };
+
+    let distanceReadings = [];
+    let lastRenderedEtaMinutes = null;
+
+    const updateMetrics = (metres) => {
+        if (metres === null || !Number.isFinite(metres)) return;
+
+        distanceReadings.push(metres);
+        if (distanceReadings.length > 5) distanceReadings.shift();
+
+        if (metres <= AUTO_ARRIVAL_RADIUS_METERS) {
+            els.distance.textContent = '0';
+            els.distanceUnit.textContent = 'Arriving';
+        } else {
+            els.distance.textContent = String(Math.round(metres));
+            els.distanceUnit.textContent = 'm left';
+        }
+
+        const smoothed = median(distanceReadings);
+        const etaMinutes = Math.max(1, Math.ceil(smoothed / WALK_SPEED_M_PER_MIN));
+        if (etaMinutes !== lastRenderedEtaMinutes) {
+            lastRenderedEtaMinutes = etaMinutes;
+            els.eta.textContent = `${etaMinutes} min`;
+            const arriveAt = new Date(Date.now() + etaMinutes * 60000);
+            els.arriveAt.textContent = `arrive ${formatClock(arriveAt)}`;
+        }
+
+        if (totalRouteMetres && totalRouteMetres > 0) {
+            const progress = Math.max(0, Math.min(1, 1 - metres / totalRouteMetres));
+            els.progressFill.style.width = `${(progress * 100).toFixed(1)}%`;
+        }
+    };
+
     const STATUS_TEXT = {
         waiting: 'Waiting for GPS…',
         tracking: 'Tracking your walk',
+        searching: 'Searching for GPS…',
         unavailable: 'Location unavailable — tap Finish when you arrive.',
     };
 
     const setTrackingStatus = (state) => {
-        if (!statusPill) return;
-        statusPill.dataset.state = state;
-        statusPill.textContent = STATUS_TEXT[state] || '';
+        if (!els.statusPill) return;
+        els.statusPill.dataset.state = state;
+        els.statusPill.textContent = STATUS_TEXT[state] || '';
+        if (puckMarker) {
+            const el = puckMarker.getElement();
+            if (el) el.classList.toggle('mobile-route__puck--stale', state === 'searching');
+        }
+    };
+
+    let lastReadingAt = 0;
+    let searchingTimer = null;
+    const armSearchingWatch = () => {
+        if (searchingTimer) clearInterval(searchingTimer);
+        searchingTimer = setInterval(() => {
+            if (lastReadingAt && Date.now() - lastReadingAt > SEARCHING_TIMEOUT_MS && !arrived) {
+                setTrackingStatus('searching');
+            }
+        }, 3000);
     };
 
     // Short two-note chime, synthesized rather than shipped as an audio
     // asset -- there's no audio pipeline in this repo yet and this avoids
     // starting one for a two-tone beep. Needs a user gesture to unlock on
     // some browsers, so a first tap/touch anywhere primes the AudioContext;
-    // if that never happens, the arrival modal still shows either way.
+    // if that never happens, the arrival overlay still shows either way.
     let audioCtx = null;
     const ensureAudioContext = () => {
         if (audioCtx) return audioCtx;
@@ -343,13 +623,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastTrackedPoint = null;
     let arrived = false;
     let sessionData = null;
+    let closeReadingStreak = 0;
 
     const handlePosition = (position) => {
         if (arrived || !sessionData) return;
         const { latitude, longitude } = position.coords;
+        lastReadingAt = Date.now();
         setTrackingStatus('tracking');
 
         const matrix = sessionData.geo_transform;
+        let projection = null;
         if (matrix && fullRoutePath && fullRoutePath.length >= 2) {
             const layerPoint = wgs84ToLayerPoint(matrix, latitude, longitude);
             if (layerPoint) {
@@ -361,7 +644,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ) >= TRACK_MIN_PIXEL_DELTA;
                 if (moved) {
                     lastTrackedPoint = point;
-                    updateRoutePath(trimPathFromProjection(fullRoutePath, projectOntoPath(point, fullRoutePath)));
+                    projection = projectOntoPath(point, fullRoutePath);
+                    updateRoutePath(trimPathFromProjection(fullRoutePath, projection));
+                    if (projection) setInstruction(fullRoutePath, projection.segmentIndex);
                 }
             }
         }
@@ -369,8 +654,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const destinationWgs84 = sessionData.destination && sessionData.destination.wgs84;
         if (Array.isArray(destinationWgs84) && destinationWgs84.length === 2) {
             const [destLat, destLng] = destinationWgs84;
-            if (haversineMeters(latitude, longitude, destLat, destLng) <= ARRIVAL_RADIUS_METERS) {
-                completeRoute({ auto: true });
+            const remaining = remainingMetersAlongRoute(projection, destinationWgs84)
+                ?? haversineMeters(latitude, longitude, destLat, destLng);
+            updateMetrics(remaining);
+
+            const straightLineDistance = haversineMeters(latitude, longitude, destLat, destLng);
+            if (straightLineDistance <= AUTO_ARRIVAL_RADIUS_METERS) {
+                closeReadingStreak += 1;
+                if (closeReadingStreak >= AUTO_ARRIVAL_STREAK) {
+                    completeRoute();
+                }
+            } else {
+                closeReadingStreak = 0;
             }
         }
     };
@@ -388,6 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         setTrackingStatus('waiting');
+        armSearchingWatch();
         watchId = navigator.geolocation.watchPosition(handlePosition, handlePositionError, {
             enableHighAccuracy: true,
             maximumAge: 5000,
@@ -397,39 +693,129 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- finishing ----------------------------------------------------
 
+    const formatElapsed = (ms) => {
+        const totalSeconds = Math.max(0, Math.round(ms / 1000));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes} min ${String(seconds).padStart(2, '0')} s`;
+    };
+
+    // --- offline: finish retry queue -----------------------------------
+    //
+    // The final "I've Arrived" confirmation can't reach the server while the
+    // phone is genuinely offline. Rather than block the on-screen arrival on
+    // that, completeRoute() below fires the celebration unconditionally and
+    // treats the server notification as best-effort: sent now if possible,
+    // queued here for silent background retry otherwise. No visible "not
+    // synced yet" state -- the user already saw they arrived.
+    const PENDING_FINISH_KEY = 'presspoint.route.pendingFinish';
+
+    const sendFinish = (tok) => fetch(`/api/route-sessions/${encodeURIComponent(tok)}/finish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    }).then((response) => {
+        if (!response.ok) throw new Error('finish request failed');
+        return response.json();
+    });
+
+    const flushPendingFinish = () => {
+        const pending = localStorage.getItem(PENDING_FINISH_KEY);
+        if (!pending) return;
+        sendFinish(pending)
+            .then(() => localStorage.removeItem(PENDING_FINISH_KEY))
+            .catch(() => {});
+    };
+
+    // Covers three cases: the phone reconnects mid-walk (`online` event), a
+    // stalled connection that never fires `online` cleanly (the interval),
+    // and a previous visit's tab closing before its finish ever synced (the
+    // flush on load, called unconditionally below).
+    window.addEventListener('online', flushPendingFinish);
+    setInterval(flushPendingFinish, 30000);
+
     // Shared by automatic GPS arrival and the manual Finish button -- both
-    // just mean "the visit is over," so both get the same sound + modal.
-    const completeRoute = ({ auto = false } = {}) => {
+    // just mean "the visit is over," so both get the same sound + overlay.
+    const completeRoute = () => {
         if (arrived) return;
         arrived = true;
         stopTracking();
-        finishButton.disabled = true;
+        if (searchingTimer) clearInterval(searchingTimer);
+        els.finishButton.disabled = true;
 
-        fetch(`/api/route-sessions/${encodeURIComponent(token)}/finish`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        })
-            .then((response) => response.json())
-            .then(() => {
-                playArrivalChime();
-                modal.classList.remove('mobile-route__modal--hidden');
-                // After the user has seen the modal for a moment, swap to the
-                // expired/ended state. The token will reject re-finishes from
-                // the server side too, so a refresh will land cleanly here.
-                setTimeout(() => {
-                    modal.classList.add('mobile-route__modal--hidden');
-                    showExpired('This route has ended. Safe travels!');
-                }, 3500);
+        playArrivalChime();
+        const arrivedAt = new Date();
+        const startedAtRaw = localStorage.getItem(STARTED_AT_KEY);
+        const startedAt = startedAtRaw ? Number(startedAtRaw) : null;
+        document.getElementById('mobile-route-modal-eyebrow').textContent = `ARRIVED · ${formatClock(arrivedAt)}`;
+        document.getElementById('mobile-route-modal-title').textContent = sessionData.destination.name;
+        const elapsedText = startedAt ? `${formatElapsed(Date.now() - startedAt)} · ` : '';
+        const distanceText = totalRouteMetres ? `${Math.round(totalRouteMetres)} m walked` : '';
+        els.modalStats.textContent = `${elapsedText}${distanceText}`;
+        localStorage.removeItem(STARTED_AT_KEY);
+
+        if (pinMarker) {
+            const pinEl = pinMarker.getElement();
+            if (pinEl) pinEl.classList.add('mobile-route__pin--arrived');
+        }
+
+        els.modal.classList.remove('mobile-route__modal--hidden');
+
+        sendFinish(token).catch(() => localStorage.setItem(PENDING_FINISH_KEY, token));
+    };
+
+    els.modalDone.addEventListener('click', () => {
+        els.modal.classList.add('mobile-route__modal--hidden');
+        showExpired('This route has ended. Safe travels!');
+    });
+
+    // --- offline: asset + session precache -----------------------------
+    //
+    // Registers resources/js/sw-mobile-route.js and hands it the exact,
+    // already version-stamped URLs this load actually used -- collected from
+    // the DOM rather than guessed, since asset_url() bakes a cache-busting
+    // ?v=<mtime> into every href/src that would go stale if hardcoded here.
+    // Font files aren't discoverable that way (they're referenced inside a
+    // CSS @font-face rule, not a DOM node), so those two are listed by hand;
+    // their paths are stable (no query string) because mobile-route.css
+    // links them directly rather than through asset_url(). Explicit
+    // messaging rather than relying on interception: the very first visit's
+    // own resource fetches happen before this worker can be controlling that
+    // navigation, so waiting for interception alone would miss them.
+    const registerOfflineCache = (sessionUrl) => {
+        if (!('serviceWorker' in navigator)) return;
+
+        const urls = new Set([
+            window.location.href,
+            sessionUrl,
+            '/assets/fonts/SpaceGrotesk/space-grotesk-variable.woff2',
+            '/assets/fonts/JetBrainsMono/jetbrains-mono-variable.woff2',
+            // kiosk-tokens.css (loaded by base.html on every page) @imports
+            // this on top of the self-hosted JetBrains Mono above -- listed
+            // here too so that @import's own fetch doesn't fail offline.
+            'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap',
+        ]);
+        document.querySelectorAll('link[rel="stylesheet"][href]').forEach((el) => urls.add(el.href));
+        document.querySelectorAll('script[src]').forEach((el) => urls.add(el.src));
+
+        navigator.serviceWorker.register('/sw-mobile-route.js', { scope: '/' })
+            .then((reg) => {
+                const sw = reg.installing || reg.waiting || reg.active;
+                if (!sw) return;
+                const sendPrecache = (worker) => worker.postMessage({ type: 'PRECACHE', urls: Array.from(urls) });
+                if (reg.installing) {
+                    reg.installing.addEventListener('statechange', (e) => {
+                        if (e.target.state === 'activated') sendPrecache(e.target);
+                    });
+                } else {
+                    sendPrecache(sw);
+                }
             })
-            .catch(() => {
-                arrived = false;
-                finishButton.disabled = false;
-                if (auto) startTracking();
-            });
+            .catch(() => {});
     };
 
     const fetchSession = () => {
-        fetch(`/api/route-sessions/${encodeURIComponent(token)}`)
+        const sessionUrl = `/api/route-sessions/${encodeURIComponent(token)}`;
+        fetch(sessionUrl)
             .then((response) => response.json().then((body) => ({ ok: response.ok, body })))
             .then(({ ok, body }) => {
                 if (!ok || body.status !== 'active') {
@@ -440,18 +826,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     showExpired(messages[body.status] || messages.expired);
                     return;
                 }
+
+                // A service worker can serve this exact response back from
+                // cache indefinitely once the phone is offline, so the
+                // "active" status above can't be trusted past its own
+                // expiry -- check locally rather than assuming the network
+                // will ever confirm it's stale.
+                const expiresAtMs = Date.parse(body.expires_at);
+                if (Number.isFinite(expiresAtMs)) {
+                    const msRemaining = expiresAtMs - Date.now();
+                    if (msRemaining <= 0) {
+                        showExpired('This route has expired. Head back to the kiosk to start a new one.');
+                        return;
+                    }
+                    setTimeout(() => {
+                        if (!arrived) showExpired('This route has expired. Head back to the kiosk to start a new one.');
+                    }, msRemaining);
+                }
+
                 sessionData = body;
-                subtitle.textContent = `Heading to ${body.destination.name}`;
-                finishButton.disabled = false;
+                els.eyebrow.textContent = 'DESTINATION';
+                els.subtitle.textContent = `Heading to ${body.destination.name}`;
+                els.finishButton.disabled = false;
+                if (!localStorage.getItem(STARTED_AT_KEY)) {
+                    localStorage.setItem(STARTED_AT_KEY, String(Date.now()));
+                }
                 renderMap(body);
                 startTracking();
+                registerOfflineCache(sessionUrl);
             })
             .catch(() => {
                 showExpired('Could not load your route. Check your connection and try again.');
             });
     };
 
-    finishButton.addEventListener('click', () => completeRoute({ auto: false }));
+    els.finishButton.addEventListener('click', () => completeRoute());
+    els.recenter.addEventListener('click', () => {
+        if (puckMarker) {
+            map.flyTo(puckMarker.getLatLng(), Math.max(map.getZoom(), 1));
+        } else if (routeFill) {
+            map.fitBounds(routeFill.getBounds(), { padding: [32, 120] });
+        }
+    });
     window.addEventListener('pagehide', stopTracking);
+    flushPendingFinish();
     fetchSession();
 });

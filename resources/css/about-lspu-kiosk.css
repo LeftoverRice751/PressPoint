@@ -1,309 +1,924 @@
-/* About LSPU kiosk additions.
-   Reuses welcome-screen.css for the shell, hero, and feature-card grid
-   so the hub looks identical to welcome.html. The styles below cover
-   only the detail panes, view switching, and the footer back-buttons
-   (which sit in the same row welcome.html uses for the news ticker). */
+/*
+ * About LSPU — hub and six detail panes.
+ *
+ * One URL, seven views. The hub is an index of rows; each pane is a distinct
+ * composition chosen to suit its content rather than a shared card template:
+ * the mission is three declarative blocks, the quality policy is a pull quote,
+ * the history is a pager, the seal is an annotated diagram. The view is
+ * selected by data-view on .about-app (about-lspu-kiosk.js).
+ *
+ * Every pane shares the same chrome: a breadcrumb strip, then the body, then a
+ * prev/next row — and the shell's back bar underneath. Only the body scrolls.
+ */
 
-.about-app {
-  /* Match welcome.html's three-row layout: header / content / footer. */
-  grid-template-rows: auto 1fr auto;
-}
+/* ── View switching ────────────────────────────────────────────────── */
 
-/* ===== View switching =====
-   The hub is the feature grid. The 6 detail panes share the same
-   middle row. The active pane is selected via the data-view attribute
-   on .about-app, set by the kiosk JS. */
-
+.about-hub-view,
 .about-detail { display: none; }
 
-.about-app[data-view="hub"]      .about-hub                                 { display: grid; }
-.about-app[data-view="mission"]  .about-detail[data-pane="mission"],
-.about-app[data-view="values"]   .about-detail[data-pane="values"],
-.about-app[data-view="history"]  .about-detail[data-pane="history"],
-.about-app[data-view="quality"]  .about-detail[data-pane="quality"],
-.about-app[data-view="hymn"]     .about-detail[data-pane="hymn"],
-.about-app[data-view="seal"]     .about-detail[data-pane="seal"]            { display: grid; }
+.about-app[data-view="hub"] .about-hub-view { display: flex; }
 
-.about-app:not([data-view="hub"]) .about-hub { display: none; }
+.about-app[data-view="mission"] .about-detail[data-pane="mission"],
+.about-app[data-view="values"]  .about-detail[data-pane="values"],
+.about-app[data-view="history"] .about-detail[data-pane="history"],
+.about-app[data-view="quality"] .about-detail[data-pane="quality"],
+.about-app[data-view="hymn"]    .about-detail[data-pane="hymn"],
+.about-app[data-view="seal"]    .about-detail[data-pane="seal"] { display: flex; }
 
-/* Footer back-buttons: only one shows depending on view. */
-.about-back--hub { display: none; }
-.about-app:not([data-view="hub"]) .about-back--kiosk { display: none; }
-.about-app:not([data-view="hub"]) .about-back--hub { display: inline-flex; }
+/* Exactly one back control is in the DOM flow at a time. */
+.about-back--detail { display: none; }
+.about-app:not([data-view="hub"]) .about-back--hub { display: none; }
+.about-app:not([data-view="hub"]) .about-back--detail { display: block; }
 
-/* ===== Detail pane =====
-   Sits in the middle row of the kiosk-app grid (where feature-grid
-   is). Cream surface, brown text, maroon and orange accents — matches
-   the welcome-screen palette. */
+/* ── Hub: header + six rows ────────────────────────────────────────── */
 
-.about-detail {
-  align-self: stretch;
-  grid-template-rows: auto 1fr;
-  gap: 14px;
-  background: var(--brand-cream-light);
-  border: 1px solid rgb(var(--brand-maroon-rgb) / 0.12);
-  border-radius: 25px;
-  box-shadow: 0 18px 40px rgb(var(--brand-maroon-rgb) / 0.12);
-  padding: 22px 22px 18px;
+.about-hero {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 3vw, 26px);
+  min-height: clamp(132px, 19vh, 196px);
+  padding: clamp(16px, 3vw, 30px);
+  background: var(--kiosk-maroon);
+  color: var(--kiosk-on-dark);
+}
+
+.about-hero__type {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 0.8vh, 9px);
+}
+
+.about-hero__kicker {
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.55rem, 1.5vw, 0.6875rem);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--kiosk-amber);
+}
+
+.about-hero__title {
+  margin: 0;
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(1.9rem, 7vw, 3.375rem);
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.about-hero__lead {
+  margin: 0;
+  max-width: 46ch;
+  font-size: clamp(0.8rem, 2.1vw, 1rem);
+  line-height: 1.45;
+  color: var(--kiosk-on-dark-soft);
+}
+
+.about-hero__seal {
+  flex: 0 0 auto;
+  width: clamp(64px, 17vw, 132px);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+.about-index {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--kiosk-cream);
+}
+
+.about-index__row {
+  appearance: none;
+  flex: 1 1 0;
+  min-height: clamp(58px, 10.5vh, 108px);
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 2.6vw, 22px);
+  width: 100%;
+  padding: 0 clamp(14px, 3vw, 28px);
+  border: 0;
+  border-bottom: 1px solid var(--kiosk-hairline);
+  background: transparent;
+  color: var(--kiosk-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--kiosk-dur) var(--kiosk-ease);
+}
+
+.about-index__row:last-child { border-bottom: 0; }
+
+/* Hover gated on a real pointer: a touchscreen latches :hover after a tap, so
+   an un-gated hover fill stays stuck on whatever was last touched. Focus-visible
+   stays ungated — keyboard users need it on every device. */
+@media (hover: hover) {
+  .about-index__row:hover { background: var(--kiosk-paper); }
+}
+.about-index__row:focus-visible {
+  background: var(--kiosk-paper);
+  outline: none;
+}
+
+.about-index__num {
+  flex: 0 0 auto;
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.55rem, 1.5vw, 0.6875rem);
+  letter-spacing: 0.14em;
+  color: var(--kiosk-terracotta);
+}
+
+.about-index__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.about-index__title {
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(1.05rem, 3.6vw, 1.875rem);
+  line-height: 1.1;
+}
+
+.about-index__hint {
+  font-size: clamp(0.7rem, 1.9vw, 0.875rem);
+  color: var(--kiosk-ink-soft);
+}
+
+.about-index__arrow {
+  flex: 0 0 auto;
+  font-size: clamp(0.95rem, 2.6vw, 1.25rem);
+  color: var(--kiosk-terracotta);
+}
+
+/* ── Pane chrome: breadcrumb + prev/next ───────────────────────────── */
+
+.about-crumb {
+  flex: 0 0 auto;
+  height: clamp(42px, 5.8vh, 56px);
+  display: flex;
+  align-items: center;
+  gap: clamp(6px, 1.4vw, 10px);
+  padding: 0 clamp(14px, 3vw, 26px);
+  background: var(--kiosk-maroon);
+  color: var(--kiosk-amber);
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.55rem, 1.5vw, 0.6875rem);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
   overflow: hidden;
+}
+
+.about-crumb__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.about-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: kiosk-enter var(--kiosk-dur) var(--kiosk-ease) both;
+}
+
+.about-empty,
+.about-longform {
+  padding: clamp(16px, 3vw, 28px);
+  color: var(--kiosk-ink-soft);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.about-longform { font-size: clamp(0.8rem, 2vw, 0.95rem); line-height: 1.6; }
+
+.about-prevnext {
+  flex: 0 0 auto;
+  display: flex;
+  height: clamp(58px, 7.6vh, 74px);
+  border-top: 1px solid var(--kiosk-hairline);
+}
+
+.about-prevnext__btn {
+  appearance: none;
+  flex: 1 1 0;
+  min-width: 0;
+  border: 0;
+  background: var(--kiosk-paper);
+  color: var(--kiosk-ink);
+  font-family: var(--kiosk-font-ui);
+  font-weight: 600;
+  font-size: clamp(0.8rem, 2.2vw, 1.25rem);
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0 clamp(14px, 3vw, 26px);
+  cursor: pointer;
+  transition: background-color var(--kiosk-dur) var(--kiosk-ease);
+}
+
+.about-prevnext__btn--next {
+  justify-content: flex-end;
+  border-left: 1px solid var(--kiosk-hairline);
+}
+
+@media (hover: hover) {
+  .about-prevnext__btn:hover { background: var(--kiosk-cream); }
+}
+.about-prevnext__btn:focus-visible {
+  background: var(--kiosk-cream);
+  outline: none;
+}
+
+/* ── Mission: three declarative blocks, no scroll ───────────────────── */
+
+.mission {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mission__block {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(5px, 1vh, 12px);
+  padding: clamp(14px, 3vw, 30px);
   min-height: 0;
 }
 
-.about-detail__head {
+/* Ratios from the design: the mandate is the longest text and gets the most
+   room, the vision the least — it is one line and wants the air. */
+.mission__block--vision  { flex: 1 1 0;    background: var(--kiosk-crimson); color: var(--kiosk-paper); }
+.mission__block--mission { flex: 1.15 1 0; background: var(--kiosk-paper);   color: var(--kiosk-ink); border-top: 5px solid var(--kiosk-amber); }
+.mission__block--mandate { flex: 1.45 1 0; background: var(--kiosk-espresso); color: var(--kiosk-on-dark-soft); }
+
+.mission__label {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgb(var(--brand-maroon-rgb) / 0.10);
+  align-items: baseline;
+  gap: clamp(8px, 2vw, 16px);
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.55rem, 1.5vw, 0.6875rem);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.mission__block--vision  .mission__label { color: rgb(var(--kiosk-paper-rgb) / 0.75); }
+.mission__block--mission .mission__label { color: var(--kiosk-crimson); }
+.mission__block--mandate .mission__label { color: var(--kiosk-amber); }
+
+.mission__tag {
+  font-style: normal;
+  color: var(--kiosk-amber);
+  letter-spacing: 0.16em;
 }
 
-.about-detail__title {
-  margin: 0;
-  font-size: clamp(1.25rem, 2.2vw, 1.55rem);
-  font-weight: 900;
-  color: var(--n-900);
-  letter-spacing: 0.04em;
-  line-height: 1.15;
+.mission__text p { margin: 0; }
+
+.mission__block--vision .mission__text {
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(1.4rem, 5.2vw, 2.5rem);
+  line-height: 1.12;
 }
 
-.about-detail__scroll {
-  overflow-y: auto;
-  padding-right: 6px;
-  color: var(--n-900);
-  font-size: 0.98rem;
+.mission__block--mission .mission__text {
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(0.95rem, 3.2vw, 1.5625rem);
+  line-height: 1.3;
+}
+
+/* The mission statement is an acrostic on LEAD — set those letters in crimson
+   so the device is legible instead of buried in the sentence. */
+.mission__lead {
+  color: var(--kiosk-crimson);
+  font-weight: inherit;
+}
+
+.mission__block--mandate .mission__text {
+  font-size: clamp(0.75rem, 2.1vw, 1.0625rem);
   line-height: 1.55;
 }
 
-.about-detail__scroll::-webkit-scrollbar { width: 8px; }
-.about-detail__scroll::-webkit-scrollbar-thumb {
-  background: rgb(var(--brand-maroon-rgb) / 0.25);
-  border-radius: 999px;
-}
+/* ── Values: triad strip, acrostic grid, pledge ────────────────────── */
 
-.about-detail__scroll p { margin: 0 0 0.75rem; }
-.about-detail__scroll p:last-child { margin-bottom: 0; }
-.about-detail__scroll strong { color: var(--brand-maroon); }
-.about-detail__scroll ul,
-.about-detail__scroll ol { margin: 0 0 0.75rem; padding-left: 1.4rem; }
-.about-detail__scroll li { margin-bottom: 0.35rem; }
-.about-detail__scroll a { color: var(--brand-maroon); text-decoration: underline; }
-
-.about-detail__empty {
-  margin: 12px 0 0;
-  color: var(--n-500);
-  font-style: italic;
-}
-
-/* Sub-cards (mission, values) */
-.about-subcards { display: flex; flex-direction: column; gap: 14px; }
-.about-subcard {
-  background: var(--brand-cream-light);
-  border-left: 4px solid var(--brand-maroon);
-  border-radius: 14px;
-  padding: 16px 18px;
-}
-.about-subcard__heading {
-  margin: 0 0 8px;
-  color: var(--brand-maroon);
-  font-size: 1.05rem;
-  font-weight: 900;
-  letter-spacing: 0.02em;
-}
-
-/* Timeline (history) */
-.about-history__intro {
-  color: var(--n-500);
-  margin-bottom: 14px;
-}
-.about-timeline {
-  list-style: none;
-  margin: 0;
-  padding: 4px 0 4px 22px;
-  border-left: 2px solid rgb(var(--brand-maroon-rgb) / 0.35);
+.values {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
-.about-timeline__item { position: relative; }
-.about-timeline__item::before {
-  content: '';
-  position: absolute;
-  left: -29px;
-  top: 8px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--accent-hover);
-  border: 3px solid var(--brand-cream-light);
-  box-shadow: 0 0 0 2px var(--brand-maroon);
+
+.values__strip {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--kiosk-hairline);
+  background: var(--kiosk-paper);
 }
-.about-timeline__year {
-  display: inline-block;
-  background: var(--brand-maroon);
-  color: var(--brand-cream-light);
-  padding: 3px 12px;
-  border-radius: 999px;
-  font-weight: 800;
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  margin-bottom: 8px;
+
+.values__col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: clamp(10px, 2.2vw, 18px) clamp(8px, 2vw, 18px);
+  border-right: 1px solid var(--kiosk-hairline);
+  min-width: 0;
+}
+.values__col:last-child { border-right: 0; }
+
+.values__col-name {
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.5rem, 1.5vw, 0.6875rem);
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
-.about-timeline__card {
-  background: var(--brand-cream-light);
-  border-radius: 14px;
-  padding: 14px 16px;
-}
-.about-timeline__heading {
-  margin: 0 0 6px;
-  font-size: 1rem;
-  font-weight: 900;
-  color: var(--n-900);
-}
-.about-timeline__image {
-  max-width: 100%;
-  border-radius: 10px;
-  margin-bottom: 8px;
+/* Each value gets its own hue so the three read as three, not one list. */
+.values__col:nth-child(1) .values__col-name { color: var(--kiosk-crimson); }
+.values__col:nth-child(2) .values__col-name { color: var(--kiosk-amber); }
+.values__col:nth-child(3) .values__col-name { color: var(--kiosk-terracotta); }
+
+.values__col-qualities {
+  font-size: clamp(0.6rem, 1.7vw, 0.8125rem);
+  line-height: 1.4;
+  color: var(--kiosk-ink-soft);
 }
 
-/* Quality */
-.about-statement {
-  display: block;
-  text-align: center;
-  font-size: 1.05rem;
-  font-style: italic;
-  color: var(--n-900);
-  padding: 18px 16px;
-  border-top: 3px solid var(--brand-maroon);
-  border-bottom: 3px solid var(--brand-maroon);
+.values__band {
+  flex: 0 0 auto;
+  padding: clamp(7px, 1.5vw, 12px) clamp(12px, 3vw, 26px);
+  background: var(--kiosk-cream);
+  border-bottom: 1px solid var(--kiosk-hairline);
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.5rem, 1.4vw, 0.6875rem);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--kiosk-ink-soft);
 }
 
-/* Hymn */
-.about-hymn {
-  text-align: center;
-  font-size: 1.02rem;
-  line-height: 1.85;
-  color: var(--n-900);
+.values__acrostic {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
-.about-hymn p { margin-bottom: 1rem; }
-.about-hymn p:last-child { margin-bottom: 0; }
 
-/* Seal */
-.about-seal {
+.values__letter-row {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 2vw, 16px);
+  padding: clamp(6px, 1.4vw, 14px) clamp(12px, 3vw, 26px);
+  border-bottom: 1px solid var(--kiosk-hairline);
+  border-right: 1px solid var(--kiosk-hairline);
+  min-width: 0;
+}
+.values__letter-row:nth-child(even) { border-right: 0; }
+
+.values__letter {
+  flex: 0 0 auto;
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(1.3rem, 4.6vw, 2.375rem);
+  line-height: 1;
+  color: var(--kiosk-amber);
+}
+
+.values__word {
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(0.85rem, 2.9vw, 1.4375rem);
+  line-height: 1.1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.values__raw {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: clamp(12px, 3vw, 26px);
+}
+
+.values__pledge {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(10px, 2.6vw, 22px);
+  padding: clamp(10px, 2.4vw, 20px) clamp(12px, 3vw, 26px);
+  background: var(--kiosk-maroon);
+  color: var(--kiosk-on-dark);
+}
+
+.values__pledge-label {
+  flex: 0 0 auto;
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.5rem, 1.4vw, 0.6875rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--kiosk-amber);
+  line-height: 1.5;
+}
+
+.values__pledge-body {
+  min-width: 0;
+  font-size: clamp(0.68rem, 1.9vw, 0.875rem);
+  line-height: 1.45;
+  color: var(--kiosk-on-dark-soft);
+}
+
+.values__pledge-line { margin: 0 0 2px; }
+.values__pledge-line b { color: var(--kiosk-amber); font-weight: 700; }
+
+/* ── History: milestone pager ──────────────────────────────────────── */
+
+.history {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 16px;
 }
-.about-seal__image {
-  max-width: 220px;
-  width: 100%;
+
+.history__chips {
+  flex: 0 0 auto;
+  display: flex;
+  gap: clamp(5px, 1.2vw, 9px);
+  padding: clamp(8px, 1.8vw, 14px) clamp(12px, 3vw, 26px);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  border-bottom: 1px solid var(--kiosk-hairline);
+  background: var(--kiosk-paper);
+  scrollbar-width: none;
+}
+.history__chips::-webkit-scrollbar { display: none; }
+
+.history__chip {
+  appearance: none;
+  flex: 0 0 auto;
+  scroll-snap-align: center;
+  border: 1px solid var(--kiosk-hairline);
+  background: transparent;
+  color: var(--kiosk-ink-soft);
+  padding: 0.42em 0.95em;
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.58rem, 1.6vw, 0.75rem);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background-color var(--kiosk-dur) var(--kiosk-ease),
+              color var(--kiosk-dur) var(--kiosk-ease);
+}
+
+.history__chip.is-active {
+  background: var(--kiosk-crimson);
+  border-color: var(--kiosk-crimson);
+  color: var(--kiosk-paper);
+}
+
+.history__stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+
+.history__slide {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: flex-start;
+  gap: clamp(10px, 2.6vw, 22px);
+  padding: clamp(14px, 3vw, 26px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.history__slide.is-active {
+  display: flex;
+  animation: kiosk-enter var(--kiosk-dur) var(--kiosk-ease) both;
+}
+
+/* The year is set large and pale above its own heading, and again as the
+   active chip — the pager's position is legible without reading. In flow
+   rather than absolute so the heading always sits directly under it. */
+.history__ghost {
+  display: block;
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(2.6rem, 11vw, 5.5rem);
+  line-height: 0.9;
+  color: rgb(var(--kiosk-crimson-rgb) / 0.15);
+  pointer-events: none;
+  user-select: none;
+}
+
+.history__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  align-self: flex-start;
+}
+
+.history__heading {
+  margin: 0 0 clamp(5px, 1.2vh, 12px);
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(1.1rem, 3.6vw, 1.75rem);
+  line-height: 1.15;
+  color: var(--kiosk-maroon);
+}
+
+.history__copy {
+  font-size: clamp(0.75rem, 2.1vw, 1.0625rem);
+  line-height: 1.55;
+  color: var(--kiosk-ink-soft);
+}
+.history__copy p { margin: 0 0 0.6em; }
+
+.history__photo {
+  flex: 0 0 clamp(110px, 28vw, 220px);
+  align-self: center;
+  width: clamp(110px, 28vw, 220px);
   height: auto;
-  border-radius: 16px;
-  background: var(--n-white);
-  padding: 10px;
-  border: 1px solid rgb(var(--brand-maroon-rgb) / 0.12);
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
 }
-.about-seal__placeholder {
-  width: 180px;
-  height: 180px;
-  border-radius: 16px;
-  background: rgb(var(--brand-maroon-rgb) / 0.08);
+
+.history__controls {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 2vw, 14px);
+  padding: clamp(8px, 1.8vw, 14px) clamp(12px, 3vw, 26px);
+  border-top: 1px solid var(--kiosk-hairline);
+}
+
+.history__prev,
+.history__next {
+  appearance: none;
+  cursor: pointer;
+  font-family: var(--kiosk-font-ui);
+  font-weight: 700;
+  transition: background-color var(--kiosk-dur) var(--kiosk-ease);
+}
+
+.history__prev {
+  width: clamp(38px, 8vw, 46px);
+  height: clamp(38px, 8vw, 46px);
+  border-radius: 50%;
+  border: 1px solid var(--kiosk-hairline);
+  background: transparent;
+  color: var(--kiosk-ink);
+  font-size: clamp(0.85rem, 2.4vw, 1.05rem);
+}
+@media (hover: hover) {
+  .history__prev:hover { background: var(--kiosk-paper); }
+}
+
+.history__next {
+  border: 0;
+  border-radius: 999px;
+  background: var(--kiosk-crimson);
+  color: var(--kiosk-paper);
+  padding: 0.7em 1.4em;
+  font-size: clamp(0.68rem, 1.9vw, 0.875rem);
+  letter-spacing: 0.06em;
+}
+@media (hover: hover) {
+  .history__next:hover { background: var(--kiosk-maroon); }
+}
+
+/* ── Quality: pull quote ───────────────────────────────────────────── */
+
+.quality {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(8px, 1.8vh, 18px);
+  padding: clamp(18px, 4vw, 40px);
+  background: var(--kiosk-maroon);
+  color: var(--kiosk-on-dark);
+  overflow: hidden;
+}
+
+.quality__mark {
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(2.2rem, 9vw, 4rem);
+  line-height: 0.6;
+  color: var(--kiosk-amber);
+}
+
+.quality__statement {
+  margin: 0;
+  max-width: 30ch;
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(1.05rem, 3.9vw, 1.875rem);
+  line-height: 1.28;
+}
+
+.quality__support {
+  margin: 0;
+  max-width: 52ch;
+  font-size: clamp(0.72rem, 2vw, 1.0625rem);
+  line-height: 1.55;
+  color: var(--kiosk-on-dark-soft);
+}
+
+.quality__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--kiosk-s-3);
+  margin-top: clamp(6px, 1.4vh, 14px);
+  padding-top: clamp(8px, 1.6vh, 14px);
+  border-top: 1px solid var(--kiosk-hairline-dark);
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.5rem, 1.4vw, 0.6875rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--kiosk-amber);
+}
+
+.quality__watermark {
+  position: absolute;
+  right: -6%;
+  bottom: -14%;
+  width: 58%;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+/* ── Hymn: player + synced lyrics ──────────────────────────────────── */
+
+.hymn {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--kiosk-espresso);
+  color: var(--kiosk-on-dark);
+}
+
+.hymn__player {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 3vw, 22px);
+  padding: clamp(14px, 3vw, 26px);
+  border-bottom: 1px solid var(--kiosk-hairline-dark);
+}
+
+.hymn__play {
+  appearance: none;
+  flex: 0 0 auto;
+  width: clamp(54px, 12vw, 84px);
+  height: clamp(54px, 12vw, 84px);
+  border-radius: 50%;
+  border: 3px solid var(--kiosk-amber);
+  background: transparent;
+  color: var(--kiosk-amber);
   display: grid;
   place-items: center;
-  color: var(--brand-maroon);
-}
-.about-seal__placeholder svg {
-  width: 88px;
-  height: 88px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.about-seal__description { width: 100%; }
-
-/* ===== Footer back-buttons =====
-   Sits in the bottom row of the kiosk-app grid — same row welcome.html
-   uses for its news ticker, keeping vertical placement consistent. */
-
-.about-foot {
-  display: flex;
-  justify-content: center;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.about-back {
-  appearance: none;
-  border: 1px solid rgb(var(--brand-maroon-rgb) / 0.12);
-  background: var(--brand-cream-light);
-  color: var(--n-900);
-  font-family: inherit;
-  font-size: 0.95rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-decoration: none;
-  padding: 12px 22px;
-  border-radius: 999px;
+  font-size: clamp(1rem, 3vw, 1.5rem);
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  box-shadow: 0 14px 28px rgb(var(--brand-maroon-rgb) / 0.10);
-  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+  transition: background-color var(--kiosk-dur) var(--kiosk-ease);
 }
-.about-back:hover,
-.about-back:focus-visible {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 36px rgb(var(--brand-maroon-rgb) / 0.16);
+@media (hover: hover) {
+  .hymn__play:hover { background: rgb(var(--kiosk-amber-rgb) / 0.14); }
+}
+.hymn__play:focus-visible {
+  background: rgb(var(--kiosk-amber-rgb) / 0.14);
   outline: none;
-  background: var(--n-white);
-}
-.about-back--hub {
-  background: var(--brand-maroon);
-  color: var(--brand-cream-light);
-  border-color: rgb(var(--n-white-rgb) / 0.08);
-}
-.about-back--hub:hover,
-.about-back--hub:focus-visible {
-  background: var(--brand-maroon-dark);
-}
-.about-back__icon {
-  font-size: 0.85rem;
-  line-height: 1;
-}
-.about-back--hub-return {
-  background: var(--brand-maroon);
-  color: var(--brand-cream-light);
-  border-color: rgb(var(--n-white-rgb) / 0.08);
-}
-.about-back--hub-return:hover,
-.about-back--hub-return:focus-visible {
-  background: var(--brand-maroon-dark);
-}
-.about-app[data-view="hub"] .about-back--hub-return { display: none; }
-
-@media (max-width: 640px) {
-  .about-detail { padding: 18px 16px 14px; border-radius: 22px; }
-  .about-back { padding: 10px 18px; font-size: 0.85rem; }
 }
 
-/* ── Hymn audio player ─────────────────────────────────────────── */
-.about-hymn__player {
-  margin-bottom: 2rem;
+.hymn__meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(5px, 1vh, 9px);
 }
 
-.about-hymn__audio {
+.hymn__title {
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(0.9rem, 2.6vw, 1.25rem);
+}
+
+.hymn__bar {
+  height: 5px;
+  background: rgb(var(--kiosk-paper-rgb) / 0.18);
+  cursor: pointer;
+}
+
+.hymn__bar-fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: var(--kiosk-amber);
+}
+
+.hymn__time {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.5rem, 1.4vw, 0.6875rem);
+  letter-spacing: 0.1em;
+  color: var(--kiosk-on-dark-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.hymn__lyrics {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: clamp(14px, 3vw, 28px);
+  text-align: center;
+}
+
+.hymn__line {
+  margin: 0 0 0.42em;
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(0.88rem, 3vw, 1.5rem);
+  line-height: 1.35;
+  opacity: 0.34;
+  transition: opacity var(--kiosk-dur) var(--kiosk-ease),
+              color var(--kiosk-dur) var(--kiosk-ease);
+}
+
+.hymn__line.is-active {
+  opacity: 1;
+  color: var(--kiosk-amber);
+}
+
+/* ── Seal: annotated artwork + legend ──────────────────────────────── */
+
+.seal {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(8px, 1.6vh, 14px);
+  padding: clamp(12px, 2.6vw, 22px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--kiosk-paper);
+}
+
+/* aspect-ratio:1 + percentage dots is what keeps every callout glued to the
+   artwork instead of to the pane, at any width. */
+.seal__stage {
+  position: relative;
+  flex: 0 0 auto;
+  width: min(400px, 62vw);
+  aspect-ratio: 1;
+}
+
+.seal__art {
+  /* block, not inline: an inline <img> adds a baseline descender that made the
+     stage 4px taller than wide, sliding every percentage-positioned hotspot
+     off its mark. */
+  display: block;
   width: 100%;
-  accent-color: var(--kiosk-crimson);
-  border-radius: 4px;
+  height: 100%;
+  object-fit: contain;
 }
 
-.about-hymn__lyrics {
-  line-height: 1.9;
-  font-family: var(--font-body);
-  white-space: pre-line;
+.seal__art--empty {
+  border-radius: 50%;
+  background: rgb(var(--kiosk-maroon-rgb) / 0.08);
+}
+
+.seal__dot {
+  appearance: none;
+  position: absolute;
+  width: clamp(20px, 5.4vw, 28px);
+  height: clamp(20px, 5.4vw, 28px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid var(--kiosk-paper);
+  background: var(--kiosk-espresso);
+  color: var(--kiosk-paper);
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.5rem, 1.5vw, 0.6875rem);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background-color var(--kiosk-dur) var(--kiosk-ease),
+              transform var(--kiosk-dur) var(--kiosk-ease);
+}
+
+@media (hover: hover) {
+  .seal__dot:hover {
+    background: var(--kiosk-crimson);
+    transform: translate(-50%, -50%) scale(1.22);
+  }
+}
+/* .is-active is a genuine selection here — the seal pane's whole job is to keep
+   one callout highlighted — so unlike the menu rows it is meant to persist. */
+.seal__dot:focus-visible,
+.seal__dot.is-active {
+  background: var(--kiosk-crimson);
+  transform: translate(-50%, -50%) scale(1.22);
+  outline: none;
+}
+
+.seal__cue {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.5rem, 1.4vw, 0.6875rem);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--kiosk-ink-faint);
+}
+
+.seal__legend {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(5px, 1.2vw, 9px);
+  width: 100%;
+}
+
+.seal__card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid var(--kiosk-hairline);
+  background: transparent;
+  color: var(--kiosk-ink);
+  padding: clamp(7px, 1.6vw, 12px);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--kiosk-dur) var(--kiosk-ease),
+              border-color var(--kiosk-dur) var(--kiosk-ease);
+}
+
+@media (hover: hover) {
+  .seal__card:hover {
+    background: var(--kiosk-paper);
+    border-color: var(--kiosk-crimson);
+  }
+}
+.seal__card:focus-visible,
+.seal__card.is-active {
+  background: var(--kiosk-paper);
+  border-color: var(--kiosk-crimson);
+  outline: none;
+}
+.seal__card.is-active { background: #F4EFE6; }
+
+.seal__card-num {
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.48rem, 1.3vw, 0.625rem);
+  letter-spacing: 0.14em;
+  color: var(--kiosk-terracotta);
+}
+
+.seal__card-name {
+  font-family: var(--kiosk-font-display);
+  font-size: clamp(0.72rem, 2vw, 0.9375rem);
+  line-height: 1.15;
+}
+
+.seal__card-note {
+  font-size: clamp(0.58rem, 1.5vw, 0.75rem);
+  line-height: 1.35;
+  color: var(--kiosk-ink-soft);
+}
+
+/* ── Phone ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  /* Mission stops being a fixed three-way split and simply scrolls. */
+  .mission {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .mission__block { flex: 0 0 auto; }
+  /* When the three blocks are shorter than the pane, the last one absorbs the
+     remainder. Otherwise the stack ends on a band of bare cream that reads as
+     a rendering fault rather than the end of the text. */
+  .mission__block--mandate { flex: 1 0 auto; }
+
+  .values__strip { grid-template-columns: 1fr; }
+  .values__col { border-right: 0; border-bottom: 1px solid var(--kiosk-hairline); }
+  .values__acrostic { grid-template-columns: 1fr; }
+  .values__letter-row { border-right: 0; }
+  .values__pledge { flex-direction: column; gap: 6px; }
+
+  /* Photo leads the milestone on a narrow screen. */
+  .history__slide { flex-direction: column; }
+  .history__photo {
+    order: -1;
+    width: 100%;
+    flex-basis: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .seal__stage { width: min(400px, 82vw); }
+  .seal__legend { grid-template-columns: 1fr; }
 }

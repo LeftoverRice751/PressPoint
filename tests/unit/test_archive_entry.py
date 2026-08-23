@@ -131,7 +131,7 @@ class ArchivePageRouteTestCase(TestCase):
 
     def _call(self, archive, page="1", archive_id="7", exists=True, render_creates=False):
         from unittest.mock import Mock
-        from app.controllers.ArchivesController import ArchivesController
+        from app.controllers.kiosk.ArchivesController import ArchivesController
 
         request = Mock()
         request.param.side_effect = lambda key, default="": {
@@ -151,8 +151,8 @@ class ArchivePageRouteTestCase(TestCase):
                 state["exists"] = True
             return ""
 
-        with patch("app.controllers.ArchivesController.Archives") as archives_mock, patch(
-            "app.controllers.ArchivesController.os.path.exists", side_effect=_exists
+        with patch("app.controllers.kiosk.ArchivesController.Archives") as archives_mock, patch(
+            "app.controllers.kiosk.ArchivesController.os.path.exists", side_effect=_exists
         ), patch.object(ArchiveServices, "build_page_preview", side_effect=_build) as build_mock:
             archives_mock.find.return_value = archive
             result = ArchivesController().page(request, response)

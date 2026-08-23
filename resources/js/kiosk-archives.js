@@ -24,6 +24,13 @@ import {
   Manipulation, // provides appendSlide/removeAllSlides used by applyFilter
 } from 'swiper/modules';
 
+/*
+ * 120px is the floor that still scans at kiosk arm's length (~50cm) for a URL
+ * this short. It also sets the strip's height: the strip is essentially the
+ * QR plus ~32px of padding, so every pixel here costs the cover below it.
+ */
+const QR_SIZE_PX = 120;
+
 document.addEventListener('DOMContentLoaded', () => {
   const root = document.querySelector('[data-archive-shell]');
 
@@ -273,6 +280,47 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   applyFilter();
+
+  // ── Phone handoff QR ────────────────────────────────────
+  /*
+   * Draws the /m/archives QR with the global QRCode from the qrcodejs CDN
+   * script in the template -- the same library and load path the campus-map
+   * page uses for its route handoff.
+   *
+   * The strip ships `hidden` and is only revealed once a code has actually
+   * been drawn. That ordering is deliberate: this is an unattended public
+   * screen, so a CDN outage or a blank APP_URL must leave no trace rather
+   * than parking an empty white panel under the masthead all day.
+   */
+  function renderHandoffQr() {
+    const strip = root.querySelector('[data-archive-handoff]');
+    if (!strip) return;
+
+    const mount = strip.querySelector('[data-archive-qr]');
+    const url = mount ? (mount.dataset.qrUrl || '').trim() : '';
+
+    if (!mount || !url || typeof window.QRCode === 'undefined') {
+      strip.remove();
+      return;
+    }
+
+    try {
+      mount.innerHTML = ''; // qrcodejs appends; never stack two codes
+      new window.QRCode(mount, {
+        text: url,
+        width: QR_SIZE_PX,
+        height: QR_SIZE_PX,
+        // M tolerates the kiosk's glass glare and a phone held at an angle
+        // without inflating the module count the way H would.
+        correctLevel: window.QRCode.CorrectLevel.M,
+      });
+      strip.hidden = false;
+    } catch (error) {
+      strip.remove();
+    }
+  }
+
+  renderHandoffQr();
 
   // Prime the HTTP cache and Service Worker cache for archive covers so
   // subsequent opens are instant regardless of connection speed.

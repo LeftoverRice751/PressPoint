@@ -1,3 +1,4 @@
+import os
 import secrets
 
 import pendulum
@@ -117,6 +118,7 @@ class MapController(Controller):
 
         destination_payload = self._serialize_location(destination, route_map)
         destination_payload["wgs84"] = self._destination_wgs84(destination_payload)
+        destination_payload["route_wgs84"] = self._route_wgs84(destination_payload)
 
         return response.json(
             {
@@ -127,7 +129,14 @@ class MapController(Controller):
                 # against the route polyline (same space as `route`/`map_x`/
                 # `map_y`). Only mobile-route.js consumes this today.
                 "geo_transform": CampusGeoTransform.wgs84_to_pixel_matrix(),
-                "expires_at": str(session.expires_at),
+                # ISO 8601, not bare str(): once a service worker can serve a
+                # stale cached copy of this response while the phone is
+                # offline, the client needs to parse this itself (`new
+                # Date(...)`) to know the session has actually expired rather
+                # than trusting a cache-served "active" forever. A bare
+                # "YYYY-MM-DD HH:MM:SS" string isn't reliably parsed by every
+                # browser's Date constructor; ISO 8601 is.
+                "expires_at": pendulum.parse(str(session.expires_at)).to_iso8601_string(),
             }
         )
 
@@ -144,6 +153,28 @@ class MapController(Controller):
             session.save()
 
         return response.json({"status": "finished"})
+
+    def serve_sw(self, response: Response):
+        """The mobile-route offline service worker, at root scope.
+
+        Same reasoning as VideoController.serve_sw (sw-archives.js): the file
+        physically lives under /assets/js/ with the rest of the compiled
+        bundles, but a service worker can only control paths at or below the
+        scope it's registered with, so it needs Service-Worker-Allowed to
+        claim "/" from a script served outside that tree.
+        """
+        sw_path = os.path.realpath(
+            os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "../../../storage/compiled/js/sw-mobile-route.js",  # app/controllers/kiosk/ -> repo root
+            )
+        )
+        if not os.path.isfile(sw_path):
+            return "Not found", 404
+        response.header("Content-Type", "application/javascript; charset=utf-8")
+        response.header("Service-Worker-Allowed", "/")
+        response.header("Cache-Control", "no-store")
+        return response.download("sw-mobile-route.js", sw_path, force=False)
 
     # --- helpers --------------------------------------------------------
 
@@ -197,6 +228,20 @@ class MapController(Controller):
         x, y = destination_payload["map_x"], destination_payload["map_y"]
         lat, lng = CampusGeoTransform.layer_point_to_wgs84(x, y)
         return [lat, lng]
+
+    def _route_wgs84(self, destination_payload):
+        """`route` (pixel [y, x] pairs), converted point-for-point to WGS84.
+
+        Same "never draw with it" rule as `_destination_wgs84` -- this exists
+        so the phone can sum real-world segment lengths (haversine) for a
+        remaining-distance/ETA readout, not to place anything on the map.
+        None when there's no walkway-routed polyline to convert (see
+        `_serialize_location`'s note on `route`).
+        """
+        route = destination_payload.get("route")
+        if not route:
+            return None
+        return [list(CampusGeoTransform.layer_point_to_wgs84(x, y)) for y, x in route]
 
     def _find_start_location(self):
         for location in Locations.all():

@@ -3,9 +3,10 @@
 {% block title %}Campus Map - PressPoint{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="{{ asset_url('vendor/leaflet/leaflet.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/kiosk-map.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/kiosk-loading.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-nav.css') }}" />
 {% endblock %}
 
 {% block content %}
@@ -20,7 +21,7 @@
         - category rail (above the search bar; doubles as legend)
         - search bar (full-bleed black band at the bottom of the stage)
       .keyboard                   slides up; map shrinks above it
-      .map-back                   bottom orange stripe — primary CTA out
+      .kiosk-back                 shared bottom back bar (kiosk-nav.css)
 #}
 <div class="campus-map-page" id="campus-map-page">
   <header class="map-header">
@@ -149,15 +150,12 @@
   </div>
 
   <!-- Bottom CTA. Always visible, even with the keyboard open. -->
-  <a href="{{ route('kiosk') }}" class="map-back" aria-label="Back to home">
-    <span class="map-back__arrow" aria-hidden="true">←</span>
-    <span class="map-back__label">BACK TO HOME</span>
-  </a>
+  {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False) %}{% include 'partials/kiosk-back.html' %}{% endwith %}
 </div>
 {% endblock %}
 
 {% block js %}
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="{{ asset_url('vendor/leaflet/leaflet.js') }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="{{ asset_url('js/campus-2.5d.layer.js') }}"></script>
 <script src="{{ asset_url('js/kiosk-map.js') }}"></script>

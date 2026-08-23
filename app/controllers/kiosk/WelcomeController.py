@@ -9,6 +9,7 @@ from masonite.views import View
 
 from app.models.Events import Events
 from app.models.News import News
+from app.services.DashboardContext import group_news_slots
 
 
 class WelcomeController(Controller):
@@ -90,11 +91,21 @@ class WelcomeController(Controller):
     def show(self, view: View):
         broadcasts = config("broadcast.broadcasts", {}) or config("broadcast.BROADCASTS", {}) or {}
         pusher_settings = broadcasts.get("pusher") or {}
+
+        # Same lead-story selection NewsController.show uses (group_news_slots
+        # is the single source of truth for "main" per CLAUDE.md) — imported
+        # locally to avoid a module-load cycle with NewsController.
+        from app.controllers.gears.NewsController import _news_is_public
+
+        news_items = [item for item in News.order_by("id", "desc").get() if _news_is_public(item)]
+        main_news = group_news_slots(news_items)["main_news"]
+
         return view.render(
             "welcome",
             {
                 "pusher_key": pusher_settings.get("client") or pusher_settings.get("key") or "",
                 "pusher_cluster": pusher_settings.get("cluster") or "mt1",
+                "main_news": main_news,
             },
         )
 

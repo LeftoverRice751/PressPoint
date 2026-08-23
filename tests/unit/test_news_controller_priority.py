@@ -1,6 +1,6 @@
 from unittest.mock import Mock, patch
 
-from app.controllers.NewsController import NewsController
+from app.controllers.gears.NewsController import NewsController
 from tests import TestCase
 
 
@@ -43,14 +43,14 @@ class NewsControllerPriorityTestCase(TestCase):
         existing_max = Mock(priority=7)  # the existing lead story sits at priority 7
 
         with patch(
-            "app.controllers.NewsController.News.max",
+            "app.controllers.gears.NewsController.News.max",
             return_value=Mock(get=Mock(return_value=[existing_max])),
         ), patch(
-            "app.controllers.NewsController.News.create", return_value=created_story
+            "app.controllers.gears.NewsController.News.create", return_value=created_story
         ) as create_mock, patch(
-            "app.controllers.NewsController.NewNews"
+            "app.controllers.gears.NewsController.NewNews"
         ), patch(
-            "app.controllers.NewsController.Cache"
+            "app.controllers.gears.NewsController.Cache"
         ):
             controller.store(request, storage, response)
 
@@ -89,12 +89,12 @@ class NewsControllerPriorityTestCase(TestCase):
 
         created_story = Mock(id=100, image=None)
 
-        with patch("app.controllers.NewsController.News.max") as max_mock, patch(
-            "app.controllers.NewsController.News.create", return_value=created_story
+        with patch("app.controllers.gears.NewsController.News.max") as max_mock, patch(
+            "app.controllers.gears.NewsController.News.create", return_value=created_story
         ) as create_mock, patch(
-            "app.controllers.NewsController.NewNews"
+            "app.controllers.gears.NewsController.NewNews"
         ), patch(
-            "app.controllers.NewsController.Cache"
+            "app.controllers.gears.NewsController.Cache"
         ):
             controller.store(request, storage, response)
 

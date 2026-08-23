@@ -7,8 +7,9 @@
 <style> @-ms-viewport { width: device-width; } </style>
 <link rel="stylesheet" href="/pano/vendor/reset.min.css">
 <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}">
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+<link rel="stylesheet" href="{{ asset_url('vendor/leaflet/leaflet.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/kiosk-tour.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-nav.css') }}">
 </head>
 <body class="multiple-scenes tour-page">
 
@@ -298,11 +299,6 @@
               aria-label="Clear search">×</button>
     </div>
 
-    <a href="{{ route('kiosk') }}" class="tour-back" aria-label="Back to home">
-      <span class="tour-back__arrow" aria-hidden="true">←</span>
-      <span class="tour-back__label">BACK TO HOME</span>
-    </a>
-
     <div id="tour-keyboard" class="tour-keyboard tour-keyboard--collapsed" aria-hidden="true">
       <div class="tour-keyboard__rows"></div>
     </div>
@@ -337,9 +333,12 @@
   <script src="/pano/vendor/screenfull.min.js" ></script>
   <script src="/pano/vendor/bowser.min.js" ></script>
   <script src="/pano/vendor/marzipano.js" ></script>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="{{ asset_url('vendor/leaflet/leaflet.js') }}"></script>
 
   <script src="{{ asset_url('js/data.js') }}"></script>
   <script src="{{ asset_url('js/kiosk-tour.js') }}"></script>
+  <!-- The tour is a fixed fullscreen panorama, so its way out is pinned to the
+       viewport rather than sitting in a flex shell like the other pages. -->
+  {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False), back_fixed=True %}{% include 'partials/kiosk-back.html' %}{% endwith %}
 </body>
 </html>

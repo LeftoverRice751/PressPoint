@@ -3,7 +3,16 @@
 {% block title %}Your Route — PressPoint{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+{#
+  Overrides base.html's viewport meta (a later tag wins) purely to add
+  `viewport-fit=cover`. Without it iOS reports every env(safe-area-inset-*)
+  as 0px, so the status bar would sit under the notch and the "I've Arrived"
+  button under the home indicator. Scoped here rather than in base.html
+  because letting every dashboard page draw into the inset area is not a
+  change this page gets to make for the whole app.
+#}
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<link rel="stylesheet" href="{{ asset_url('vendor/leaflet/leaflet.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/mobile-route.css') }}" />
 {% endblock %}
 
@@ -12,30 +21,72 @@
   This page is what the phone lands on after scanning the QR code on
   the kiosk. It draws the route using the same server-derived pixel
   positions the kiosk uses (see app/controllers/MapController.py), and
-  now also tracks the phone's own GPS against it: `/api/route-sessions/
-  @token` ships a `geo_transform` matrix and the destination's real
-  WGS84 point, and resources/js/mobile-route.js uses them to shrink the
-  drawn line as the user walks and to detect arrival automatically. The
-  manual Finish button stays as a fallback for denied/unavailable GPS.
+  tracks the phone's own GPS against it: `/api/route-sessions/@token`
+  ships a `geo_transform` matrix, the destination's real WGS84 point, and
+  the route polyline re-expressed in WGS84 (`destination.route_wgs84`) so
+  resources/js/mobile-route.js can shrink the drawn line, compute a real
+  remaining-distance/ETA readout, and detect arrival automatically. The
+  manual "I've Arrived" button in the bottom sheet stays as a fallback for
+  denied/unavailable GPS.
 
   `expired` comes from the controller: it's True when the token is
   unknown, already finished, or past expires_at.
 #}
 <div class="mobile-route" data-token="{{ token }}" data-expired="{{ 'true' if expired else 'false' }}">
-  <header class="mobile-route__header">
-    <h1 class="mobile-route__title">Your Route</h1>
-    <p class="mobile-route__subtitle" id="mobile-route-subtitle">Loading your destination…</p>
-    <p class="mobile-route__status" id="mobile-route-status" data-state="waiting"></p>
-  </header>
+  <div class="mobile-route__statusbar">
+    <span class="mobile-route__clock" id="mobile-route-clock">--:--</span>
+    <span class="mobile-route__brand">PRESSPOINT</span>
+    <span class="mobile-route__battery" id="mobile-route-battery"></span>
+  </div>
 
   <div id="mobile-route-map" class="mobile-route__map"></div>
 
-  <button type="button"
-          id="mobile-route-finish"
-          class="mobile-route__finish"
-          disabled>
-    I've Arrived
-  </button>
+  <div class="mobile-route__card" id="mobile-route-card">
+    <div class="mobile-route__card-row">
+      <span class="mobile-route__eyebrow" id="mobile-route-eyebrow">DESTINATION</span>
+      <span class="mobile-route__pill" id="mobile-route-status" data-state="waiting"></span>
+    </div>
+    <h1 class="mobile-route__title" id="mobile-route-title">Your Route</h1>
+    <p class="mobile-route__subtitle" id="mobile-route-subtitle">Loading your destination…</p>
+  </div>
+
+  <p class="mobile-route__instruction" id="mobile-route-instruction" aria-live="polite"></p>
+
+  <div class="mobile-route__controls">
+    <button type="button" class="mobile-route__control" id="mobile-route-recenter" aria-label="Recenter map">⌖</button>
+  </div>
+
+  <div class="mobile-route__sheet" id="mobile-route-sheet">
+    <div class="mobile-route__sheet-handle" aria-hidden="true"></div>
+
+    <div class="mobile-route__metrics">
+      <div class="mobile-route__metrics-distance">
+        <span class="mobile-route__distance-value" id="mobile-route-distance">–</span>
+        <span class="mobile-route__distance-unit" id="mobile-route-distance-unit">m left</span>
+      </div>
+      <div class="mobile-route__metrics-time">
+        <span class="mobile-route__eta" id="mobile-route-eta">– min</span>
+        <span class="mobile-route__arrive-at" id="mobile-route-arrive-at">arrive --:--</span>
+      </div>
+    </div>
+
+    <div class="mobile-route__progress">
+      <div class="mobile-route__progress-track">
+        <div class="mobile-route__progress-fill" id="mobile-route-progress-fill"></div>
+      </div>
+      <div class="mobile-route__progress-labels">
+        <span id="mobile-route-origin-label"></span>
+        <span id="mobile-route-destination-label"></span>
+      </div>
+    </div>
+
+    <button type="button"
+            id="mobile-route-finish"
+            class="mobile-route__finish"
+            disabled>
+      I've Arrived
+    </button>
+  </div>
 
   <div id="mobile-route-expired" class="mobile-route__notice mobile-route__notice--hidden">
     This route has expired. Head back to the kiosk to start a new one.
@@ -43,16 +94,18 @@
 
   <div id="mobile-route-modal" class="mobile-route__modal mobile-route__modal--hidden" role="dialog" aria-modal="true">
     <div class="mobile-route__modal-card">
-      <div class="mobile-route__modal-emoji">🎉</div>
-      <h2 class="mobile-route__modal-title">Congrats Kapiyu!</h2>
-      <p class="mobile-route__modal-body">You've arrived!</p>
+      <div class="mobile-route__modal-check" aria-hidden="true">✓</div>
+      <p class="mobile-route__modal-eyebrow" id="mobile-route-modal-eyebrow">ARRIVED</p>
+      <h2 class="mobile-route__modal-title" id="mobile-route-modal-title">You've arrived</h2>
+      <p class="mobile-route__modal-body" id="mobile-route-modal-stats"></p>
+      <button type="button" class="mobile-route__modal-done" id="mobile-route-modal-done">Done</button>
     </div>
   </div>
 </div>
 {% endblock %}
 
 {% block js %}
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="{{ asset_url('vendor/leaflet/leaflet.js') }}"></script>
 <script src="{{ asset_url('js/campus-2.5d.layer.js') }}"></script>
 <script src="{{ asset_url('js/mobile-route.js') }}"></script>
 {% endblock %}

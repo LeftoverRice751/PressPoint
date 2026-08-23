@@ -2,6 +2,7 @@ from masonite.providers import Provider
 from masonite.facades import RateLimiter
 from masonite.views import View
 
+from app.exceptions.Handler import Handler
 from app.exceptions.InvalidCSRFTokenHandler import InvalidCSRFTokenHandler
 from app.rate_limiters import GuestAuthLimiter
 from app.services import Branding
@@ -48,6 +49,17 @@ class AppProvider(Provider):
         self.application.bind(
             "InvalidCSRFTokenHandler", InvalidCSRFTokenHandler(self.application)
         )
+
+        # Wrap the framework's exception_handler (bound by the core
+        # ExceptionProvider, which registers before AppProvider) so every
+        # unhandled exception is logged before falling through to the normal
+        # 500/debug rendering. See app/exceptions/Handler.py for why this was
+        # missing.
+        default_handler = self.application.make("exception_handler")
+        logging_handler = Handler(self.application)
+        logging_handler.drivers = default_handler.drivers
+        logging_handler.driver_config = default_handler.driver_config
+        self.application.bind("exception_handler", logging_handler)
 
     def boot(self):
         # Named limiter used by the login / OTP routes as `throttle:auth`.

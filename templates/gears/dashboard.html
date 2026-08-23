@@ -85,7 +85,7 @@
 
     <div class="gears-sidebar__footer">
       <form method="POST" action="{{ route('auth.logout') }}" class="gears-sidebar__logout-form">
-        {{ csrf | safe }}
+        {{ csrf_field | safe }}
         <button type="submit"
                 class="gears-sidebar__logout"
                 data-confirm="You'll be signed out of GEARS CMS."

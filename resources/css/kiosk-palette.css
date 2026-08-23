@@ -1,0 +1,79 @@
+/*
+ * Kiosk surface palette — the seven-colour public-facing scheme.
+ *
+ * WHY THIS FILE EXISTS, and why it is not in kiosk-tokens.css:
+ *
+ * kiosk-tokens.css is shared by the kiosk AND the GEARS CMS. Its 2026 rebrand
+ * collapsed the old seven-colour kiosk palette onto three brand constants, so
+ * --kiosk-terracotta / --kiosk-crimson / --kiosk-maroon all resolve to the same
+ * maroon and --kiosk-espresso / --kiosk-charcoal to the same near-black. That
+ * is correct for the staff surfaces — news-dashboard.css, gears-dashboard.css
+ * and auth-*.css consume those aliases and must keep the collapsed values.
+ *
+ * The kiosk design, though, is built on seven distinct fields: the ranked menu
+ * rows, the mission blocks and the milestone chips all separate by hue, and
+ * they read as one flat brown wash under the collapsed aliases. So the true
+ * palette is restored HERE and loaded only by kiosk pages, after
+ * kiosk-tokens.css and before the per-page sheet. Nothing the CMS loads is
+ * affected — that separation is the whole point, so do not move these
+ * declarations up into kiosk-tokens.css.
+ *
+ * Solid fills only; no gradients anywhere in this project.
+ */
+
+:root {
+  /* ── The seven ─────────────────────────────────────────────────────── */
+  --kiosk-cream:      #EAE3D9;
+  --kiosk-paper:      #F4EFE6;
+  --kiosk-amber:      #E89A1C;
+  --kiosk-terracotta: #CC5A1F;
+  --kiosk-crimson:    #B11E2A;
+  --kiosk-maroon:     #4A1A12;
+  --kiosk-espresso:   #1F0F0C;
+
+  /* Channel triplets for the tints these fields need (ghost year, watermark,
+     hairline rules on dark). Keep in sync with the hexes above. */
+  --kiosk-cream-rgb:      234 227 217;
+  --kiosk-paper-rgb:      244 239 230;
+  --kiosk-amber-rgb:      232 154 28;
+  --kiosk-terracotta-rgb: 204 90 31;
+  --kiosk-crimson-rgb:    177 30 42;
+  --kiosk-maroon-rgb:     74 26 18;
+  --kiosk-espresso-rgb:   31 15 12;
+
+  /* ── Derived steps ─────────────────────────────────────────────────── */
+  --kiosk-maroon-lift: #5C2318;  /* back-bar + inverted-row hover */
+  --kiosk-row-alt:     #EDE5D9;  /* the darker of the two menu-row grounds */
+
+  /* ── Roles the kiosk components consume ────────────────────────────── */
+  --kiosk-bg:        var(--kiosk-cream);
+  --kiosk-ink:       var(--kiosk-maroon);
+  --kiosk-ink-soft:  rgb(var(--kiosk-maroon-rgb) / 0.72);
+  --kiosk-ink-faint: rgb(var(--kiosk-maroon-rgb) / 0.42);
+  --kiosk-on-dark:       var(--kiosk-paper);
+  --kiosk-on-dark-soft:  rgb(var(--kiosk-paper-rgb) / 0.72);
+  --kiosk-on-dark-faint: rgb(var(--kiosk-paper-rgb) / 0.34);
+  --kiosk-hairline:      rgb(var(--kiosk-maroon-rgb) / 0.16);
+  --kiosk-hairline-dark: rgb(var(--kiosk-paper-rgb) / 0.18);
+
+  /* The desk the panel sits on when the viewport is wider than the kiosk. */
+  --kiosk-desk: #141110;
+
+  /* Motion: 280ms on the house curve, entry = fade + 20px drift, no bounce. */
+  --kiosk-ease: cubic-bezier(0.2, 0, 0, 1);
+  --kiosk-dur:  280ms;
+}
+
+@keyframes kiosk-enter {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* kiosk-tokens.css already flattens durations globally; this kills the
+     drift so entry animations don't move at all rather than snapping. */
+  @keyframes kiosk-enter {
+    from { opacity: 1; transform: none; }
+    to   { opacity: 1; transform: none; }
+  }
+}

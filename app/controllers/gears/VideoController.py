@@ -189,7 +189,7 @@ class VideoController(Controller):
         sw_path = os.path.realpath(
             os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
-                "../../storage/compiled/js/sw-archives.js",
+                "../../../storage/compiled/js/sw-archives.js",  # app/controllers/gears/ -> repo root
             )
         )
         if not os.path.isfile(sw_path):

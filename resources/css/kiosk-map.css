@@ -8,7 +8,7 @@
  *     .map-header                 fixed ~96px header bar
  *     .campus-map-page__stage     flex:1; map + every overlay
  *     .keyboard                   0 collapsed, 280 expanded
- *     .map-back                   88px orange stripe — primary CTA out
+ *     .kiosk-back                 shared bottom back bar (kiosk-nav.css)
  *
  * Pins encode category by shape/fill (see .kiosk-pin--<cat> below). The
  * category-chip swatches use the same shapes so the chip strip doubles
@@ -1042,61 +1042,4 @@ html, body {
     color: var(--ink);
 }
 
-/* ── Bottom back stripe (always visible, primary CTA out) ───────── */
-
-.map-back {
-    flex: 0 0 auto;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 1.25rem;
-    padding: 0 1.5rem;
-    height: 88px;
-    background: var(--orange);
-    color: var(--ink);
-    text-decoration: none;
-    border-top: 4px solid var(--ink);
-    position: relative;
-    transition: background 0.15s ease;
-}
-
-.map-back:active { background: var(--orange-deep); }
-
-/* Caution-tape stripe just above the orange — wayfinding-poster vibe. */
-.map-back::before {
-    content: "";
-    position: absolute;
-    left: 0; right: 0;
-    top: -10px;
-    height: 6px;
-    background-image: repeating-linear-gradient(
-        135deg,
-        var(--ink) 0 6px,
-        transparent 6px 12px
-    );
-}
-
-.map-back__arrow {
-    font-family: var(--display-font);
-    font-size: 2.6rem;
-    line-height: 1;
-    color: var(--ink);
-}
-
-.map-back__label {
-    font-family: var(--display-font);
-    font-size: 1.55rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--ink);
-}
-
-.map-back__hint {
-    font-family: var(--mono-font);
-    font-size: 0.7rem;
-    letter-spacing: 0.16em;
-    color: var(--ink);
-    text-transform: uppercase;
-    text-align: right;
-    opacity: 0.78;
-}
+/* Bottom back bar is now the shared .kiosk-back (kiosk-nav.css). */

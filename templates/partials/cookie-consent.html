@@ -1,0 +1,44 @@
+{#
+  Cookie / storage consent sheet.
+
+  Deliberately honest about scope: this project ships no analytics, no
+  pixels and nothing third-party (grep for gtag/matomo/facebook -- there are
+  no hits). So the only real choice on offer is whether the browser may keep
+  archive pages for offline reading and remember where you left off. The copy
+  says exactly that instead of implying tracking we do not do.
+
+  Essential, and never gated: the Masonite session cookie and the CSRF token.
+  The page cannot be served without them, so they are stated, not offered.
+
+  The choice itself lives in localStorage under `presspoint.consent`, which is
+  essential-tier storage by the same logic -- refusing to remember a refusal
+  would re-prompt on every visit.
+#}
+<div class="cookie-consent" data-cookie-consent hidden role="dialog" aria-modal="false" aria-labelledby="cookie-consent-title">
+  <div class="cookie-consent__sheet">
+    <h2 class="cookie-consent__title" id="cookie-consent-title">Storage on this device</h2>
+    <p class="cookie-consent__text">
+      We keep a session cookie so the page can load, and nothing else by default.
+      There is no advertising or analytics tracking on this site.
+    </p>
+
+    <details class="cookie-consent__details">
+      <summary class="cookie-consent__summary">What each option does</summary>
+      <dl class="cookie-consent__list">
+        <dt>Essential <span class="cookie-consent__tag">always on</span></dt>
+        <dd>Session and security (CSRF) cookies. Required to serve the page.</dd>
+        <dt>Optional</dt>
+        <dd>Saves archive covers and pages on your device so issues open instantly and keep working offline, and remembers the year and category you were last browsing.</dd>
+      </dl>
+    </details>
+
+    <div class="cookie-consent__actions">
+      <button type="button" class="cookie-consent__button cookie-consent__button--ghost" data-cookie-decline>
+        Essential only
+      </button>
+      <button type="button" class="cookie-consent__button cookie-consent__button--solid" data-cookie-accept>
+        Accept all
+      </button>
+    </div>
+  </div>
+</div>

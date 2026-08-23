@@ -1,0 +1,492 @@
+/*
+ * Gears Archives — phone surface.
+ *
+ * Sibling to kiosk-archives.css, not a variant of it: the kiosk sheet is
+ * built for a 768x1024 terminal a reader stands in front of, this one for a
+ * phone held in one hand. Shared vocabulary (tokens, the 5:7 cover, the
+ * coverflow) but independent geometry, so tuning one cannot break the other.
+ *
+ * Palette aliases onto kiosk-tokens.css + kiosk-palette.css — no local hexes,
+ * no font imports. Solid fills only; gradients are banned by the brand rules.
+ * swiper-bundle.min.css is linked before this file, so anything here wins
+ * specificity ties against it.
+ *
+ * Vertical space is the scarce resource. The layout is a flex column that
+ * gives every fixed row exactly what it needs and hands the remainder to the
+ * carousel, so the year strip stays on screen on a 360x640 phone without the
+ * page scrolling.
+ */
+
+:root {
+  --marc-cream: var(--kiosk-cream);
+  --marc-paper: var(--kiosk-paper);
+  --marc-ink: var(--kiosk-maroon);
+  --marc-ink-soft: var(--kiosk-ink-soft);
+  --marc-ink-faint: var(--kiosk-ink-faint);
+  --marc-accent: var(--kiosk-amber);
+  --marc-accent-ink: var(--kiosk-maroon);
+  --marc-spine: var(--kiosk-crimson);
+  --marc-rule: var(--kiosk-hairline);
+
+  --marc-font-display: var(--font-display);
+  --marc-font-ui: var(--font-heading);
+  --marc-font-body: var(--font-body);
+
+  --marc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Thumb floor. 44px is the platform minimum; the chips sit above it. */
+  --marc-tap: 44px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  background: var(--marc-cream);
+  color: var(--marc-ink);
+  font-family: var(--marc-font-ui);
+  -webkit-font-smoothing: antialiased;
+  /* Kill the pull-to-refresh bounce: the carousel is a horizontal drag
+     surface and the rubber-band fights it on every swipe. */
+  overscroll-behavior-y: none;
+}
+
+/* Set while the reader overlay is open. Without it iOS scrolls the page
+   behind the overlay and the backdrop visibly jumps. */
+body.is-reading {
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.m-archive :focus-visible {
+  outline: 2px solid var(--marc-spine);
+  outline-offset: 2px;
+}
+
+.m-archive {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+
+.m-archive__header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  padding-top: calc(10px + env(safe-area-inset-top));
+  background: var(--marc-paper);
+  border-bottom: 2px solid var(--marc-ink);
+}
+
+/* Both marks are raster PNGs of different aspect ratios (the LSPU seal is
+   square, the Gears mark is not), so height is pinned and width follows. */
+.m-archive__mark {
+  display: block;
+  height: 38px;
+  width: auto;
+  max-width: 74px;
+  object-fit: contain;
+}
+
+.m-archive__wordmark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  text-align: center;
+  min-width: 0;
+}
+
+.m-archive__wordmark-top {
+  font-family: var(--marc-font-display);
+  font-size: clamp(0.95rem, 4.2vw, 1.2rem);
+  letter-spacing: 0.02em;
+  color: var(--marc-ink);
+}
+
+.m-archive__wordmark-bottom {
+  margin-top: 4px;
+  font-size: clamp(0.6rem, 2.6vw, 0.72rem);
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em; /* offset the trailing letter-space so it reads centred */
+  text-transform: uppercase;
+  color: var(--marc-ink-soft);
+}
+
+/* ── Stage ──────────────────────────────────────────────── */
+
+.m-archive__stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+}
+
+.m-archive__coverflow {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.m-archive__swiper {
+  width: 100%;
+  padding: 18px 0 22px;
+  overflow: hidden;
+}
+
+.m-archive__swiper.is-empty {
+  display: none;
+}
+
+/* Sized by HEIGHT, not width. Width-driven sizing (what the kiosk sheet does,
+   where the stage is a fixed 768x1024) left a tall phone with 200px of dead
+   cream above and below the cover: the flex column hands the carousel all the
+   leftover height and a width-capped 5:7 card cannot spend it. Driving off
+   height and letting aspect-ratio compute the width fills the stage on a tall
+   phone and shrinks gracefully on a short one. max-width keeps the neighbours
+   peeking rather than letting one cover span the viewport. */
+.swiper-slide.m-archive__card {
+  height: clamp(240px, 52vh, 460px);
+  width: auto;
+  max-width: 68vw;
+  aspect-ratio: 5 / 7;
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  /* The cover is an image inside a button — stop iOS long-press from
+     offering "Save Image" mid-swipe. */
+  -webkit-touch-callout: none;
+}
+
+.m-archive__cover-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--marc-paper);
+  /* The thick left edge reads as a bound spine — the same device the kiosk
+     card uses, scaled down so it does not eat a phone-sized cover. */
+  border-left: 5px solid var(--marc-spine);
+  border-top: 1px solid var(--marc-rule);
+  border-right: 1px solid var(--marc-rule);
+  border-bottom: 1px solid var(--marc-rule);
+  box-shadow: 8px 10px 26px rgb(var(--kiosk-maroon-rgb) / 0.24);
+}
+
+.m-archive__cover {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--marc-paper);
+}
+
+/* Typographic front page for issues with no rendered cover. */
+.m-archive__fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 10% 9% 9%;
+  background: var(--marc-paper);
+  text-align: left;
+}
+
+.m-archive__fallback-rule {
+  display: block;
+  height: 3px;
+  width: 34%;
+  background: var(--marc-spine);
+}
+
+.m-archive__fallback-masthead {
+  margin-top: 10%;
+  font-family: var(--marc-font-display);
+  font-size: 1.05rem;
+  line-height: 1.15;
+  color: var(--marc-ink);
+  /* Long titles must not spill out of the cover. */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.m-archive__fallback-type {
+  margin-top: auto;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--marc-ink-soft);
+}
+
+.m-archive__fallback-year {
+  font-family: var(--marc-font-display);
+  font-size: 1.4rem;
+  color: var(--marc-spine);
+}
+
+/* "Tap to read" only under the centred cover — on the neighbours it would
+   be a lie, since tapping those just centres them. */
+.m-archive__card-hint {
+  position: absolute;
+  left: 50%;
+  bottom: -20px;
+  transform: translateX(-50%);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--marc-ink-faint);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity var(--kiosk-dur) var(--marc-ease);
+  pointer-events: none;
+}
+
+.swiper-slide-active .m-archive__card-hint {
+  opacity: 1;
+}
+
+/* ── Details ────────────────────────────────────────────── */
+
+.m-archive__details {
+  flex: none;
+  padding: 4px 20px 14px;
+  text-align: center;
+}
+
+.m-archive__eyebrow {
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  text-transform: uppercase;
+  color: var(--marc-spine);
+}
+
+.m-archive__title {
+  margin: 6px 0 0;
+  font-family: var(--marc-font-display);
+  font-size: clamp(1.15rem, 5.4vw, 1.5rem);
+  line-height: 1.2;
+  color: var(--marc-ink);
+  /* Two lines max, so a long title cannot push the filters off screen. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.m-archive__meta {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--marc-ink-soft);
+}
+
+.m-archive__count {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border: 1px solid var(--marc-rule);
+  border-radius: 999px;
+  color: var(--marc-ink-soft);
+}
+
+.m-archive__count:empty {
+  display: none;
+}
+
+/* ── Chip rows (categories + years) ─────────────────────── */
+
+.m-archive__chips,
+.m-archive__years {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  /* Full-bleed row with inset first/last chips, so a chip can scroll to the
+     very edge instead of stopping short inside a padded box. */
+  padding: 0 16px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.m-archive__chips::-webkit-scrollbar,
+.m-archive__years::-webkit-scrollbar {
+  display: none;
+}
+
+.m-archive__chips {
+  padding-bottom: 12px;
+}
+
+.m-archive__years {
+  padding-top: 12px;
+  padding-bottom: 4px;
+  border-top: 1px solid var(--marc-rule);
+}
+
+.m-archive__chip,
+.m-archive__year {
+  flex: none;
+  scroll-snap-align: center;
+  min-height: var(--marc-tap);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  border: 2px solid var(--marc-ink);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--marc-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+  /* Kill the grey flash iOS paints over tapped buttons — the active state
+     below is the feedback. */
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--kiosk-dur-fast) var(--marc-ease),
+    color var(--kiosk-dur-fast) var(--marc-ease),
+    border-color var(--kiosk-dur-fast) var(--marc-ease);
+}
+
+.m-archive__year {
+  font-family: var(--font-mono);
+  min-width: 72px;
+  justify-content: center;
+}
+
+.m-archive__chip.is-active,
+.m-archive__year.is-active {
+  background: var(--marc-accent);
+  border-color: var(--marc-accent);
+  color: var(--marc-accent-ink);
+}
+
+.m-archive__chip:active,
+.m-archive__year:active {
+  transform: scale(0.97);
+}
+
+/* Disabled means "this filter has nothing behind it", not "broken" — keep
+   it readable rather than ghosting it out entirely. */
+.m-archive__chip:disabled,
+.m-archive__year:disabled {
+  border-color: var(--marc-rule);
+  color: var(--marc-ink-faint);
+  cursor: default;
+}
+
+.m-archive__years-empty {
+  font-size: 0.78rem;
+  color: var(--marc-ink-faint);
+}
+
+/* ── Empty states ───────────────────────────────────────── */
+
+.m-archive__empty {
+  width: 100%;
+  padding: 40px 28px;
+  text-align: center;
+}
+
+.m-archive__empty-title {
+  font-family: var(--marc-font-display);
+  font-size: 1.25rem;
+  color: var(--marc-ink);
+}
+
+.m-archive__empty-text {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--marc-ink-soft);
+}
+
+/* Year + category combination with no issues behind it. The carousel hides
+   itself (.is-empty), so the details block carries the message. */
+.m-archive.is-empty .m-archive__coverflow::after {
+  content: "Nothing published under this filter.";
+  display: block;
+  width: 100%;
+  padding: 0 28px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--marc-ink-faint);
+}
+
+/* ── Short phones ───────────────────────────────────────── */
+
+@media (max-height: 680px) {
+  /* Below this the carousel and the two chip rows start fighting. Trim the
+     cover and the chrome rather than letting the year strip scroll away. */
+  .swiper-slide.m-archive__card {
+    height: clamp(200px, 46vh, 300px);
+  }
+
+  .m-archive__mark {
+    height: 30px;
+  }
+
+  .m-archive__swiper {
+    padding: 10px 0 18px;
+  }
+
+  .m-archive__details {
+    padding-bottom: 10px;
+  }
+
+  .m-archive__card-hint {
+    display: none;
+  }
+}
+
+/* Landscape phone: the cover has to shrink hard or nothing else fits. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .m-archive__header {
+    padding-top: calc(6px + env(safe-area-inset-top));
+    padding-bottom: 6px;
+  }
+
+  .swiper-slide.m-archive__card {
+    height: clamp(150px, 54vh, 230px);
+  }
+
+  .m-archive__title {
+    -webkit-line-clamp: 1;
+  }
+}

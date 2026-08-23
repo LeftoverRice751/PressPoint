@@ -1,8 +1,8 @@
 from unittest.mock import Mock, patch
 
-from app.controllers.EditorialController import EditorialController
-from app.controllers.KioskController import KioskController
-from app.controllers.VideoController import VideoController
+from app.controllers.gears.EditorialController import EditorialController
+from app.controllers.gears.KioskController import KioskController
+from app.controllers.gears.VideoController import VideoController
 from tests import TestCase
 
 
@@ -12,8 +12,8 @@ class KioskBroadcastTestCase(TestCase):
         response = Mock()
         response.json.return_value = {"ok": True}
 
-        with patch("app.controllers.KioskController._pusher_configured", return_value=True), patch(
-            "app.controllers.KioskController.Broadcast.channel"
+        with patch("app.controllers.gears.KioskController._pusher_configured", return_value=True), patch(
+            "app.controllers.gears.KioskController.Broadcast.channel"
         ) as broadcast_channel:
             result = controller.lock(response)
 
@@ -32,8 +32,8 @@ class KioskBroadcastTestCase(TestCase):
         response = Mock()
         response.json.return_value = {"ok": True}
 
-        with patch("app.controllers.KioskController._pusher_configured", return_value=True), patch(
-            "app.controllers.KioskController.Broadcast.channel"
+        with patch("app.controllers.gears.KioskController._pusher_configured", return_value=True), patch(
+            "app.controllers.gears.KioskController.Broadcast.channel"
         ) as broadcast_channel:
             result = controller.unlock(response)
 
@@ -58,8 +58,8 @@ class VideoBroadcastTestCase(TestCase):
         response = Mock()
         response.json.return_value = {"ok": True}
 
-        with patch("app.controllers.EditorialController._pusher_configured", return_value=True), patch(
-            "app.controllers.EditorialController.Broadcast.channel"
+        with patch("app.controllers.gears.EditorialController._pusher_configured", return_value=True), patch(
+            "app.controllers.gears.EditorialController.Broadcast.channel"
         ) as broadcast_channel:
             result = controller.play_video(request, response)
 
@@ -94,8 +94,8 @@ class VideoBroadcastTestCase(TestCase):
         redirect_response.with_success.return_value = "redirected"
         response.redirect.return_value = redirect_response
 
-        with patch("app.controllers.VideoController.Video.create", return_value=created_video), patch(
-            "app.controllers.VideoController._broadcast_play_video", return_value=True
+        with patch("app.controllers.gears.VideoController.Video.create", return_value=created_video), patch(
+            "app.controllers.gears.VideoController._broadcast_play_video", return_value=True
         ) as broadcast_play_video:
             result = controller.upload(request, storage, response)
 

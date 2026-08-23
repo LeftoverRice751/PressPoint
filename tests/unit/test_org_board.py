@@ -143,7 +143,7 @@ class OrganizationDeleteGuardTestCase(TestCase):
     """
 
     def _controller_with_members(self, members):
-        from app.controllers.OrgBoardController import OrgBoardController
+        from app.controllers.gears.OrgBoardController import OrgBoardController
 
         controller = OrgBoardController()
         controller._all_members = lambda: members

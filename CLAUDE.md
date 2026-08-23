@@ -54,6 +54,8 @@ Route middleware keys (`Kernel.route_middleware`): `auth` (logged-in or redirect
 
 Controllers stay thin; the real logic lives in `app/services/` (a namespace package — there is no `__init__.py`, imports are `from app.services import X`).
 
+Controllers are grouped by surface: `app/controllers/kiosk/` (the public touchscreen), `app/controllers/gears/` (the authenticated dashboard), `app/controllers/auth/` (sign-in, password reset, super admin). Route strings carry the folder — `"kiosk.WelcomeController@show"`, `"gears.NewsController@store"` — and so do test patch targets (`app.controllers.gears.NewsController.News`). A few controllers straddle both surfaces (`ArchivesController` serves the kiosk reader *and* the dashboard upload); they sit with the audience they primarily serve. Anything resolving a path relative to `__file__` inside a controller is now three levels from the repo root, not two.
+
 ### Storage: two roots, one URL space
 
 `app/services/StorageRouter.py` is the single resolver. Paths whose first segment is in `NAS_FOLDERS` (`Archives`, `Videos`, `About`, `Branding`) resolve to the GearsNAS Samba mount (`GEARSNAS_BASE`, default `/mnt/nas_storage/gears_data`); everything else resolves to `storage/framework/public`. Editors read/write the same NAS files over SMB, which is why `ArchiveServices` renders with a group-writable umask (0664/0775).

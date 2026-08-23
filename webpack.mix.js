@@ -20,8 +20,11 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/kiosk-map.js', 'storage/compiled/js')
   .js('resources/js/kiosk-news.js', 'storage/compiled/js')
   .js('resources/js/mobile-route.js', 'storage/compiled/js')
+  .js('resources/js/mobile-archives.js', 'storage/compiled/js')
+  .js('resources/js/cookie-consent.js', 'storage/compiled/js')
   .js('resources/js/kiosk-tour.js', 'storage/compiled/js')
   .js('resources/js/data.js', 'storage/compiled/js')
+  .js('resources/js/kiosk-clock.js', 'storage/compiled/js')
   .js('resources/js/welcome-screen.js', 'storage/compiled/js')
   .js('resources/js/welcome-lock.js', 'storage/compiled/js')
   .js('resources/js/about-lspu-kiosk.js', 'storage/compiled/js')
@@ -33,6 +36,15 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
     //
   ])
   .postCss('resources/css/kiosk-tokens.css', 'storage/compiled/css', [
+    //
+  ])
+  // Kiosk-only seven-colour palette; must load after kiosk-tokens.css and
+  // before the per-page sheet. See the header of the file for why it is
+  // separate from kiosk-tokens.css.
+  .postCss('resources/css/kiosk-palette.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/kiosk-shell.css', 'storage/compiled/css', [
     //
   ])
   .postCss('resources/css/welcome-screen.css', 'storage/compiled/css', [
@@ -72,6 +84,14 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
     //
   ])
   .postCss('resources/css/kiosk-archive-book.css', 'storage/compiled/css', [
+    //
+  ])
+  // Phone surface for the archives. Sibling to kiosk-archives.css -- both
+  // are skins over the same ArchivesController payload; see the file header.
+  .postCss('resources/css/mobile-archives.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/cookie-consent.css', 'storage/compiled/css', [
     //
   ])
   .postCss('resources/css/kiosk-map.css', 'storage/compiled/css', [
@@ -135,6 +155,20 @@ mix.copy(
 mix.copy(
   "resources/js/campus-2.5d.layer.js",
   "storage/compiled/js/campus-2.5d.layer.js",
+)
+// Leaflet itself, self-hosted rather than pulled from unpkg.com — required
+// for the mobile-route page to work fully offline (a service worker can't
+// precache a CDN it doesn't control the caching headers of as reliably as
+// this), and swapped in everywhere else Leaflet loads for consistency. Whole
+// directory, not just leaflet.js/css: the stylesheet's `url(images/...)`
+// references are relative and need the sibling images/ folder alongside it.
+mix.copy(
+  "node_modules/leaflet/dist",
+  "storage/compiled/vendor/leaflet",
+)
+mix.copy(
+  "resources/js/sw-mobile-route.js",
+  "storage/compiled/js/sw-mobile-route.js",
 )
 // Vendor Swiper's stylesheet the same way as pdf.js rather than
 // `import 'swiper/css'` in a JS entry: Mix extracts JS-imported CSS to

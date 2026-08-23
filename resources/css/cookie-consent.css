@@ -1,0 +1,137 @@
+/*
+ * Storage consent sheet.
+ *
+ * Page-agnostic on purpose: it consumes only kiosk-tokens.css layer-4 roles,
+ * so it can be dropped onto any public surface that includes the partial.
+ * Solid fills only, per the brand rules.
+ *
+ * It is a bottom sheet rather than a modal because it must not block reading:
+ * the visitor can ignore it, swipe the carousel, and answer later.
+ */
+
+.cookie-consent {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  padding: 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  /* Slide up from below; `hidden` handles the pre-animation frame. */
+  transform: translateY(110%);
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cookie-consent[hidden] {
+  display: none;
+}
+
+.cookie-consent.is-visible {
+  transform: translateY(0);
+}
+
+.cookie-consent__sheet {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 18px;
+  background: var(--surface-raised);
+  border: 2px solid var(--ink);
+  border-radius: var(--kiosk-radius-md);
+  box-shadow: 0 -8px 28px rgb(var(--brand-maroon-rgb) / 0.22);
+}
+
+.cookie-consent__title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 900;
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.cookie-consent__text {
+  margin: 8px 0 0;
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.cookie-consent__details {
+  margin-top: 10px;
+}
+
+.cookie-consent__summary {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-text);
+  cursor: pointer;
+  /* The default triangle sits oddly against the 44px tap row; keep the
+     marker but give it room. */
+  padding: 6px 0;
+}
+
+.cookie-consent__list {
+  margin: 6px 0 0;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.cookie-consent__list dt {
+  margin-top: 8px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.cookie-consent__list dd {
+  margin: 2px 0 0;
+}
+
+.cookie-consent__tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.cookie-consent__actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+}
+
+.cookie-consent__button {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  font-family: var(--font-heading);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--kiosk-dur-fast) var(--kiosk-ease);
+}
+
+.cookie-consent__button--ghost {
+  background: transparent;
+  color: var(--ink);
+}
+
+.cookie-consent__button--solid {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.cookie-consent__button:active {
+  transform: scale(0.98);
+}

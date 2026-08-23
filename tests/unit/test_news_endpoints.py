@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
 
-from app.controllers.NewsController import (
+from app.controllers.gears.NewsController import (
     NEWSLETTER_FONTS,
     NewsController,
     _sanitize_news_html,
@@ -82,8 +82,8 @@ class NewsLayoutEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
-        ), patch("app.controllers.NewsController.Cache") as cache_mock:
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.gears.NewsController.Cache") as cache_mock:
             controller.layout(request, response)
 
         self.assertEqual(record.layout_type, "main")
@@ -114,8 +114,8 @@ class NewsLayoutEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
-        ), patch("app.controllers.NewsController.Cache"):
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.gears.NewsController.Cache"):
             controller.layout(request, response)
 
         self.assertEqual(record_a.layout_type, "main")
@@ -131,7 +131,7 @@ class NewsLayoutEndpointTestCase(TestCase):
         request.all.return_value = {}
         response = _mock_response()
 
-        with patch("app.controllers.NewsController.Cache") as cache_mock:
+        with patch("app.controllers.gears.NewsController.Cache") as cache_mock:
             controller.layout(request, response)
 
         cache_mock.forget.assert_not_called()
@@ -163,8 +163,8 @@ class NewsLayoutEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
-        ), patch("app.controllers.NewsController.Cache") as cache_mock:
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.gears.NewsController.Cache") as cache_mock:
             controller.layout(request, response)
 
         # The batch failed -> the write path's error branch ran, not the
@@ -206,8 +206,8 @@ class NewsLayoutEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
-        ), patch("app.controllers.NewsController.Cache") as cache_mock:
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.gears.NewsController.Cache") as cache_mock:
             controller.layout(request, response)
 
         record.save.assert_called_once()
@@ -231,8 +231,8 @@ class NewsLayoutEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
-        ), patch("app.controllers.NewsController.Cache"):
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.gears.NewsController.Cache"):
             controller.layout(request, response)
 
         response.json.assert_called_once()
@@ -251,7 +251,7 @@ class NewsLayoutEndpointTestCase(TestCase):
         request.all.return_value = {"items": items}
         response = _mock_response()
 
-        with patch("app.controllers.NewsController.Cache") as cache_mock:
+        with patch("app.controllers.gears.NewsController.Cache") as cache_mock:
             controller.layout(request, response)
 
         cache_mock.forget.assert_not_called()
@@ -278,8 +278,8 @@ class NewsBodyEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
-        ), patch("app.controllers.NewsController.Cache") as cache_mock:
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.gears.NewsController.Cache") as cache_mock:
             controller.body(request, response)
 
         self.assertNotIn("<script>", record.description)
@@ -293,7 +293,7 @@ class NewsBodyEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect({})
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect({})
         ):
             controller.body(request, response)
 
@@ -312,8 +312,8 @@ class NewsBodyEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
-        ), patch("app.controllers.NewsController.Cache"):
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.gears.NewsController.Cache"):
             controller.body(request, response)
 
         response.json.assert_called_once()
@@ -333,7 +333,7 @@ class NewsBodyEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect({})
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect({})
         ):
             controller.body(request, response)
 
@@ -358,8 +358,8 @@ class NewsUnassignEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
-        ), patch("app.controllers.NewsController.Cache") as cache_mock:
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.gears.NewsController.Cache") as cache_mock:
             controller.unassign(request, response)
 
         self.assertEqual(record.layout_type, "unassigned")
@@ -380,8 +380,8 @@ class NewsUnassignEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect(records)
-        ), patch("app.controllers.NewsController.Cache"):
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect(records)
+        ), patch("app.controllers.gears.NewsController.Cache"):
             controller.unassign(request, response)
 
         response.json.assert_called_once()
@@ -399,7 +399,7 @@ class NewsUnassignEndpointTestCase(TestCase):
         response = _mock_response()
 
         with patch(
-            "app.controllers.NewsController.News.where", side_effect=_where_side_effect({})
+            "app.controllers.gears.NewsController.News.where", side_effect=_where_side_effect({})
         ):
             controller.unassign(request, response)
 
@@ -438,9 +438,9 @@ class NewsDestroyDerivativeCleanupTestCase(TestCase):
 
         try:
             with patch(
-                "app.controllers.NewsController.News.where",
+                "app.controllers.gears.NewsController.News.where",
                 side_effect=_where_side_effect(records),
-            ), patch("app.controllers.NewsController.Cache"):
+            ), patch("app.controllers.gears.NewsController.Cache"):
                 controller.destroy(request, response)
 
             self.assertFalse(os.path.isfile(original_path))
@@ -484,9 +484,9 @@ class NewsStoreSchedulingTestCase(TestCase):
         created_story = Mock(id=200, image=None)
 
         with patch(
-            "app.controllers.NewsController.News.create", return_value=created_story
-        ) as create_mock, patch("app.controllers.NewsController.NewNews"), patch(
-            "app.controllers.NewsController.Cache"
+            "app.controllers.gears.NewsController.News.create", return_value=created_story
+        ) as create_mock, patch("app.controllers.gears.NewsController.NewNews"), patch(
+            "app.controllers.gears.NewsController.Cache"
         ):
             controller.store(request, storage, response)
 
@@ -506,9 +506,9 @@ class NewsStoreSchedulingTestCase(TestCase):
         created_story = Mock(id=201, image=None)
 
         with patch(
-            "app.controllers.NewsController.News.create", return_value=created_story
-        ) as create_mock, patch("app.controllers.NewsController.NewNews"), patch(
-            "app.controllers.NewsController.Cache"
+            "app.controllers.gears.NewsController.News.create", return_value=created_story
+        ) as create_mock, patch("app.controllers.gears.NewsController.NewNews"), patch(
+            "app.controllers.gears.NewsController.Cache"
         ):
             controller.store(request, storage, response)
 
@@ -528,9 +528,9 @@ class NewsStoreSchedulingTestCase(TestCase):
         created_story = Mock(id=202, image=None)
 
         with patch(
-            "app.controllers.NewsController.News.create", return_value=created_story
-        ) as create_mock, patch("app.controllers.NewsController.NewNews"), patch(
-            "app.controllers.NewsController.Cache"
+            "app.controllers.gears.NewsController.News.create", return_value=created_story
+        ) as create_mock, patch("app.controllers.gears.NewsController.NewNews"), patch(
+            "app.controllers.gears.NewsController.Cache"
         ):
             controller.store(request, storage, response)
 
@@ -580,12 +580,12 @@ class FeaturedImageRemovalTestCase(TestCase):
         storage = Mock()
 
         with patch(
-            "app.controllers.NewsController.News.where",
+            "app.controllers.gears.NewsController.News.where",
             side_effect=_where_side_effect({1: record}),
-        ), patch("app.controllers.NewsController.Cache"), patch(
-            "app.controllers.NewsController.NewNews"
+        ), patch("app.controllers.gears.NewsController.Cache"), patch(
+            "app.controllers.gears.NewsController.NewNews"
         ), patch(
-            "app.controllers.NewsController.json_success", return_value="ok"
+            "app.controllers.gears.NewsController.json_success", return_value="ok"
         ):
             controller.store(request, storage, response)
         return record

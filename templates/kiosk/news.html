@@ -8,6 +8,7 @@
 
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/newsletter-type.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-nav.css') }}" />
 </head>
 <body class="newspaper-bg">
   {% set main_story = main_news if main_news else featured_news %}
@@ -54,11 +55,7 @@
     </button>
   </div>
 
-  <a href="/kiosk" class="news-back" aria-label="Back to home">
-    <span class="news-back__arrow" aria-hidden="true">&larr;</span>
-    <span class="news-back__label">Back to home</span>
-    <span class="news-back__hint" aria-hidden="true">Scroll for more</span>
-  </a>
+  {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False) %}{% include 'partials/kiosk-back.html' %}{% endwith %}
 
   <script src="{{ asset_url('js/kiosk-news.js') }}"></script>
 </body>
