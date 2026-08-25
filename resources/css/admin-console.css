@@ -1,0 +1,190 @@
+/*
+ * Admin console (/users) — the count block and the editor accounts table.
+ *
+ * Everything else on this page is borrowed: the shell is gears-dashboard.css,
+ * the queue is review-queue.css, and the forms and tables are the dashboard's
+ * own .field / .events-table / .page-card. What is genuinely new is the
+ * composition of the four figures, and that is all this file holds.
+ *
+ * The design argument, so it survives the next edit: three of these numbers
+ * are background and one is a job. Queue depth takes the whole left column at
+ * a type size nothing else on the page comes near; editors, published and
+ * drafts are a quiet stack of figures beside it with no card chrome, no
+ * accent, and no colour of their own. The hierarchy is carried by size and
+ * silence rather than by four differently-tinted cards, because four accents
+ * would say all four numbers matter equally — and they do not.
+ *
+ * Flat fills only, in line with the rest of the CMS. No gradients.
+ */
+
+.admin-metrics {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 1.2rem;
+    align-items: stretch;
+}
+
+/* ── The one number that is a job ─────────────────────────────────────── */
+
+.admin-lead {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 2rem 2rem 2rem 2.2rem;
+    border: 1px solid var(--ink-rule);
+    border-radius: var(--radius-md);
+    background: var(--ink-paper);
+    overflow: hidden;
+}
+
+/* Same 4px accent bar the dashboard's .stat-card uses, so the two consoles
+   read as one product. */
+.admin-lead::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--ink-marigold);
+}
+
+/* An empty queue is not an alert. Drop the accent to the hairline rule so a
+   cleared queue recedes instead of shouting a zero. */
+.admin-lead--clear::before {
+    background: var(--ink-rule-strong);
+}
+
+.admin-lead__label {
+    margin: 0;
+    color: var(--ink-terracotta);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.admin-lead__value {
+    margin: 0.8rem 0 0;
+    font-family: var(--font-display);
+    /* Deliberately larger than .stat-card__value's 3.4rem ceiling — the size
+       jump IS the hierarchy on this page. */
+    font-size: clamp(3.5rem, 7vw, 5rem);
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--ink-strong);
+}
+
+.admin-lead__clear-title {
+    margin: 0.8rem 0 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 2.4vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    color: var(--ink-strong);
+}
+
+.admin-lead__age {
+    margin: 0.55rem 0 0;
+    color: var(--ink-soot);
+    font-size: 0.92rem;
+}
+
+.admin-lead__action {
+    margin-top: auto;
+    /* The copy above it can be one line or two; without this the button sits
+       at a different height depending on the queue's age. */
+    padding-top: 0.7rem;
+}
+
+.admin-lead__action::after {
+    content: " →";
+}
+
+/* ── The three that are background ────────────────────────────────────── */
+
+.admin-figures {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--ink-rule);
+    border-radius: var(--radius-md);
+    background: var(--ink-paper);
+    overflow: hidden;
+}
+
+.admin-figure {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex: 1;
+    padding: 1.1rem 1.4rem;
+}
+
+.admin-figure + .admin-figure {
+    border-top: 1px solid var(--ink-rule);
+}
+
+.admin-figure__label {
+    color: var(--ink-soot);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.admin-figure__value {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Editors panel ────────────────────────────────────────────────────── */
+
+.admin-invite {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: end;
+}
+
+.admin-invite__note {
+    margin: 0.9rem 0 0;
+    color: var(--ink-soot);
+    font-size: 0.86rem;
+}
+
+.admin-remove-form {
+    margin: 0;
+}
+
+/* Three short columns do not need the 760px floor .events-table sets for the
+   events grid. */
+.events-table--compact {
+    min-width: 480px;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+
+@media (max-width: 1180px) {
+    .admin-metrics {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 720px) {
+    .admin-lead {
+        padding: 1.5rem 1.5rem 1.5rem 1.7rem;
+    }
+
+    .admin-invite {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

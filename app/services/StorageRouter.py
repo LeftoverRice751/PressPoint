@@ -6,7 +6,12 @@ from masonite.utils.location import base_path
 
 
 # Folders served by the GearsNAS volume.
-NAS_FOLDERS = ("Archives", "Videos", "About", "Branding")
+#
+# KEEP IN SYNC with the regex `location` block in deploy/nginx-presspoint.conf.
+# In production nginx serves these roots directly and only falls back to Python
+# on a miss, so a folder added here but not there quietly routes every request
+# for it through VideoController.serve_storage — which reads ranges into memory.
+NAS_FOLDERS = ("Archives", "Videos", "About", "Branding", "Profiles")
 
 
 def gearsnas_base() -> str:

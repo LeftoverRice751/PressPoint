@@ -1,3 +1,5 @@
+from os import name
+
 from masonite.controllers import Controller
 from masonite.views import View
 from masonite.request import Request
@@ -89,3 +91,14 @@ class SuperAdminController(Controller):
             user.delete()
 
         return response.redirect(name="auth.super_admin")
+
+    def logout(self, request: Request, response: Response):
+        """Sign the super admin out from the super admin dashboard.
+
+        delete_cookie("token") is the half that actually ends the session --
+        remove_user() alone leaves the sign-in cookie in the browser, so the
+        very next request re-authenticates and the logout looks like a no-op.
+        """
+        request.remove_user()
+        response.delete_cookie("token")
+        return response.redirect(name="auth.login")

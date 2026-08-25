@@ -278,10 +278,15 @@
        prefetch covers all six regardless: if a prerender is evicted or the
        concurrency cap is hit, the document still comes from cache.
 
-       Not cached in the service worker, deliberately — see sw-kiosk.js. These
-       responses carry a per-session CSRF token that the Campus Map and tour QR
-       handoff POSTs depend on, so the document must stay fresh from the server.
-       Prerender keeps it fresh; a stale cached copy would 302 the POST. -->
+       These responses carry a per-session CSRF token that the Campus Map and
+       tour QR handoff POSTs depend on, so the document must stay fresh from the
+       server whenever there is a connection. That is exactly why sw-kiosk.js
+       treats kiosk documents as network-first rather than cache-first: online,
+       prerender still wins and the token is always current; the cached copy is
+       served only when the network has actually failed, which is what makes the
+       back button work with the campus link down. The prefetches below travel
+       that same network-first path, so they populate the offline cache for all
+       six destinations at no extra cost. -->
   <script type="speculationrules">
   {
     "prerender": [
@@ -307,5 +312,6 @@
   <script src="{{ asset_url('js/welcome-screen.js') }}" defer></script>
   <script src="{{ asset_url('js/app.js') }}" defer></script>
   <script src="{{ asset_url('js/welcome-lock.js') }}" defer></script>
+  {% include 'partials/kiosk-sw.html' %}
 </body>
 </html>

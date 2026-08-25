@@ -250,6 +250,48 @@ body.auth-body {
   margin-bottom: 1.75rem;
 }
 
+/* Header carrying a trailing action (the dashboard logout button).
+   .auth-panel__header is a single-column grid, so the action is placed
+   explicitly and every other child is pinned to column 1 -- left to
+   auto-placement the title would slide up beside the eyebrow instead of
+   stacking under it. The child selector is qualified so it outranks the
+   `> *` rule above rather than relying on source order to break a tie. */
+.auth-panel__header--with-action {
+  grid-template-columns: 1fr auto;
+  align-items: start;
+}
+
+.auth-panel__header--with-action > * {
+  grid-column: 1;
+}
+
+.auth-panel__header--with-action > .auth-panel__logout-form {
+  grid-column: 2;
+  /* Row 1 explicitly, not `1 / -1`: this grid declares no grid-template-rows,
+     so every row is implicit and -1 resolves against the *explicit* grid --
+     the span silently collapses back to a single row. Pinning it to the
+     eyebrow row is the intended look anyway, and it stays put no matter how
+     many lines the title and subtitle wrap to. */
+  grid-row: 1;
+  justify-self: end;
+  margin: 0;
+}
+
+/* Narrow viewports: drop the action under the copy rather than letting the
+   title squeeze into a sliver of the first column. */
+@media (max-width: 540px) {
+  .auth-panel__header--with-action {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-panel__header--with-action > .auth-panel__logout-form {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+    margin-top: 0.5rem;
+  }
+}
+
 .auth-panel__eyebrow {
   color: var(--auth-accent);
   font-family: var(--auth-font-ui);

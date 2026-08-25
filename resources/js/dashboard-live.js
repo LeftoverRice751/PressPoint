@@ -175,6 +175,14 @@
 
     return getJson(STAMPS_URL)
       .then(function (payload) {
+        // The bell's unread count rides along on this poll rather than running
+        // a timer of its own for one integer. The endpoint computes it as a
+        // COUNT against the (user_id, read_at) index, so it is about as cheap
+        // as one more stamp.
+        if (window.GearsBell && typeof payload.unread_notifications !== 'undefined') {
+          window.GearsBell.setCount(payload.unread_notifications);
+        }
+
         var next = payload.stamps || {};
 
         sections().forEach(function (section) {

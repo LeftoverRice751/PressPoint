@@ -1,0 +1,284 @@
+/*
+ * Review queue + profile panel.
+ *
+ * Solid, flat fills only — no gradients anywhere in this codebase. Colours come
+ * from the semantic tokens in kiosk-tokens.css (--surface-raised, --ink,
+ * --accent, --danger) rather than literal hexes, so both surfaces follow
+ * [data-theme="gears"] and any future re-brand for free.
+ */
+
+/* ── Review queue ───────────────────────────────────────────────────────── */
+
+.review-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.review-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg, 8px);
+  padding: 18px 20px;
+}
+
+.review-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.review-card__byline {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.review-card__byline strong { color: var(--ink); }
+
+.review-card__title {
+  margin: 0;
+  font-family: var(--font-heading, inherit);
+  font-size: 1.15rem;
+  line-height: 1.25;
+  color: var(--ink-strong);
+}
+
+.review-card__dek {
+  margin: 6px 0 0;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+/* The slot the editor placed it in. Flat accent chip — this is information,
+   not an action, so it must not read as a button. */
+.review-card__slot {
+  flex: 0 0 auto;
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.review-card__excerpt {
+  margin: 12px 0 0;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.review-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.review-btn {
+  appearance: none;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-md, 6px);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.review-btn:hover { background: var(--surface-sunken); }
+
+.review-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.review-btn--approve {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent-hover);
+}
+
+.review-btn--approve:hover { background: var(--accent-hover); }
+
+.review-btn--reject {
+  background: var(--danger-tint);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.review-btn--reject:hover {
+  background: var(--danger);
+  color: var(--n-white, #fff);
+}
+
+.review-btn--ghost {
+  background: transparent;
+  border-color: var(--rule-strong);
+  color: var(--ink-muted);
+}
+
+/* ── Reject reason ──────────────────────────────────────────────────────── */
+
+.review-card__reject {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
+.review-reject__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.review-reject__input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md, 6px);
+  background: var(--surface);
+  color: var(--ink-strong);
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.review-reject__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* ── Kiosk-accurate preview ─────────────────────────────────────────────── */
+
+.review-card__preview {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md, 6px);
+  /* The kiosk is a 768px-wide portrait terminal; the panel is narrower than
+     that, so the rendered partial has to be allowed to scroll rather than
+     forcing the dashboard page to scroll sideways. */
+  overflow-x: auto;
+}
+
+/* Scaled, not re-styled: this is the kiosk's own markup, so shrinking it is
+   the only honest way to fit it in a dashboard panel. transform-origin keeps
+   it pinned to the top-left of the well as it shrinks. */
+.review-preview__scale {
+  width: 768px;
+  transform: scale(0.62);
+  transform-origin: top left;
+  /* scale() does not affect layout box size, so the well would otherwise
+     reserve the full unscaled height and leave a large gap underneath. */
+  height: auto;
+  margin-bottom: -38%;
+}
+
+.review-preview__loading {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+/* ── Sidebar count badge ────────────────────────────────────────────────── */
+
+/* The admin's only signal that a submission has arrived — submissions
+   deliberately raise no bell notification. */
+.dashboard-nav__badge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ── Profile panel ──────────────────────────────────────────────────────── */
+
+.gears-panel--narrow { max-width: 720px; }
+
+.profile-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  padding: 4px 0;
+}
+
+.profile-editor__avatar-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.profile-editor__avatar {
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--rule-strong);
+  background: var(--surface-sunken);
+}
+
+/* Initials fallback — used when there is no picture, and when the NAS is
+   unreachable so the file cannot be confirmed to exist. */
+.profile-editor__avatar--initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-heading, inherit);
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: var(--accent-text);
+  background: var(--accent-tint);
+}
+
+.profile-editor__avatar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.profile-editor__upload { cursor: pointer; }
+
+.profile-editor__hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  max-width: 42ch;
+}
+
+.profile-editor__fields {
+  flex: 1 1 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-editor__fields .field__input:disabled {
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .profile-editor { gap: 18px; }
+  .review-card__head { flex-direction: column; }
+}

@@ -17,7 +17,7 @@ from config.database import DB
 from app.events.NewNews import NewNews
 from app.models.News import News
 from app.services.AjaxResponses import wants_json, json_success, json_errors
-from app.services.DashboardContext import group_news_slots
+from app.services.DashboardContext import group_news_slots, section_stamp
 from app.services.ImageDerivatives import generate_variants, variant_path, variant_relpath
 from app.services.StorageRouter import absolute_path, is_safe_path
 
@@ -137,11 +137,18 @@ _NEWS_VISIBLE_STATUSES = {"approved", "scheduled", "published"}
 _NEWS_ALLOWED_STATUSES = {"draft", "review", "approved", "scheduled", "published", "archived"}
 
 
-def _normalize_news_status(raw_status, default="approved"):
-    status = (raw_status or default or "approved").strip().lower()
+def _normalize_news_status(raw_status, default="draft"):
+    """Resolve a status string, falling back to something INVISIBLE.
+
+    The default used to be "approved", which is one of the publicly visible
+    statuses — so an unrecognised or missing status published to the campus
+    kiosk. That is the wrong direction to fail in: a story wrongly left as a
+    draft is a phone call, a story wrongly on a public screen is a retraction.
+    """
+    status = (raw_status or default or "draft").strip().lower()
     status = _NEWS_STATUS_ALIASES.get(status, status)
     if status not in _NEWS_ALLOWED_STATUSES:
-        return default or "approved"
+        return default or "draft"
     return status
 
 
@@ -168,6 +175,71 @@ def _apply_scheduling(status, published_at):
 
 
 _NEWS_LAYOUT_TYPES = {"main", "secondary", "widget", "unassigned"}
+
+#: How many rows each front-page bucket can hold. These are the same numbers
+#: group_news_slots() truncates to with [:4]/[:2]; enforcing them here means a
+#: story can no longer read as "placed" in the composer while being silently
+#: sliced off the kiosk render.
+_NEWS_SLOT_CAPACITY = {"main": 1, "secondary": 4, "widget": 2}
+
+
+class _LayoutConflict(Exception):
+    """The canvas that produced this batch is behind the database.
+
+    Raised inside layout()'s transaction so the rollback is the normal path,
+    and turned into a 409 (not a 422) by the caller: nothing about the request
+    is malformed, it just lost a race.
+    """
+
+
+class _SlotOverflow(Exception):
+    """Applying this batch would leave a bucket over its capacity."""
+
+
+#: Statuses that put a story in front of the public. Only an admin may write
+#: one of these directly; everyone else's publish attempt becomes "review".
+_PUBLISH_INTENT_STATUSES = {"approved", "scheduled", "published"}
+
+
+def _actor_is_admin(request):
+    """True when the signed-in account may approve and publish.
+
+    `admin` only — superadmin manages accounts, not editorial. Normalised the
+    way every other role check in the app is, because the live `role` column
+    holds values with stray casing (see UserController._is_editor).
+    """
+    try:
+        user = request.user() if callable(getattr(request, "user", None)) else None
+    except Exception:
+        return False
+    return (getattr(user, "role", "") or "").strip().lower() == "admin"
+
+
+def _resolve_status_for_actor(status, request):
+    """Downgrade a non-admin's publish intent to `review`.
+
+    Called on every write path an editor can reach, so the gate holds for a
+    hand-crafted POST as much as for the composer's buttons. Draft stays draft:
+    submitting is a deliberate act, and silently promoting a save to a
+    submission would put half-written stories in the admin's queue.
+    """
+    if status in _PUBLISH_INTENT_STATUSES and not _actor_is_admin(request):
+        return "review"
+    return status
+
+
+def _current_user_id(request):
+    """users.id of the signed-in account, or None.
+
+    Defensive because `request.user()` is False (not None) for a guest in
+    Masonite, and because the unit tests drive these controllers with request
+    doubles that have no user at all.
+    """
+    try:
+        user = request.user() if callable(getattr(request, "user", None)) else None
+    except Exception:
+        return None
+    return getattr(user, "id", None) or None
 
 
 def _delete_image_files(image_path):
@@ -353,7 +425,19 @@ class NewsController(Controller):
         image_caption = _html_to_text(request.input("image_caption") or "").strip()
         image_credit = _html_to_text(request.input("image_credit") or "").strip()
         layout_type = (request.input("layout_type") or "secondary").strip().lower() or "secondary"
-        status = _normalize_news_status(request.input("status"), default="approved")
+        actor_id = _current_user_id(request)
+        # Fail closed. The old default here was "approved", which is publicly
+        # visible — so a request that simply omitted `status` (a stale form, a
+        # replayed POST, a caller that forgot the field) published straight to
+        # the campus kiosk. `draft` is invisible and recoverable; a wrong
+        # `approved` is a story on a public screen that nobody chose to put there.
+        status = _normalize_news_status(request.input("status"), default="draft")
+        # An editor cannot publish. Whatever status the request carries, an
+        # account that is not an admin gets its publish-intent downgraded to
+        # `review` so an admin has to look at it first. This is enforced here
+        # rather than in the UI because the UI is just a form: posting
+        # status=published by hand has to fail too.
+        status = _resolve_status_for_actor(status, request)
         published_at_value = (request.input("published_at") or "").strip()
         priority_value = request.input("priority")
         image_file = request.input("image")
@@ -473,6 +557,14 @@ class NewsController(Controller):
                 existing.layout_type = layout_type
                 existing.priority = priority
                 existing.status = status
+                if actor_id is not None:
+                    existing.updated_by_id = actor_id
+                # Resubmitting clears the last rejection: the reason described
+                # a version of the story that no longer exists, and leaving it
+                # set would keep showing the editor a complaint they have
+                # already answered.
+                if status == "review":
+                    existing.rejection_reason = None
                 if published_at is not None:
                     existing.published_at = published_at
                 if image_path is not None:
@@ -501,6 +593,10 @@ class NewsController(Controller):
                     layout_type=layout_type,
                     priority=priority,
                     status=status,
+                    # Set once, never rewritten — `updated_by_id` is what moves
+                    # when someone else edits the story later.
+                    author_id=actor_id,
+                    updated_by_id=actor_id,
                 )
                 is_new = True
 
@@ -549,9 +645,19 @@ class NewsController(Controller):
                 return json_errors(response, messages, status=status)
             return response.back().with_errors(messages)
 
-        items = (request.all() or {}).get("items")
+        payload = request.all() or {}
+
+        items = payload.get("items")
         if not isinstance(items, list) or not items:
             return _err(["No layout changes were provided."])
+
+        # Optional so a plain form post (and every existing caller) still
+        # works; when absent the conflict check is skipped rather than
+        # failing closed, because refusing an unversioned write would break
+        # the non-AJAX degradation path this endpoint is required to keep.
+        base_stamp = payload.get("base_stamp")
+        if base_stamp is not None and not isinstance(base_stamp, str):
+            base_stamp = str(base_stamp)
 
         updates = []
         for raw in items:
@@ -574,6 +680,8 @@ class NewsController(Controller):
 
             updates.append((item_id, layout_type, priority))
 
+        editor_id = _current_user_id(request)
+
         try:
             # All-or-nothing: without this, a mid-batch failure (item 4 of 7
             # raises) would leave items 1-3 committed while the cache is
@@ -585,24 +693,72 @@ class NewsController(Controller):
             # invalidation needed on the error path.
             updated_ids = []
             with DB.transaction():
+                # Optimistic concurrency. The composer rebuilds the ENTIRE
+                # canvas from its own DOM on every drag (currentCanvasBatch in
+                # news-dashboard.js), so a tab that loaded an hour ago does not
+                # send "move card 7" — it sends its whole stale front page.
+                # Without this check the stale tab wins and the other editor's
+                # work is gone with no error on either side.
+                #
+                # The token is the section stamp the liveness poll already
+                # computes, so there is no new column and no new query shape.
+                # It is table-wide, which means an unrelated body save also
+                # trips it; the cost of that false positive is one forced
+                # canvas refresh, against the cost of a silent total overwrite.
+                if base_stamp is not None:
+                    current_stamp = section_stamp(News)
+                    if current_stamp != base_stamp:
+                        raise _LayoutConflict(current_stamp)
+
                 for item_id, layout_type, priority in updates:
                     record = News.where("id", item_id).first()
                     if not record:
                         continue
                     record.layout_type = layout_type
                     record.priority = priority
+                    if editor_id is not None:
+                        record.updated_by_id = editor_id
                     record.save()
                     updated_ids.append(item_id)
+
+                # Counted across the whole table AFTER applying, not across the
+                # batch: a batch legitimately carries only one bucket
+                # (buildBucketBatch), so checking the payload alone would miss
+                # a main that another editor added between this tab's last
+                # refresh and this write.
+                for slot, capacity in _NEWS_SLOT_CAPACITY.items():
+                    if News.where("layout_type", slot).count() > capacity:
+                        raise _SlotOverflow(slot)
 
             Cache.forget(_NEWS_CACHE_KEY)
 
             if is_ajax:
                 return json_success(
                     response,
-                    payload={"updated": updated_ids},
+                    payload={"updated": updated_ids, "stamp": section_stamp(News)},
                     messages=["Layout saved."],
                 )
             return response.redirect(name="gears.dashboard").with_success(["Layout saved."])
+        except _LayoutConflict as conflict:
+            # 409, not 422 — the payload was fine, it just lost a race. The
+            # composer reloads the canvas on this status rather than showing a
+            # validation error.
+            if is_ajax:
+                return json_errors(
+                    response,
+                    ["Someone else changed the front page while you were editing."],
+                    status=409,
+                )
+            return response.back().with_errors([
+                "Someone else changed the front page while you were editing. "
+                "Reload and try again.",
+            ])
+        except _SlotOverflow as overflow:
+            slot = str(overflow) or "layout"
+            return _err([
+                f"That change would put too many stories in the {slot} slot "
+                f"(limit {_NEWS_SLOT_CAPACITY.get(slot, '?')}). Nothing was saved.",
+            ])
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return _err(["Could not save layout changes. Please try again."])
@@ -626,6 +782,9 @@ class NewsController(Controller):
 
         try:
             record.description = sanitized
+            body_editor_id = _current_user_id(request)
+            if body_editor_id is not None:
+                record.updated_by_id = body_editor_id
             record.save()
 
             Cache.forget(_NEWS_CACHE_KEY)

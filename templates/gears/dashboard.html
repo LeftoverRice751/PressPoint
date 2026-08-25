@@ -1,39 +1,36 @@
-{% extends "base.html" %}
+{% extends "gears/shell.html" %}
 {% block title %}GEARS CMS{% endblock %}
-{# Staff surface: dark maroon theme, so an editor can never mistake the
-   dashboard for the public kiosk. Defined in kiosk-tokens.css. #}
-{% block html_attrs %} data-theme="gears"{% endblock %}
+
+{# The editors' surface. The shell (sidebar chrome, hero, bell, profile menu)
+   lives in gears/shell.html, shared with the admin console at /users. #}
 
 {% block head %}
-<link rel="stylesheet" href="{{ asset_url('css/gears-dashboard.css') }}" />
+{{ super() }}
 <link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/quill.snow.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/news-dashboard.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/newsletter-type.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/dropzone.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/upload-meter.css') }}" />
-<link rel="stylesheet" href="{{ asset_url('css/confirm-modal.css') }}" />
 {% endblock %}
 
-{% block content %}
-<div
-  class="gears-dashboard"
-  data-dashboard-shell
-  data-default-page="{{ default_page if default_page else 'dashboard' }}"
+{% block shell_data %}
   data-video-push-url="{{ route('video.push', {}, False) }}"
   data-open-events-modal="{{ 'true' if bag().any() and (default_page or 'dashboard') == 'events' else 'false' }}"
   data-open-news-modal="false"
->
-  <aside class="gears-sidebar">
-    <div class="gears-sidebar__brand">
-      <div class="gears-sidebar__mark" aria-hidden="true"><img src="{{ site_logo() }}" alt="Gears logo"></div>
-      <div>
-        <div class="gears-sidebar__eyebrow">The Gears Publication</div>
-        <div class="gears-sidebar__title">GEARS CMS</div>
-      </div>
-    </div>
+  {# Optimistic-concurrency token for the news canvas: the database state this
+     page was rendered against. news-dashboard.js sends it back with every
+     layout write so a tab left open cannot overwrite another editor's front
+     page with its stale view. Refreshed on every canvas fragment load. #}
+  data-news-stamp="{{ news_stamp or '' }}"
+  {# Whether this account may publish straight to the kiosk. Presentation only:
+     the server downgrades an editor's publish intent to "review" regardless of
+     what the form posts (NewsController._resolve_status_for_actor). This just
+     stops the button claiming to do something it will not do. #}
+  data-can-publish="{{ 'true' if is_admin else 'false' }}"
+{% endblock %}
 
-    <nav class="dashboard-nav" aria-label="Dashboard navigation" role="tablist">
+{% block shell_nav %}
       <div class="dashboard-nav__group-label">CONTENT</div>
       <button type="button" class="dashboard-nav__link is-active" data-page-link="dashboard" id="nav-dashboard" role="tab" aria-controls="panel-dashboard" aria-selected="true" tabindex="0">
         <span class="dashboard-nav__icon" aria-hidden="true">▣</span>
@@ -81,41 +78,24 @@
         <span class="dashboard-nav__icon" aria-hidden="true">◈</span>
         <span>Branding</span>
       </button>
-    </nav>
+{% endblock %}
 
-    <div class="gears-sidebar__footer">
-      <form method="POST" action="{{ route('auth.logout') }}" class="gears-sidebar__logout-form">
-        {{ csrf_field | safe }}
-        <button type="submit"
-                class="gears-sidebar__logout"
-                data-confirm="You'll be signed out of GEARS CMS."
-                data-confirm-title="Log out?"
-                data-confirm-label="Log out"
-                data-confirm-cancel="Stay">Log out</button>
-    </form>
-    </div>
-  </aside>
-
-  <main class="gears-main">
-    <header class="gears-hero" data-hero>
-      <div>
-        <p class="gears-hero__eyebrow" data-hero-eyebrow>Dashboard</p>
-        <h1 class="gears-hero__title" data-hero-title>Real-time overview of your kiosk content</h1>
-        <p class="gears-hero__subtitle" data-hero-subtitle>Manage events, news, campus locations, kiosk videos, and screen control from one place.</p>
-      </div>
-      <span class="gears-hero__chip" data-news-state-badge aria-live="polite" hidden></span>
-    </header>
-
+{% block shell_panels %}
     <section class="gears-page is-visible" data-page-panel="dashboard" id="panel-dashboard" role="tabpanel" aria-labelledby="nav-dashboard" data-hero-eyebrow="Dashboard" data-hero-title="Real-time overview of your kiosk content" data-hero-subtitle="Manage events, news, campus locations, kiosk videos, and screen control from one place.">
       <div class="stats-grid">
+        {# news_count / news_status_counts, not total_articles /
+           published_articles. Those two count the legacy `Posts` table, which
+           nothing in the composer or the kiosk front page writes any more, so
+           these cards reported numbers unrelated to the stories below them.
+           news_context() has computed the real figures all along. #}
         <article class="stat-card stat-card--blue">
           <div class="stat-card__label">Total News</div>
-          <div class="stat-card__value">{{ total_articles or 0 }}</div>
+          <div class="stat-card__value">{{ news_count or 0 }}</div>
         </article>
 
         <article class="stat-card stat-card--orange">
           <div class="stat-card__label">Published News</div>
-          <div class="stat-card__value">{{ published_articles or 0 }}</div>
+          <div class="stat-card__value">{{ (news_status_counts and news_status_counts['published']) or 0 }}</div>
         </article>
 
         <article class="stat-card stat-card--green">
@@ -279,7 +259,11 @@
              composer now drives it: Save Draft writes "draft", Publish writes
              "published", and NewsController._apply_scheduling still upgrades
              a future publish date to "scheduled". #}
-          <input type="hidden" name="status"       value="published" data-news-field="status">
+          {# "draft", not "published": this is the value a save carries if no
+             button has set it yet, and defaulting an unset field to a publicly
+             visible status is how a half-finished story reaches the kiosk. The
+             Publish / Submit-for-review buttons set it explicitly. #}
+          <input type="hidden" name="status"       value="draft" data-news-field="status">
           <input type="hidden" name="priority"     value="0" data-news-field="priority">
           <input type="hidden" name="published_at" data-news-field="published_at">
           <input type="hidden" name="article_id"   data-news-field="article_id">
@@ -512,6 +496,9 @@
         </div>
       </dialog>
     </section>
+
+
+    {% include 'gears/partials/profile-panel.html' %}
 
     <dialog class="article-modal" data-events-modal>
       <div class="article-modal__panel">
@@ -1632,15 +1619,11 @@
         </form>
       </div>
     </section>
-  </main>
-</div>
 {% endblock %}
 
 {% block js %}
-<script src="{{ asset_url('js/confirm-modal.js') }}" defer></script>
+{{ super() }}
 <script src="{{ asset_url('js/upload-meter.js') }}" defer></script>
-<script src="{{ asset_url('js/gears-dashboard.js') }}" defer></script>
-<script src="{{ asset_url('js/dashboard-live.js') }}" defer></script>
 <script src="{{ asset_url('js/news-dashboard.js') }}" defer></script>
 <script src="{{ asset_url('js/about-lspu-editor.js') }}" defer></script>
 <script src="{{ asset_url('js/org-chart-layout.js') }}" defer></script>

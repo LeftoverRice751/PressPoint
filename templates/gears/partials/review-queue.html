@@ -1,0 +1,73 @@
+{# Admin review queue — stories editors have submitted, oldest first.
+
+   Rendered both by the full dashboard page and by
+   /gears/dashboard/fragment/review, from this same partial, so a queue
+   refreshed live can never differ from a freshly-rendered one.
+
+   The preview is fetched on demand rather than rendered inline for every row:
+   it goes through the real kiosk partial, and rendering N of those into a
+   queue that mostly gets scanned would be wasteful. #}
+<div class="review-queue" data-review-queue>
+  {% for story in review_stories %}
+  <article class="review-card" data-review-item data-review-id="{{ story.id }}">
+    <div class="review-card__head">
+      <div class="review-card__meta">
+        <p class="review-card__byline">
+          Submitted by
+          <strong>{{ review_authors.get(story.author_id) if story.author_id and review_authors else 'an unknown account' }}</strong>
+        </p>
+        <h3 class="review-card__title">{{ story.title }}</h3>
+        {% if story.dek %}<p class="review-card__dek">{{ story.dek }}</p>{% endif %}
+      </div>
+      <span class="review-card__slot">{{ {'main': 'Lead', 'secondary': 'Side', 'widget': 'Widget'}.get(story.layout_type, 'Unplaced') }}</span>
+    </div>
+
+    <p class="review-card__excerpt">
+      {{ story.excerpt if story.excerpt else (story.description | striptags | truncate(220) if story.description else 'No summary available.') }}
+    </p>
+
+    <div class="review-card__actions">
+      <button type="button" class="review-btn review-btn--preview" data-review-preview>
+        Preview as it will appear
+      </button>
+      <button type="button" class="review-btn review-btn--approve" data-review-approve>
+        Approve &amp; publish
+      </button>
+      <button type="button" class="review-btn review-btn--reject" data-review-reject>
+        Send back
+      </button>
+    </div>
+
+    {# Filled by review-queue.js from /gears/review/@id/preview — the kiosk's
+       own _news_slots partial, scaled down. Empty until asked for. #}
+    <div class="review-card__preview" data-review-preview-frame hidden>
+      <div class="review-preview__scale" data-review-preview-target></div>
+    </div>
+
+    {# Reject reason. Required: an editor who is only told "rejected" has no
+       idea what to fix. #}
+    <div class="review-card__reject" data-review-reject-form hidden>
+      <label class="review-reject__label" for="reject-reason-{{ story.id }}">
+        What needs to change?
+      </label>
+      <textarea class="review-reject__input"
+                id="reject-reason-{{ story.id }}"
+                data-review-reason
+                rows="3"
+                placeholder="Explain what the editor should fix before resubmitting."></textarea>
+      <div class="review-reject__actions">
+        <button type="button" class="review-btn review-btn--reject" data-review-reject-confirm>
+          Send back with this note
+        </button>
+        <button type="button" class="review-btn review-btn--ghost" data-review-reject-cancel>
+          Cancel
+        </button>
+      </div>
+    </div>
+  </article>
+  {% else %}
+  <div class="empty-state empty-state--embedded">
+    Nothing is waiting for review right now.
+  </div>
+  {% endfor %}
+</div>

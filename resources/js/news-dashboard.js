@@ -129,7 +129,13 @@ import Sortable from 'sortablejs';
     if (ct.indexOf('json') === -1) {
       return Promise.resolve({ ok: false, __sessionExpired: true });
     }
-    return r.json().catch(function () { return { ok: false }; });
+    // Carry the HTTP status through: the layout endpoint distinguishes a lost
+    // race (409) from a rejected payload (422), and the two need different
+    // recoveries — reload the canvas vs. show the validation message.
+    return r.json().then(function (json) {
+      if (json && typeof json === 'object') json.__status = r.status;
+      return json;
+    }).catch(function () { return { ok: false, __status: r.status }; });
   }
 
   // ── Active story state ─────────────────────────────────
@@ -657,7 +663,10 @@ import Sortable from 'sortablejs';
       credit:      card.getAttribute('data-news-library-credit') || '',
       layout:      card.getAttribute('data-news-library-layout') || 'secondary',
       priority:    card.getAttribute('data-news-library-priority') || '0',
-      status:      card.getAttribute('data-news-library-status') || 'published',
+      // Fall back to 'draft', not 'published': a card missing its status
+      // attribute is a stale render, and treating that as "publish it"
+      // meant selecting such a story and hitting Save re-published it.
+      status:      card.getAttribute('data-news-library-status') || 'draft',
       image:       card.getAttribute('data-news-library-image') || ''
     };
   }
@@ -739,7 +748,7 @@ import Sortable from 'sortablejs';
     // Selecting a different story drops any image removal staged against the
     // previous one — otherwise Remove on story A would wipe story B's photo.
     if (f.removeImage) f.removeImage.value = '';
-    setStatus(data.status || 'published');
+    setStatus(data.status || 'draft');
     setFeaturedPreview(data.image ? '/storage/' + String(data.image).replace(/\\/g, '/') : '');
     if (activeLabel) activeLabel.textContent = data.id ? ('Editing: ' + (data.title || 'Untitled')) : 'New story';
     return true;
@@ -803,7 +812,8 @@ import Sortable from 'sortablejs';
     }
 
     setSlot(activeSlotType);
-    setStatus('published');
+    // A brand-new scratch story has never been saved, let alone approved.
+    setStatus('draft');
     var draftTitle = getText(art, 'title');
     if (activeLabel) activeLabel.textContent = draftTitle ? ('New story: ' + draftTitle) : 'New story';
     return true;
@@ -877,7 +887,7 @@ import Sortable from 'sortablejs';
   };
 
   function setStatus(value) {
-    var status = value || 'published';
+    var status = value || 'draft';
     if (f.status) f.status.value = status;
     if (statusLabel) statusLabel.textContent = STATUS_LABELS[status] || status;
   }
@@ -900,10 +910,26 @@ import Sortable from 'sortablejs';
     setTimeout(function () { button.disabled = false; button.textContent = label; }, 4000);
   }
 
+  // Only an admin can put a story on the kiosk. For everyone else this button
+  // submits it for review instead — the server enforces that regardless (see
+  // NewsController._resolve_status_for_actor), so this is about the button not
+  // promising something it cannot deliver.
+  var canPublish = root && root.getAttribute('data-can-publish') === 'true';
+
   var saveBtn = composer.querySelector('[data-news-canvas-save]');
   if (saveBtn) {
+    if (!canPublish) saveBtn.textContent = 'Submit for review';
     saveBtn.addEventListener('click', function () {
-      submitWithStatus(saveBtn, 'published', 'Publishing…', 'Story published.');
+      if (canPublish) {
+        submitWithStatus(saveBtn, 'published', 'Publishing…', 'Story published.');
+      } else {
+        submitWithStatus(
+          saveBtn,
+          'review',
+          'Submitting…',
+          'Sent to an admin for review. It stays off the kiosk until approved.'
+        );
+      }
     });
   }
 
@@ -1798,6 +1824,14 @@ import Sortable from 'sortablejs';
         if (onSettled) onSettled();
         return;
       }
+      // 409: another editor changed the front page under us. Distinct from
+      // the generic rejection below because the fix is different — there is
+      // nothing wrong with what we sent, we just aren't allowed to win.
+      if (json && json.__status === 409) {
+        if (window.DashboardLive) window.DashboardLive.refresh('news');
+        handleLayoutConflict(onSettled);
+        return;
+      }
       if (json && json.ok) {
         // Fix round 1, C3: the drag/move already persisted — it is not an
         // unpublished edit, so this must NOT set the dirty badge (that was
@@ -2596,7 +2630,20 @@ import Sortable from 'sortablejs';
     });
   }
 
+  // The database state this browser's canvas was built against, used as an
+  // optimistic-concurrency token. Seeded from the server-rendered shell and
+  // refreshed by every canvas fragment load and every successful layout save.
+  //
+  // This matters because currentCanvasBatch() posts the WHOLE canvas, not the
+  // card that moved: without a token, a tab left open since this morning
+  // overwrites everything another editor has done since, and neither of them
+  // is told. Null means "unknown" — the server then skips the check rather
+  // than refusing, which keeps the plain-form fallback working.
+  var canvasStamp = (root && root.getAttribute('data-news-stamp')) || null;
+
   function postLayout(items) {
+    var body = { items: items };
+    if (canvasStamp) body.base_stamp = canvasStamp;
     return fetch('/news/dashboard/layout', {
       method: 'POST',
       headers: {
@@ -2604,8 +2651,34 @@ import Sortable from 'sortablejs';
         'X-Requested-With': 'XMLHttpRequest',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ items: items })
-    }).then(readJsonEnvelope);
+      body: JSON.stringify(body)
+    }).then(readJsonEnvelope).then(function (json) {
+      // Chain the next write off the state we just created, so a burst of
+      // drags doesn't false-positive against its own first save.
+      if (json && json.ok && json.stamp) canvasStamp = json.stamp;
+      return json;
+    });
+  }
+
+  // A lost race, not a bad request: reload the canvas onto whatever the other
+  // editor left behind and say so plainly. The dirty gate is deliberately
+  // bypassed here — normally we refuse to clobber unpublished inline edits,
+  // but in this case the server has already refused OUR write, so the canvas
+  // on screen is fiction either way. Better to show the truth.
+  function handleLayoutConflict(onSettled) {
+    canvasStamp = null;
+    var wasDirty = layoutDirty;
+    // Through the setter, not the variable: it also clears the "Unpublished
+    // changes" chrome, which would otherwise contradict the reloaded canvas.
+    setLayoutDirty(false);
+    refreshCanvasFragment('Reloaded', function () {
+      if (wasDirty) {
+        toast('Someone else changed the front page. Your unsaved inline edits are still in the composer — re-apply them and publish.', true);
+      } else {
+        toast('Someone else changed the front page — reloaded to their version.', true);
+      }
+      if (onSettled) onSettled();
+    });
   }
 
   // The canvas placeholder for the slot just filled holds no user data, so
@@ -2761,6 +2834,9 @@ import Sortable from 'sortablejs';
           return;
         }
         editor.innerHTML = json.html;
+        // The canvas now reflects this exact database state, so writes based
+        // on it are no longer stale — adopt its token.
+        if (json.stamp) canvasStamp = json.stamp;
         reinitCanvas();
         // The canvas DOM is trustworthy again — drop the overlay so the
         // next occupancy read goes back to reflecting it directly.

@@ -578,6 +578,18 @@ html, body {
   opacity: .6;
 }
 
+/* Off-route: the fix is real but sits well off the drawn path, so the puck
+   shows the raw position rather than a snapped one. Flat red, no gradient,
+   to read as "this is not on the route" at a glance in daylight. */
+.mobile-route__puck--off-route .mobile-route__puck-dot {
+  background: #D93025;
+}
+
+.mobile-route__puck--off-route .mobile-route__puck-ring {
+  background: #D93025;
+  opacity: .35;
+}
+
 .mobile-route__pin-body {
   position: absolute;
   left: -14px;

@@ -1,0 +1,130 @@
+{# Kiosk offline shell — registers /sw-kiosk.js and hands it this page's
+   precache list. Include once, as the LAST thing in <body> (or at the end of
+   {% block js %} for the two pages that extend base.html), on every kiosk
+   document: the menu and all six destinations.
+
+     {% include 'partials/kiosk-sw.html' %}
+
+   It must come after the page's own <link>/<script> tags, because it reads
+   them back out of the DOM.
+
+   Why a partial of its own rather than a compiled entry or a line in
+   kiosk-back.html: most kiosk templates (welcome, news, archives, about-lspu,
+   kiosk-tour) are standalone <html> documents that don't extend base.html, so
+   there is no single layout to hook. kiosk-back.html reaches six of the seven
+   but not the menu itself, which has no back bar — and registration has
+   nothing to do with going back. A compiled entry would have to be added to
+   each template anyway *and* would be subject to the very cache it manages.
+   kiosk-back.html's own header sets this precedent for the same reason.
+
+   The precache list is harvested from the live document rather than written
+   out in Jinja on purpose. asset_url() stamps every compiled URL with
+   ?v=<mtime> (app/services/AssetVersion.py), so a hand-written list would be a
+   second copy of every template's asset list that silently drifts and
+   cache-misses on every load. #}
+<script>
+  (function () {
+    if (window.__kioskSW) return;
+    window.__kioskSW = true;
+    if (!('serviceWorker' in navigator)) return;
+
+    // Mirrors ASSET_PREFIXES/REVALIDATE_PREFIXES in resources/js/sw-kiosk.js.
+    // An allowlist, not a denylist: the resource-timing sweep below sees every
+    // byte the page pulled, and on the 360 tour that is hundreds of panorama
+    // tiles the worker refuses to cache anyway.
+    var SAME_OK = ['/assets/', '/pano/vendor/', '/pano/img/',
+                   '/storage/Archives/', '/storage/Branding/',
+                   '/storage/About/', '/storage/news/'];
+    var SAME_OK_EXACT = ['/api/locations', '/api/tour-scenes', '/kiosk'];
+    // The two cross-origin scripts kiosk pages load. Cached opaquely.
+    var CROSS_OK = ['https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/',
+                    'https://js.pusher.com/'];
+
+    function keep(href) {
+      var u;
+      try { u = new URL(href, window.location.href); } catch (_) { return false; }
+      if (u.origin === window.location.origin) {
+        if (SAME_OK_EXACT.indexOf(u.pathname) !== -1) return true;
+        return SAME_OK.some(function (p) { return u.pathname.indexOf(p) === 0; });
+      }
+      return CROSS_OK.some(function (p) { return u.href.indexOf(p) === 0; });
+    }
+
+    function harvest() {
+      var seen = {};
+      var out = [];
+      function add(href) {
+        if (!href) return;
+        var abs;
+        try { abs = new URL(href, window.location.href).href; } catch (_) { return; }
+        if (seen[abs] || !keep(abs)) return;
+        seen[abs] = 1;
+        out.push(abs);
+      }
+
+      // 1. Declared subresources, already carrying their ?v= stamps. Covers
+      //    deferred scripts, which have not executed yet and so have no
+      //    resource-timing entry at this point.
+      var nodes = document.querySelectorAll('link[rel="stylesheet"][href], script[src]');
+      Array.prototype.forEach.call(nodes, function (node) { add(node.href || node.src); });
+
+      // 2. Everything the page actually fetched. This is the only way to see
+      //    the brand fonts (referenced from @font-face inside kiosk-tokens.css)
+      //    and Leaflet's marker images (a relative url() inside leaflet.css).
+      //    Neither appears in any template, so a DOM-only sweep would ship a
+      //    kiosk that renders in fallback faces the moment it goes offline.
+      if (window.performance && window.performance.getEntriesByType) {
+        window.performance.getEntriesByType('resource').forEach(function (e) { add(e.name); });
+      }
+
+      // 3. What nothing can observe: the tour's JS-built hotspot icons, the
+      //    two effectively-static kiosk APIs, and the menu itself — the back
+      //    button's destination, and so the single most important entry here.
+      ['/kiosk', '/api/locations', '/api/tour-scenes',
+       '/pano/img/link.png', '/pano/img/info.png', '/pano/img/close.png'].forEach(add);
+
+      return out;
+    }
+
+    function sendPrecache(worker) {
+      if (!worker) return;
+      worker.postMessage({ type: 'PRECACHE', urls: harvest() });
+    }
+
+    navigator.serviceWorker.register('/sw-kiosk.js', { scope: '/' })
+      .then(function (reg) {
+        var active = reg.active || reg.waiting;
+        if (reg.installing) {
+          reg.installing.addEventListener('statechange', function (e) {
+            if (e.target.state === 'activated') sendPrecache(e.target);
+          });
+        } else {
+          sendPrecache(active);
+        }
+
+        // Re-harvest once everything has loaded: deferred scripts and
+        // late-resolving fonts have resource-timing entries by then. The
+        // worker skips URLs it already holds, so this is nearly free.
+        window.addEventListener('load', function () {
+          sendPrecache(navigator.serviceWorker.controller || reg.active);
+        });
+
+        // Retire sw-archives.js on terminals that ran it before this worker
+        // existed. It also claims scope /, so leaving it registered means two
+        // workers racing over /storage/Archives/ — a block that now lives in
+        // sw-kiosk.js. Its pp-archives-v1 cache is deliberately NOT deleted:
+        // sw-kiosk.js reads through to it so a terminal holding hundreds of MB
+        // of rasterised archive pages inherits them instead of re-downloading.
+        // The phone surfaces (/m/archives, /m/route) never load this partial
+        // and keep their own workers.
+        if (!navigator.serviceWorker.getRegistrations) return;
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          regs.forEach(function (old) {
+            var script = (old.active && old.active.scriptURL) || '';
+            if (script.indexOf('/sw-archives.js') !== -1) old.unregister();
+          });
+        });
+      })
+      .catch(function () {});
+  })();
+</script>

@@ -15,6 +15,7 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/upload-meter.js', 'storage/compiled/js')
   .js('resources/js/confirm-modal.js', 'storage/compiled/js')
   .js('resources/js/news-dashboard.js', 'storage/compiled/js')
+  .js('resources/js/review-queue.js', 'storage/compiled/js')
   .js('resources/js/kiosk-archives.js', 'storage/compiled/js')
   .js('resources/js/kiosk-archive-book.js', 'storage/compiled/js')
   .js('resources/js/kiosk-map.js', 'storage/compiled/js')
@@ -78,6 +79,12 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
     //
   ])
   .postCss('resources/css/news-dashboard.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/review-queue.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/admin-console.css', 'storage/compiled/css', [
     //
   ])
   .postCss('resources/css/kiosk-archives.css', 'storage/compiled/css', [
@@ -148,6 +155,12 @@ mix.copy(
 mix.copy(
   "resources/js/sw-archives.js",
   "storage/compiled/js/sw-archives.js",
+)
+// Kiosk offline shell. mix.copy, not mix.js: webpack's module wrapper
+// breaks a service worker. Served from / by WelcomeController.serve_sw.
+mix.copy(
+  "resources/js/sw-kiosk.js",
+  "storage/compiled/js/sw-kiosk.js",
 )
 // Self-contained Leaflet plugin (IIFE) — vendored as-is. It ships with its
 // own embedded GeoJSON and needs no bundling; both kiosk-map and mobile-route

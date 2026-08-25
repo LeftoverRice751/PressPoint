@@ -7,6 +7,7 @@
     "watch-poll": "node ./node_modules/laravel-mix/bin/cli.js watch -- --watch-options-poll=1000",
     "hot": "node ./node_modules/laravel-mix/bin/cli.js watch --hot",
     "prod": "npm run production",
+    "test:js": "node --test tests/js/",
     "production": "node ./node_modules/laravel-mix/bin/cli.js --production"
   },
   "devDependencies": {

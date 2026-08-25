@@ -22,4 +22,6 @@ ROUTES = [
     Route.post("/trigger-video", "gears.EditorialController@play_video").name("video.push").middleware("auth"),
     Route.get("/storage/@path:any", "gears.VideoController@serve_storage"),
     Route.get("/sw-archives.js", "gears.VideoController@serve_sw"),
+    # Offline shell for the kiosk terminal -- see WelcomeController.serve_sw.
+    Route.get("/sw-kiosk.js", "kiosk.WelcomeController@serve_sw"),
 ]

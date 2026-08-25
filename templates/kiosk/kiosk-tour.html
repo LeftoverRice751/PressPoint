@@ -40,187 +40,15 @@
 
   <div id="sceneList">
     <ul class="scenes">
-
-      <a href="javascript:void(0)" class="scene" data-id="0-1">
-        <li class="text">1</li>
+      {#- Scene rows come from TourScenesCatalog (WelcomeController.virtual_tour),
+          the same parse of resources/js/data.js the dashboard's Tour Mapping page
+          reads. This used to be 45 hand-written anchors that had to be edited in
+          lockstep with every tour re-export. #}
+      {% for scene in tour_scenes %}
+      <a href="javascript:void(0)" class="scene" data-id="{{ scene.scene_id }}">
+        <li class="text">{{ scene.name }}</li>
       </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="1-3">
-        <li class="text">3</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="2-4">
-        <li class="text">4</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="3-5-3">
-        <li class="text">5-3</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="4-6">
-        <li class="text">6</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="5-7">
-        <li class="text">7</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="6-8">
-        <li class="text">8</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="7-9">
-        <li class="text">9</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="8-10">
-        <li class="text">10</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="9-11">
-        <li class="text">11</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="10-12">
-        <li class="text">12</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="11-13">
-        <li class="text">13</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="12-14">
-        <li class="text">14</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="13-15">
-        <li class="text">15</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="14-16">
-        <li class="text">16</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="15-17">
-        <li class="text">17</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="16-18">
-        <li class="text">18</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="17-19">
-        <li class="text">19</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="18-20">
-        <li class="text">20</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="19-21">
-        <li class="text">21</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="20-22">
-        <li class="text">22</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="21-23">
-        <li class="text">23</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="22-24">
-        <li class="text">24</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="23-25">
-        <li class="text">25</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="24-26">
-        <li class="text">26</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="25-27">
-        <li class="text">27</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="26-28">
-        <li class="text">28</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="27-29">
-        <li class="text">29</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="28-30">
-        <li class="text">30</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="29-31">
-        <li class="text">31</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="30-32">
-        <li class="text">32</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="31-33">
-        <li class="text">33</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="32-34">
-        <li class="text">34</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="33-35">
-        <li class="text">35</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="34-36">
-        <li class="text">36</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="35-37">
-        <li class="text">37</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="36-38">
-        <li class="text">38</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="37-39">
-        <li class="text">39</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="38-40">
-        <li class="text">40</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="39-41">
-        <li class="text">41</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="40-42">
-        <li class="text">42</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="41-43">
-        <li class="text">43</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="42-44">
-        <li class="text">44</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="43-45">
-        <li class="text">45</li>
-      </a>
-
-      <a href="javascript:void(0)" class="scene" data-id="44-46">
-        <li class="text">46</li>
-      </a>
-
+      {% endfor %}
     </ul>
   </div>
 
@@ -340,5 +168,6 @@
   <!-- The tour is a fixed fullscreen panorama, so its way out is pinned to the
        viewport rather than sitting in a flex shell like the other pages. -->
   {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False), back_fixed=True %}{% include 'partials/kiosk-back.html' %}{% endwith %}
+  {% include 'partials/kiosk-sw.html' %}
 </body>
 </html>

@@ -1088,7 +1088,10 @@ ensureTourDependencies()
 
     state.locations = locations;
     locations.forEach(function(loc) {
-      if (loc.is_start) {
+      // map_x/map_y are null for a location with no usable coordinates, and
+      // Number(null) is 0 -- leaving kioskStart at the CRS origin instead of
+      // unset. Check before converting.
+      if (loc.is_start && loc.map_y != null && loc.map_x != null) {
         // Pixel position, not the WGS84 on latitude/longitude — this map is
         // campus-map.png under CRS.Simple, same as the campus map page.
         state.kioskStart = [Number(loc.map_y), Number(loc.map_x)];
@@ -1389,6 +1392,7 @@ ensureTourDependencies()
     ensureMap().then(function(map) {
       // Leaflet needs a redraw after its container becomes visible.
       setTimeout(function() { map.invalidateSize(); }, 60);
+      if (location.map_y == null || location.map_x == null) return;
       var dest = [Number(location.map_y), Number(location.map_x)];
       drawRouteOnMap(map, location, dest);
 

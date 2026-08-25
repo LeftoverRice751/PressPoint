@@ -5,7 +5,7 @@ from masonite.views import View
 from app.exceptions.Handler import Handler
 from app.exceptions.InvalidCSRFTokenHandler import InvalidCSRFTokenHandler
 from app.rate_limiters import GuestAuthLimiter
-from app.services import Branding
+from app.services import Branding, Profiles
 from app.services.AssetVersion import asset_url
 from app.services.ImageDerivatives import news_image
 
@@ -41,6 +41,20 @@ class AppProvider(Provider):
         # Named asset_url, not asset: Masonite's ViewProvider already registers
         # an `asset(alias, filename)` helper that resolves filesystem disks.
         self.application.make(View).share({"asset_url": asset_url})
+
+        # Staff identity helpers. Shared as functions for the same reason as
+        # site_logo above: View._shared lives on the singleton, so sharing a
+        # value would freeze one user's name and avatar into every subsequent
+        # render — in a multi-worker, multi-editor app that means showing one
+        # editor another editor's profile border.
+        #
+        # Registered here in register(), not boot(): boot() runs per request
+        # after the template has already rendered.
+        self.application.make(View).share({
+            "display_name": Profiles.display_name,
+            "avatar_url": Profiles.avatar_url,
+            "user_initials": Profiles.initials,
+        })
 
         # Dispatched by masonite.exceptions.ExceptionHandler.handle(), which
         # looks up a container binding named exactly f"{ExceptionClass}Handler"

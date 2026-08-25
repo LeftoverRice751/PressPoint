@@ -1,3 +1,9 @@
+import {
+    accuracyVerdict,
+    exceedsWalkingSpeed,
+    isOffRoute,
+    canCountAsArrival,
+} from './route-gating.mjs';
 
 document.addEventListener('DOMContentLoaded', () => {
     const root = document.querySelector('.mobile-route');
@@ -46,6 +52,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // a stationary phone's GPS noise redraws everything on every reading
     // for no visible change.
     const TRACK_MIN_PIXEL_DELTA = 3;
+
+    // Accuracy gating, the off-route threshold and the speed gate all live in
+    // ./route-gating.mjs so they can be unit-tested without a DOM. See that
+    // file for why each threshold is where it is.
 
     // No reading for this long flips the status pill to "searching" and
     // fades the puck -- tells the user tracking hasn't died, just stalled.
@@ -214,6 +224,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // map_y/map_x are the 2.5D layer's pixel space — the only coordinates
     // safe to draw with. See the note in resources/js/kiosk-map.js.
     const layerLatLng = (location) => {
+        // Number(null) is 0, which passes Number.isFinite -- so an explicit
+        // null check has to come first, or a location the server reports as
+        // having no coordinates lands at the CRS origin instead of being
+        // skipped.
+        if (location == null || location.map_y == null || location.map_x == null) return null;
         const y = Number(location && location.map_y);
         const x = Number(location && location.map_x);
         if (!Number.isFinite(y) || !Number.isFinite(x)) return null;
@@ -556,6 +571,8 @@ document.addEventListener('DOMContentLoaded', () => {
         waiting: 'Waiting for GPS…',
         tracking: 'Tracking your walk',
         searching: 'Searching for GPS…',
+        imprecise: 'Weak GPS — position approximate',
+        'off-route': 'You look off the path — head back to the orange line.',
         unavailable: 'Location unavailable — tap Finish when you arrive.',
     };
 
@@ -565,7 +582,13 @@ document.addEventListener('DOMContentLoaded', () => {
         els.statusPill.textContent = STATUS_TEXT[state] || '';
         if (puckMarker) {
             const el = puckMarker.getElement();
-            if (el) el.classList.toggle('mobile-route__puck--stale', state === 'searching');
+            if (el) {
+                el.classList.toggle(
+                    'mobile-route__puck--stale',
+                    state === 'searching' || state === 'imprecise',
+                );
+                el.classList.toggle('mobile-route__puck--off-route', state === 'off-route');
+            }
         }
     };
 
@@ -624,15 +647,48 @@ document.addEventListener('DOMContentLoaded', () => {
     let arrived = false;
     let sessionData = null;
     let closeReadingStreak = 0;
+    // Last fix we actually believed, for the speed gate.
+    let lastAcceptedFix = null;
+    // Timestamp of the fix that last incremented the arrival streak, so one
+    // cached fix redelivered N times can't satisfy AUTO_ARRIVAL_STREAK.
+    let lastArrivalFixAt = null;
+
+    // True when two consecutive fixes are further apart than a person could
+    // have walked in the elapsed time -- so at least one of them is wrong.
+    const isImplausibleJump = (lat, lng, at) => {
+        if (!lastAcceptedFix) return false;
+        const metres = haversineMeters(lastAcceptedFix.lat, lastAcceptedFix.lng, lat, lng);
+        return exceedsWalkingSpeed(metres, (at - lastAcceptedFix.at) / 1000);
+    };
 
     const handlePosition = (position) => {
         if (arrived || !sessionData) return;
-        const { latitude, longitude } = position.coords;
+        const { latitude, longitude, accuracy } = position.coords;
+
+        // Use the fix's own timestamp, not Date.now(): the browser is allowed
+        // to redeliver a single cached fix, and counting those as distinct
+        // readings is what made AUTO_ARRIVAL_STREAK toothless.
+        const fixAt = Number.isFinite(position.timestamp) ? position.timestamp : Date.now();
+        // An absent accuracy is treated as unusable, not as perfect.
+        const precision = Number.isFinite(accuracy) ? accuracy : Infinity;
+
+        const verdict = accuracyVerdict(precision);
+        if (verdict === 'reject' || isImplausibleJump(latitude, longitude, fixAt)) {
+            // Deliberately does NOT stamp lastReadingAt: a stream of rejected
+            // fixes is a stall from the user's point of view, and the
+            // searching watch should keep saying so rather than showing a
+            // confidently wrong position.
+            setTrackingStatus('searching');
+            return;
+        }
+
         lastReadingAt = Date.now();
-        setTrackingStatus('tracking');
+        lastAcceptedFix = { lat: latitude, lng: longitude, at: fixAt };
+        const imprecise = verdict === 'imprecise';
 
         const matrix = sessionData.geo_transform;
         let projection = null;
+        let offRoute = false;
         if (matrix && fullRoutePath && fullRoutePath.length >= 2) {
             const layerPoint = wgs84ToLayerPoint(matrix, latitude, longitude);
             if (layerPoint) {
@@ -644,11 +700,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 ) >= TRACK_MIN_PIXEL_DELTA;
                 if (moved) {
                     lastTrackedPoint = point;
-                    projection = projectOntoPath(point, fullRoutePath);
-                    updateRoutePath(trimPathFromProjection(fullRoutePath, projection));
-                    if (projection) setInstruction(fullRoutePath, projection.segmentIndex);
+                    const candidate = projectOntoPath(point, fullRoutePath);
+                    // distSq was computed and thrown away here. It is the only
+                    // thing that says whether the snap means anything:
+                    // projectOntoPath() always returns *some* nearest point, so
+                    // a fix right off the campus still trimmed the route.
+                    offRoute = !!candidate && isOffRoute(candidate.distSq);
+                    if (candidate && !offRoute) {
+                        projection = candidate;
+                        updateRoutePath(trimPathFromProjection(fullRoutePath, projection));
+                        setInstruction(fullRoutePath, projection.segmentIndex);
+                    }
                 }
             }
+        }
+
+        if (offRoute) {
+            setTrackingStatus('off-route');
+        } else {
+            setTrackingStatus(imprecise ? 'imprecise' : 'tracking');
         }
 
         const destinationWgs84 = sessionData.destination && sessionData.destination.wgs84;
@@ -659,8 +729,16 @@ document.addEventListener('DOMContentLoaded', () => {
             updateMetrics(remaining);
 
             const straightLineDistance = haversineMeters(latitude, longitude, destLat, destLng);
-            if (straightLineDistance <= AUTO_ARRIVAL_RADIUS_METERS) {
-                closeReadingStreak += 1;
+            // "Within 10m" reported by a fix that is itself only accurate to
+            // +/-30m is not evidence of anything. Requiring the reading's own
+            // error bar to be tighter than the arrival radius is what stops
+            // the walk ending short of the building; the manual "I've Arrived"
+            // button covers the case where GPS never gets this good.
+            if (canCountAsArrival(precision, straightLineDistance, AUTO_ARRIVAL_RADIUS_METERS)) {
+                if (fixAt !== lastArrivalFixAt) {
+                    lastArrivalFixAt = fixAt;
+                    closeReadingStreak += 1;
+                }
                 if (closeReadingStreak >= AUTO_ARRIVAL_STREAK) {
                     completeRoute();
                 }
@@ -671,10 +749,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const handlePositionError = (error) => {
-        if (error && error.code === error.PERMISSION_DENIED) {
+        if (!error) return;
+        if (error.code === error.PERMISSION_DENIED) {
             setTrackingStatus('unavailable');
             stopTracking();
+            return;
         }
+        // POSITION_UNAVAILABLE and TIMEOUT used to be swallowed entirely, so a
+        // phone that had quietly lost its fix looked identical to one that was
+        // tracking fine. watchPosition keeps retrying after both, so this is a
+        // status change, not a teardown.
+        setTrackingStatus('searching');
     };
 
     const startTracking = () => {
@@ -686,7 +771,9 @@ document.addEventListener('DOMContentLoaded', () => {
         armSearchingWatch();
         watchId = navigator.geolocation.watchPosition(handlePosition, handlePositionError, {
             enableHighAccuracy: true,
-            maximumAge: 5000,
+            // 0, not 5000: a cached fix redelivered as though it were new is
+            // exactly what defeated the arrival streak guard.
+            maximumAge: 0,
             timeout: 20000,
         });
     };

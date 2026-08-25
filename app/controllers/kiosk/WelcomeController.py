@@ -1,5 +1,6 @@
 """A WelcomeController Module."""
 
+import os
 from datetime import datetime, timedelta
 
 from masonite.configuration import config
@@ -10,6 +11,7 @@ from masonite.views import View
 from app.models.Events import Events
 from app.models.News import News
 from app.services.DashboardContext import group_news_slots
+from app.services.TourScenesCatalog import TourScenesCatalog
 
 
 class WelcomeController(Controller):
@@ -46,10 +48,28 @@ class WelcomeController(Controller):
         )
 
     def _build_flash_articles(self):
+        # Imported here, not at module scope, for the same reason show() does:
+        # NewsController imports DashboardContext, which imports the models this
+        # module also pulls in, and a top-level import closes the cycle.
+        from app.controllers.gears.NewsController import _news_is_public
+
         flash_articles = []
 
         for news_item in list(News.all() or []):
             try:
+                # The ticker is served publicly and unauthenticated at
+                # /kiosk/flash-updates, and it emits the headline AND the full
+                # body. Without this gate every draft and every story awaiting
+                # an admin's review broadcast themselves to the campus terminal
+                # for 24 hours after being touched — which would make the
+                # review workflow decorative, since a story could reach the
+                # screen here without ever being approved.
+                #
+                # Same gate as the front page and the lead teaser use, so all
+                # three agree on what "public" means.
+                if not _news_is_public(news_item):
+                    continue
+
                 reference_at = getattr(news_item, "published_at", None) or getattr(news_item, "created_at", None)
                 self._append_flash_article(
                     flash_articles,
@@ -129,7 +149,44 @@ class WelcomeController(Controller):
         return self.coming_soon(view, "AI Assistant")
 
     def virtual_tour(self, view: View):
-        return view.render("kiosk/kiosk-tour", {"active_nav": "tour"})
+        # The scene-list drawer is rendered from the catalog rather than
+        # hardcoded in the template, so a tour re-export only means dropping a
+        # new resources/js/data.js in place. all_scenes() returns [] instead of
+        # raising if that file is missing, so a broken catalog still renders a
+        # page (empty drawer) rather than a 500.
+        return view.render(
+            "kiosk/kiosk-tour",
+            {
+                "active_nav": "tour",
+                "tour_scenes": TourScenesCatalog.all_scenes(),
+            },
+        )
 
     def org_chart(self, response: Response):
         return response.redirect(name="kiosk.org-board")
+
+    def serve_sw(self, response: Response):
+        """Serve the kiosk service worker from the site root.
+
+        Same reasoning as VideoController.serve_sw (sw-archives.js) and
+        MapController.serve_sw (sw-mobile-route.js): the file is compiled to
+        storage/compiled/js/ and would normally be served from /assets/, but a
+        worker's scope is capped at the directory it is served from, so from
+        there it could only control /assets/. Serving it from the root and
+        declaring Service-Worker-Allowed: / is what lets it control /kiosk.
+        no-store keeps browsers re-checking the script itself, so a new worker
+        rolls out on the next navigation instead of up to a week later
+        (nginx puts `expires 7d` on /assets/).
+        """
+        sw_path = os.path.realpath(
+            os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "../../../storage/compiled/js/sw-kiosk.js",  # app/controllers/kiosk/ -> repo root
+            )
+        )
+        if not os.path.isfile(sw_path):
+            return "Not found", 404
+        response.header("Content-Type", "application/javascript; charset=utf-8")
+        response.header("Service-Worker-Allowed", "/")
+        response.header("Cache-Control", "no-store")
+        return response.download("sw-kiosk.js", sw_path, force=False)

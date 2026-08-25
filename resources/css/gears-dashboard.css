@@ -2094,3 +2094,267 @@ body {
     padding-top: 0.9rem;
     border-top: 1px solid var(--ink-rule);
 }
+
+/* ── Account chrome: notification bell + profile border ──────────────────────
+ *
+ * Both sit at the top right of .gears-hero. The hero rewrites only its three
+ * data-hero-* text nodes on a page switch, so these siblings persist across
+ * panels and are laid out once here.
+ *
+ * The logout control used to be .gears-sidebar__logout in the sidebar footer;
+ * it now lives in .gears-profile__panel. Solid fills only, per the house rule.
+ */
+
+.gears-hero__aside {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+/* ── Bell ────────────────────────────────────────────────────────────────── */
+
+.gears-bell { position: relative; }
+
+.gears-bell__button {
+  position: relative;
+  appearance: none;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--ink);
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+}
+
+.gears-bell__button:hover { background: var(--surface-sunken); }
+
+.gears-bell__badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--n-white);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.gears-bell__panel,
+.gears-profile__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  background: var(--surface-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lift);
+}
+
+.gears-bell__panel { width: 340px; }
+
+.gears-bell__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.gears-bell__title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--ink-strong);
+}
+
+.gears-bell__clear {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.gears-bell__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  /* A recent-activity list, not an archive: the server caps it at 20 and
+     there is no "load more", so a fixed max height is honest. */
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.gears-bell__item {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.gears-bell__item:hover { background: var(--surface-sunken); }
+
+/* Unread marker: a solid accent bar, not a background tint, so it stays
+   legible against the hover fill. */
+.gears-bell__item.is-unread {
+  border-left: 3px solid var(--accent);
+  padding-left: 11px;
+}
+
+.gears-bell__item-title {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--ink-strong);
+}
+
+.gears-bell__item-message {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+}
+
+.gears-bell__item-date {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+
+.gears-bell__empty {
+  padding: 18px 14px;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+/* ── Profile border ──────────────────────────────────────────────────────── */
+
+.gears-profile { position: relative; }
+
+.gears-profile__button {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: inherit;
+  padding: 5px 14px 5px 5px;
+  cursor: pointer;
+}
+
+.gears-profile__button:hover { background: var(--surface-sunken); }
+
+.gears-profile__avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: var(--surface-sunken);
+}
+
+.gears-profile__avatar--initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.gears-profile__name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gears-profile__chevron {
+  font-size: 0.7rem;
+  color: var(--ink-muted);
+}
+
+.gears-profile__panel {
+  width: 220px;
+  padding: 6px;
+}
+
+.gears-profile__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 6px;
+}
+
+.gears-profile__identity-name {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--ink-strong);
+}
+
+.gears-profile__identity-role {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+}
+
+.gears-profile__logout-form { margin: 0; }
+
+.gears-profile__item {
+  appearance: none;
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--ink);
+  /* Every item in this menu is a <button> today, but the menu is shared by
+     both consoles (gears/shell.html) and an <a> to another page is the
+     obvious next addition -- without this it would render underlined while
+     its neighbours did not. */
+  text-decoration: none;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.gears-profile__item:hover { background: var(--surface-sunken); }
+
+.gears-profile__item--danger { color: var(--danger); }
+
+.gears-profile__item--danger:hover {
+  background: var(--danger);
+  color: var(--n-white);
+}
+
+@media (max-width: 720px) {
+  /* The name is the first thing to go — the avatar still identifies the
+     account, and the hero has little room on a narrow screen. */
+  .gears-profile__name { display: none; }
+  .gears-bell__panel { width: min(340px, calc(100vw - 32px)); }
+}

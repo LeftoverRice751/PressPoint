@@ -19990,3 +19990,2203 @@ Traceback (most recent call last):
     raise RouteNotFoundException(
 masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
 
+2026-08-23 21:54:39,491 RouteNotFoundException: GET /pano/tiles/0-1/preview.jpg : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /pano/tiles/0-1/preview.jpg : 404 Not Found
+
+2026-08-23 21:54:39,516 RouteNotFoundException: GET /app-files/index.html : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /app-files/index.html : 404 Not Found
+
+2026-08-23 22:43:55,830 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-23 22:44:04,453 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-23 22:44:36,951 RouteNotFoundException: GET /assets/js/axios.cjs.map : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/js/axios.cjs.map : 404 Not Found
+
+2026-08-23 22:45:17,209 RouteNotFoundException: GET /media/system/js/core.js : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /media/system/js/core.js : 404 Not Found
+
+2026-08-23 22:45:20,669 RouteNotFoundException: GET /wp-includes/js/jquery/jquery.js : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /wp-includes/js/jquery/jquery.js : 404 Not Found
+
+2026-08-23 22:47:47,584 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-23 22:47:48,674 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-23 23:06:29,193 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-23 23:06:38,284 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-23 23:11:52,176 RouteNotFoundException: GET /loaderio-aaf90dce3c08d7d7e7f5b892c30a2052.txt : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /loaderio-aaf90dce3c08d7d7e7f5b892c30a2052.txt : 404 Not Found
+
+2026-08-23 23:11:53,634 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-23 23:14:42,666 RouteNotFoundException: GET /wp-login.php : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /wp-login.php : 404 Not Found
+
+2026-08-23 23:24:28,492 RouteNotFoundException: GET /media/system/js/core.js : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /media/system/js/core.js : 404 Not Found
+
+2026-08-24 06:27:31,716 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:27:31,958 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:27:39,947 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:27:39,994 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:27:51,240 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:27:51,299 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:28:32,638 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:28:32,696 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:29:01,008 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:29:01,032 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:29:14,363 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:29:14,390 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:29:23,997 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:29:24,065 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:09,852 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:09,887 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:13,037 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:13,082 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:15,083 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:15,109 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:18,671 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:18,703 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:21,393 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:21,420 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:25,639 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:25,672 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:28,710 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:28,737 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:31,970 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:31,990 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:36,854 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:36,884 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:41,436 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:41,466 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:46,161 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:46,195 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 06:37:51,581 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 06:37:51,606 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 09:08:43,034 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 09:08:45,215 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 09:09:44,204 RouteNotFoundException: GET /assets/js/axios.cjs.map : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/js/axios.cjs.map : 404 Not Found
+
+2026-08-24 09:14:47,743 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 09:14:48,476 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 09:36:09,260 RouteNotFoundException: GET /.env : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /.env : 404 Not Found
+
+2026-08-24 19:37:41,613 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 19:37:41,669 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 19:39:20,211 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 19:39:20,264 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 19:39:21,920 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 19:39:21,946 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 19:39:23,606 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 19:39:23,628 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 19:39:25,303 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 19:39:25,337 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 21:10:50,891 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 21:10:50,942 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 21:12:37,386 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 21:12:37,445 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 23:14:51,476 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-24 23:14:52,020 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-24 23:20:25,793 RouteNotFoundException: GET /wp-login.php : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /wp-login.php : 404 Not Found
+
+2026-08-25 09:39:03,740 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 09:39:04,247 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 09:40:43,278 RouteNotFoundException: GET /assets/js/axios.cjs.map : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/js/axios.cjs.map : 404 Not Found
+
+2026-08-25 09:47:43,817 RouteNotFoundException: GET /assets/js/axios.cjs.map : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/js/axios.cjs.map : 404 Not Found
+
+2026-08-25 09:52:13,569 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 09:52:14,106 RouteNotFoundException: GET /assets/js/openseadragon.js.map : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/js/openseadragon.js.map : 404 Not Found
+
+2026-08-25 09:52:14,236 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 10:12:34,652 RouteNotFoundException: GET /sitemap.xml : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /sitemap.xml : 404 Not Found
+
+2026-08-25 10:23:19,107 RouteNotFoundException: Could not find route with the name 'dashboard.view'
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 73, in boot
+    raise exception
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 51, in boot
+    data = route.get_response(self.application)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/routes/HTTPRoute.py", line 234, in get_response
+    response = app.resolve(getattr(controller, self.controller_method), *params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/app/controllers/auth/LoginController.py", line 29, in store
+    return response.redirect(name="dashboard.view")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/response/response.py", line 193, in redirect
+    url = self._get_url_from_route_name(name, params, query_params)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/response/response.py", line 206, in _get_url_from_route_name
+    raise RouteNotFoundException(f"Could not find route with the name '{name}'")
+masonite.exceptions.exceptions.RouteNotFoundException: Could not find route with the name 'dashboard.view'
+
+2026-08-25 10:23:39,805 KeyError: 'auth'
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 45, in boot
+    route_middleware = self.application.make("middleware").run_route_middleware(
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/middleware/middleware_capsule.py", line 68, in run_route_middleware
+    middleware_response = getattr(route_middleware(), callback)(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/middleware/route/ThrottleRequestsMiddleware.py", line 22, in before
+    limiter = RateLimiter.get_limiter(limit_string)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/rates/RateLimiter.py", line 34, in get_limiter
+    return self.limiters[name]
+           ~~~~~~~~~~~~~^^^^^^
+KeyError: 'auth'
+
+2026-08-25 10:24:53,265 RouteNotFoundException: Could not find route with the name 'dashboard.view'
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 73, in boot
+    raise exception
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 51, in boot
+    data = route.get_response(self.application)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/routes/HTTPRoute.py", line 234, in get_response
+    response = app.resolve(getattr(controller, self.controller_method), *params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/app/controllers/auth/LoginController.py", line 29, in store
+    return response.redirect(name="dashboard.view")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/response/response.py", line 193, in redirect
+    url = self._get_url_from_route_name(name, params, query_params)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/response/response.py", line 206, in _get_url_from_route_name
+    raise RouteNotFoundException(f"Could not find route with the name '{name}'")
+masonite.exceptions.exceptions.RouteNotFoundException: Could not find route with the name 'dashboard.view'
+
+2026-08-25 12:14:43,556 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 12:14:51,278 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:15:54,573 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:15:55,599 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:41:54,534 RouteNotFoundException: GET /sitemap.xml : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /sitemap.xml : 404 Not Found
+
+2026-08-25 15:56:48,749 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:56:49,121 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:56:49,181 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:56:49,199 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:56:51,847 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:56:51,989 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:56:52,040 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:56:52,061 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:56:54,152 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:56:54,352 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:56:54,498 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:56:54,511 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:56:57,508 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:56:57,542 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:56:57,579 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:56:57,597 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:56:57,697 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:56:57,727 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:56:57,765 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:56:57,781 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:12,238 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:12,511 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:12,578 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:12,594 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:15,259 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:15,326 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:15,371 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:15,390 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:17,646 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:17,824 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:17,889 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:17,904 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:20,976 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:21,005 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:21,053 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:21,079 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:21,183 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:21,215 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:21,261 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:21,274 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:56,498 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:56,805 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:56,923 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:56,974 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:57,060 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:59,494 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:59,576 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:57:59,750 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:57:59,766 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:01,366 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:01,683 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:01,814 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:01,826 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:21,288 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:21,547 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:21,657 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:21,700 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:21,775 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:24,214 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:24,258 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:24,489 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:24,512 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:26,239 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:26,381 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:26,414 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:26,428 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:54,053 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:54,343 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:54,452 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:54,497 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:54,574 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:57,020 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:57,100 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:57,152 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:57,166 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:58,252 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:58,455 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:58:58,642 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:58:58,655 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:59:50,596 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:59:50,894 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:59:50,968 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:59:50,981 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:59:53,620 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:59:53,673 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:59:53,815 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:59:53,836 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:59:55,105 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:59:55,151 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:59:55,196 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:59:55,217 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:59:55,991 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:59:56,134 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 15:59:56,183 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 15:59:56,200 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 16:00:24,691 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 16:00:24,872 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 16:00:25,014 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 16:00:25,025 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 16:00:27,591 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 16:00:27,642 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 16:00:27,821 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff2 : 404 Not Found
+
+2026-08-25 16:00:27,848 RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /assets/fonts/Moderniz/moderniz-regular.woff : 404 Not Found
+
+2026-08-25 16:02:39,158 RouteNotFoundException: GET /sw-kiosk.js : 404 Not Found
+Traceback (most recent call last):
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/foundation/response_handler.py", line 37, in response_handler
+    application.resolve(provider.boot)
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/container/container.py", line 259, in resolve
+    return obj(*objects)
+           ^^^^^^^^^^^^^
+  File "/home/leftoverrice/Downloads/presspoint/venv/lib/python3.11/site-packages/masonite/providers/RouteProvider.py", line 30, in boot
+    raise RouteNotFoundException(
+masonite.exceptions.exceptions.RouteNotFoundException: GET /sw-kiosk.js : 404 Not Found
+

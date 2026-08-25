@@ -18,7 +18,7 @@ from app.models.News import News
 from app.models.Organization import Organization
 from app.models.Video import Video
 from app.services.AjaxResponses import json_success, json_errors
-from app.services import DashboardContext
+from app.services import AdminConsole, DashboardContext, Notifications, ReviewQueue
 
 
 #: section -> (context builder, partial template, context key holding the rows)
@@ -42,6 +42,24 @@ FRAGMENTS = {
         "gears/partials/organizations-list",
         "organizations",
     ),
+    # The admin's queue of stories editors have submitted. Polled like any
+    # other section so a submission appears without the admin reloading — the
+    # only signal they get, since submissions deliberately do not raise a bell
+    # notification.
+    "review": (
+        ReviewQueue.review_context,
+        "gears/partials/review-queue",
+        "review_stories",
+    ),
+    # The admin console's count tiles. Same 20s poll, so the queue depth on
+    # /users is never staler than the queue itself sitting next to it.
+    # `review_stories` as the rows_key is not a placeholder: the pending count
+    # IS the number this fragment's payload should report.
+    "admin-stats": (
+        AdminConsole.stats_context,
+        "gears/partials/admin-stats",
+        "review_stories",
+    ),
 }
 
 #: section -> model to read the change stamp from
@@ -53,29 +71,58 @@ STAMP_MODELS = {
     "news-canvas": News,
     # `fragment` indexes this dict unguarded, so every FRAGMENTS key needs one.
     "org-board-organizations": Organization,
+    # Submissions are News rows, so the news stamp already moves when one
+    # arrives. Pointing at the same model keeps the queue live without a
+    # second aggregate.
+    "review": News,
+    # Three of the four tiles are News figures, and the fourth (editor
+    # accounts) only changes through this console's own form, which does a
+    # full redirect. News is the right thing to watch.
+    "admin-stats": News,
 }
 
 
-def _section_stamp(model):
-    """A cheap marker that moves whenever the section's rows change.
-
-    Creates and updates advance `max(updated_at)`; deletes change the count.
-    Both are SQL aggregates, so polling never loads the rows themselves.
-    """
-    try:
-        count = model.count()
-        latest_row = model.max("updated_at").first()
-        latest = getattr(latest_row, "updated_at", None) if latest_row else None
-    except Exception:
-        return "0:"
-
-    return f"{count or 0}:{latest if latest is not None else ''}"
+# Moved to DashboardContext so NewsController.layout can share it as an
+# optimistic-concurrency token without importing this controller. Kept as an
+# alias because the fragment/stamps methods below and the tests both name it.
+_section_stamp = DashboardContext.section_stamp
 
 
 class DashboardController(Controller):
-    def show(self, views: View, request: Request):
+    def show(self, views: View, request: Request, response: Response):
+        try:
+            user = request.user() if callable(getattr(request, "user", None)) else None
+        except Exception:
+            user = None
+
+        is_admin = (getattr(user, "role", "") or "").strip().lower() == "admin"
+
+        # Admins have their own console at /users -- counts, the approval
+        # queue, and editor accounts. This is the editors' composer, and an
+        # admin landing here is how the approval queue ended up buried inside
+        # a surface its own audience never opens. Checked before
+        # full_context() so the redirect does not pay for a page nobody
+        # renders. Only show() redirects: fragment() and stamps() below are
+        # what the admin console itself polls, and bouncing those would break
+        # its live refresh.
+        if is_admin:
+            return response.redirect(name="users.view")
+
         default_page = (request.input("page") or "dashboard").strip() or "dashboard"
-        return views.render("gears/dashboard", DashboardContext.full_context(default_page))
+        context = DashboardContext.full_context(default_page)
+
+        # The shell needs to know who is looking at it: the profile border
+        # renders their name and avatar. Not part of full_context() because
+        # that is request-agnostic — the fragment endpoints call the same
+        # builders.
+        context["current_user"] = user or None
+        # Presentation only, and now always False here. The composer still
+        # reads it for data-can-publish; the server downgrades an editor's
+        # publish intent regardless (NewsController._resolve_status_for_actor).
+        context["is_admin"] = is_admin
+        context["unread_notifications"] = Notifications.unread_count(getattr(user, "id", None))
+
+        return views.render("gears/dashboard", context)
 
     def fragment(self, section, view: View, response: Response):
         entry = FRAGMENTS.get((section or "").strip().lower())
@@ -94,8 +141,18 @@ class DashboardController(Controller):
             "stamp": _section_stamp(STAMP_MODELS[section]),
         })
 
-    def stamps(self, response: Response):
+    def stamps(self, request: Request, response: Response):
+        # The bell's unread count rides along on the poll the dashboard already
+        # runs every 20 seconds rather than adding a second timer. It is a
+        # COUNT against the (user_id, read_at) index, so it costs about the
+        # same as one more stamp.
+        try:
+            user = request.user() if callable(getattr(request, "user", None)) else None
+        except Exception:
+            user = None
+
         return json_success(response, payload={
+            "unread_notifications": Notifications.unread_count(getattr(user, "id", None)),
             "stamps": {
                 name: _section_stamp(model)
                 for name, model in STAMP_MODELS.items()

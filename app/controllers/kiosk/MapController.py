@@ -199,7 +199,12 @@ class MapController(Controller):
         """
         name = getattr(location, "name", "") or ""
         location_id = getattr(location, "id", None)
-        layer_point = Campus25dMapping.layer_point(location) or (0.0, 0.0)
+        # `or (0.0, 0.0)` used to live here, which silently reported the CRS
+        # origin for a location with missing coordinates -- indistinguishable
+        # to the client from a real point at the map's corner. Emit null and
+        # let the client refuse to draw or route instead of quietly placing
+        # the building off-campus.
+        layer_point = Campus25dMapping.layer_point(location)
 
         return {
             "id": location_id,
@@ -207,8 +212,8 @@ class MapController(Controller):
             "type": getattr(location, "type", "") or "",
             "latitude": float(getattr(location, "latitude", 0) or 0),
             "longitude": float(getattr(location, "longitude", 0) or 0),
-            "map_x": layer_point[0],
-            "map_y": layer_point[1],
+            "map_x": layer_point[0] if layer_point else None,
+            "map_y": layer_point[1] if layer_point else None,
             "is_routable": bool(getattr(location, "is_routable", False)),
             "is_start": name.strip().lower() == KIOSK_START_LOCATION_NAME,
             "route": (route_map or {}).get(location_id),
@@ -226,6 +231,12 @@ class MapController(Controller):
         `latitude`/`longitude` columns.
         """
         x, y = destination_payload["map_x"], destination_payload["map_y"]
+        # None once `_serialize_location` stopped inventing (0.0, 0.0) for a
+        # location with no usable coordinates. There is nothing to measure
+        # arrival against in that case, so say so rather than handing the
+        # phone a finish line at the map's corner.
+        if x is None or y is None:
+            return None
         lat, lng = CampusGeoTransform.layer_point_to_wgs84(x, y)
         return [lat, lng]
 

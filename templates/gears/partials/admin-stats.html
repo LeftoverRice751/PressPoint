@@ -1,0 +1,57 @@
+{# The admin console's count tiles.
+
+   Rendered both by /users and by /gears/dashboard/fragment/admin-stats, from
+   this same partial, so a figure refreshed by the 20s poll can never differ
+   from a freshly-rendered one.
+
+   The composition is the point: three of these numbers are background, and
+   one is a job. Queue depth gets the whole left column and a type size
+   nothing else on the page comes near; editors, published and drafts are a
+   quiet column of figures beside it. Anyone who opens this page should know
+   in one glance whether something is waiting on them. #}
+<div class="admin-metrics">
+  <article class="admin-lead{% if not awaiting_review %} admin-lead--clear{% endif %}">
+    <p class="admin-lead__label">Awaiting review</p>
+
+    {% if awaiting_review %}
+    <p class="admin-lead__value">{{ awaiting_review }}</p>
+    <p class="admin-lead__age">
+      {% if oldest_pending_days is none %}
+      {{ 'Story' if awaiting_review == 1 else 'Stories' }} submitted by your editors
+      {% elif oldest_pending_days == 0 %}
+      Oldest submitted today
+      {% elif oldest_pending_days == 1 %}
+      Oldest waiting 1 day
+      {% else %}
+      Oldest waiting {{ oldest_pending_days }} days
+      {% endif %}
+    </p>
+    {# A data-page-link button, so the shell's own delegated tab handler
+       (gears-dashboard.js) switches panels. No JavaScript of this page's own. #}
+    <button type="button" class="primary-button admin-lead__action" data-page-link="review">
+      Review them
+    </button>
+    {% else %}
+    <p class="admin-lead__clear-title">Nothing waiting</p>
+    <p class="admin-lead__age">Every submission has been decided.</p>
+    {% endif %}
+  </article>
+
+  <div class="admin-figures">
+    <div class="admin-figure">
+      <span class="admin-figure__label">Editors</span>
+      <span class="admin-figure__value">{{ editor_count or 0 }}</span>
+    </div>
+    <div class="admin-figure">
+      <span class="admin-figure__label">Published to kiosk</span>
+      <span class="admin-figure__value">{{ published_count or 0 }}</span>
+    </div>
+    {# Drafts and sent-back stories are one bucket on purpose: a rejection
+       writes status="draft" plus a reason (ReviewController._decide), so the
+       database does not distinguish "never submitted" from "sent back". #}
+    <div class="admin-figure">
+      <span class="admin-figure__label">Drafts and sent back</span>
+      <span class="admin-figure__value">{{ draft_count or 0 }}</span>
+    </div>
+  </div>
+</div>

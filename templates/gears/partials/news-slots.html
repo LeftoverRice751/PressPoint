@@ -7,7 +7,13 @@
   <thead>
     <tr>
       <th scope="col" class="wp-posts-table__col-title">Title</th>
+      {# "Author" is the staff account that created the story (news.author_id).
+         It used to render `news.source`, which is the story's SOURCE LINE
+         ("PIO", "Correspondent") — a different thing entirely, and one an
+         editor types freely, so the column could not be trusted to say who
+         actually wrote anything. Source now has its own column. #}
       <th scope="col">Author</th>
+      <th scope="col">Source</th>
       <th scope="col">Slot</th>
       <th scope="col">Status</th>
       <th scope="col">Date</th>
@@ -29,6 +35,9 @@
           <button type="button" class="wp-row-action wp-row-action--trash" data-news-library-trash>Trash</button>
         </div>
       </td>
+      {# Blank for stories written before author_id existed, and for any whose
+         author account has since been deleted (ON DELETE SET NULL). #}
+      <td>{{ news_authors.get(news.author_id) if news.author_id and news_authors else '—' }}</td>
       <td>{{ news.source if news.source else 'Unspecified' }}</td>
       <td><span class="wp-posts-table__slot">{{ _slot_label }}</span></td>
       <td><span class="news-story-card__status news-story-card__status--{{ _story_status | lower }}">{{ _story_status | capitalize }}</span></td>
@@ -36,7 +45,7 @@
     </tr>
     {% else %}
     <tr>
-      <td colspan="5"><div class="empty-state empty-state--embedded">No data available.</div></td>
+      <td colspan="6"><div class="empty-state empty-state--embedded">No data available.</div></td>
     </tr>
     {% endfor %}
   </tbody>

@@ -787,3 +787,328 @@
 
   document.querySelectorAll(AJAX_SELECTORS).forEach(ajaxSubmit);
 })();
+
+// ── Account chrome: notification bell + profile menu ─────────────────────────
+//
+// Both live in the hero header (top right). The hero's text is rewritten on
+// every page switch, but only the three data-hero-* nodes are touched, so these
+// siblings survive — they are set up once here rather than re-bound per panel.
+//
+// The logout form moved into the profile dropdown from the sidebar footer. It
+// is still a real POST form with the data-confirm-* attributes confirm-modal.js
+// hooks, so the "Log out?" dialog behaves exactly as it did before.
+(function () {
+  var root = document.querySelector('[data-dashboard-shell]');
+  if (!root) return;
+
+  var tokenMeta = document.querySelector('meta[name="csrf-token"]');
+  var csrf = tokenMeta ? tokenMeta.getAttribute('content') : '';
+
+  function toast(msg, isError) {
+    if (window.GearsDashboard && window.GearsDashboard.notify) {
+      window.GearsDashboard.notify(msg, { error: !!isError });
+    }
+  }
+
+  function postJson(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN': csrf,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/json'
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(body || {})
+    }).then(function (r) { return r.json().catch(function () { return { ok: false }; }); });
+  }
+
+  // ── Dropdown plumbing shared by the bell and the profile menu ──────────
+  // Only one may be open at a time, both close on outside-click and Escape,
+  // and aria-expanded tracks the panel so the state is announced.
+  var openPanel = null;
+
+  function closeOpenPanel() {
+    if (!openPanel) return;
+    openPanel.panel.hidden = true;
+    openPanel.toggle.setAttribute('aria-expanded', 'false');
+    openPanel = null;
+  }
+
+  function bindDropdown(toggle, panel, onOpen) {
+    if (!toggle || !panel) return;
+
+    toggle.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      var isOpen = openPanel && openPanel.panel === panel;
+      closeOpenPanel();
+      if (isOpen) return;
+      panel.hidden = false;
+      toggle.setAttribute('aria-expanded', 'true');
+      openPanel = { panel: panel, toggle: toggle };
+      if (onOpen) onOpen();
+    });
+
+    // Clicks inside the panel must not bubble out to the document handler
+    // below, or opening the panel would immediately close it. The one
+    // exception is a [data-page-link] — the dropdown's "Profile" entry — whose
+    // handler is the shell's delegate on [data-dashboard-shell], an *ancestor*
+    // of this panel. Swallowing it here left that button dead: the dropdown
+    // opened, the entry highlighted, and nothing happened. Let it through and
+    // the document handler closes the dropdown on the way past.
+    panel.addEventListener('click', function (event) {
+      if (event.target.closest('[data-page-link]')) return;
+      event.stopPropagation();
+    });
+  }
+
+  document.addEventListener('click', closeOpenPanel);
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeOpenPanel();
+  });
+
+  // ── Bell ────────────────────────────────────────────────────────────────
+  var bell = root.querySelector('[data-bell]');
+  if (bell) {
+    var bellToggle = bell.querySelector('[data-bell-toggle]');
+    var bellPanel = bell.querySelector('[data-bell-panel]');
+    var bellList = bell.querySelector('[data-bell-list]');
+    var bellCount = bell.querySelector('[data-bell-count]');
+    var bellReadAll = bell.querySelector('[data-bell-read-all]');
+
+    // Exposed so dashboard-live.js can push the count from the poll it already
+    // runs, instead of this file starting a second timer for one integer.
+    window.GearsBell = {
+      setCount: function (count) {
+        if (!bellCount) return;
+        var n = parseInt(count, 10) || 0;
+        bellCount.textContent = n > 99 ? '99+' : String(n);
+        bellCount.hidden = n === 0;
+      }
+    };
+
+    function renderNotifications(items) {
+      if (!bellList) return;
+      bellList.innerHTML = '';
+
+      if (!items || !items.length) {
+        var empty = document.createElement('li');
+        empty.className = 'gears-bell__empty';
+        empty.textContent = 'Nothing new.';
+        bellList.appendChild(empty);
+        return;
+      }
+
+      items.forEach(function (item) {
+        var li = document.createElement('li');
+        li.className = 'gears-bell__item' + (item.read ? '' : ' is-unread');
+
+        var title = document.createElement('p');
+        title.className = 'gears-bell__item-title';
+        // textContent, not innerHTML: the message carries an admin's free-text
+        // rejection reason straight from the database.
+        title.textContent = item.title || '';
+        li.appendChild(title);
+
+        if (item.message) {
+          var msg = document.createElement('p');
+          msg.className = 'gears-bell__item-message';
+          msg.textContent = item.message;
+          li.appendChild(msg);
+        }
+
+        if (item.date) {
+          var when = document.createElement('p');
+          when.className = 'gears-bell__item-date';
+          when.textContent = item.date;
+          li.appendChild(when);
+        }
+
+        // Reading one marks it read and takes you to the story it is about.
+        li.addEventListener('click', function () {
+          if (!item.read && item.id) {
+            postJson('/gears/notifications/' + item.id + '/read').then(function (json) {
+              if (json && json.ok && window.GearsBell) window.GearsBell.setCount(json.unread);
+            });
+            li.classList.remove('is-unread');
+            item.read = true;
+          }
+          if (item.link && window.switchPage && item.link.indexOf('page=') !== -1) {
+            closeOpenPanel();
+            window.switchPage(item.link.split('page=')[1]);
+          }
+        });
+
+        bellList.appendChild(li);
+      });
+    }
+
+    // Fetched when opened, not on page load: most sessions never open the bell,
+    // and the badge count already comes free with the stamps poll.
+    bindDropdown(bellToggle, bellPanel, function () {
+      if (bellList) bellList.innerHTML = '<li class="gears-bell__empty">Loading…</li>';
+      fetch('/gears/notifications', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+        credentials: 'same-origin'
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (json) {
+          if (!json || !json.ok) {
+            if (bellList) bellList.innerHTML = '<li class="gears-bell__empty">Could not load notifications.</li>';
+            return;
+          }
+          renderNotifications(json.notifications);
+          if (window.GearsBell) window.GearsBell.setCount(json.unread);
+        })
+        .catch(function () {
+          if (bellList) bellList.innerHTML = '<li class="gears-bell__empty">Could not load notifications.</li>';
+        });
+    });
+
+    if (bellReadAll) {
+      bellReadAll.addEventListener('click', function () {
+        postJson('/gears/notifications/read-all').then(function (json) {
+          if (json && json.ok) {
+            if (window.GearsBell) window.GearsBell.setCount(0);
+            bell.querySelectorAll('.gears-bell__item').forEach(function (el) {
+              el.classList.remove('is-unread');
+            });
+          }
+        });
+      });
+    }
+  }
+
+  // ── Profile menu ────────────────────────────────────────────────────────
+  var profile = root.querySelector('[data-profile-menu]');
+  if (profile) {
+    bindDropdown(
+      profile.querySelector('[data-profile-toggle]'),
+      profile.querySelector('[data-profile-panel]')
+    );
+    // The "Profile" entry carries data-page-link, so the shell's existing nav
+    // handler switches panels for it and the document click handler closes the
+    // dropdown — nothing extra to bind here.
+  }
+
+  // ── Profile panel: name and avatar ──────────────────────────────────────
+  var profileForm = root.querySelector('[data-profile-form]');
+  if (profileForm) {
+    var nameInput = profileForm.querySelector('[data-profile-name]');
+    var saveBtn = profileForm.querySelector('[data-profile-save]');
+    var avatarInput = profileForm.querySelector('[data-profile-avatar-input]');
+    var avatarRemove = profileForm.querySelector('[data-profile-avatar-remove]');
+    var avatarPreview = profileForm.querySelector('[data-profile-avatar-preview]');
+    var initialsEl = profileForm.querySelector('[data-profile-initials]');
+
+    // Keeps the profile panel and the hero border showing the same thing after
+    // a save, without a page reload.
+    function applyProfile(data) {
+      if (!data) return;
+      var heroName = root.querySelector('.gears-profile__name');
+      var heroIdentity = root.querySelector('.gears-profile__identity-name');
+      if (heroName) heroName.textContent = data.display_name || '';
+      if (heroIdentity) heroIdentity.textContent = data.display_name || '';
+
+      var hasAvatar = !!data.avatar_url;
+      if (avatarPreview) {
+        // Cache-bust: replacing a picture keeps the same <img> element, and
+        // the browser would otherwise reuse the old bytes for the new URL.
+        avatarPreview.src = hasAvatar ? data.avatar_url + '?v=' + Date.now() : '';
+        avatarPreview.hidden = !hasAvatar;
+      }
+      if (initialsEl) {
+        initialsEl.textContent = data.initials || '?';
+        initialsEl.hidden = hasAvatar;
+      }
+      if (avatarRemove) avatarRemove.hidden = !hasAvatar;
+
+      // The hero border shows either an <img> or an initials <span>; which one
+      // exists depends on what the server rendered, so update whichever is there.
+      var heroAvatar = root.querySelector('.gears-profile__avatar');
+      if (heroAvatar) {
+        if (hasAvatar && heroAvatar.tagName === 'IMG') {
+          heroAvatar.src = data.avatar_url + '?v=' + Date.now();
+        } else if (!hasAvatar && heroAvatar.tagName !== 'IMG') {
+          heroAvatar.textContent = data.initials || '?';
+        } else {
+          // The element type has to change (initials <-> photo). A reload is
+          // the honest way to do that rather than swapping nodes and risking
+          // the two surfaces disagreeing.
+          window.location.reload();
+        }
+      }
+    }
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function () {
+        var value = nameInput ? nameInput.value.trim() : '';
+        if (!value) { toast('Please enter your name.', true); return; }
+
+        saveBtn.disabled = true;
+        postJson('/gears/profile', { full_name: value })
+          .then(function (json) {
+            saveBtn.disabled = false;
+            if (json && json.ok) {
+              applyProfile(json);
+              toast((json.messages && json.messages[0]) || 'Profile updated.', false);
+            } else {
+              toast((json && json.errors && json.errors[0]) || 'Could not save your profile.', true);
+            }
+          })
+          .catch(function () {
+            saveBtn.disabled = false;
+            toast('Request failed — please try again.', true);
+          });
+      });
+    }
+
+    if (avatarInput) {
+      avatarInput.addEventListener('change', function () {
+        var file = avatarInput.files && avatarInput.files[0];
+        if (!file) return;
+
+        // multipart, not JSON: the server reads this through
+        // ImageUploads.save_uploaded_image, which validates the actual bytes.
+        var data = new FormData();
+        data.append('avatar', file);
+
+        fetch('/gears/profile/avatar', {
+          method: 'POST',
+          headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+          credentials: 'same-origin',
+          body: data
+        })
+          .then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
+          .then(function (json) {
+            if (json && json.ok) {
+              applyProfile(json);
+              toast((json.messages && json.messages[0]) || 'Picture updated.', false);
+            } else {
+              toast((json && json.errors && json.errors[0]) || 'Could not upload that picture.', true);
+            }
+            // Let the same file be chosen again after a failure.
+            avatarInput.value = '';
+          })
+          .catch(function () {
+            toast('Upload failed — please try again.', true);
+            avatarInput.value = '';
+          });
+      });
+    }
+
+    if (avatarRemove) {
+      avatarRemove.addEventListener('click', function () {
+        postJson('/gears/profile/avatar/remove').then(function (json) {
+          if (json && json.ok) {
+            applyProfile(json);
+            toast('Picture removed.', false);
+          } else {
+            toast('Could not remove your picture.', true);
+          }
+        });
+      });
+    }
+  }
+})();

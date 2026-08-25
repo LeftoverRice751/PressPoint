@@ -22,6 +22,13 @@
      @import anywhere, so the board silently rendered Georgia and system-ui. */
   --ob-font-display: var(--font-display);
   --ob-font-ui: var(--font-body);
+  /* One source for the card width. The deck's centering padding is derived from
+     it, so the two must never be set independently — see .ob-deck__viewport.
+     Viewport-relative on purpose: a `%` basis would resolve against the very
+     padding it feeds, and the calc would be circular. `.ob-page` is
+     position:fixed/inset:0 and body is overflow:hidden, so 100vw is exactly the
+     deck width with no scrollbar to subtract. */
+  --ob-card-width: min(70rem, 88vw);
 }
 
 * {
@@ -110,9 +117,14 @@ body {
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  scroll-padding-inline: 3rem;
   scrollbar-width: none;
-  padding: 1.75rem 3rem 2rem;
+  padding-block: 1.75rem 2rem;
+  /* Half the leftover space on each side, so a card's midpoint can always reach
+     the viewport's midpoint. With the old fixed 3rem gutter, the first card, the
+     last card, and a lone card had no scroll range left to center into and sat
+     flush against the leading edge — only the middle cards ever snapped centred.
+     max() keeps 3rem as the floor once the card hits its 70rem cap. */
+  padding-inline: max(3rem, calc((100vw - var(--ob-card-width)) / 2));
   cursor: grab;
 }
 
@@ -127,7 +139,7 @@ body {
 
 /* ===== Card (one per department) ===== */
 .ob-card {
-  flex: 0 0 min(70rem, 88%);
+  flex: 0 0 var(--ob-card-width);
   scroll-snap-align: center;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -471,13 +483,14 @@ body {
   .ob-masthead {
     padding: 1.5rem 1.5rem 1rem;
   }
+  /* Retune the card width and the gutter floor together — the centering calc
+     above reads --ob-card-width, so overriding flex-basis alone would desync it.
+     Longhands only: a `padding` shorthand here would reset padding-inline. */
   .ob-deck__viewport {
-    padding: 1.25rem 1.25rem 1.5rem;
+    --ob-card-width: 92vw;
+    padding-block: 1.25rem 1.5rem;
+    padding-inline: max(1.25rem, calc((100vw - var(--ob-card-width)) / 2));
     gap: 1rem;
-    scroll-padding-inline: 1.25rem;
-  }
-  .ob-card {
-    flex-basis: 92%;
   }
   .ob-card__header {
     padding: 1.5rem 1.5rem 1rem;
@@ -504,7 +517,7 @@ body {
   .ob-masthead__title {
     font-size: 2rem;
   }
-  .ob-card {
-    flex-basis: 95%;
+  .ob-deck__viewport {
+    --ob-card-width: 95vw;
   }
 }

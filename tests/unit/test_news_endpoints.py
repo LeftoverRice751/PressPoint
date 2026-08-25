@@ -42,8 +42,24 @@ def _mock_response():
 
 
 def _where_side_effect(records):
+    """Fake for News.where covering the two query shapes layout() issues.
+
+    `where("id", n).first()` looks a record up. `where("layout_type", slot).count()`
+    is the slot-capacity guard, and it counts the records this fake holds so a
+    test that sets up two mains actually trips the cap rather than comparing a
+    bare Mock against an int.
+    """
     def _side_effect(field, value):
         query = Mock()
+
+        if field == "layout_type":
+            query.count.return_value = sum(
+                1
+                for record in records.values()
+                if getattr(record, "layout_type", None) == value
+            )
+            return query
+
         # ids may arrive as int or str depending on caller
         candidates = [value]
         if str(value).isdigit():
@@ -452,6 +468,21 @@ class NewsDestroyDerivativeCleanupTestCase(TestCase):
                     os.remove(path)
 
 
+def _mock_actor_request(inputs, role=None, user_id=7):
+    """A store() request signed in as `role`.
+
+    Scheduling only applies to a publish-intent status, and only an admin can
+    write one — an editor's "published" is downgraded to "review" before
+    _apply_scheduling ever sees it. So these tests have to say who is asking;
+    a bare Mock() request is nobody, and nobody cannot publish.
+    """
+    request = Mock()
+    request.input.side_effect = lambda key: inputs.get(key)
+    request.header.return_value = None
+    request.user.return_value = Mock(id=user_id, role=role) if role else None
+    return request
+
+
 class NewsStoreSchedulingTestCase(TestCase):
     def _store_inputs(self, published_at, status="published"):
         return {
@@ -475,9 +506,7 @@ class NewsStoreSchedulingTestCase(TestCase):
         future = (datetime.now() + timedelta(days=2)).isoformat()
 
         inputs = self._store_inputs(future)
-        request = Mock()
-        request.input.side_effect = lambda key: inputs.get(key)
-        request.header.return_value = None
+        request = _mock_actor_request(inputs, role="admin")
 
         storage = Mock()
         response = _mock_response()
@@ -492,14 +521,16 @@ class NewsStoreSchedulingTestCase(TestCase):
 
         self.assertEqual(create_mock.call_args.kwargs["status"], "scheduled")
 
-    def test_past_published_at_keeps_default_status(self):
+    # Renamed from test_past_published_at_keeps_default_status: the default is
+    # now "draft", so "the default status" no longer means "published". What
+    # this actually asserts is that a past date does not trip the scheduling
+    # upgrade — the status an admin asked for survives.
+    def test_past_published_at_stays_published(self):
         controller = NewsController()
         past = (datetime.now() - timedelta(days=2)).isoformat()
 
         inputs = self._store_inputs(past)
-        request = Mock()
-        request.input.side_effect = lambda key: inputs.get(key)
-        request.header.return_value = None
+        request = _mock_actor_request(inputs, role="admin")
 
         storage = Mock()
         response = _mock_response()

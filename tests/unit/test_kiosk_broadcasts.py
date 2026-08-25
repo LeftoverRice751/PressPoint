@@ -82,6 +82,13 @@ class VideoBroadcastTestCase(TestCase):
         request.input.side_effect = lambda key: {"title": "Campus Update", "video": video_file}.get(
             key
         )
+        # A plain form post, not AJAX. Without this every request.header() call
+        # hands AjaxResponses.wants_json a Mock, which it substring-matches
+        # against and blows up on; a bare Mock() request stopped being a
+        # sufficient stand-in once upload() grew its JSON branch. None is what
+        # Masonite returns for a header the browser did not send, so this is
+        # the redirect-with-flash path the assertions below describe.
+        request.header.return_value = None
 
         storage_disk = Mock()
         storage_disk.put_file.return_value = "videos/campus-update.mp4"

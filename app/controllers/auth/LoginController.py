@@ -24,14 +24,32 @@ class LoginController(Controller):
             request.set_user(login)
             response.cookie("token", getattr(login, "remember_token", "") or "")
             role = (getattr(login, "role", "") or "").strip().lower()
+            
+            # "gears.dashboard" is the route's registered name
+            # (routes/dashboard.py). redirect(name=...) resolves a NAME, not a
+            # path -- an unregistered one raises RouteNotFoundException and the
+            # sign-in dies on the error page instead of landing anywhere.
+            if role == "editor":
+                return response.redirect(name="gears.dashboard")
 
             if role == "superadmin":
                 return response.redirect(name="auth.super_admin")
 
+            # /users is the admin console -- counts, the review queue, and
+            # editor accounts. Admins never land on the editor dashboard;
+            # DashboardController.show() bounces them back here if they try.
             if role == "admin":
                 return response.redirect(name="users.view")
 
-            return response.redirect(name="gears.dashboard")
+            # Every branch above matched a known role, so getting here means
+            # the credentials were CORRECT and the account's role is empty or
+            # misspelled -- the live users.role column has drifted before.
+            # Reporting that as a bad password sends whoever hits it chasing a
+            # problem they do not have.
+            return response.redirect(name="auth.login").with_errors(
+                ["This account has no role assigned. An admin needs to set one "
+                 "before you can sign in."]
+            )
 
         # Go back to login page
         return response.redirect(name="auth.login").with_errors(

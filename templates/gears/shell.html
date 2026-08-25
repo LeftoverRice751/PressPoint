@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}GEARS CMS{% endblock %}
+{# Staff surface: dark maroon theme, so an editor can never mistake the
+   dashboard for the public kiosk. Defined in kiosk-tokens.css. #}
+{% block html_attrs %} data-theme="gears"{% endblock %}
+
+{#
+  The GEARS shell: sidebar, hero, notification bell, profile menu.
+
+  Extracted from gears/dashboard.html when /users became a second console
+  (the admin's: counts, review queue, editor accounts). Both pages wear the
+  same chrome, and an editor and an admin have to see the same bell and the
+  same profile menu -- two copies of 180 lines of markup would have drifted
+  the first time either was touched.
+
+  What a child template fills in:
+
+    shell_data          extra data-* attributes on the [data-dashboard-shell]
+                        root (page-specific wiring; the shell needs none)
+    shell_default_page  the panel gears-dashboard.js opens on load. MUST name
+                        a panel this page actually renders -- switchPage()
+                        hides every panel when the name matches none, which
+                        is a silently blank main area, not an error.
+    shell_nav           the sidebar's <nav> contents
+    shell_panels        the <section class="gears-page"> list
+
+  `head` and `js` come from base.html; override them with {{ super() }} to
+  keep the shell's own stylesheets and scripts.
+#}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset_url('css/gears-dashboard.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/confirm-modal.css') }}" />
+{# review-queue.css is misnamed: it also owns .dashboard-nav__badge (the
+   sidebar count) and .gears-panel--narrow, both shell-level. #}
+<link rel="stylesheet" href="{{ asset_url('css/review-queue.css') }}" />
+{% endblock %}
+
+{% block content %}
+<div
+  class="gears-dashboard"
+  data-dashboard-shell
+  data-default-page="{% block shell_default_page %}{{ default_page if default_page else 'dashboard' }}{% endblock %}"
+{% block shell_data %}{% endblock %}
+>
+  <aside class="gears-sidebar">
+    <div class="gears-sidebar__brand">
+      <div class="gears-sidebar__mark" aria-hidden="true"><img src="{{ site_logo() }}" alt="Gears logo"></div>
+      <div>
+        <div class="gears-sidebar__eyebrow">The Gears Publication</div>
+        <div class="gears-sidebar__title">GEARS CMS</div>
+      </div>
+    </div>
+
+    <nav class="dashboard-nav" aria-label="Dashboard navigation" role="tablist">
+{% block shell_nav %}{% endblock %}
+    </nav>
+
+    {# The logout form used to live here. It moved into the profile dropdown in
+       the hero (top right) so every account control sits in one place. #}
+  </aside>
+
+  <main class="gears-main">
+    <header class="gears-hero" data-hero>
+      <div>
+        <p class="gears-hero__eyebrow" data-hero-eyebrow>Dashboard</p>
+        <h1 class="gears-hero__title" data-hero-title>Real-time overview of your kiosk content</h1>
+        <p class="gears-hero__subtitle" data-hero-subtitle>Manage events, news, campus locations, kiosk videos, and screen control from one place.</p>
+      </div>
+      <div class="gears-hero__aside">
+        <span class="gears-hero__chip" data-news-state-badge aria-live="polite" hidden></span>
+
+        {# Notification bell. The count is server-rendered so the badge is
+           correct on first paint, then kept current by the 20s stamps poll
+           (dashboard-live.js) rather than a timer of its own. #}
+        <div class="gears-bell" data-bell>
+          <button type="button"
+                  class="gears-bell__button"
+                  data-bell-toggle
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-label="Notifications">
+            <span class="gears-bell__icon" aria-hidden="true">◔</span>
+            <span class="gears-bell__badge"
+                  data-bell-count
+                  aria-live="polite"
+                  {% if not unread_notifications %}hidden{% endif %}>{{ unread_notifications or 0 }}</span>
+          </button>
+
+          <div class="gears-bell__panel" data-bell-panel hidden>
+            <div class="gears-bell__head">
+              <span class="gears-bell__title">Notifications</span>
+              <button type="button" class="gears-bell__clear" data-bell-read-all>Mark all read</button>
+            </div>
+            {# Filled by gears-dashboard.js from /gears/notifications when the
+               bell is opened — not on page load, since most sessions never
+               open it. #}
+            <ul class="gears-bell__list" data-bell-list>
+              <li class="gears-bell__empty">Loading…</li>
+            </ul>
+          </div>
+        </div>
+
+        {# Profile border. Replaces the sidebar logout: the account controls
+           now live together in one place, the way every other CMS puts them. #}
+        <div class="gears-profile" data-profile-menu>
+          <button type="button"
+                  class="gears-profile__button"
+                  data-profile-toggle
+                  aria-haspopup="true"
+                  aria-expanded="false">
+            {% set _avatar = avatar_url(current_user) %}
+            {% if _avatar %}
+            <img class="gears-profile__avatar" src="{{ _avatar }}" alt="">
+            {% else %}
+            <span class="gears-profile__avatar gears-profile__avatar--initials" aria-hidden="true">{{ user_initials(current_user) }}</span>
+            {% endif %}
+            <span class="gears-profile__name">{{ display_name(current_user) }}</span>
+            <span class="gears-profile__chevron" aria-hidden="true">▾</span>
+          </button>
+
+          <div class="gears-profile__panel" data-profile-panel hidden>
+            <div class="gears-profile__identity">
+              <span class="gears-profile__identity-name">{{ display_name(current_user) }}</span>
+              <span class="gears-profile__identity-role">{{ current_user.role if current_user else '' }}</span>
+            </div>
+            <button type="button" class="gears-profile__item" data-page-link="profile">Profile</button>
+            {# Moved here from the sidebar footer. The data-confirm-* attributes
+               are what confirm-modal.js hooks, so the "Log out?" dialog still
+               guards it exactly as before. #}
+            <form method="POST" action="{{ route('auth.logout') }}" class="gears-profile__logout-form">
+              {{ csrf_field | safe }}
+              <button type="submit"
+                      class="gears-profile__item gears-profile__item--danger"
+                      data-confirm="You'll be signed out of GEARS CMS."
+                      data-confirm-title="Log out?"
+                      data-confirm-label="Log out"
+                      data-confirm-cancel="Stay">Log out</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </header>
+
+{% block shell_panels %}{% endblock %}
+  </main>
+</div>
+{% endblock %}
+
+{% block js %}
+<script src="{{ asset_url('js/confirm-modal.js') }}" defer></script>
+<script src="{{ asset_url('js/gears-dashboard.js') }}" defer></script>
+<script src="{{ asset_url('js/dashboard-live.js') }}" defer></script>
+{% endblock %}

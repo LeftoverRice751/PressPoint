@@ -10,6 +10,13 @@
  *
  * To bust the cache after replacing archive files, bump CACHE_NAME below
  * (e.g. pp-archives-v2). The activate handler deletes old-named caches.
+ *
+ * Phone surface only (/m/archives) as of the kiosk offline work. The kiosk
+ * terminal runs sw-kiosk.js instead, which carries this same /storage/Archives/
+ * cache-first block alongside its shell caching -- both workers claim scope /,
+ * so running the two on one device meant them racing over the same requests.
+ * partials/kiosk-sw.html unregisters this worker when it finds it on a kiosk.
+ * mobile-archives.js still registers it, and must keep doing so.
  */
 
 const CACHE_NAME = 'pp-archives-v1';

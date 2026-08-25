@@ -13,6 +13,10 @@ ROUTES = [
     Route.get("/users", "gears.UserController@view").name("users.view").middleware("auth", "admin"),
     Route.post("/users", "gears.UserController@store").name("users.store").middleware("auth", "admin"),
     Route.delete("/users/@id", "gears.UserController@destroy").name("users.destroy").middleware("auth", "admin"),
+    # Declared before the "/users/@id" wildcard would ever be consulted for a
+    # POST, and guarded by "auth" alone rather than "auth", "admin": a session
+    # that has lost its admin role still needs a way out.
+    Route.post("/users/logout", "gears.UserController@logout").name("users.logout").middleware("auth"),
     Route.post("/change-password", "auth.PasswordResetController@store_changed_password").middleware("throttle:auth").name("auth.change-password.store"),
     Route.get("/change-password", "auth.PasswordResetController@change_password").name("auth.change-password"),
 ]

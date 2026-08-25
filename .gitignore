@@ -23,3 +23,8 @@ databases/seeds
 
 # git worktrees
 .worktrees
+
+# Panorama tiles: ~360 MB of Marzipano cube tiles for the kiosk virtual tour.
+# Deployed by rsync, not git (see the Virtual tour section in CLAUDE.md).
+# The scene catalog (resources/js/data.js) and pano/vendor + pano/img stay tracked.
+storage/public/pano/tiles/

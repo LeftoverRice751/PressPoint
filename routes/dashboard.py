@@ -15,6 +15,24 @@ ROUTES = [
     Route.delete("/archives/dashboard/@id", "kiosk.ArchivesController@destroy").name("archives.destroy").middleware("auth"),
     Route.post("/events/dashboard", "gears.EventController@store").name("events.store").middleware("auth"),
     Route.post("/events/dashboard/archive", "gears.EventController@extract_from_pdf").name("events.archive").middleware("auth"),
+    # Editorial review. These are the first role-gated routes in this file —
+    # everything else here is "auth" only, so any signed-in account reaches it.
+    # Approving puts a story on a public campus screen, so it takes "admin".
+    Route.get("/gears/review/@id/preview", "gears.ReviewController@preview").name("review.preview").middleware("auth", "admin"),
+    Route.post("/gears/review/@id/approve", "gears.ReviewController@approve").name("review.approve").middleware("auth", "admin"),
+    Route.post("/gears/review/@id/reject", "gears.ReviewController@reject").name("review.reject").middleware("auth", "admin"),
+    # Self-service profile. "auth" only and always scoped to request.user() —
+    # there is deliberately no /profile/@id, so no account can edit another.
+    Route.post("/gears/profile", "gears.ProfileController@update").name("profile.update").middleware("auth"),
+    Route.post("/gears/profile/avatar", "gears.ProfileController@upload_avatar").name("profile.avatar").middleware("auth"),
+    Route.post("/gears/profile/avatar/remove", "gears.ProfileController@remove_avatar").name("profile.avatar.remove").middleware("auth"),
+    # The bell. "auth" only — every account has its own notifications, and each
+    # endpoint scopes its query to the signed-in user rather than to the role.
+    Route.get("/gears/notifications", "gears.NotificationController@index").name("notifications.index").middleware("auth"),
+    Route.post("/gears/notifications/read-all", "gears.NotificationController@read_all").name("notifications.read_all").middleware("auth"),
+    # Declared after "read-all" so the literal segment is matched before this
+    # wildcard would swallow it.
+    Route.post("/gears/notifications/@id/read", "gears.NotificationController@read").name("notifications.read").middleware("auth"),
     Route.post("/news/dashboard", "gears.NewsController@store").name("news.store").middleware("auth"),
     Route.post("/news/dashboard/layout", "gears.NewsController@layout").name("news.layout").middleware("auth"),
     Route.post("/news/dashboard/@id/body", "gears.NewsController@body").name("news.body").middleware("auth"),

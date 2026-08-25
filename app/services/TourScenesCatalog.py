@@ -20,8 +20,13 @@ _DATA_JS_PATH = os.path.join(
 # data.js sometimes carries a leading /* ... */ block comment (editor notes
 # about hotspot fields) before the assignment — strip that first, then the
 # `window.APP_DATA = ` prefix, then a trailing `;`.
+#
+# The Marzipano Tool emits `var APP_DATA = ` and we rewrite it to
+# `window.APP_DATA = ` on import (kiosk-tour.js reads it off window, and the
+# bare `var` form does not attach to window inside the mix bundle). Accept
+# both spellings so a raw, unedited re-export still parses here.
 _LEADING_COMMENT_RE = re.compile(r"^\s*/\*.*?\*/\s*", re.DOTALL)
-_PREFIX_RE = re.compile(r"^\s*window\.APP_DATA\s*=\s*", re.MULTILINE)
+_PREFIX_RE = re.compile(r"^\s*(?:window\.)?(?:var\s+)?APP_DATA\s*=\s*", re.MULTILINE)
 
 
 class TourScenesCatalog:

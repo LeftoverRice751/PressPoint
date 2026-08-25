@@ -1,0 +1,74 @@
+{# The signed-in account's own profile panel.
+
+   Shared by both consoles (gears/dashboard.html and gears/admin-console.html)
+   because the profile dropdown in gears/shell.html offers a
+   data-page-link="profile" button on every page that wears the shell -- and
+   switchPage() hides EVERY panel when the name matches none, so a console
+   without this panel answers that button with a blank screen.
+
+   Reached from the dropdown, not the sidebar: it is an account surface, not
+   a content one. #}
+    <section class="gears-page" data-page-panel="profile" id="panel-profile" role="tabpanel" aria-labelledby="nav-profile" data-hero-eyebrow="Account" data-hero-title="Your profile" data-hero-subtitle="Your name and picture appear on your stories and in the review queue." hidden>
+      <div class="gears-panel gears-panel--narrow" data-profile-form>
+        <div class="panel-header panel-header--compact">
+          <div>
+            <p class="panel-header__eyebrow">Identity</p>
+            <h3 class="panel-header__title">Name and picture</h3>
+          </div>
+        </div>
+
+        <div class="profile-editor">
+          <div class="profile-editor__avatar-block">
+            {% set _panel_avatar = avatar_url(current_user) %}
+            <img class="profile-editor__avatar"
+                 data-profile-avatar-preview
+                 src="{{ _panel_avatar }}"
+                 alt="Your profile picture"
+                 {% if not _panel_avatar %}hidden{% endif %}>
+            <span class="profile-editor__avatar profile-editor__avatar--initials"
+                  data-profile-initials
+                  {% if _panel_avatar %}hidden{% endif %}
+                  aria-hidden="true">{{ user_initials(current_user) }}</span>
+
+            <div class="profile-editor__avatar-actions">
+              {# JPEG/PNG/WEBP only, and the server re-checks by magic bytes —
+                 this accept attribute is a file-picker convenience, not the
+                 validation. #}
+              <label class="profile-editor__upload">
+                <input type="file" accept="image/jpeg,image/png,image/webp" data-profile-avatar-input hidden>
+                <span class="review-btn">Change picture</span>
+              </label>
+              <button type="button" class="review-btn review-btn--ghost" data-profile-avatar-remove {% if not _panel_avatar %}hidden{% endif %}>
+                Remove
+              </button>
+            </div>
+            <p class="profile-editor__hint">JPEG, PNG, or WEBP. Up to 4 MB.</p>
+          </div>
+
+          <div class="profile-editor__fields">
+            <label class="field">
+              <span class="field__label">Full name</span>
+              <input type="text"
+                     class="field__input"
+                     data-profile-name
+                     value="{{ current_user.full_name if current_user and current_user.full_name else '' }}"
+                     maxlength="80"
+                     placeholder="{{ current_user.username if current_user else '' }}">
+            </label>
+            <p class="profile-editor__hint">
+              Shown on your stories and in the admin's review queue. Leave it blank to keep using your username.
+            </p>
+
+            <label class="field">
+              <span class="field__label">Username</span>
+              <input type="text" class="field__input" value="{{ current_user.username if current_user else '' }}" disabled>
+            </label>
+            <p class="profile-editor__hint">
+              Your username and email are your sign-in credentials — ask an admin if either needs to change.
+            </p>
+
+            <button type="button" class="review-btn review-btn--approve" data-profile-save>Save profile</button>
+          </div>
+        </div>
+      </div>
+    </section>

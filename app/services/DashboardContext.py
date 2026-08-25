@@ -35,12 +35,74 @@ NEWS_STATUS_ALIASES = {
 NEWS_ALLOWED_STATUSES = {"draft", "review", "approved", "scheduled", "published", "archived"}
 
 
-def normalize_news_status(raw_status, default="approved"):
-    status = (raw_status or default or "approved").strip().lower()
+def normalize_news_status(raw_status, default="draft"):
+    """Mirror of NewsController._normalize_news_status, kept for the dashboard's
+    counting surfaces. Defaults to "draft" for the same reason: an unrecognised
+    status must never be treated as one that reaches the public kiosk."""
+    status = (raw_status or default or "draft").strip().lower()
     status = NEWS_STATUS_ALIASES.get(status, status)
     if status not in NEWS_ALLOWED_STATUSES:
-        return default or "approved"
+        return default or "draft"
     return status
+
+
+def section_stamp(model):
+    """A cheap marker that moves whenever a section's rows change.
+
+    Creates and updates advance `max(updated_at)`; deletes change the count.
+    Both are SQL aggregates, so polling never loads the rows themselves.
+
+    Lives here rather than in DashboardController because it has two callers
+    now: the 20s liveness poll, and NewsController.layout, which uses it as an
+    optimistic-concurrency token so a stale composer tab cannot overwrite
+    another editor's front page. Importing the controller from the controller
+    would be a cycle; both already import this module.
+    """
+    try:
+        count = model.count()
+        latest_row = model.max("updated_at").first()
+        latest = getattr(latest_row, "updated_at", None) if latest_row else None
+    except Exception:
+        return "0:"
+
+    return f"{count or 0}:{latest if latest is not None else ''}"
+
+
+def display_name(user):
+    """What to call a staff account on screen.
+
+    `full_name` is the name they chose; `username` is the login they were
+    issued. Falling back keeps every surface working for accounts that predate
+    the profile fields, which is all of them right now.
+    """
+    if not user:
+        return ""
+    return (getattr(user, "full_name", None) or getattr(user, "username", None) or "").strip()
+
+
+def author_names(news_items):
+    """Map users.id -> display name for the authors of `news_items`.
+
+    One query for the whole page. The Story Library renders every story, so
+    resolving the author per row would be an N+1 across the entire table — and
+    the composer re-renders that list on every live refresh.
+    """
+    wanted = {
+        getattr(item, "author_id", None)
+        for item in (news_items or [])
+        if getattr(item, "author_id", None)
+    }
+    if not wanted:
+        return {}
+
+    try:
+        rows = User.where_in("id", list(wanted)).get()
+    except Exception:
+        # Never let a byline lookup take the dashboard down; an unresolved
+        # author simply renders as blank, which is what it did before.
+        return {}
+
+    return {getattr(row, "id", None): display_name(row) for row in (rows or [])}
 
 
 def _by_id_desc(item):
@@ -160,7 +222,7 @@ def news_context():
         "archived": 0,
     }
     for news_item in news_items:
-        status = normalize_news_status(getattr(news_item, "status", None), default="approved")
+        status = normalize_news_status(getattr(news_item, "status", None))
         news_status_counts[status] = news_status_counts.get(status, 0) + 1
 
     return {
@@ -170,6 +232,15 @@ def news_context():
         "widget_news": slots["widget_news"],
         "news_status_counts": news_status_counts,
         "news_count": len(news_items),
+        # Seeds the composer's optimistic-concurrency token so the FIRST
+        # layout write from a freshly loaded page is already versioned. Without
+        # it the opening drag of a session is unguarded — exactly the window a
+        # long-open tab is most likely to be stale in.
+        "news_stamp": section_stamp(News),
+        # users.id -> display name, for the Story Library's Author column.
+        # Built once here rather than per row: the alternative is an N+1 across
+        # a table the composer renders in full.
+        "news_authors": author_names(news_items),
     }
 
 
@@ -418,6 +489,10 @@ def full_context(default_page="dashboard"):
     context.update(org_board_context())
     context.update(about_context())
     context.update(tour_context())
+    # No review_context() here any more. The approval queue moved off the
+    # editor dashboard onto the admin console at /users, which builds its own
+    # context in UserController.view() -- this function is the editors'
+    # surface, and it should not be paying for a query it no longer renders.
     context["default_page"] = default_page
 
     return context

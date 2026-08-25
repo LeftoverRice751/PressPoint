@@ -344,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
   prefetchUrls(coverUrls);
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw-archives.js', { scope: '/' })
+    navigator.serviceWorker.register('/sw-kiosk.js', { scope: '/' })
       .then((reg) => {
         const sw = reg.installing || reg.waiting || reg.active;
         if (!sw) return;

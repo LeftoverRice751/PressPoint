@@ -1,0 +1,174 @@
+{% extends "gears/shell.html" %}
+{% block title %}GEARS Admin{% endblock %}
+
+{# The admin's surface, at /users. Wears the same shell as the editors'
+   dashboard (gears/shell.html) because it is the same product -- but it
+   carries only admin work: what is waiting, the approval queue, and editor
+   accounts. Nothing here composes a story.
+
+   The three panels are tabs, not routes. ?page= picks the one that opens,
+   which is how ReviewController's non-AJAX fallback deep-links the queue. #}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />
+<link rel="stylesheet" href="{{ asset_url('css/admin-console.css') }}" />
+{% endblock %}
+
+{% block shell_default_page %}{{ default_page if default_page else 'dashboard' }}{% endblock %}
+
+{% block shell_nav %}
+<div class="dashboard-nav__group-label">EDITORIAL</div>
+<button type="button" class="dashboard-nav__link is-active" data-page-link="dashboard" id="nav-dashboard" role="tab" aria-controls="panel-dashboard" aria-selected="true" tabindex="0">
+  <span class="dashboard-nav__icon" aria-hidden="true">▣</span>
+  <span>Dashboard</span>
+</button>
+{# The badge is the admin's standing signal that a submission arrived --
+   submissions deliberately raise no bell notification, so without it the
+   queue is a page you have to remember to check. #}
+<button type="button" class="dashboard-nav__link dashboard-nav__link--review" data-page-link="review" id="nav-review" role="tab" aria-controls="panel-review" aria-selected="false" tabindex="-1">
+  <span class="dashboard-nav__icon" aria-hidden="true">◍</span>
+  <span>Review</span>
+  <span class="dashboard-nav__badge" data-review-count {% if not review_count %}hidden{% endif %}>{{ review_count or 0 }}</span>
+</button>
+
+<div class="dashboard-nav__group-label dashboard-nav__group-label--tools">ACCOUNTS</div>
+<button type="button" class="dashboard-nav__link" data-page-link="editors" id="nav-editors" role="tab" aria-controls="panel-editors" aria-selected="false" tabindex="-1">
+  <span class="dashboard-nav__icon" aria-hidden="true">◔</span>
+  <span>Editors</span>
+</button>
+{% endblock %}
+
+{% block shell_panels %}
+    {# ── Dashboard ───────────────────────────────────────────────────────
+       data-live-section="admin-stats" wires the tiles into the same 20s poll
+       the queue uses, so the count beside the queue never disagrees with it. #}
+    <section class="gears-page is-visible" data-page-panel="dashboard" data-live-section="admin-stats" data-live-target="[data-admin-stats-host]" id="panel-dashboard" role="tabpanel" aria-labelledby="nav-dashboard" data-hero-eyebrow="Overview" data-hero-title="Newsroom at a glance" data-hero-subtitle="What's waiting on you, and who's writing.">
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div data-admin-stats-host>
+        {% include 'gears/partials/admin-stats.html' %}
+      </div>
+    </section>
+
+    {# ── Review queue ────────────────────────────────────────────────────
+       The whole route is admin-gated, so unlike on the old dashboard there is
+       no is_admin wrapper here. #}
+    <section class="gears-page" data-page-panel="review" data-live-section="review" data-live-target="[data-review-queue-host]" id="panel-review" role="tabpanel" aria-labelledby="nav-review" data-hero-eyebrow="Editorial" data-hero-title="Stories awaiting review" data-hero-subtitle="Preview each submission exactly as the kiosk will show it, then approve it or send it back with a note." hidden>
+      <div class="gears-panel">
+        <div class="panel-header panel-header--compact">
+          <div>
+            <p class="panel-header__eyebrow">Approval queue</p>
+            <h3 class="panel-header__title">Submitted by editors</h3>
+          </div>
+          <p class="panel-header__subtitle">Nothing here is visible on the kiosk until you approve it.</p>
+        </div>
+        <div data-review-queue-host>
+          {% include 'gears/partials/review-queue.html' %}
+        </div>
+      </div>
+    </section>
+
+    {# ── Editors ─────────────────────────────────────────────────────────
+       Deliberately NOT carrying data-section-form / data-upload-form: those
+       selectors are bound at document level by gears-dashboard.js, which
+       would hijack these into AJAX submits expecting a dashboard-shaped
+       response. Both forms post and redirect, the way they always have. #}
+    <section class="gears-page" data-page-panel="editors" id="panel-editors" role="tabpanel" aria-labelledby="nav-editors" data-hero-eyebrow="Accounts" data-hero-title="Editors" data-hero-subtitle="Create an account to give someone access to the composer, or remove one." hidden>
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Accounts</p>
+          <h2 class="section-head__title">Add an editor</h2>
+        </div>
+      </div>
+
+      <div class="page-card">
+        <form class="admin-invite" action="{{ route('users.store', {}, False) }}" method="post">
+          {{ csrf_field | safe }}
+          <label class="field" for="editor-username">
+            <span class="field__label">Username</span>
+            <input type="text" name="username" id="editor-username" class="field__input" placeholder="jdelacruz" required>
+          </label>
+          <label class="field" for="editor-email">
+            <span class="field__label">Email</span>
+            <input type="email" name="email" id="editor-email" class="field__input" placeholder="editor@lspu.edu.ph" required>
+          </label>
+          <button type="submit" class="primary-button">Create account</button>
+        </form>
+        <p class="admin-invite__note">A generated password is emailed to this address. Only editor accounts can be created or removed here.</p>
+      </div>
+
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Accounts</p>
+          <h2 class="section-head__title">Current editors</h2>
+        </div>
+      </div>
+
+      <div class="page-card">
+        <div class="table-responsive">
+          <table class="events-table events-table--compact" aria-label="Editor accounts">
+            <thead>
+              <tr>
+                <th scope="col">Editor</th>
+                <th scope="col">Email</th>
+                <th scope="col">Remove</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for user in users %}
+              <tr>
+                <td>{{ display_name(user) }}</td>
+                <td>{{ user.email }}</td>
+                <td>
+                  <form action="{{ route('users.destroy', {'id': user.id}, False) }}" method="post" class="admin-remove-form">
+                    {{ csrf_field | safe }}
+                    <input type="hidden" name="__method" value="DELETE">
+                    <button type="submit" class="ghost-button ghost-button--danger"
+                            data-confirm="They lose access to the composer immediately. Stories they wrote stay published."
+                            data-confirm-title="Remove {{ display_name(user) }}?"
+                            data-confirm-label="Remove"
+                            data-confirm-cancel="Keep">Remove</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="3" class="empty-state empty-state--embedded">
+                  No editor accounts yet. Create one to let someone start writing.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    {% include 'gears/partials/profile-panel.html' %}
+{% endblock %}
+
+{% block js %}
+{{ super() }}
+{# After gears-dashboard.js and dashboard-live.js: it calls GearsDashboard.notify
+   for toasts and DashboardLive.refresh to reconcile the queue after a decision. #}
+<script src="{{ asset_url('js/review-queue.js') }}" defer></script>
+{% endblock %}

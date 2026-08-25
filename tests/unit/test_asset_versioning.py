@@ -85,6 +85,12 @@ class AssetVersioningTestCase(TestCase):
                     continue
                 # The helper's own output is fine; a bare literal is not.
                 for match in re.finditer(r"[\"'](/assets/[^\"']*)[\"']", line):
+                    # The bare directory prefix is not a link to anything --
+                    # asset_url() always yields a filename -- so it cannot
+                    # carry a stale-cache bug. partials/kiosk-sw.html compares
+                    # against it to decide what the service worker may cache.
+                    if match.group(1) == "/assets/":
+                        continue
                     offenders.append(
                         f"{template.relative_to(_TEMPLATES)}:{number} {match.group(1)}"
                     )

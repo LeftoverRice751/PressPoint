@@ -335,6 +335,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // readout; drawing with them puts the feature a full image height off
     // the campus, which is exactly the bug this replaced.
     const layerLatLng = (location) => {
+        // Number(null) is 0, which passes Number.isFinite -- so an explicit
+        // null check has to come first, or a location the server reports as
+        // having no coordinates lands at the CRS origin instead of being
+        // skipped.
+        if (location == null || location.map_y == null || location.map_x == null) return null;
         const y = Number(location?.map_y);
         const x = Number(location?.map_x);
         if (!Number.isFinite(y) || !Number.isFinite(x)) return null;

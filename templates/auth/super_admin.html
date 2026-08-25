@@ -6,10 +6,14 @@
 
 {% block content %}
 <section class="auth-panel auth-panel--wide">
-    <div class="auth-panel__header">
+    <div class="auth-panel__header auth-panel__header--with-action">
         <div class="auth-panel__eyebrow">System Access</div>
         <h2 class="auth-panel__title">Super Admin Dashboard</h2>
         <p class="auth-panel__subtitle">Welcome, {{ current_admin.username }}. Monitor organization content and manage admin and editor accounts.</p>
+        <form method="POST" action="{{ route('auth.super_admin.logout', {}, False) }}" class="auth-panel__logout-form">
+            {{ csrf_field | safe }}
+            <button type="submit" class="auth-mini-button">Log out</button>
+        </form>
     </div>
 
     {% if bag().any() %}
