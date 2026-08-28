@@ -9,7 +9,7 @@ from app.models.AdminGears import AdminGears
 class AdminGearsTableSeederTableSeeder(Seeder):
     def run(self):
         """Run the database seeds."""
-        AdminGears.create (
+        AdminGears.create(
             {
                 "admin_username": "gearsadmin2026",
                 "admin_password": Hash.make("thegearspublication456"),

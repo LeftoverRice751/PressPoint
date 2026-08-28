@@ -5,6 +5,7 @@ from masonite.request import Request
 from masonite.response import Response
 from app.models.User import User
 
+
 class LoginController(Controller):
     def show(self, view: View):
         return view.render("auth.login")
@@ -12,7 +13,7 @@ class LoginController(Controller):
     def _fresh_login_record(self, login, username: str):
         persisted_login = User.where("username", username).first()
         return persisted_login or login
-            
+
     def store(self, request: Request, response: Response):
         username = (request.input("username") or "").strip()
         password = request.input("password") or ""
@@ -24,7 +25,7 @@ class LoginController(Controller):
             request.set_user(login)
             response.cookie("token", getattr(login, "remember_token", "") or "")
             role = (getattr(login, "role", "") or "").strip().lower()
-            
+
             # "gears.dashboard" is the route's registered name
             # (routes/dashboard.py). redirect(name=...) resolves a NAME, not a
             # path -- an unregistered one raises RouteNotFoundException and the

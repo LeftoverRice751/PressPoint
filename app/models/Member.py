@@ -12,7 +12,7 @@ class Member(Model):
         "organization_id",
         "name",
         "position",
-        "photo_path", 
+        "photo_path",
         "parent_id",
         "sort_order",
         "pos_x",
@@ -22,7 +22,7 @@ class Member(Model):
     @has_many("id", "parent_id")
     def subordinates(self):
         return Member
-    
+
     @belongs_to("parent_id", "id")
     def leader(self):
         return Member

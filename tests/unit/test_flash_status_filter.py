@@ -30,14 +30,23 @@ def _story(title, status, **extra):
 
 class FlashTickerStatusFilterTestCase(TestCase):
     def _headlines(self, stories):
+        """Drive the ticker through the windowed query it actually issues.
+
+        `_recent_rows()` narrows the scan to roughly the last day before the
+        status gate runs, so the stub has to answer `where_raw(...).get()`
+        rather than `all()`. Note that a bare MagicMock *is* iterable and
+        yields nothing, so forgetting to set this returns an empty ticker that
+        looks like a passing status filter -- which is why every "still reaches
+        the ticker" case below matters.
+        """
         controller = WelcomeController()
         with patch(
             "app.controllers.kiosk.WelcomeController.News"
         ) as news_mock, patch(
             "app.controllers.kiosk.WelcomeController.Events"
         ) as events_mock:
-            news_mock.all.return_value = stories
-            events_mock.all.return_value = []
+            news_mock.where_raw.return_value.get.return_value = stories
+            events_mock.where_raw.return_value.get.return_value = []
             return [item["headline"] for item in controller._build_flash_articles()]
 
     def test_draft_story_never_reaches_the_public_ticker(self):
@@ -78,3 +87,66 @@ class FlashTickerStatusFilterTestCase(TestCase):
         story = _story("Embargoed", "scheduled")
         story.published_at = datetime.now() + timedelta(days=2)
         self.assertEqual(self._headlines([story]), [])
+
+
+class FlashTickerQueryWindowTestCase(TestCase):
+    """The 24h window is now partly pushed into SQL; it must stay a pure
+    optimisation. `/kiosk/flash-updates` is public and polled by the kiosk, and
+    it used to load every story ever written -- full HTML body included -- to
+    keep the few from yesterday."""
+
+    def test_it_does_not_load_the_whole_table(self):
+        controller = WelcomeController()
+        with patch(
+            "app.controllers.kiosk.WelcomeController.News"
+        ) as news_mock, patch(
+            "app.controllers.kiosk.WelcomeController.Events"
+        ) as events_mock:
+            news_mock.where_raw.return_value.get.return_value = []
+            events_mock.where_raw.return_value.get.return_value = []
+            controller._build_flash_articles()
+
+            news_mock.all.assert_not_called()
+            events_mock.all.assert_not_called()
+
+    def test_the_window_brackets_the_tickers_own_recency_gate(self):
+        # The SQL bounds must be a strict superset of what _is_recent() keeps,
+        # or a story the ticker should show gets filtered out before the gate
+        # ever sees it. The two columns disagree on timezone -- created_at is
+        # UTC-aware, events.event_date is a naive local date -- hence a margin.
+        controller = WelcomeController()
+        start, end = controller._recent_window()
+
+        now = datetime.utcnow()
+        self.assertLess(
+            datetime.strptime(start, "%Y-%m-%d %H:%M:%S"),
+            now - timedelta(days=1),
+            "window starts after the oldest article _is_recent() accepts",
+        )
+        self.assertGreater(
+            datetime.strptime(end, "%Y-%m-%d %H:%M:%S"),
+            now,
+            "window ends before now, so a just-published story would be missed",
+        )
+
+    def test_a_rejected_predicate_falls_back_to_the_full_read(self):
+        # A ticker that renders nothing is indistinguishable from a quiet news
+        # day, so a driver that refuses the COALESCE must degrade loudly-ish
+        # rather than silently return an empty list.
+        controller = WelcomeController()
+        story = _story("Real headline", "published")
+
+        with patch(
+            "app.controllers.kiosk.WelcomeController.News"
+        ) as news_mock, patch(
+            "app.controllers.kiosk.WelcomeController.Events"
+        ) as events_mock:
+            news_mock.where_raw.side_effect = Exception("unsupported predicate")
+            news_mock.all.return_value = [story]
+            events_mock.where_raw.return_value.get.return_value = []
+
+            headlines = [
+                item["headline"] for item in controller._build_flash_articles()
+            ]
+
+        self.assertEqual(headlines, ["Real headline"])

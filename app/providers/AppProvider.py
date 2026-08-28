@@ -2,6 +2,7 @@ from masonite.providers import Provider
 from masonite.facades import RateLimiter
 from masonite.views import View
 
+from app.cache_drivers import LockingFileDriver
 from app.exceptions.Handler import Handler
 from app.exceptions.InvalidCSRFTokenHandler import InvalidCSRFTokenHandler
 from app.rate_limiters import GuestAuthLimiter
@@ -15,6 +16,19 @@ class AppProvider(Provider):
         self.application = application
 
     def register(self):
+        # Replace the framework's "file" cache driver with the locking one.
+        # CacheProvider registers its FileDriver under that name and runs
+        # before AppProvider (see config/providers.py), so re-adding the name
+        # here wins without touching config/cache.py -- `STORES["local"]` still
+        # reads `"driver": "file"`.
+        #
+        # This is the store the auth throttle counts in, and production runs
+        # five gunicorn processes against one cache directory. Upstream's
+        # increment is an unlocked read-modify-write; see app/cache_drivers.py.
+        self.application.make("cache").add_driver(
+            "file", LockingFileDriver(self.application)
+        )
+
         # Register the view filter at startup, NOT in boot(): boot() runs
         # per request inside the same provider loop that dispatches the route
         # and renders the view, and AppProvider is booted last — so a filter
@@ -76,9 +90,24 @@ class AppProvider(Provider):
         self.application.bind("exception_handler", logging_handler)
 
     def boot(self):
-        # Named limiter used by the login / OTP routes as `throttle:auth`.
+        # Named limiter used by the login route as `throttle:auth`.
         # Per-client (see GuestAuthLimiter) so bad attempts can't lock everyone out.
         RateLimiter.register("auth", GuestAuthLimiter("5/minute"))
+
+        # The password reset flow used to share the `auth` bucket, and since the
+        # throttle key is `limit_string + ip`, one honest reset spent three of
+        # the five attempts (send code -> verify OTP -> set password). A resend
+        # or a mistyped digit then tripped the limit on a first-time reset.
+        # These two ends of the flow aren't a credential-guessing surface — the
+        # cap is here to stop mail flooding — so they get their own, looser one.
+        RateLimiter.register("password-reset", GuestAuthLimiter("10/minute"))
+
+        # Code verification stays tight and stands alone: `verify_otp` matches a
+        # token across the whole password_resets table rather than against the
+        # requesting email, so this endpoint IS the brute-force surface. Its own
+        # bucket means the full allowance is spent on guesses only — never on
+        # the two requests that bracket it.
+        RateLimiter.register("otp", GuestAuthLimiter("5/minute"))
 
         # Public, unauthenticated route-session minting (QR handoff to a phone).
         # Looser than auth since it's not a credential-guessing surface, but still

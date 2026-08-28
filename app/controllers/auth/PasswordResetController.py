@@ -120,10 +120,10 @@ class PasswordResetController(Controller):
                 [otp],
             )
             return response.back().with_errors(["OTP code has expired. Please request a new one."])
-        
+
         request.session.set("reset_token", otp)
         request.session.set("reset_email", reset_record["email"])
-        
+
         return response.redirect(name="auth.change-password")
 
     def change_password(self, view: View, request: Request, response: Response):
@@ -134,7 +134,6 @@ class PasswordResetController(Controller):
             ])
 
         return view.render("auth.change_password", {"token": reset_token})
-            
 
     def store_changed_password(self, auth: Auth, request: Request, response: Response):
         token = request.session.get("reset_token")
@@ -142,13 +141,12 @@ class PasswordResetController(Controller):
             return response.back().with_errors([
                 "Session expired. Please try again."
             ])
-            
+
         is_valid = request.validate(
             {
                 "password": "required|strong|confirmed",
             }
         )
-    
 
         if not is_valid:
             request.session.delete("reset_token")
@@ -171,8 +169,7 @@ class PasswordResetController(Controller):
                 [token],
             )
             return response.back().with_errors(["Reset token has expired. Please request a new one."])
-        
-        
+
         new_password = Hash.make(request.input("password"))
         application.make("builder").new().statement(
             "UPDATE users SET password = %s WHERE email = %s",
@@ -182,7 +179,7 @@ class PasswordResetController(Controller):
             f"DELETE FROM {reset_table} WHERE token = %s",
             [token],
         )
-        
+
         request.session.delete("reset_token")
         request.session.delete("reset_email")
 

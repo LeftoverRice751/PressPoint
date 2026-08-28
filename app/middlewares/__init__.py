@@ -4,3 +4,4 @@ from .AuthenticationMiddleware import AuthenticationMiddleware
 from .AdminMiddleware import AdminMiddleware
 from .DatabaseReconnectMiddleware import DatabaseReconnectMiddleware
 from .SuperAdminMiddleware import SuperAdminMiddleware
+from .ThrottleRequestsMiddleware import ThrottleRequestsMiddleware

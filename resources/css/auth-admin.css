@@ -1,3 +1,104 @@
-.inline-form {
-    display: inline;
+/* Super admin console — /auth/super_admin.
+ *
+ * This sheet used to sit on the auth (sign-in) shell alongside auth-shell.css.
+ * The page now extends gears/shell.html like the editor dashboard and the admin
+ * console, so gears-dashboard.css supplies almost everything: .stats-grid,
+ * .stat-card, .page-card, .section-head, .field, .primary-button, .ghost-button,
+ * .events-table, .empty-state and .dashboard-alert are all borrowed as-is. What
+ * is left here is only what that vocabulary has no equivalent for.
+ *
+ * Sibling to admin-console.css, which does the same job for /users.
+ */
+
+/* .stats-grid is three columns, which leaves this page's eight counts in a
+   ragged 3/3/2. Four is 4+4. Declared after gears-dashboard.css in the page
+   head, so these breakpoints must restate the collapse rather than inherit it:
+   the base sheet's `.stats-grid { grid-template-columns: 1fr }` at 1180px has
+   the same specificity and would lose to this rule on source order alone. */
+.stats-grid--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1180px) {
+    .stats-grid--four {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    .stats-grid--four {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Create-admin row: two fields and the button on one line, the same shape as
+   .admin-invite on the admin console. */
+.sa-invite {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: end;
+}
+
+.sa-invite__note {
+    margin: 0.9rem 0 0;
+    color: var(--ink-soot);
+    font-size: 0.86rem;
+}
+
+@media (max-width: 720px) {
+    .sa-invite {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Row actions sit side by side rather than stacking: an admin row carries
+   Edit / Reset password / Delete, and each of the last two is its own <form>
+   (they are POSTs, not links). The forms are the flex items; without the
+   margin reset the browser default pushes them out of line. */
+/* One line, always. Left to wrap, the three buttons stacked the moment the
+   table was squeezed -- a three-deep admin row beside a single-line editor row,
+   with "Reset password" broken across two lines. Holding them on one line makes
+   the cell's min-content the whole button row, so a narrow viewport scrolls
+   .table-responsive (which exists for exactly this) instead of going ragged. */
+.sa-row-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.sa-row-actions .ghost-button {
+    white-space: nowrap;
+}
+
+.sa-row-actions form {
+    margin: 0;
+}
+
+/* Role pill. Was .auth-role in auth-shell.css, which this page no longer
+   loads. --ink-oxblood is deliberately not used for the admin variant: it is
+   fill-only in this palette and fails contrast as a text colour. */
+.sa-role {
+    display: inline-block;
+    padding: 0.25rem 0.55rem;
+    border: 1px solid var(--ink-rule-strong);
+    border-radius: var(--radius-sm);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.sa-role--admin {
+    border-color: var(--ink-marigold);
+    color: var(--ink-marigold);
+}
+
+/* The edit dialog borrows .confirm-modal for its panel, which is sized for a
+   two-line question rather than a form. */
+.sa-edit-modal {
+    width: min(460px, calc(100vw - 2rem));
 }

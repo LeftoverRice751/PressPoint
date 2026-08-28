@@ -3,11 +3,8 @@ from masonite.views import View
 from masonite.request import Request
 from masonite.response import Response
 from masonite.facades import Hash
-from app.mailables.AccountCredentials import AccountCredentials
 from app.models.User import User
-from app.services import AdminConsole, Notifications, ReviewQueue
-from masonite.facades import Mail
-import secrets
+from app.services import AdminConsole, Credentials, Notifications, ReviewQueue
 
 
 def _is_editor(user):
@@ -56,7 +53,7 @@ class UserController(Controller):
         context.update(ReviewQueue.review_context())
 
         return view.render("gears/admin-console", context)
-    
+
     def store(self, request: Request, response: Response):
         username = (request.input("username") or "").strip()
         email = (request.input("email") or "").strip().lower()
@@ -76,20 +73,16 @@ class UserController(Controller):
         if existing_user:
             return response.back().with_errors(["That email is already in use."])
 
-        password = secrets.token_urlsafe(8)
+        password = Credentials.generate_password()
 
-        created_user = User.create(
+        User.create(
             username=username,
             email=email,
             password=Hash.make(password),
             role="editor"
         )
 
-        try:
-            Mail.mailable(
-                AccountCredentials(username=username, password=password).to(email)
-            ).send()
-        except Exception:
+        if not Credentials.send_credentials(email, username, password):
             return response.redirect(name="users.view").with_errors([
                 "User was created, but the credentials email could not be sent.",
             ])

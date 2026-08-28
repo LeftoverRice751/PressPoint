@@ -1,0 +1,53 @@
+{#
+    The Add Event dialog, opened from the events panel.
+
+    Extracted from gears/dashboard.html, which had grown to 1,628 lines with
+    every panel of the CMS in one file. Rendered by dashboard.html in the same
+    order it always was; DashboardController.fragment() still re-renders the
+    smaller data partials (events-list, news-slots, archives-list, videos-list).
+#}
+    <dialog class="article-modal" data-events-modal>
+      <div class="article-modal__panel">
+        <div class="article-modal__header">
+          <div>
+            <h3 class="article-modal__title">Add Event</h3>
+            <p class="article-modal__subtitle">Create an event with a title, description, date, and location.</p>
+          </div>
+          <button type="button" class="article-modal__close" data-events-modal-close>Close</button>
+        </div>
+
+        <form action="{{ route('events.store', {}, False) }}" method="POST" class="form-stack" data-events-form>
+          {{ csrf_field | safe }}
+
+          <label class="field" for="event-title">
+            <span class="field__label">Title</span>
+            <input type="text" name="title" id="event-title" class="field__input" placeholder="Event title" required>
+          </label>
+
+          <label class="field" for="event-description">
+            <span class="field__label">Description</span>
+            <textarea name="description" id="event-description" class="field__input field__textarea" placeholder="Event description" required></textarea>
+          </label>
+
+          <label class="field" for="event-event-date">
+            <span class="field__label">Event date</span>
+            <input type="date" name="event_date" id="event-event-date" class="field__input" required>
+          </label>
+
+          <label class="field" for="event-location-id">
+            <span class="field__label">Location</span>
+            <select name="location_id" id="event-location-id" class="field__input field__input--select" required>
+              <option value="">Choose a location</option>
+              {% for location in locations %}
+              <option value="{{ location.id }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <div class="article-modal__footer">
+            <button type="button" class="ghost-button" data-events-modal-close>Cancel</button>
+            <button type="submit" class="primary-button">Save Event</button>
+          </div>
+        </form>
+      </div>
+    </dialog>

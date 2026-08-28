@@ -1,5 +1,7 @@
 # Stage 1: build frontend assets
-FROM node:20-alpine AS assets
+# Node 18 to match .nvmrc and package.json engines. Newer Node breaks the
+# laravel-mix build with "require is not defined in ES module scope" (yargs).
+FROM node:18-alpine AS assets
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
@@ -23,7 +25,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir gunicorn
 
 COPY . .
-COPY --from=assets /app/public /app/public
 COPY --from=assets /app/storage/compiled /app/storage/compiled
 
 EXPOSE 8000

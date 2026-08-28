@@ -47,6 +47,46 @@ class WelcomeController(Controller):
             }
         )
 
+    #: How far either side of the 24h ticker window the SQL pre-filter reaches.
+    #: `_is_recent()` remains the authoritative gate; this only bounds how many
+    #: rows it has to look at. The margin exists because the two columns the
+    #: window is measured against do not agree on a timezone -- `created_at`
+    #: comes back UTC-aware from pendulum while `events.event_date` is a naive
+    #: local date -- so a tight SQL window could drop a row the Python gate
+    #: would have kept. Two days comfortably covers the +08:00 campus offset.
+    _FLASH_WINDOW_MARGIN = timedelta(days=2)
+
+    def _recent_window(self):
+        now = datetime.utcnow()
+        return (
+            (now - timedelta(days=1) - self._FLASH_WINDOW_MARGIN).strftime("%Y-%m-%d %H:%M:%S"),
+            (now + self._FLASH_WINDOW_MARGIN).strftime("%Y-%m-%d %H:%M:%S"),
+        )
+
+    def _recent_rows(self, model, date_column):
+        """Rows whose ticker date plausibly falls in the last 24 hours.
+
+        This endpoint is public, unauthenticated, and polled by the kiosk, and
+        it used to run `Model.all()` -- pulling every story ever written, full
+        HTML body and all, to keep the handful published yesterday. The window
+        is a strict superset of what `_is_recent()` accepts, so narrowing here
+        cannot change which articles appear.
+
+        Falls back to the unfiltered read if the driver rejects the predicate,
+        because a ticker that renders nothing looks identical to a quiet news
+        day and would hide the failure.
+        """
+        start, end = self._recent_window()
+        try:
+            return list(
+                model.where_raw(
+                    f"COALESCE({date_column}, created_at) BETWEEN '{start}' AND '{end}'"
+                ).get()
+                or []
+            )
+        except Exception:
+            return list(model.all() or [])
+
     def _build_flash_articles(self):
         # Imported here, not at module scope, for the same reason show() does:
         # NewsController imports DashboardContext, which imports the models this
@@ -55,7 +95,7 @@ class WelcomeController(Controller):
 
         flash_articles = []
 
-        for news_item in list(News.all() or []):
+        for news_item in self._recent_rows(News, "published_at"):
             try:
                 # The ticker is served publicly and unauthenticated at
                 # /kiosk/flash-updates, and it emits the headline AND the full
@@ -81,7 +121,7 @@ class WelcomeController(Controller):
             except Exception:
                 pass
 
-        for event_item in list(Events.all() or []):
+        for event_item in self._recent_rows(Events, "event_date"):
             try:
                 reference_at = getattr(event_item, "event_date", None) or getattr(event_item, "created_at", None)
                 self._append_flash_article(

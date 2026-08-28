@@ -11,8 +11,9 @@
  *     .kiosk-back                 shared bottom back bar (kiosk-nav.css)
  *
  * Pins encode category by shape/fill (see .kiosk-pin--<cat> below). The
- * category-chip swatches use the same shapes so the chip strip doubles
- * as a legend.
+ * category-chip swatches use the same shapes so the category menu doubles
+ * as a legend — which is why collapsing the old rail into .category-dropdown
+ * kept .category-chip as the menu row rather than inventing a new one.
  */
 
 :root {
@@ -221,27 +222,11 @@ html, body {
     text-decoration: none;
 }
 
-/* ── Building tooltip labels ────────────────────────────────────── */
-
-.campus-map-label {
-    border: 0;
-    background: var(--ink);
-    color: var(--paper);
-    border-radius: 0;
-    padding: 0.32rem 0.62rem 0.34rem;
-    box-shadow: 0 8px 18px rgb(var(--brand-maroon-rgb) / 0.22);
-    font-family: var(--display-font);
-    font-size: 0.7rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.campus-map-label::before { display: none; }
-
-.campus-map-label--start {
-    background: var(--orange);
-    color: var(--ink);
-}
+/* The .campus-map-label tooltip skin that used to sit here is gone with the
+   bindTooltip calls it dressed: Leaflet tooltips open on hover, and the kiosk
+   is a touchscreen, so those building names never once appeared on the
+   terminal. The name is now .kiosk-pin__name, drawn into the selected pin's
+   own divIcon. */
 
 /* ── "You are here" pulsing marker ──────────────────────────────── */
 
@@ -322,6 +307,31 @@ html, body {
     transform: scale(1.18);
 }
 
+/* Name plate under the pin. Deliberately rendered for ONE pin at a time —
+   the pin the user just tapped — and not as a permanent label on all ~34.
+   Several campus buildings sit within a few pixels of each other at the
+   default zoom, so an always-on plate per pin overlaps into noise. This is
+   built into the divIcon rather than as a Leaflet tooltip because tooltips
+   are hover-driven, and there is no hover on the terminal's touchscreen. */
+.kiosk-pin__name {
+    position: absolute;
+    left: 50%;
+    top: 26px;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--display-font);
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.34rem 0.7rem 0.36rem;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 8px 18px rgb(var(--brand-maroon-rgb) / 0.22);
+    /* Above neighbouring pins, which are sibling markers in the same pane. */
+    z-index: 5;
+}
+
 /* Departments — solid orange disc. */
 .kiosk-pin--departments .kiosk-pin__dot {
     background: var(--orange);
@@ -359,25 +369,99 @@ html, body {
     box-shadow: inset 0 0 0 4px var(--ink), inset 0 0 0 8px var(--orange), 0 0 0 2px var(--ink), 0 6px 14px rgb(var(--brand-maroon-rgb) / 0.22);
 }
 
-/* ── Category chips (filter + legend in one) ────────────────────── */
+/* ── Category dropdown (filter + legend in one) ─────────────────── */
 
-.category-chips {
+/* This was a permanent six-button rail down the left of the map. It cost a
+   220x460 block of the stage to show six options the user picks from once,
+   so it is collapsed into a single trigger. The menu opens UPWARD, because
+   the control sits at the bottom of the screen — dropping down would run it
+   straight into the search bar and off the deck. */
+.category-dropdown {
     position: absolute;
     left: 1rem;
-    bottom: 104px;
-    width: 220px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    overflow-y: auto;
-    padding: 0;
+    /* Clears the search bar, which grew to 104px + its 4px top rule. */
+    bottom: 124px;
+    width: 240px;
     z-index: 45;
-    scrollbar-width: none;
-    background: none;
+    /* No overflow here: the menu is positioned outside this box, above it,
+       and any clipping would swallow it. */
 }
 
-.category-chips::-webkit-scrollbar { display: none; }
+.category-dropdown__trigger {
+    width: 100%;
+    min-height: 72px;
+    padding: 0 1rem;
+    border: 3px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--display-font);
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    box-shadow: 3px 3px 0 var(--ink);
+    transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
 
+.category-dropdown__trigger:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--ink);
+}
+
+.category-dropdown__label {
+    flex: 1;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.category-dropdown__caret {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    transition: transform 0.18s ease;
+}
+
+.category-dropdown[data-open="true"] .category-dropdown__caret {
+    transform: rotate(180deg);
+}
+
+.category-dropdown__menu {
+    position: absolute;
+    bottom: calc(100% + 0.6rem);
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    /* visibility, not just opacity: a menu faded to 0 is still in the
+       accessibility tree, so a closed listbox would keep being announced
+       under a trigger reporting aria-expanded="false". Transitioning it
+       (rather than using display:none) keeps the fade. */
+    visibility: hidden;
+    transition: opacity 0.22s ease,
+                transform 0.28s cubic-bezier(.25, .8, .35, 1),
+                visibility 0s linear 0.22s;
+}
+
+.category-dropdown[data-open="true"] .category-dropdown__menu {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    visibility: visible;
+    transition: opacity 0.22s ease,
+                transform 0.28s cubic-bezier(.25, .8, .35, 1),
+                visibility 0s;
+}
+
+/* The rows are still .category-chip — that keeps the swatch shapes below,
+   which mirror the pin shapes, so the menu is still the map's legend. */
 .category-chip {
     flex: 0 0 auto;
     width: 100%;
@@ -412,31 +496,33 @@ html, body {
     flex-shrink: 0;
 }
 
-/* Swatch shapes match the pin shapes. */
-.category-chip[data-cat="all"] .category-chip__swatch {
+/* Swatch shapes match the pin shapes. Keyed off the [data-cat] ancestor
+   rather than .category-chip specifically, so the collapsed dropdown's
+   trigger shows the active category's swatch with the same rules. */
+[data-cat="all"] > .category-chip__swatch {
     background: var(--orange);
     border-color: var(--ink);
     border-radius: 0;
 }
-.category-chip[data-cat="departments"] .category-chip__swatch {
+[data-cat="departments"] > .category-chip__swatch {
     background: var(--orange);
     border-radius: 50%;
 }
-.category-chip[data-cat="offices"] .category-chip__swatch {
+[data-cat="offices"] > .category-chip__swatch {
     background: var(--ink);
     border-radius: 50%;
 }
-.category-chip[data-cat="buildings"] .category-chip__swatch {
+[data-cat="buildings"] > .category-chip__swatch {
     background: var(--paper);
     box-shadow: inset 0 0 0 4px var(--orange);
     border-radius: 3px;
 }
-.category-chip[data-cat="entrances"] .category-chip__swatch {
+[data-cat="entrances"] > .category-chip__swatch {
     background: var(--orange);
     border-radius: 2px;
     transform: rotate(45deg);
 }
-.category-chip[data-cat="places"] .category-chip__swatch {
+[data-cat="places"] > .category-chip__swatch {
     background: var(--ink);
     border-radius: 50%;
     box-shadow: inset 0 0 0 5px var(--ink), inset 0 0 0 9px var(--orange);
@@ -617,7 +703,7 @@ html, body {
 
 /* Bottom dock, not a side strip: a left strip cost map width, but height is
    the tighter axis here, so the dock is kept short and both views lay out
-   horizontally. Opening it already slides the chips and search bar away
+   horizontally. Opening it already slides the category menu and search bar away
    (see .campus-map-page--pane-open below), so nothing collides. */
 .building-pane {
     position: absolute;
@@ -894,8 +980,14 @@ html, body {
     50%      { opacity: 1;    transform: scale(1.18); }
 }
 
-/* ── Search bar (full-bleed black band) ─────────────────────────── */
+/* ── Search bar (full-bleed white band) ─────────────────────────── */
 
+/* This was a black band until the on-site readability pass: the magnifier
+   was --accent-text (maroon) on maroon ink, i.e. invisible, and the prompt
+   sat at 0.95rem/55% white, unreadable from standing distance at the
+   terminal. The dock is now paper — the same fill the category control and
+   the keyboard use — so the whole bottom of the screen reads as one white
+   surface with ink type on it. */
 .search-bar {
     position: absolute;
     bottom: 0;
@@ -905,17 +997,17 @@ html, body {
     align-items: center;
     gap: 0.95rem;
     padding: 0.85rem 1.25rem;
-    background: var(--ink);
+    background: var(--paper);
     border-top: 4px solid var(--orange);
     z-index: 50;
-    min-height: 88px;
+    min-height: 104px;
 }
 
 .search-bar__icon {
-    width: 40px;
-    height: 40px;
-    flex: 0 0 40px;
-    color: var(--accent-text);
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    color: var(--ink);
     display: grid;
     place-items: center;
 }
@@ -927,19 +1019,23 @@ html, body {
     border: 0;
     outline: 0;
     background: transparent;
-    color: var(--paper);
+    color: var(--ink);
     font-family: var(--display-font);
-    font-size: 1.15rem;
+    font-size: 1.5rem;
     letter-spacing: 0.05em;
     cursor: text;
     caret-color: var(--orange);
     min-width: 0;
 }
 
+/* Solid colour, not an alpha of the input colour: placeholder inheritance of
+   opacity is inconsistent across engines, and this string is the page's main
+   call to action — it has to hold its contrast. */
 .search-bar__input::placeholder {
-    color: rgb(var(--n-white-rgb) / 0.55);
+    color: var(--ink-soft);
+    opacity: 1;
     letter-spacing: 0.06em;
-    font-size: 0.95rem;
+    font-size: 1.35rem;
     text-transform: uppercase;
 }
 
@@ -958,7 +1054,7 @@ html, body {
 .search-bar__clear:active { background: var(--orange-deep); }
 .search-bar__clear--hidden { display: none; }
 
-/* While the building pane is open, the bottom dock (chips + search bar)
+/* While the building pane is open, the bottom dock (category + search bar)
    gets out of the way so the pane's action stack is reachable and the
    user has a single, linear focus. Restored when the pane closes. */
 .campus-map-page--pane-open .search-bar {
@@ -967,29 +1063,34 @@ html, body {
     pointer-events: none;
 }
 
-.campus-map-page--pane-open .category-chips {
+.campus-map-page--pane-open .category-dropdown {
     opacity: 0;
     transform: translateY(110%);
     pointer-events: none;
 }
 
-.campus-map-page--suggestions-open .category-chips {
+/* Only the MENU folds away once suggestions are up, never the trigger.
+   Picking a category is what opens the suggestions overlay, so hiding the
+   whole control here would yank the button out from under the finger that
+   just used it — and with it the only readout of which filter is active. */
+.campus-map-page--suggestions-open .category-dropdown__menu {
     opacity: 0;
-    transform: translateY(110%);
+    transform: translateY(8px);
     pointer-events: none;
 }
 
 .search-bar,
-.category-chips {
+.category-dropdown {
     transition: opacity 0.22s ease, transform 0.28s cubic-bezier(.25, .8, .35, 1);
 }
 
 /* ── On-screen keyboard ─────────────────────────────────────────── */
 
+/* Paper, to match the search bar it extends — the dock is one white surface. */
 .keyboard {
     flex: 0 0 0;
     overflow: hidden;
-    background: var(--ink);
+    background: var(--paper);
     transition: flex-basis 0.25s ease;
 }
 
@@ -1011,11 +1112,14 @@ html, body {
     gap: 0.4rem;
 }
 
+/* Outlined, not filled: the old key fill was --ink-soft with a 6%-white
+   hairline, which on a paper deck would collapse every key into one slab.
+   An ink border is what separates them now. */
 .keyboard__key {
     flex: 1;
-    border: 2px solid rgb(var(--n-white-rgb) / 0.06);
-    background: var(--ink-soft);
-    color: var(--paper);
+    border: 2px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
     font-family: var(--display-font);
     font-size: 1.25rem;
     letter-spacing: 0.04em;

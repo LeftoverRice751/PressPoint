@@ -29,6 +29,8 @@ venv/bin/python -m pytest -q             # test suite
 venv/bin/python -m pytest tests/unit/test_news_slots.py::NewsSlotsTestCase::test_x   # single test
 make lint                                # flake8 (max-line-length 99)
 make format                              # black (line-length 99), then lint
+make ci                                  # what CI runs: lint + pytest + JS tests
+venv/bin/pip install -r requirements.txt -r requirements-dev.txt   # or: make init-dev
 
 venv/bin/python craft migrate            # also: migrate:status, migrate:rollback, migrate:refresh
 venv/bin/python craft seed:run           # runs databases/seeds/database_seeder.py
@@ -40,7 +42,13 @@ venv/bin/python craft tinker             # python shell with the container loade
 
 **The `.env` in this repo is the production config** (`APP_ENV=production`, `APP_URL=https://presspoint-gears.me`, live MySQL `presspoint`). Any `craft migrate`/`seed:run` here writes to the real database. `masonite.sqlite3` at the repo root is an empty leftover — nothing uses it.
 
-Known current state of the suite: `pytest tests/unit/` is green at 262 passing. `make lint` still fails outright: flake8 is not installed in `venv/`.
+Known current state of the suite: `pytest tests/unit/` is green at 335 passing, and `make lint` is green too — flake8 and black are in `requirements-dev.txt` now, and `setup.cfg` excludes `venv` (it only listed `.venv`, so linting used to walk all 85 installed packages and never finish).
+
+**The unit suite is not database-free.** Roughly a dozen tests render real dashboard templates and read `locations`/`news`/`users` through the ORM; on a dev box they pass because `.env` points at the live MySQL. They only need the *tables*, not rows — CI runs the whole suite against an empty database. Do not set `APP_ENV=testing` to get a test database: that makes Masonite load `.env.testing`, which pins `DB_CONNECTION=sqlite`, and the suite would silently run against an empty sqlite file instead.
+
+**`databases/migrations/` cannot rebuild the schema, and `databases/schema.sql` can.** A fresh `craft migrate` stops 23 migrations in: several migrations are data backfills written against the database as it stood at the time (`2026_05_17_172930_fix_news_defaults_and_add_notifications` runs `UPDATE news SET status = ...` before any migration adds `news.status`), and some are misdated relative to the migration that creates the table they alter (`2026_05_12_..._add_sort_order_to_members_table` predates `2026_07_02_..._create_members_table`; it now returns early when the table is absent, which is correct because the later create declares `sort_order` itself). `schema.sql` is a structure-only dump of the live database, it is what CI loads, and it is the baseline for the squash migration that should eventually replace the history. Regenerate it after any schema change — the command is in its header. **Never commit data into it.**
+
+CI (`.github/workflows/ci.yml`) runs lint + the full pytest suite against a MySQL service loaded from `databases/schema.sql`, and separately `npm ci`, `npm run test:js` and `npm run prod` under Node 18. `make ci` runs the same checks locally. `package-lock.json` is tracked (it used to be gitignored, which made `npm ci` impossible); `storage/framework/cache/` and `storage/framework/logs/` are not (they used to be, so every rate-limit hit and logged exception showed up as a working-tree change).
 
 ## Architecture
 
@@ -48,7 +56,11 @@ Known current state of the suite: `pytest tests/unit/` is green at 262 passing. 
 
 `wsgi.py` → `Kernel.py` (binds every location: controllers, models, views, migrations…) → `routes/web.py`, which concatenates six route modules: `public`, `dashboard`, `auth`, `map`, `news`, `super_admin`. Every route is inside the `web` middleware group (session, load user, CSRF).
 
-Route middleware keys (`Kernel.route_middleware`): `auth` (logged-in or redirect to login), `admin` (`role == "admin"`), `super_admin` (`role == "superadmin"`), and `throttle` — a *keyed* middleware used as `.middleware("throttle:auth")`; it takes an argument, so it must never sit bare in a group. `throttle:auth` resolves to `GuestAuthLimiter` (registered in `AppProvider.boot()`), which keys by `CF-Connecting-IP` because a bare `throttle:5/minute` would count globally and let one attacker lock everyone out of login.
+Route middleware keys (`Kernel.route_middleware`): `auth` (logged-in or redirect to login), `admin` (`role == "admin"`), `super_admin` (`role == "superadmin"`), and `throttle` — a *keyed* middleware used as `.middleware("throttle:auth")`; it takes an argument, so it must never sit bare in a group. The named limiters (registered in `AppProvider.boot()`) are all `GuestAuthLimiter`, which keys by `CF-Connecting-IP` because a bare `throttle:5/minute` would count globally and let one attacker lock everyone out of login. Guest auth is split across three buckets — `auth` (login, 5/min), `password-reset` (send code / set password, 10/min) and `otp` (code verification, 5/min) — because the middleware keys on `limit_string + ip`, so one shared name means one shared allowance: a single honest reset spent three of five attempts and tripped the limit on a first-time OTP submit. Keep `otp` alone and tight: `verify_otp` matches a token across the whole `password_resets` table rather than against the requesting email, so it is the actual guessing surface.
+
+`throttle` maps to **our** `app/middlewares/ThrottleRequestsMiddleware.py`, not Masonite's. Upstream stores the attempt count and its window as two cache entries and only the `<key>-timer` one carries a TTL — `RateLimiter.hit()` increments through `FileDriver.increment()`, which re-`put`s the counter with `seconds=None` (ten years) — and the counter is zeroed only inside `too_many_attempts()`'s `attempts >= max` branch. A count that stopped short of the limit therefore carried into every later window forever. Our subclass evicts a counter whose window has closed before the base class reads it (`expire_stale_attempts` in `app/rate_limiters.py`); `tests/unit/test_auth_rate_limit_window.py` guards it.
+
+The other half of that story is atomicity. `AppProvider.register()` re-registers the `"file"` cache driver as **our** `app/cache_drivers.py:LockingFileDriver`, because upstream's `FileDriver.add()`/`increment()` are unlocked read-modify-writes (`put(key, get(key) + 1)`) and production serves five gunicorn *processes* against one cache directory — two simultaneous login attempts could both read 3 and both write 4, losing an attempt, or catch a half-written file and raise on `int("")`. The subclass takes an `fcntl.flock` on a dotfile beside the entry (`.lock-<key>`, invisible to `FileDriver.flush()`'s `glob("*")`). **Switching the store to Redis does not fix this** — Masonite's `RedisDriver.increment()` is spelled the same way rather than using Redis' atomic `INCR`. `tests/unit/test_cache_locking.py` proves it across real processes, and deliberately also pins the upstream bug so the subclass can be retired if a future Masonite fixes it.
 
 `DatabaseReconnectMiddleware` runs on every request as HTTP middleware and clears the singleton QueryBuilder's cached MySQL connection. Without it, MySQL REPEATABLE READ pins each gunicorn worker to a stale snapshot and editors see old data until restart. Don't remove it while the ORM connection is a container singleton.
 
@@ -72,11 +84,21 @@ Vendor CSS (Swiper, Quill) and vendor JS (pdf.js, the 2.5D map layer, the servic
 
 Page JS is plain IIFE/`DOMContentLoaded` ES, no framework. Server → client wiring is via `data-*` attributes on a root element (e.g. `[data-dashboard-shell]`, `data-video-push-url`), and CSRF via the `<meta name="csrf-token">` in `templates/base.html`.
 
+**Dashboard template layout.** `templates/gears/dashboard.html` is now a ~107-line shell: the `head`/`shell_data`/`shell_nav`/`js` blocks, and a `shell_panels` block that is nothing but one `{% include %}` per panel, in DOM order. Each CMS panel lives in `templates/gears/partials/panel-<name>.html` (it was one 1,628-line file, so any two people editing the dashboard conflicted). Two things to know before moving markup between them:
+
+- **Jinja macros do not cross an `{% include %}`.** `organization_options` is defined inside `panel-org-board.html` with its only two callers; a macro left behind in `dashboard.html` is simply undefined in the partial.
+- The panel partials are for the *full page render*. `DashboardController.FRAGMENTS` still re-renders the smaller data partials (`events-list`, `news-slots`, `archives-list`, `videos-list`), which are what a live refresh swaps in — adding a panel partial does not make it fragment-refreshable.
+
 ### Dashboard liveness
 
 `DashboardController` exposes `fragment/@section` and `stamps`. A fragment re-renders **the same Jinja partial the full page uses**, so an injected row can never differ from a freshly-rendered one; `_section_stamp()` is a cheap `count:max(updated_at)` marker the browser polls every 20s (`resources/js/dashboard-live.js`) to detect another editor's changes without refetching rows. Panels opt in with `data-live-section` / `data-live-target`. Adding a section means adding to both `FRAGMENTS` and `STAMP_MODELS`.
 
 Per-section context builders live in `app/services/DashboardContext.py`; `full_context()` composes them for the full page render.
+
+Two shared query helpers live there, and new sections should use them rather than `Model.all()`:
+
+- `ordered_by_id(model)` — the section's rows, ordered by the database. `Model.all()` + `sorted()` pulls the whole table, builds a model per row and then sorts the list; `ORDER BY id` lets MySQL walk the primary key. Same output, since the old key was `id` too.
+- `grouped_counts(model, column)` — `{raw value: count}` from one `GROUP BY`. Values come back **raw** on purpose: `status` has aliases (`live`/`publish` both mean published) and `role`/`type` are matched case- and padding-insensitively, so none of them can be filtered safely in SQL — the caller folds them with the same normaliser the rest of the app uses. `super_admin_stats()` is eight integers and renders no rows; it used to load `users`, `news` (full HTML bodies included) and `archives` in their entirety to produce them.
 
 ### Realtime (Pusher)
 
@@ -154,5 +176,5 @@ Editors upload PDFs to the NAS; `ArchiveServices` (PyMuPDF/`fitz`) rasterizes pa
 - Editor-facing POST/DELETE endpoints support both AJAX and plain form posts: use `app/services/AjaxResponses.py` (`wants_json` / `json_success` / `json_errors`) so the upload meter gets JSON while the redirect-with-flash path still degrades gracefully.
 - Uploaded files are validated by magic bytes (`FileVerificationService`, via `ImageUploads.read_upload`), never by the browser-supplied filename.
 - Site-wide settings go through the service that owns the key (e.g. `Branding.set_logo`), not direct `SiteSetting` writes. `site_logo()` is shared into every template by `AppProvider`.
-- The MySQL schema has drifted from `databases/migrations/` — check the live table before trusting a migration file for column names.
+- The MySQL schema has drifted from `databases/migrations/` — check the live table (or `databases/schema.sql`, which is a dump of it) before trusting a migration file for column names.
 - UI styling: solid/flat colors, no gradients.

@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // padding; still comfortably scannable at kiosk reading distance.
     const QR_SIZE_PX = 190;
 
-    // Categories drive the chip strip above the search bar. Each chip
+    // Categories drive the dropdown above the search bar. Each entry
     // owns a regex that decides which `type` strings belong to it. The
     // location data has a fairly noisy `type` field ("Building/Entrance",
     // "Department/Academic Building", etc.), so we bucket pragmatically.
@@ -59,7 +59,14 @@ document.addEventListener('DOMContentLoaded', () => {
         searchIndex: [],        // same locations with acronym + initials precomputed
         selected: null,         // currently selected destination location
         idleTimer: null,
-        activeCategory: 'all',  // current chip filter
+        activeCategory: 'all',  // current category filter
+        // id -> L.marker, and id -> { categoryId, isStart, name }. The markers
+        // used to be created and dropped on the floor, which is why the
+        // category filter could only ever narrow the suggestions list: there
+        // was no handle left to take a pin off the map with.
+        markers: new Map(),
+        markerMeta: new Map(),
+        labelledId: null,       // the one pin currently showing its name plate
         layer: null,            // the L.campus25d() layer instance
         routeLayer: null,       // active route polyline overlay
         baseZoom: null,         // zoom the map settles at after the initial fit
@@ -102,7 +109,10 @@ document.addEventListener('DOMContentLoaded', () => {
         searchClear: document.getElementById('search-clear'),
         keyboard: document.getElementById('keyboard'),
         keyboardRows: document.querySelector('.keyboard__rows'),
-        chips: document.getElementById('category-chips'),
+        dropdown: document.getElementById('category-dropdown'),
+        dropdownTrigger: document.getElementById('category-trigger'),
+        dropdownLabel: document.getElementById('category-trigger-label'),
+        dropdownMenu: document.getElementById('category-menu'),
     };
 
     if (!dom.mapEl || typeof L === 'undefined') {
@@ -391,9 +401,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // Category-tinted marker for a routable building. The 2.5D layer already
     // draws the building shape; the pin adds a colour-coded dot on top so the
     // user still sees the category legend match at a glance.
-    const buildPinIcon = (categoryId) => L.divIcon({
+    //
+    // Passing `name` adds the name plate under the dot and marks the pin
+    // selected. Only ever done for ONE pin — the one the user tapped. Every
+    // pin carrying its own permanent name would collide: the campus buildings
+    // sit close enough together that the plates overlap at the default zoom.
+    // The plate lives in the divIcon rather than in a Leaflet tooltip because
+    // bindTooltip is hover-driven, and the kiosk is a touchscreen with no
+    // hover — which is why the names this replaces never appeared at all.
+    const buildPinIcon = (categoryId, name) => L.divIcon({
         className: 'kiosk-pin-marker',
-        html: `<div class="kiosk-pin kiosk-pin--${categoryId}"><span class="kiosk-pin__dot"></span></div>`,
+        html: `
+            <div class="kiosk-pin kiosk-pin--${categoryId}${name ? ' kiosk-pin--selected' : ''}">
+                <span class="kiosk-pin__dot"></span>
+                ${name ? `<span class="kiosk-pin__name">${escapeHtml(name)}</span>` : ''}
+            </div>
+        `,
         iconSize: [0, 0],
         iconAnchor: [0, 0],
     });
@@ -444,29 +467,47 @@ document.addEventListener('DOMContentLoaded', () => {
         const center = featureCenter(location.feature_id) || layerLatLng(location);
         if (!center) return;
 
+        // Tooltips used to be bound here for the name. They were hover-only on
+        // a touchscreen, so they never showed; the name plate is now part of
+        // the selected pin's icon instead (see buildPinIcon).
         let marker;
+        let categoryId = null;
         if (location.is_start) {
             marker = L.marker(center, { icon: buildHereIcon() }).addTo(map);
         } else if (location.is_routable) {
-            const categoryId = categoryFor(location.type);
+            categoryId = categoryFor(location.type);
             marker = L.marker(center, { icon: buildPinIcon(categoryId) }).addTo(map);
-            marker.bindTooltip(location.name, {
-                direction: 'top',
-                offset: [0, -22],
-                className: 'campus-map-label',
-            });
         } else {
             marker = L.marker(center).addTo(map);
-            marker.bindTooltip(location.name, {
-                direction: 'top',
-                offset: [0, -10],
-                className: 'campus-map-label',
-            });
         }
 
         if (location.is_routable) {
             marker.on('click', () => selectBuilding(location));
         }
+
+        state.markers.set(location.id, marker);
+        state.markerMeta.set(location.id, {
+            categoryId,
+            isStart: Boolean(location.is_start),
+            name: location.name,
+        });
+    };
+
+    // Show only the pins in the active category. The "You are here" marker is
+    // exempt on purpose — it is the user's anchor on the map and the origin of
+    // every route, so hiding it under a filter would leave them with no fixed
+    // point. Non-routable pins carry no category, so they show under "All".
+    const applyCategoryFilter = () => {
+        const showAll = state.activeCategory === 'all';
+        state.markers.forEach((marker, id) => {
+            const meta = state.markerMeta.get(id);
+            if (!meta) return;
+            const visible = meta.isStart
+                || showAll
+                || meta.categoryId === state.activeCategory;
+            if (visible && !map.hasLayer(marker)) map.addLayer(marker);
+            else if (!visible && map.hasLayer(marker)) map.removeLayer(marker);
+        });
     };
 
     const fetchLocations = () =>
@@ -478,6 +519,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.searchIndex = buildSearchIndex(locations);
 
                 locations.forEach(addLocationMarker);
+                // Honour a category picked while this request was in flight.
+                applyCategoryFilter();
             })
             .catch((error) => console.error('Failed to load locations:', error));
 
@@ -618,9 +661,42 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.paneQr.classList.remove('building-pane__view--hidden');
     };
 
+    // Move the single name plate onto `id`, or clear it entirely with null.
+    // Only one pin is ever labelled, so nothing can collide with anything.
+    const setLabelledMarker = (id) => {
+        if (state.labelledId === id) return;
+
+        const restore = (targetId) => {
+            const marker = state.markers.get(targetId);
+            const meta = state.markerMeta.get(targetId);
+            if (!marker || !meta || meta.isStart || !meta.categoryId) return;
+            marker.setIcon(buildPinIcon(meta.categoryId));
+            marker.setZIndexOffset(0);
+        };
+
+        if (state.labelledId !== null) restore(state.labelledId);
+        state.labelledId = null;
+
+        if (id === null || id === undefined) return;
+
+        const marker = state.markers.get(id);
+        const meta = state.markerMeta.get(id);
+        // The start pin has its own permanent "You are here" plate, and a
+        // non-routable pin is a plain Leaflet marker with no divIcon to swap.
+        if (!marker || !meta || meta.isStart || !meta.categoryId) return;
+
+        marker.setIcon(buildPinIcon(meta.categoryId, meta.name));
+        // Markers are separate stacking contexts, so a z-index inside the icon
+        // cannot lift the plate over a neighbouring pin — Leaflet's own
+        // per-marker offset is what does it.
+        marker.setZIndexOffset(1000);
+        state.labelledId = id;
+    };
+
     const selectBuilding = (location) => {
         state.selected = location;
         clearRouteLayer();
+        setLabelledMarker(location.id);
 
         // Populate the pane.
         dom.paneType.textContent = location.type || 'Building';
@@ -641,9 +717,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.page.classList.remove('campus-map-page--suggestions-open');
 
         // Picking a building means search is done — clear the bottom dock
-        // (chips + search bar) so the pane's action stack is reachable.
+        // (category + search bar) so the pane's action stack is reachable.
         dom.page.classList.add('campus-map-page--pane-open');
         hideKeyboard();
+        setDropdownOpen(false);
         dom.suggestions.classList.add('suggestions--hidden');
     };
 
@@ -652,6 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.pane.setAttribute('aria-hidden', 'true');
         dom.page.classList.remove('campus-map-page--pane-open');
         state.selected = null;
+        setLabelledMarker(null);
         resetDroneCamera();
     };
 
@@ -705,11 +783,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dom.showRoute.addEventListener('click', onShowRoute);
 
-    // ── 10. Category chips ────────────────────────────────────────
+    // ── 10. Category dropdown ─────────────────────────────────────
 
-    const buildChips = () => {
-        dom.chips.innerHTML = CATEGORIES.map((cat) => `
+    const buildCategoryMenu = () => {
+        dom.dropdownMenu.innerHTML = CATEGORIES.map((cat) => `
             <button type="button"
+                    role="option"
+                    aria-selected="${cat.id === state.activeCategory}"
                     class="category-chip${cat.id === state.activeCategory ? ' category-chip--active' : ''}"
                     data-cat="${cat.id}">
                 <span class="category-chip__swatch" aria-hidden="true"></span>
@@ -718,17 +798,44 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
     };
 
+    const setDropdownOpen = (open) => {
+        dom.dropdown.dataset.open = open ? 'true' : 'false';
+        dom.dropdownTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+
     const setActiveCategory = (id) => {
         state.activeCategory = id;
-        dom.chips.querySelectorAll('.category-chip').forEach((chip) => {
-            chip.classList.toggle('category-chip--active', chip.dataset.cat === id);
+
+        dom.dropdownMenu.querySelectorAll('.category-chip').forEach((chip) => {
+            const isActive = chip.dataset.cat === id;
+            chip.classList.toggle('category-chip--active', isActive);
+            chip.setAttribute('aria-selected', String(isActive));
         });
+
+        // The collapsed trigger is the only readout of the active filter, so
+        // it carries both the label and the category's swatch shape.
+        const cat = CATEGORIES.find((c) => c.id === id) || CATEGORIES[0];
+        dom.dropdownLabel.textContent = cat.label;
+        dom.dropdownTrigger.dataset.cat = cat.id;
+
+        setDropdownOpen(false);
+        applyCategoryFilter();
         refreshSuggestions();
     };
 
-    dom.chips.addEventListener('click', (event) => {
+    dom.dropdownTrigger.addEventListener('click', () => {
+        setDropdownOpen(dom.dropdown.dataset.open !== 'true');
+    });
+
+    dom.dropdownMenu.addEventListener('click', (event) => {
         const chip = event.target.closest('.category-chip');
         if (chip) setActiveCategory(chip.dataset.cat);
+    });
+
+    // Tapping anywhere else — the map included — folds the menu back down.
+    document.addEventListener('pointerdown', (event) => {
+        if (dom.dropdown.dataset.open !== 'true') return;
+        if (!dom.dropdown.contains(event.target)) setDropdownOpen(false);
     });
 
     // ── 11. Idle reset ────────────────────────────────────────────
@@ -767,6 +874,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(hideMapLoader, 4000);
 
     buildKeyboard();
-    buildChips();
+    buildCategoryMenu();
     bumpIdleTimer();
 });

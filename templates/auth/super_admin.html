@@ -1,119 +1,256 @@
-{% extends 'auth/base.html' %}
+{% extends "gears/shell.html" %}
+{% block title %}GEARS Super Admin{% endblock %}
 
-{% block auth_shell_class %}auth-shell--centered{% endblock %}
+{#
+  The super admin console, at /auth/super_admin.
 
-{% block auth_rail %}{% endblock %}
+  It used to extend auth/base.html -- the *sign-in* layout: one centered card
+  over the rotated gears.png watermark, with its own parallel component family
+  (.auth-panel, .auth-stat-card, .auth-table, .auth-mini-button) that duplicated
+  what gears-dashboard.css already provided. auth-shell.css said so itself, in a
+  comment on .auth-stat-card::before. The effect was that the highest-privilege
+  account got the least-finished screen: a login page with a table bolted on,
+  while an editor and an admin both got a real console.
 
-{% block content %}
-<section class="auth-panel auth-panel--wide">
-    <div class="auth-panel__header auth-panel__header--with-action">
-        <div class="auth-panel__eyebrow">System Access</div>
-        <h2 class="auth-panel__title">Super Admin Dashboard</h2>
-        <p class="auth-panel__subtitle">Welcome, {{ current_admin.username }}. Monitor organization content and manage admin and editor accounts.</p>
-        <form method="POST" action="{{ route('auth.super_admin.logout', {}, False) }}" class="auth-panel__logout-form">
-            {{ csrf_field | safe }}
-            <button type="submit" class="auth-mini-button">Log out</button>
-        </form>
-    </div>
+  It now wears gears/shell.html, the same chrome as /gears/dashboard and /users.
+  No route, controller permission or action changed in the move -- only the
+  layout and the class vocabulary.
+#}
 
-    {% if bag().any() %}
-    <div class="auth-alert">
-        <ul class="auth-alert__list">
-            {% for message in bag().messages() %}
-            <li>{{ message }}</li>
-            {% endfor %}
+{% block head %}
+{{ super() }}
+{# confirm-modal.css comes from the shell now; this sheet holds only what the
+   dashboard vocabulary does not already cover. #}
+<link rel="stylesheet" href="{{ asset_url('css/auth-admin.css') }}" />
+{% endblock %}
+
+{% block shell_default_page %}overview{% endblock %}
+
+{# No bell: notifications here are editorial (a story was submitted, a decision
+   was made). A super admin is not in that loop, so the badge would sit at 0. #}
+{% block shell_bell %}{% endblock %}
+
+{% block shell_nav %}
+<div class="dashboard-nav__group-label">SYSTEM</div>
+<button type="button" class="dashboard-nav__link is-active" data-page-link="overview" id="nav-overview" role="tab" aria-controls="panel-overview" aria-selected="true" tabindex="0">
+  <span class="dashboard-nav__icon" aria-hidden="true">▣</span>
+  <span>Overview</span>
+</button>
+
+
+<button type="button" class="dashboard-nav__link" data-page-link="accounts" id="nav-accounts" role="tab" aria-controls="panel-accounts" aria-selected="false" tabindex="-1">
+  <span class="dashboard-nav__icon" aria-hidden="true">◍</span>
+  <span>Admin accounts</span>
+</button>
+{% endblock %}
+
+{% block shell_panels %}
+    {# ── Overview ────────────────────────────────────────────────────────
+       The eight counts come from DashboardContext.super_admin_stats(), which
+       is eight SQL aggregates and loads no rows. Deliberately not wired to
+       data-live-section: that would need a fragment partial plus entries in
+       DashboardController.FRAGMENTS and STAMP_MODELS, and nothing on this page
+       is time-sensitive the way the review queue is. #}
+    <section class="gears-page is-visible" data-page-panel="overview" id="panel-overview" role="tabpanel" aria-labelledby="nav-overview" data-hero-eyebrow="System Access" data-hero-title="Super Admin Dashboard" data-hero-subtitle="Welcome, {{ display_name(current_user) }}. Monitor organization content and manage admin and editor accounts.">
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
         </ul>
-    </div>
-    {% endif %}
+      </div>
+      {% endif %}
 
-    <h3 class="auth-section-heading">Organization overview</h3>
-    <div class="auth-stats-grid">
-        <article class="auth-stat-card">
-            <div class="auth-stat-card__label">Admins</div>
-            <div class="auth-stat-card__value">{{ admin_count or 0 }}</div>
+      <div class="stats-grid stats-grid--four">
+        <article class="stat-card stat-card--blue">
+          <div class="stat-card__label">Admins</div>
+          <div class="stat-card__value">{{ admin_count or 0 }}</div>
         </article>
-        <article class="auth-stat-card auth-stat-card--muted">
-            <div class="auth-stat-card__label">Editors</div>
-            <div class="auth-stat-card__value">{{ editor_count or 0 }}</div>
+        <article class="stat-card stat-card--orange">
+          <div class="stat-card__label">Editors</div>
+          <div class="stat-card__value">{{ editor_count or 0 }}</div>
         </article>
-        <article class="auth-stat-card auth-stat-card--success">
-            <div class="auth-stat-card__label">Published News</div>
-            <div class="auth-stat-card__value">{{ published_news or 0 }}</div>
+        <article class="stat-card stat-card--green">
+          <div class="stat-card__label">Published News</div>
+          <div class="stat-card__value">{{ published_news or 0 }}</div>
         </article>
-        <article class="auth-stat-card">
-            <div class="auth-stat-card__label">Total News</div>
-            <div class="auth-stat-card__value">{{ total_news or 0 }}</div>
+        <article class="stat-card stat-card--blue">
+          <div class="stat-card__label">Total News</div>
+          <div class="stat-card__value">{{ total_news or 0 }}</div>
         </article>
-        <article class="auth-stat-card auth-stat-card--muted">
-            <div class="auth-stat-card__label">Events</div>
-            <div class="auth-stat-card__value">{{ total_events or 0 }}</div>
+        <article class="stat-card stat-card--orange">
+          <div class="stat-card__label">Events</div>
+          <div class="stat-card__value">{{ total_events or 0 }}</div>
         </article>
-        <article class="auth-stat-card">
-            <div class="auth-stat-card__label">Archives</div>
-            <div class="auth-stat-card__value">{{ total_archives or 0 }}</div>
+        <article class="stat-card stat-card--green">
+          <div class="stat-card__label">Archives</div>
+          <div class="stat-card__value">{{ total_archives or 0 }}</div>
         </article>
-        <article class="auth-stat-card auth-stat-card--muted">
-            <div class="auth-stat-card__label">Newsletters</div>
-            <div class="auth-stat-card__value">{{ total_newsletters or 0 }}</div>
+        <article class="stat-card stat-card--blue">
+          <div class="stat-card__label">Newsletters</div>
+          <div class="stat-card__value">{{ total_newsletters or 0 }}</div>
         </article>
-        <article class="auth-stat-card auth-stat-card--success">
-            <div class="auth-stat-card__label">Locations</div>
-            <div class="auth-stat-card__value">{{ location_count or 0 }}</div>
+        <article class="stat-card stat-card--orange">
+          <div class="stat-card__label">Locations</div>
+          <div class="stat-card__value">{{ location_count or 0 }}</div>
         </article>
-    </div>
+      </div>
+    </section>
 
-    <h3 class="auth-section-heading">User management</h3>
-    <div class="auth-card-grid">
-        <form class="auth-form" action="{{ route('auth.super_admin.store', {}, False) }}" method="post">
-            {{ csrf_field | safe }}
+    {# ── Accounts ────────────────────────────────────────────────────────
+       Like the admin console's invite form, this one deliberately carries
+       neither data-section-form nor data-upload-form: gears-dashboard.js binds
+       both at document level and would hijack the plain POST into an AJAX
+       submit expecting a dashboard-shaped response. It posts and redirects. #}
+    <section class="gears-page" data-page-panel="accounts" id="panel-accounts" role="tabpanel" aria-labelledby="nav-accounts" data-hero-eyebrow="Accounts" data-hero-title="Admins and editors" data-hero-subtitle="Create an admin account, or change the credentials on one." hidden>
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
 
-            <div class="auth-form__split">
-                <label class="auth-form__group" for="email">
-                    <span class="auth-form__label">Email</span>
-                    <input type="text" name="email" id="email" placeholder="Email" class="auth-form__input" required>
-                </label>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Accounts</p>
+          <h2 class="section-head__title">Add an admin</h2>
+        </div>
+      </div>
 
-                <label class="auth-form__group" for="username">
-                    <span class="auth-form__label">Username</span>
-                    <input type="text" name="username" id="username" placeholder="Username" class="auth-form__input" required>
-                </label>
-            </div>
-
-            <button type="submit" class="auth-form__button">Create Admin</button>
+      <div class="page-card">
+        <form class="sa-invite" action="{{ route('auth.super_admin.store', {}, False) }}" method="post">
+          {{ csrf_field | safe }}
+          <label class="field" for="username">
+            <span class="field__label">Username</span>
+            <input type="text" name="username" id="username" class="field__input" placeholder="jdelacruz" required>
+          </label>
+          <label class="field" for="email">
+            <span class="field__label">Email</span>
+            <input type="text" name="email" id="email" class="field__input" placeholder="admin@lspu.edu.ph" required>
+          </label>
+          <button type="submit" class="primary-button">Create admin</button>
         </form>
+        <p class="sa-invite__note">A generated password is emailed to this address.</p>
+      </div>
 
-        <table class="auth-table user-management">
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Accounts</p>
+          <h2 class="section-head__title">Current accounts</h2>
+        </div>
+      </div>
+
+      <div class="page-card">
+        <div class="table-responsive">
+          <table class="events-table events-table--compact" aria-label="Admin and editor accounts">
             <thead>
-                <tr>
-                    <th>Username</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Actions</th>
-                </tr>
+              <tr>
+                <th scope="col">Username</th>
+                <th scope="col">Email</th>
+                <th scope="col">Role</th>
+                <th scope="col">Actions</th>
+              </tr>
             </thead>
             <tbody>
-                {# Super admin accounts are filtered out in SuperAdminController.show(),
-                   so no row here can ever target a peer. #}
-                {% for user in users %}
-                <tr>
-                    <td>{{ user.username }}</td>
-                    <td>{{ user.email }}</td>
-                    <td>
-                        <span class="auth-role {% if user.role == 'admin' %}auth-role--admin{% endif %}">{{ user.role }}</span>
-                    </td>
-                    <td>
-                        <div class="auth-table__actions">
-                            <form action="{{ route('auth.super_admin.destroy', {'id': user.id}, False) }}" method="post" class="inline-form">
-                                {{ csrf_field | safe }}
-                                <input type="hidden" name="__method" value="DELETE">
-                                <button type="submit" class="auth-mini-button auth-mini-button--danger">Delete</button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
+              {# Super admin accounts are filtered out in SuperAdminController.show(),
+                 so no row here can ever target a peer. #}
+              {% for user in users %}
+              <tr>
+                <td>{{ user.username }}</td>
+                <td>{{ user.email }}</td>
+                <td>
+                  <span class="sa-role {% if user.role == 'admin' %}sa-role--admin{% endif %}">{{ user.role }}</span>
+                </td>
+                <td>
+                  <div class="sa-row-actions">
+                    {# Credential management is scoped to admins. Editors are
+                       managed from the admin console (/users), and super admin
+                       rows never reach this loop at all. #}
+                    {% if user.role == 'admin' %}
+                    <button type="button" class="ghost-button"
+                            data-sa-edit
+                            data-sa-action="{{ route('auth.super_admin.credentials', {'id': user.id}, False) }}"
+                            data-sa-username="{{ user.username }}"
+                            data-sa-email="{{ user.email }}">Edit</button>
+
+                    <form action="{{ route('auth.super_admin.reset_password', {'id': user.id}, False) }}" method="post">
+                      {{ csrf_field | safe }}
+                      <button type="submit" class="ghost-button"
+                              data-confirm="{{ user.username }}'s current password stops working immediately. A new one is generated and emailed to {{ user.email }} — it is never shown here."
+                              data-confirm-title="Reset password?"
+                              data-confirm-label="Reset and email"
+                              data-confirm-cancel="Cancel"
+                              data-confirm-danger>Reset password</button>
+                    </form>
+                    {% endif %}
+
+                    <form action="{{ route('auth.super_admin.destroy', {'id': user.id}, False) }}" method="post">
+                      {{ csrf_field | safe }}
+                      <input type="hidden" name="__method" value="DELETE">
+                      <button type="submit" class="ghost-button ghost-button--danger"
+                              data-confirm="This permanently removes {{ user.username }} ({{ user.email }}). Their news stories stay published but lose their author credit."
+                              data-confirm-title="Delete {{ user.username }}?"
+                              data-confirm-label="Delete"
+                              data-confirm-cancel="Keep"
+                              data-confirm-danger>Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="4" class="empty-state empty-state--embedded">
+                  No admin or editor accounts yet. Create an admin to get started.
+                </td>
+              </tr>
+              {% endfor %}
             </tbody>
-        </table>
-    </div>
-</section>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    {% include 'gears/partials/profile-panel.html' %}
+
+{# One dialog reused by every row: the Edit buttons carry the row's values as
+   data-* and super-admin.js copies them in, so the markup does not repeat per
+   admin. Styled with .confirm-modal so it matches the confirm dialog it sits
+   alongside; the fields use .field/.field__input rather than the auth shell's
+   inputs, which used to put a 10px-radius control inside a 6px-radius panel. #}
+<dialog class="confirm-modal sa-edit-modal" data-sa-edit-modal aria-labelledby="sa-edit-title">
+    <form method="post" class="confirm-modal__panel" data-sa-edit-form>
+        {{ csrf_field | safe }}
+        <h2 class="confirm-modal__title" id="sa-edit-title">Edit admin</h2>
+        <p class="confirm-modal__body">
+            Changing the email also changes what this admin signs in with. A notice
+            is sent to both the old and the new address.
+        </p>
+
+        <label class="field" for="sa-edit-username">
+            <span class="field__label">Username</span>
+            <input type="text" name="username" id="sa-edit-username" class="field__input" required>
+        </label>
+
+        <label class="field" for="sa-edit-email">
+            <span class="field__label">Email</span>
+            <input type="email" name="email" id="sa-edit-email" class="field__input" required>
+        </label>
+
+        <div class="confirm-modal__footer">
+            <button type="button" class="confirm-modal__button" data-sa-edit-cancel>Cancel</button>
+            <button type="submit" class="confirm-modal__button confirm-modal__button--primary">Save changes</button>
+        </div>
+    </form>
+</dialog>
+{% endblock %}
+
+{% block js %}
+{{ super() }}
+{# Drives the shared edit dialog above. confirm-modal.js, which powers the
+   Reset password / Delete / Log out dialogs, comes from the shell. #}
+<script src="{{ asset_url('js/super-admin.js') }}" defer></script>
 {% endblock %}

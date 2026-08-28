@@ -1,0 +1,42 @@
+{#
+    Events panel. The "Add Event" dialog it opens lives in
+    gears/partials/events-modal.html, which dashboard.html includes further
+    down -- the modal's position in the DOM is kept exactly where it was.
+
+    Extracted from gears/dashboard.html, which had grown to 1,628 lines with
+    every panel of the CMS in one file. Rendered by dashboard.html in the same
+    order it always was; DashboardController.fragment() still re-renders the
+    smaller data partials (events-list, news-slots, archives-list, videos-list).
+#}
+    <section class="gears-page" data-page-panel="events" data-live-section="events" id="panel-events" role="tabpanel" aria-labelledby="nav-events" data-hero-eyebrow="Content" data-hero-title="Events and campus calendar" data-hero-subtitle="Publish event listings for the kiosk schedule and lobby screens." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">Events</h2>
+        </div>
+        <div class="section-head__actions">
+          <button type="button" class="primary-button" data-events-modal-open>Add Events</button>
+        </div>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="page-card" data-section-count="{{ events|length }}">
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No data available</div>
+          <p class="empty-state__text">Create events to populate this section.</p>
+        </div>
+
+        <div class="table-responsive" data-section-content data-live-target>
+{% include "gears/partials/events-list.html" %}
+        </div>
+      </div>
+    </section>

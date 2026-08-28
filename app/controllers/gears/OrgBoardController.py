@@ -1,3 +1,4 @@
+import json
 import os
 import traceback
 
@@ -27,8 +28,26 @@ def _dashboard_redirect(response: Response):
 
 
 def _int_or_none(raw_value):
-    """Parse an optional signed integer coming from form input."""
-    text = (raw_value or "").strip()
+    """Parse an optional signed integer.
+
+    Values arrive either as form input (always a string) or, since the canvas
+    started posting batched positions, already decoded from JSON as real
+    numbers — so this can no longer assume it was handed a string. A bool is
+    refused outright rather than silently read as its 0/1 int value.
+    """
+    if raw_value is None or isinstance(raw_value, bool):
+        return None
+
+    if isinstance(raw_value, int):
+        return raw_value
+
+    if isinstance(raw_value, float):
+        # NaN and the infinities are not integers; int() would raise on them.
+        if raw_value != raw_value or abs(raw_value) == float("inf"):
+            return None
+        return int(raw_value)
+
+    text = str(raw_value).strip()
     if not text:
         return None
 
@@ -36,6 +55,21 @@ def _int_or_none(raw_value):
         return int(float(text))
     except (TypeError, ValueError):
         return None
+
+
+def _clamp_position(value):
+    """Keep canvas coordinates inside the fixed origin's positive quadrant.
+
+    The shared layout module anchors the board at (0, 0) and never renders a
+    negative coordinate — an origin that moves with the content shifts every
+    card the moment a drag creates a new leftmost one, so a dropped card does
+    not stay where it was released. Older rows saved by the previous
+    bounds-relative editor can still hold negatives; they are folded back here
+    and on render.
+    """
+    if value is None:
+        return None
+    return max(0, value)
 
 
 def _normalize_uploaded_photo(photo_file):
@@ -245,8 +279,8 @@ class OrgBoardController(Controller):
                 "parent_id": parent_id,
                 "photo_path": photo_path,
                 "sort_order": sort_order,
-                "pos_x": _int_or_none(request.input("pos_x")),
-                "pos_y": _int_or_none(request.input("pos_y")),
+                "pos_x": _clamp_position(_int_or_none(request.input("pos_x"))),
+                "pos_y": _clamp_position(_int_or_none(request.input("pos_y"))),
             })
 
             if is_ajax:
@@ -262,12 +296,18 @@ class OrgBoardController(Controller):
             return _err(["Could not save the member. Please try again."])
 
     def move(self, request: Request, response: Response):
-        """Reparent a member and/or store its free-canvas position.
+        """Reparent a member and/or store free-canvas positions.
 
         Sending `parent_id` (possibly empty, meaning "make it a root") reparents.
-        Sending `pos_x`/`pos_y` pins the card where the editor dropped it, and
-        re-derives sibling order left-to-right from the resulting x positions.
+        Sending `pos_x`/`pos_y` pins the card where the editor dropped it.
+        Sending `positions` — a JSON array of {member_id, pos_x, pos_y} — pins a
+        whole set at once, which is what a subtree drag and the first-open
+        seeding pass both send.
         """
+        positions_raw = (request.input("positions", "") or "").strip()
+        if positions_raw:
+            return self._move_positions(response, positions_raw)
+
         member_id = _int_or_none(request.input("member_id"))
         if member_id is None:
             return json_errors(response, ["Please choose a valid member."])
@@ -305,8 +345,8 @@ class OrgBoardController(Controller):
 
                 target_parent_id = parent_member.id
 
-        pos_x = _int_or_none(request.input("pos_x"))
-        pos_y = _int_or_none(request.input("pos_y"))
+        pos_x = _clamp_position(_int_or_none(request.input("pos_x")))
+        pos_y = _clamp_position(_int_or_none(request.input("pos_y")))
         has_position = pos_x is not None and pos_y is not None
 
         try:
@@ -314,6 +354,18 @@ class OrgBoardController(Controller):
             if has_position:
                 member.pos_x = pos_x
                 member.pos_y = pos_y
+
+            if target_parent_id != source_parent_id:
+                # Give the member a place at the end of its new sibling group.
+                # sort_order used to be re-derived from pos_x on every move,
+                # which meant a purely visual nudge rewrote — and re-saved —
+                # every sibling row. On a free canvas x carries no ordering
+                # meaning at all, so ordering is left alone and only the
+                # arriving member is numbered.
+                member.sort_order = self._next_sort_order(
+                    members, source_organization_id, target_parent_id
+                )
+
             member.save()
 
             if target_parent_id != source_parent_id:
@@ -321,11 +373,6 @@ class OrgBoardController(Controller):
                     members, source_organization_id, source_parent_id, excluded_ids=branch_ids
                 )
                 self._renumber_group(source_group)
-
-            destination_group = self._sibling_group(
-                self._all_members(), source_organization_id, target_parent_id
-            )
-            self._reorder_siblings_by_position(destination_group)
 
             return json_success(
                 response,
@@ -336,21 +383,76 @@ class OrgBoardController(Controller):
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return json_errors(response, ["Could not move the member. Please try again."])
 
-    def _reorder_siblings_by_position(self, siblings):
-        """Order a sibling group left-to-right, keeping unpinned cards in place.
+    def _move_positions(self, response: Response, positions_raw):
+        """Pin a batch of cards in one request.
 
-        Cards the editor has positioned by hand sort by their x coordinate;
-        cards still on auto-layout keep their existing sort order.
+        A subtree drag moves every descendant, and the editor seeds a whole
+        board the first time it is opened; posting those one at a time would
+        re-serialise the organization once per card.
         """
-        ordered = sorted(
-            siblings,
-            key=lambda row: (
-                0 if getattr(row, "pos_x", None) is not None else 1,
-                int(getattr(row, "pos_x", 0) or 0),
-                _member_sort_key(row),
-            ),
-        )
-        self._renumber_group(ordered)
+        try:
+            entries = json.loads(positions_raw)
+        except (TypeError, ValueError):
+            return json_errors(response, ["Could not read the new positions."])
+
+        if not isinstance(entries, list) or not entries:
+            return json_errors(response, ["Could not read the new positions."])
+
+        by_id = {}
+        for row in self._all_members():
+            by_id[getattr(row, "id", None)] = row
+
+        organization_id = None
+        updates = []
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                return json_errors(response, ["Could not read the new positions."])
+
+            member_id = _int_or_none(entry.get("member_id"))
+            pos_x = _clamp_position(_int_or_none(entry.get("pos_x")))
+            pos_y = _clamp_position(_int_or_none(entry.get("pos_y")))
+
+            if member_id is None or pos_x is None or pos_y is None:
+                return json_errors(response, ["Could not read the new positions."])
+
+            member = by_id.get(member_id)
+            if not member:
+                return json_errors(response, ["Please choose a valid member."])
+
+            # One request may only touch one organization — the editor shows one
+            # board at a time, and letting a batch straddle organizations would
+            # make the payload it returns meaningless.
+            row_organization_id = getattr(member, "organization_id", None)
+            if organization_id is None:
+                organization_id = row_organization_id
+            elif row_organization_id != organization_id:
+                return json_errors(
+                    response, ["Every card in a move must belong to the same organization."]
+                )
+
+            updates.append((member, pos_x, pos_y))
+
+        try:
+            for member, pos_x, pos_y in updates:
+                unchanged = (
+                    getattr(member, "pos_x", None) == pos_x
+                    and getattr(member, "pos_y", None) == pos_y
+                )
+                if unchanged:
+                    continue
+                member.pos_x = pos_x
+                member.pos_y = pos_y
+                member.save()
+
+            return json_success(
+                response,
+                payload=self._organization_payload(organization_id),
+                messages=["Layout saved."],
+            )
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return json_errors(response, ["Could not move the member. Please try again."])
 
     def update(self, request: Request, storage: Storage, response: Response):
         member_id = _int_or_none(request.input("member_id"))

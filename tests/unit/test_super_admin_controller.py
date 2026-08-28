@@ -84,7 +84,7 @@ class SuperAdminListTestCase(TestCase):
             context = SuperAdminController().show(_mock_view(), request)
 
         request.user.assert_called()
-        self.assertEqual(context["current_admin"], current)
+        self.assertEqual(context["current_user"], current)
 
 
 class SuperAdminDestroyTestCase(TestCase):
@@ -124,3 +124,220 @@ class SuperAdminDestroyTestCase(TestCase):
             SuperAdminController().destroy(_mock_request(param_id=404), response)
 
         response.redirect.assert_called_once()
+
+
+def _mock_credentials_request(param_id=None, inputs=None):
+    """A request whose .input() reads from a dict.
+
+    The list-oriented _mock_request above returns a Mock for every input,
+    which a truthiness check would happily accept as a valid username.
+    """
+    values = inputs or {}
+    request = Mock()
+    request.param.return_value = param_id
+    request.input.side_effect = lambda key: values.get(key)
+    request.user.return_value = _make_user(1, "root", "root@example.com", "superadmin")
+    return request
+
+
+class SuperAdminUpdateCredentialsTestCase(TestCase):
+    def test_refuses_an_editor_target(self):
+        # The Edit control only renders on admin rows, but the route takes a
+        # bare id. This is the privilege boundary, not a UI nicety.
+        editor = _make_user(3, "ed", "ed@example.com", "editor")
+        response, redirect = _mock_response()
+        with patch("app.controllers.auth.SuperAdminController.User") as MockUser:
+            MockUser.find.return_value = editor
+            result = SuperAdminController().update_credentials(
+                _mock_credentials_request(3, {"username": "ed2", "email": "e@x.com"}),
+                response,
+            )
+
+        self.assertEqual(result, "redirected-with-errors")
+        editor.save.assert_not_called()
+
+    def test_refuses_a_superadmin_target(self):
+        peer = _make_user(2, "peer", "peer@example.com", "superadmin")
+        response, _ = _mock_response()
+        with patch("app.controllers.auth.SuperAdminController.User") as MockUser:
+            MockUser.find.return_value = peer
+            result = SuperAdminController().update_credentials(
+                _mock_credentials_request(2, {"username": "p", "email": "p@x.com"}),
+                response,
+            )
+
+        self.assertEqual(result, "redirected-with-errors")
+        peer.save.assert_not_called()
+
+    def test_rejects_an_email_another_user_already_holds(self):
+        target = _make_user(2, "ann", "ann@example.com", "admin")
+        other = _make_user(3, "ed", "taken@example.com", "editor")
+        response, _ = _mock_response()
+        with patch("app.controllers.auth.SuperAdminController.User") as MockUser:
+            MockUser.find.return_value = target
+            MockUser.all.return_value = [target, other]
+            result = SuperAdminController().update_credentials(
+                _mock_credentials_request(
+                    2, {"username": "ann", "email": "Taken@Example.com"}
+                ),
+                response,
+            )
+
+        self.assertEqual(result, "redirected-with-errors")
+        target.save.assert_not_called()
+
+    def test_rejects_a_username_another_user_already_holds(self):
+        target = _make_user(2, "ann", "ann@example.com", "admin")
+        other = _make_user(3, "ed", "ed@example.com", "editor")
+        response, _ = _mock_response()
+        with patch("app.controllers.auth.SuperAdminController.User") as MockUser:
+            MockUser.find.return_value = target
+            MockUser.all.return_value = [target, other]
+            result = SuperAdminController().update_credentials(
+                _mock_credentials_request(2, {"username": "ed", "email": "ann@example.com"}),
+                response,
+            )
+
+        self.assertEqual(result, "redirected-with-errors")
+        target.save.assert_not_called()
+
+    def test_keeping_your_own_email_is_not_a_collision(self):
+        target = _make_user(2, "ann", "ann@example.com", "admin")
+        response, _ = _mock_response()
+        with patch("app.controllers.auth.SuperAdminController.User") as MockUser:
+            MockUser.find.return_value = target
+            MockUser.all.return_value = [target]
+            SuperAdminController().update_credentials(
+                _mock_credentials_request(
+                    2, {"username": "annie", "email": "ann@example.com"}
+                ),
+                response,
+            )
+
+        self.assertEqual(target.username, "annie")
+        target.save.assert_called_once()
+
+    def test_a_posted_role_cannot_escalate_the_target(self):
+        # User.__fillable__ includes `role`, so the controller must assign
+        # fields one at a time. A mass assignment here would be a privilege
+        # escalation handed over by a crafted POST.
+        target = _make_user(2, "ann", "ann@example.com", "admin")
+        response, _ = _mock_response()
+        with patch("app.controllers.auth.SuperAdminController.User") as MockUser:
+            MockUser.find.return_value = target
+            MockUser.all.return_value = [target]
+            SuperAdminController().update_credentials(
+                _mock_credentials_request(
+                    2,
+                    {
+                        "username": "ann",
+                        "email": "ann@example.com",
+                        "role": "superadmin",
+                    },
+                ),
+                response,
+            )
+
+        self.assertEqual(target.role, "admin")
+        # Asserting on .role alone is not enough against a Mock, which would
+        # absorb an .update(...) without changing anything. The real defence
+        # is that no bulk write happens at all.
+        target.update.assert_not_called()
+
+    def test_changing_the_email_notifies_both_addresses(self):
+        target = _make_user(2, "ann", "old@example.com", "admin")
+        response, _ = _mock_response()
+        with patch("app.controllers.auth.SuperAdminController.User") as MockUser, patch(
+            "app.controllers.auth.SuperAdminController.Credentials"
+        ) as MockCredentials:
+            MockUser.find.return_value = target
+            MockUser.all.return_value = [target]
+            MockCredentials.send_email_change_notice.return_value = True
+            SuperAdminController().update_credentials(
+                _mock_credentials_request(
+                    2, {"username": "ann", "email": "new@example.com"}
+                ),
+                response,
+            )
+
+        notified = {
+            call.args[0]
+            for call in MockCredentials.send_email_change_notice.call_args_list
+        }
+        self.assertEqual(notified, {"old@example.com", "new@example.com"})
+
+
+class SuperAdminResetPasswordTestCase(TestCase):
+    def test_refuses_a_non_admin_target(self):
+        editor = _make_user(3, "ed", "ed@example.com", "editor")
+        response, _ = _mock_response()
+        with patch("app.controllers.auth.SuperAdminController.User") as MockUser:
+            MockUser.find.return_value = editor
+            result = SuperAdminController().reset_password(
+                _mock_credentials_request(3), response
+            )
+
+        self.assertEqual(result, "redirected-with-errors")
+        editor.save.assert_not_called()
+
+    def test_a_failed_send_leaves_the_password_untouched(self):
+        # Saving a password whose email never arrived locks the admin out of
+        # their own account with no recovery path, so the send has to succeed
+        # before anything is persisted.
+        target = _make_user(2, "ann", "ann@example.com", "admin")
+        target.password = "original-hash"
+        response, _ = _mock_response()
+        with patch("app.controllers.auth.SuperAdminController.User") as MockUser, patch(
+            "app.controllers.auth.SuperAdminController.Credentials"
+        ) as MockCredentials:
+            MockUser.find.return_value = target
+            MockCredentials.generate_password.return_value = "plaintext-secret"
+            MockCredentials.send_credentials.return_value = False
+            result = SuperAdminController().reset_password(
+                _mock_credentials_request(2), response
+            )
+
+        self.assertEqual(result, "redirected-with-errors")
+        self.assertEqual(target.password, "original-hash")
+        target.save.assert_not_called()
+
+    def test_a_successful_reset_saves_the_hash_not_the_plaintext(self):
+        target = _make_user(2, "ann", "ann@example.com", "admin")
+        target.password = "original-hash"
+        response, redirect = _mock_response()
+        with patch("app.controllers.auth.SuperAdminController.User") as MockUser, patch(
+            "app.controllers.auth.SuperAdminController.Credentials"
+        ) as MockCredentials, patch(
+            "app.controllers.auth.SuperAdminController.Hash"
+        ) as MockHash:
+            MockUser.find.return_value = target
+            MockCredentials.generate_password.return_value = "plaintext-secret"
+            MockCredentials.send_credentials.return_value = True
+            MockHash.make.return_value = "new-hash"
+            SuperAdminController().reset_password(
+                _mock_credentials_request(2), response
+            )
+
+        MockHash.make.assert_called_once_with("plaintext-secret")
+        self.assertEqual(target.password, "new-hash")
+        target.save.assert_called_once()
+
+    def test_the_generated_password_never_reaches_the_flash_message(self):
+        target = _make_user(2, "ann", "ann@example.com", "admin")
+        response, redirect = _mock_response()
+        with patch("app.controllers.auth.SuperAdminController.User") as MockUser, patch(
+            "app.controllers.auth.SuperAdminController.Credentials"
+        ) as MockCredentials, patch(
+            "app.controllers.auth.SuperAdminController.Hash"
+        ) as MockHash:
+            MockUser.find.return_value = target
+            MockCredentials.generate_password.return_value = "plaintext-secret"
+            MockCredentials.send_credentials.return_value = True
+            MockHash.make.return_value = "new-hash"
+            SuperAdminController().reset_password(
+                _mock_credentials_request(2), response
+            )
+
+        messages = " ".join(redirect.with_success.call_args.args[0])
+        self.assertNotIn("plaintext-secret", messages)
+        self.assertIn("ann@example.com", messages)

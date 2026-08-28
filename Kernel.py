@@ -14,8 +14,7 @@ from masonite.routes import Route
 from masonite.configuration.Configuration import Configuration
 from masonite.configuration import config
 
-from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware, DatabaseReconnectMiddleware, SuperAdminMiddleware
-from masonite.middleware import ThrottleRequestsMiddleware
+from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware, DatabaseReconnectMiddleware, SuperAdminMiddleware, ThrottleRequestsMiddleware
 
 
 class Kernel:
@@ -29,6 +28,8 @@ class Kernel:
         "super_admin": [SuperAdminMiddleware],
         # Keyed middleware: used as e.g. .middleware("throttle:5/minute").
         # It requires a limit argument, so it must never sit bare in a group.
+        # Ours, not Masonite's: the framework's attempt counter outlives its
+        # own window — see app/middlewares/ThrottleRequestsMiddleware.py.
         "throttle": ThrottleRequestsMiddleware,
     }
 

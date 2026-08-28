@@ -13,9 +13,6 @@ from app.models.Locations import Locations
 
 
 class EventController(Controller):
-    def show(self, view):
-        return view.render("welcome")
-
     def store(self, request: Request, response: Response):
         title = (request.input("title") or "").strip()
         description = (request.input("description") or "").strip()

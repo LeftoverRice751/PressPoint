@@ -1,0 +1,72 @@
+{#
+    Tour mapping: links a panorama scene to a campus location.
+
+    Extracted from gears/dashboard.html, which had grown to 1,628 lines with
+    every panel of the CMS in one file. Rendered by dashboard.html in the same
+    order it always was; DashboardController.fragment() still re-renders the
+    smaller data partials (events-list, news-slots, archives-list, videos-list).
+#}
+    <section class="gears-page" data-page-panel="tour-mapping" id="panel-tour-mapping" role="tabpanel" aria-labelledby="nav-tour-mapping" data-hero-eyebrow="Content" data-hero-title="Link panoramas to buildings" data-hero-subtitle="Tell the virtual tour which building each panorama represents so visitors can search and walk to it." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">Tour Mapping</h2>
+        </div>
+        <p class="section-head__subtitle">For every panorama in the virtual tour, choose the building it represents. Buildings without a panorama still appear in search but are marked as unavailable.</p>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="page-card tour-mapping-card" data-section-count="{{ tour_scene_rows|length }}">
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No tour scenes detected</div>
+          <p class="empty-state__text">The panorama catalog is generated from <code>resources/js/data.js</code>. Re-run the tour pipeline if this list looks wrong.</p>
+        </div>
+
+        <div class="tour-mapping-list" data-section-content>
+          {% for scene in tour_scene_rows %}
+          <form action="{{ route('tour-scenes.store', {}, False) }}" method="POST" class="tour-mapping-row">
+            {{ csrf_field | safe }}
+            <input type="hidden" name="scene_id" value="{{ scene.scene_id }}">
+
+            <div class="tour-mapping-row__id">
+              <span class="tour-mapping-row__scene-label">Scene</span>
+              <span class="tour-mapping-row__scene-id">{{ scene.scene_name or scene.scene_id }}</span>
+              <span class="tour-mapping-row__scene-raw">{{ scene.scene_id }}</span>
+            </div>
+
+            <label class="field tour-mapping-row__location">
+              <span class="field__label">Building</span>
+              <select name="location_id" class="field__input field__input--select">
+                <option value="">— Not mapped —</option>
+                {% for location in locations %}
+                <option value="{{ location.id }}" {% if scene.location_id == location.id %}selected{% endif %}>
+                  {{ location.name }}{% if location.type %} · {{ location.type }}{% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </label>
+
+            <label class="field tour-mapping-row__display">
+              <span class="field__label">Display name (optional)</span>
+              <input type="text" name="display_name" class="field__input" placeholder="Override the building name shown in tour" value="{{ scene.display_name }}">
+            </label>
+
+            <div class="tour-mapping-row__actions">
+              <button type="submit" class="primary-button">Save</button>
+            </div>
+          </form>
+          {% else %}
+          <div class="empty-state empty-state--embedded">No tour scenes detected.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>

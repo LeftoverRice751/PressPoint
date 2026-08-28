@@ -30,10 +30,43 @@
         return;
       }
 
-      var placed = window.OrgChart.layout(members, metrics);
+      // Cards are content-sized, so their geometry only exists once they are in
+      // the DOM: build them hidden, measure, then lay out. Anything that
+      // measures 0 (chart still hidden in a collapsed deck card) falls back to
+      // the fixed card box inside OrgChart.
+      nodes.innerHTML = '';
+      var elements = {};
+      var sizes = {};
+      var flat = window.OrgChart.flatten(members);
+
+      flat.forEach(function (member) {
+        var card = buildNode(member);
+        card.style.visibility = 'hidden';
+        nodes.appendChild(card);
+        elements[String(member.id)] = card;
+      });
+
+      flat.forEach(function (member) {
+        var card = elements[String(member.id)];
+        var width = card.offsetWidth;
+        var height = card.offsetHeight;
+        sizes[String(member.id)] = width > 0 && height > 0
+          ? { width: width, height: height }
+          : null;
+      });
+
+      var chartMetrics = {};
+      Object.keys(metrics).forEach(function (key) {
+        chartMetrics[key] = metrics[key];
+      });
+      chartMetrics.measure = function (member) {
+        return sizes[String(member.id)] || null;
+      };
+
+      var placed = window.OrgChart.layout(members, chartMetrics);
       if (!placed.length) return;
 
-      var box = window.OrgChart.bounds(placed, metrics, 24);
+      var box = window.OrgChart.bounds(placed, chartMetrics, 24);
 
       stage.style.width = box.width + 'px';
       stage.style.height = box.height + 'px';
@@ -41,13 +74,16 @@
       edges.setAttribute('viewBox', box.minX + ' ' + box.minY + ' ' + box.width + ' ' + box.height);
       edges.setAttribute('width', box.width);
       edges.setAttribute('height', box.height);
-      edges.innerHTML = window.OrgChart.connectors(placed, metrics).map(function (path) {
+      edges.innerHTML = window.OrgChart.connectors(placed, chartMetrics).map(function (path) {
         return '<path class="ob-chart__edge" d="' + path.d + '" />';
       }).join('');
 
-      nodes.innerHTML = '';
       placed.forEach(function (item) {
-        nodes.appendChild(buildNode(item, box, metrics));
+        var card = elements[String(item.id)];
+        if (!card) return;
+        card.style.left = (item.x - box.minX) + 'px';
+        card.style.top = (item.y - box.minY) + 'px';
+        card.style.visibility = '';
       });
 
       fitChart(chart, stage, box);
@@ -70,14 +106,9 @@
     });
   }
 
-  function buildNode(item, box, metrics) {
-    var member = item.node;
+  function buildNode(member) {
     var card = document.createElement('div');
     card.className = 'ob-chart__node';
-    card.style.left = (item.x - box.minX) + 'px';
-    card.style.top = (item.y - box.minY) + 'px';
-    card.style.width = metrics.cardWidth + 'px';
-    card.style.height = metrics.cardHeight + 'px';
 
     var avatar = document.createElement('div');
     avatar.className = 'ob-chart__avatar';

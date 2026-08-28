@@ -1,0 +1,101 @@
+{#
+    Archive library: PDF upload and the year-grouped list.
+
+    Extracted from gears/dashboard.html, which had grown to 1,628 lines with
+    every panel of the CMS in one file. Rendered by dashboard.html in the same
+    order it always was; DashboardController.fragment() still re-renders the
+    smaller data partials (events-list, news-slots, archives-list, videos-list).
+#}
+    <section class="gears-page" data-page-panel="archives" data-live-section="archives" id="panel-archives" role="tabpanel" aria-labelledby="nav-archives" data-hero-eyebrow="Content" data-hero-title="Archive library" data-hero-subtitle="Upload PDF archives and publish them by year." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">Archives</h2>
+        </div>
+        <p class="section-head__subtitle">Upload a PDF archive and publish it by year.</p>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="archive-admin-grid">
+        <article class="page-card video-upload-card">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Archive Upload</p>
+              <h3 class="panel-header__title">Add PDF Archive</h3>
+            </div>
+          </div>
+
+          <form action="{{ route('archives.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-reload="false" data-upload-label="archive PDF" data-live-form="archives">
+            {{ csrf_field | safe }}
+
+            <label class="field" for="archive-name">
+              <span class="field__label">Archive title</span>
+              <input type="text" name="name" id="archive-name" class="field__input" placeholder="Archive Bulletin" required>
+            </label>
+
+            <label class="field" for="archive-type">
+              <span class="field__label">Type</span>
+              <select name="type" id="archive-type" class="field__input field__input--select archive-form__select" required>
+                <option value="">Choose archive type</option>
+                <option value="Folio">Folio</option>
+                <option value="Magazine">Magazine</option>
+                <option value="Tabloid">Tabloid</option>
+                <option value="Newsletter">Newsletter</option>
+              </select>
+            </label>
+
+            <label class="field" for="archive-year-published">
+              <span class="field__label">Year published</span>
+              <input type="number" name="year_published" id="archive-year-published" class="field__input archive-form__year" min="1900" max="2100" step="1" placeholder="2024" required>
+            </label>
+
+            <div class="field">
+              <span class="field__label">PDF file</span>
+              <label class="dropzone" data-dropzone>
+                <input type="file" name="file" id="archive-file" class="dropzone__input" accept="application/pdf" required>
+                <span class="dropzone__empty">
+                  <span class="dropzone__icon" aria-hidden="true">↑</span>
+                  <span class="dropzone__title">Drop a PDF here, or tap to choose</span>
+                  <span class="dropzone__hint">PDF only · up to 200 MB</span>
+                </span>
+                <span class="dropzone__filled" hidden>
+                  <span class="dropzone__filename" data-dropzone-name></span>
+                  <span class="dropzone__size" data-dropzone-size></span>
+                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
+                </span>
+              </label>
+            </div>
+
+            <button type="submit" class="primary-button">Save archive</button>
+          </form>
+        </article>
+
+        <article class="page-card" data-section-count="{{ archives|length }}">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Library</p>
+              <h3 class="panel-header__title">Published archives</h3>
+            </div>
+            <p class="panel-header__subtitle">Grouped by year and ready for the kiosk carousel.</p>
+          </div>
+
+          <div class="empty-state archive-empty-state" data-empty-state>
+            <div class="empty-state__title">No data available</div>
+            <p class="empty-state__text">Upload PDF archives to populate the kiosk archive page.</p>
+          </div>
+
+          <div class="archive-admin-card-grid archive-admin-card-grid--scroll" data-section-content data-live-target>
+{% include "gears/partials/archives-list.html" %}
+        </div>
+        </article>
+      </div>
+    </section>

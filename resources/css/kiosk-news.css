@@ -257,14 +257,21 @@ body.newspaper-bg .paper-slot__label {
     text-transform: uppercase;
 }
 
+/* One column, not two. `columns: 2` split every lead story across a gutter
+   regardless of length, so a two-line story rendered as "Brace yourselves
+   for the soft" | "launch of The Gear's Presspoint" — one sentence torn in
+   half, each half justified to a ~350px measure, which is what produced the
+   river of word gaps. At the kiosk's 768px there is no room for two honest
+   columns anyway; 68ch keeps the single column at a readable measure on a
+   wider screen. `overflow-wrap` is the hard floor: nothing else in this
+   file stops one long token or a pasted URL running out of the sheet. */
 .feature-story__copy {
     margin: 16px 0 0;
     color: var(--paper-ink);
     font-size: 1.25rem;
     line-height: 1.6;
-    columns: 2;
-    column-gap: clamp(20px, 2.6vw, 32px);
-    column-rule: 1px solid var(--paper-line);
+    max-width: 68ch;
+    overflow-wrap: anywhere;
     orphans: 2;
     widows: 2;
 }
@@ -273,30 +280,38 @@ body.newspaper-bg .paper-slot__label {
     margin-top: 0;
 }
 
-/* Broadsheet columns are justified and hyphenated. Kiosk only — the
-   editor keeps a ragged edge so Quill's cursor behaviour stays sane. */
+/* Ragged right, not justified. Justification only earns its keep in a
+   narrow broadsheet column with hyphenation to absorb the slack; in one
+   wide measure it just stretches short lines. Kiosk only — the editor's
+   canvas keeps its own treatment so Quill's cursor behaviour stays sane. */
 body.newspaper-bg .feature-story__copy {
-    text-align: justify;
-    -webkit-hyphens: auto;
-    hyphens: auto;
+    text-align: left;
+    -webkit-hyphens: none;
+    hyphens: none;
     text-wrap: pretty;
 }
 
-/* Clamped on the front page; the full text lives in the reader overlay. */
+/* Clamped on the front page; the full text lives in the reader overlay.
+   An exact multiple of the line-height so the cut lands on a line boundary
+   — the old 15.6em was ~9.75 lines and sliced through the tenth row of
+   glyphs. Deliberately not `-webkit-line-clamp`, which would be tidier but
+   is unreliable around the floated `::first-letter` drop cap below. */
 .feature-story__copy.is-clamped {
-    max-height: 15.6em; /* ~9 lines per column at 1.6 line-height */
+    max-height: calc(1.6em * 9);
     overflow: hidden;
 }
 
-/* Drop cap sized to occupy exactly three lines of the new body scale. */
+/* Drop cap sized to occupy exactly three lines of the body scale. Tuned to
+   the single-column measure — at the old two-column width a 3.4rem cap ate
+   most of the first line on its own. */
 .drop-cap::first-letter {
     float: left;
     margin-right: 0.08em;
     margin-top: 0.04em;
     color: var(--accent-text);
     font-family: var(--font-display);
-    font-size: 3.4rem;
-    line-height: 0.82;
+    font-size: 3.1rem;
+    line-height: 0.86;
     font-weight: 700;
 }
 
@@ -391,11 +406,16 @@ body.newspaper-bg .feature-story__copy {
     letter-spacing: -0.005em;
 }
 
+/* `overflow-wrap` on every body region that renders editor-supplied text:
+   these two are truncated server-side by CHARACTER count (striptags |
+   truncate), which caps the length but does nothing about one 200-character
+   unbroken token, and the card is only ~300px wide. */
 .secondary-story__copy {
     margin: 8px 0 0;
     color: var(--paper-ink);
     font-size: 1.02rem;
     line-height: 1.5;
+    overflow-wrap: anywhere;
 }
 
 .secondary-story__date {
@@ -462,6 +482,7 @@ body.newspaper-bg .feature-story__copy {
     color: var(--paper-ink);
     font-size: 1.05rem;
     line-height: 1.6;
+    overflow-wrap: anywhere;
 }
 
 /* ── Empty states ───────────────────────────────────────────────── */
@@ -537,6 +558,7 @@ body.newspaper-bg .feature-story__copy {
     color: var(--paper-ink);
     font-size: 1.4rem;
     line-height: 1.7;
+    overflow-wrap: anywhere;
     -webkit-overflow-scrolling: touch;
 }
 
@@ -623,16 +645,10 @@ body.newspaper-bg .feature-story__copy {
         gap: 4px;
     }
 
+    /* Single column and ragged right are the defaults now (see
+       .feature-story__copy above) — only the type scale changes here. */
     .feature-story__copy {
-        columns: 1;
         font-size: 1.12rem;
-    }
-
-    /* A single narrow justified column makes rivers — go back to ragged. */
-    body.newspaper-bg .feature-story__copy {
-        text-align: left;
-        -webkit-hyphens: none;
-        hyphens: none;
     }
 
     .secondary-grid,

@@ -1,0 +1,44 @@
+{#
+    Kiosk lock/unlock controls (broadcast on kiosk-channel).
+
+    Extracted from gears/dashboard.html, which had grown to 1,628 lines with
+    every panel of the CMS in one file. Rendered by dashboard.html in the same
+    order it always was; DashboardController.fragment() still re-renders the
+    smaller data partials (events-list, news-slots, archives-list, videos-list).
+#}
+    <section class="gears-page" data-page-panel="kiosk-lock" id="panel-kiosk-lock" role="tabpanel" aria-labelledby="nav-kiosk-lock" data-hero-eyebrow="System Tools" data-hero-title="Control the kiosk screen" data-hero-subtitle="Freeze the kiosk to pause it, or resume it to put it back in service." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">System Tools</p>
+          <h2 class="section-head__title">Screen Control</h2>
+        </div>
+        <p class="section-head__subtitle">Freeze the kiosk screen, or resume it when you&rsquo;re ready.</p>
+      </div>
+
+      <div class="page-card kiosk-card">
+        <div class="kiosk-card__status">
+          <span class="live-status-card__dot live-status-card__dot--inline" aria-hidden="true"></span>
+          <div>
+            <div class="kiosk-card__status-label">Connected to the kiosk</div>
+            <div class="kiosk-card__status-text">Freeze and resume happen instantly on the kiosk display.</div>
+          </div>
+        </div>
+
+        <div class="kiosk-toggle-grid">
+          <button type="button" class="toggle-button toggle-button--lock" data-kiosk-action="lock" data-kiosk-url="{{ route('kiosk.lock', {}, False) }}"
+                  data-confirm="The kiosk screen will freeze immediately and stop showing news, events, and videos until you resume it."
+                  data-confirm-title="Freeze the kiosk screen?"
+                  data-confirm-label="Freeze screen"
+                  data-confirm-danger>
+            Freeze screen
+          </button>
+
+          <button type="button" class="toggle-button toggle-button--unlock" data-kiosk-action="unlock" data-kiosk-url="{{ route('kiosk.unlock', {}, False) }}"
+                  data-confirm="The kiosk screen will resume showing scheduled content immediately."
+                  data-confirm-title="Resume the kiosk screen?"
+                  data-confirm-label="Resume screen">
+            Resume screen
+          </button>
+        </div>
+      </div>
+    </section>

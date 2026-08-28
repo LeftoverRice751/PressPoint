@@ -75,7 +75,7 @@ class AcrosticTest(unittest.TestCase):
 class PledgeTest(unittest.TestCase):
     def test_splits_letter_from_remainder(self):
         lines = AboutValues.pledge_lines(PLEDGE_HTML)
-        letters = [l["letter"] for l in lines if l["letter"]]
+        letters = [line["letter"] for line in lines if line["letter"]]
         self.assertEqual(letters, ["L", "S", "P", "U"])
 
     def test_keeps_the_intro_sentence_unlettered(self):

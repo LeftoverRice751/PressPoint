@@ -271,6 +271,10 @@ body {
 }
 
 /* ===== Member node ===== */
+/* Content-sized, mirroring the dashboard editor's card: a long name or position
+   widens and wraps the card rather than being ellipsised. min-width/min-height
+   are the fixed box OrgChart falls back to for a card that measured 0 (chart
+   still hidden), so an unmeasured render matches the old fixed layout. */
 .ob-chart__node {
   position: absolute;
   box-sizing: border-box;
@@ -279,6 +283,10 @@ body {
   gap: 0.7rem;
   align-items: center;
   padding: 0.6rem 0.75rem;
+  width: max-content;
+  min-width: 200px;
+  max-width: 320px;
+  min-height: 96px;
   border: 1px solid var(--ob-rule);
   border-radius: 4px;
   background: var(--ob-paper);
@@ -310,10 +318,12 @@ body {
   letter-spacing: -0.02em;
 }
 
+/* Centred, mirroring the dashboard editor's card. */
 .ob-chart__info {
   display: grid;
   gap: 0.15rem;
   min-width: 0;
+  text-align: center;
 }
 
 .ob-chart__name {
@@ -322,18 +332,16 @@ body {
   font-size: 0.98rem;
   color: var(--ink);
   line-height: 1.15;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* `anywhere` so one unbroken token still yields instead of overflowing. */
+  overflow-wrap: anywhere;
 }
 
 .ob-chart__position {
   font-size: 0.8rem;
   color: var(--ob-muted);
   font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 /* ===== Empty state (no departments at all) ===== */

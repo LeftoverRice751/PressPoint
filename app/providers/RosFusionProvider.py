@@ -16,7 +16,7 @@ class RosFusionProvider(Provider):
     def boot(self):
         def connect_ros():
             self.client.run()
-            
+
         self.thread = threading.Thread(target=connect_ros)
         self.thread.daemon = True
         self.thread.start()

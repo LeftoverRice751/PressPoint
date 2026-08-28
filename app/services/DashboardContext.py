@@ -109,6 +109,25 @@ def _by_id_desc(item):
     return getattr(item, "id", 0) or 0
 
 
+def ordered_by_id(model, descending=True):
+    """A section's rows, newest first, ordered by the database.
+
+    These panels do render every row, so the rows themselves have to be
+    loaded -- but the ordering does not have to happen in Python. `Model.all()`
+    followed by `sorted()` pulls the whole table, materialises a model per row
+    and then sorts the list; `ORDER BY id` lets MySQL walk the primary key
+    instead. Exactly equivalent output, since `_by_id_desc` sorted on `id` too.
+
+    Falls back to the unsorted read if the driver rejects the clause -- a panel
+    in the wrong order is a far smaller problem than a dashboard that 500s.
+    """
+    direction = "desc" if descending else "asc"
+    try:
+        return list(model.order_by("id", direction).get() or [])
+    except Exception:
+        return sorted(list(model.all() or []), key=_by_id_desc, reverse=descending)
+
+
 def _event_sort_key(item):
     reference_at = getattr(item, "event_date", None) or getattr(item, "created_at", None)
     if hasattr(reference_at, "timestamp"):
@@ -176,7 +195,7 @@ def events_context():
         key=lambda item: (_event_sort_key(item), _by_id_desc(item)),
         reverse=True,
     )
-    locations = sorted(list(Locations.all() or []), key=_by_id_desc)
+    locations = ordered_by_id(Locations, descending=False)
 
     return {
         "events": events,
@@ -189,7 +208,7 @@ def events_context():
 
 def archives_context():
     archive_services = ArchiveServices()
-    archive_records = sorted(list(Archives.all() or []), key=_by_id_desc, reverse=True)
+    archive_records = ordered_by_id(Archives)
     archive_groups_map = archive_services.group_archives_by_year(archive_records)
     archive_years = sorted(archive_groups_map.keys(), reverse=True)
 
@@ -205,12 +224,12 @@ def archives_context():
 
 def videos_context():
     return {
-        "videos": sorted(list(Video.all() or []), key=_by_id_desc, reverse=True),
+        "videos": ordered_by_id(Video),
     }
 
 
 def news_context():
-    news_items = sorted(list(News.all() or []), key=_by_id_desc, reverse=True)
+    news_items = ordered_by_id(News)
     slots = group_news_slots(news_items)
 
     news_status_counts = {
@@ -273,7 +292,7 @@ def news_canvas_context():
 
 
 def locations_context():
-    locations = sorted(list(Locations.all() or []), key=_by_id_desc)
+    locations = ordered_by_id(Locations, descending=False)
 
     return {
         "locations": locations,
@@ -373,8 +392,8 @@ def tour_context():
 
 
 def overview_context():
-    posts = sorted(list(Posts.all() or []), key=_by_id_desc, reverse=True)
-    categories = sorted(list(Categories.all() or []), key=_by_id_desc)
+    posts = ordered_by_id(Posts)
+    categories = ordered_by_id(Categories, descending=False)
 
     published_articles = [
         post for post in posts if (getattr(post, "status", "") or "").lower() == "published"
@@ -431,45 +450,86 @@ FRAGMENT_SECTIONS = {
 }
 
 
+def grouped_counts(model, column):
+    """`{raw value: row count}` for one column, aggregated in SQL.
+
+    The callers below want a handful of integers, not the rows. Loading the
+    table to `len()` it costs a full scan plus the memory to hydrate every
+    model -- which for `news` means every story's full HTML body, on a page
+    that renders none of them. One GROUP BY returns as many rows as there are
+    distinct values instead.
+
+    Values come back raw so the caller can fold them with the same normaliser
+    the rest of the app uses: `status` has aliases ("live"/"publish" both mean
+    published) and `role`/`type` are compared case- and padding-insensitively,
+    so neither can be matched safely in the WHERE clause.
+    """
+    try:
+        rows = (
+            model.select_raw(f"{column} AS grouped_value, COUNT(*) AS grouped_count")
+            .group_by(column)
+            .get()
+        )
+    except Exception:
+        # Same failure posture as the rest of this module: a broken stats query
+        # renders zeroes rather than taking the dashboard down.
+        return {}
+
+    counts = {}
+    for row in rows or []:
+        value = getattr(row, "grouped_value", None)
+        counts[value] = int(getattr(row, "grouped_count", 0) or 0)
+    return counts
+
+
 def super_admin_stats():
     """Organization-wide counts for the super admin dashboard.
 
-    News counts read `News` — the table the composer and the kiosk front page
-    actually run on — not `Posts`, which is what `overview_context()`'s older
+    News counts read `News` -- the table the composer and the kiosk front page
+    actually run on -- not `Posts`, which is what `overview_context()`'s older
     "Total News" cards count. That mismatch is pre-existing on the editor
     dashboard and deliberately left alone here; these numbers are meant to be
     the true org-wide figures.
 
-    Events come from `Events` — the model `events_context()` renders — not
+    Events come from `Events` -- the model `events_context()` renders -- not
     from `Posts`, which is a legacy table `overview_context()` still reads.
 
-    `Events` and `Locations` are counted with the ORM aggregate rather than
-    loaded, because nothing on this page renders their rows.
+    Nothing on this page renders a row, so every figure here is a SQL
+    aggregate. This used to be three `Model.all()` calls folded in Python,
+    which scaled linearly in both query time and memory against tables the
+    page never displays.
     """
-    users = list(User.all() or [])
-    roles = [(getattr(user, "role", "") or "").strip().lower() for user in users]
+    role_counts = grouped_counts(User, "role")
+    admin_count = 0
+    editor_count = 0
+    for raw_role, count in role_counts.items():
+        role = (raw_role or "").strip().lower()
+        if role == "admin":
+            admin_count += count
+        elif role == "editor":
+            editor_count += count
 
-    news_rows = list(News.all() or [])
+    status_counts = grouped_counts(News, "status")
     published_news = sum(
-        1
-        for row in news_rows
-        if normalize_news_status(getattr(row, "status", None)) == "published"
+        count
+        for raw_status, count in status_counts.items()
+        if normalize_news_status(raw_status) == "published"
     )
 
-    archive_rows = list(Archives.all() or [])
+    type_counts = grouped_counts(Archives, "type")
     total_newsletters = sum(
-        1
-        for row in archive_rows
-        if (getattr(row, "type", "") or "").strip().lower() == "newsletter"
+        count
+        for raw_type, count in type_counts.items()
+        if (raw_type or "").strip().lower() == "newsletter"
     )
 
     return {
-        "admin_count": roles.count("admin"),
-        "editor_count": roles.count("editor"),
-        "total_news": len(news_rows),
+        "admin_count": admin_count,
+        "editor_count": editor_count,
+        "total_news": sum(status_counts.values()),
         "published_news": published_news,
         "total_events": Events.count() or 0,
-        "total_archives": len(archive_rows),
+        "total_archives": sum(type_counts.values()),
         "total_newsletters": total_newsletters,
         "location_count": Locations.count() or 0,
     }

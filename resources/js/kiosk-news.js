@@ -21,6 +21,10 @@
 
   var IDLE_MS = 120000;
   var HUB_URL = '/kiosk';
+  // How many lines of the lead story the front page shows before "Continue
+  // reading". Pairs with `.feature-story__copy.is-clamped`'s max-height in
+  // kiosk-news.css, which is the no-JS fallback — change both together.
+  var CLAMP_LINES = 9;
 
   /* ── Reader overlay ─────────────────────────────────────────── */
 
@@ -64,25 +68,59 @@
   // Only clamp when the copy actually overflows — a short story should
   // read in full on the front page rather than hide behind a tap.
   //
-  // A multi-column box reports scrollHeight === clientHeight even when
-  // clipped (overflow runs into further columns, not downward), so the
-  // usual scrollHeight test silently never fires. Measure the unclamped
-  // height instead and compare it against the clamped one.
+  // Measures the unclamped height against the clamped one rather than
+  // testing scrollHeight > clientHeight. This started as a workaround for
+  // the old two-column body (a multi-column box reports scrollHeight ===
+  // clientHeight even when clipped, because overflow runs into further
+  // columns instead of downward). The body is a single column now, so the
+  // scrollHeight test would work — but this one is equally correct and
+  // already proven, so it stays.
+  // Where to cut so the last visible line is a WHOLE line.
+  //
+  // A plain `max-height: 9 lines` only lands on a line boundary if every
+  // line in the block sits on the line-height grid, and none of them do:
+  // paragraphs carry their own margins, and a Quill body can also hold
+  // headings and blockquotes with line-heights of their own. The result was
+  // a tenth row of glyphs sliced through the middle. So measure the real
+  // line boxes and cut at the bottom of the last one that fits inside the
+  // budget. Returns 0 when there is nothing to measure, meaning "leave the
+  // CSS max-height alone".
+  function wholeLineCut(budget) {
+    var top = copy.getBoundingClientRect().top;
+    var limit = top + budget;
+    var range = document.createRange();
+    range.selectNodeContents(copy);
+    var cut = 0;
+    Array.prototype.forEach.call(range.getClientRects(), function (rect) {
+      var bottom = rect.bottom - top;
+      if (rect.bottom <= limit && bottom > cut) cut = bottom;
+    });
+    return cut;
+  }
+
   function measure() {
     if (!copy || !trigger) return;
 
     copy.classList.remove('is-clamped');
+    copy.style.maxHeight = '';
     var natural = copy.getBoundingClientRect().height;
 
-    copy.classList.add('is-clamped');
-    var clamped = copy.getBoundingClientRect().height;
+    // Derived, not read back off the clamped element: with `is-clamped` on,
+    // a SHORT body reports its own height rather than the cap, so reading
+    // the rect there would compare `natural` against itself and the trigger
+    // would never appear.
+    var lineHeight = parseFloat(window.getComputedStyle(copy).lineHeight) || 0;
+    var budget = lineHeight * CLAMP_LINES;
 
-    if (natural > clamped + 8) {
-      trigger.classList.add('is-visible');
-    } else {
-      copy.classList.remove('is-clamped');
+    if (!budget || natural <= budget + 8) {
       trigger.classList.remove('is-visible');
+      return;
     }
+
+    var cut = wholeLineCut(budget);
+    copy.classList.add('is-clamped');
+    if (cut > 0) copy.style.maxHeight = cut + 'px';
+    trigger.classList.add('is-visible');
   }
 
   if (copy && trigger && reader) {

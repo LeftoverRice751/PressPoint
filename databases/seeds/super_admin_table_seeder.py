@@ -24,8 +24,8 @@ from masonite.facades import Hash
 from app.models.User import User
 
 
-DEFAULT_USERNAME = "superadmin"
-DEFAULT_EMAIL = "superadmin@presspoint.local"
+DEFAULT_USERNAME = "John Super Admin"
+DEFAULT_EMAIL = "johnpaulbajao50@gmail.com"
 SUPER_ADMIN_ROLE = "superadmin"
 
 

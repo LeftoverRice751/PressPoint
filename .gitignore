@@ -9,9 +9,12 @@ venv
 !.env.testing
 # npm
 node_modules
-package-lock.json
+# package-lock.json is tracked on purpose: `npm ci` (and therefore a
+# reproducible asset build in CI) requires it. Ignoring it meant no two
+# installs of the frontend toolchain were guaranteed to match.
 
 .vscode
+.idea
 **/*.DS_Store
 
 # compiled assets
@@ -28,3 +31,19 @@ databases/seeds
 # Deployed by rsync, not git (see the Virtual tour section in CLAUDE.md).
 # The scene catalog (resources/js/data.js) and pano/vendor + pano/img stay tracked.
 storage/public/pano/tiles/
+
+# Runtime state, not source. These were tracked, so every rate-limit hit and
+# every logged exception showed up as a working-tree change and conflicted on
+# merge. `.gitkeep` keeps the directories, which the cache FileDriver and the
+# logger both need to already exist.
+storage/framework/cache/*
+!storage/framework/cache/.gitkeep
+storage/framework/logs/*
+!storage/framework/logs/.gitkeep
+
+# Design scratch pile: .ttf/.otf originals that are NOT licensable for this
+# project (Gotham, Circular Std, trial/demo/rip builds) — see
+# resources/fonts/README.md. Kept on disk as the conversion source for the
+# Gilroy webfonts, but never redistributed. README always claimed these were
+# untracked; until now they were not.
+resources/newsletter-fonts/

@@ -30,7 +30,14 @@
       <button type="button" class="review-btn review-btn--preview" data-review-preview>
         Preview as it will appear
       </button>
-      <button type="button" class="review-btn review-btn--approve" data-review-approve>
+      {# Approving pushes the story straight to the campus kiosk, so it is
+         outward-facing and gets a prompt. "Send back" below needs none: it
+         already reveals a required-reason box with its own confirm step. #}
+      <button type="button" class="review-btn review-btn--approve" data-review-approve
+              data-confirm="This publishes the story to the campus kiosk right away, where anyone can read it."
+              data-confirm-title="Approve and publish?"
+              data-confirm-label="Publish"
+              data-confirm-cancel="Not yet">
         Approve &amp; publish
       </button>
       <button type="button" class="review-btn review-btn--reject" data-review-reject>

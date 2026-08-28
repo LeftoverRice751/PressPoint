@@ -3,10 +3,17 @@
  *
  * One canvas per organization. Cards are laid out by the shared OrgChart module
  * (resources/js/org-chart-layout.js) so the kiosk renders the identical
- * arrangement. Dropping a card on another card reparents it; dropping it on
- * empty canvas pins it where it landed. Dropping an image file on a card sets
- * that member's portrait. Every action posts JSON and re-renders in place —
- * nothing here reloads the page.
+ * arrangement.
+ *
+ * The canvas is free: a card goes wherever it is dragged, snapped to the same
+ * grid the background draws, and carries its reports with it unless Alt is
+ * held. Releasing over another card reparents instead of positioning. The
+ * first time an organization is opened its auto-layout coordinates are saved,
+ * so a board that has never been arranged by hand looks unchanged but every
+ * card on it is already free to move.
+ *
+ * Dropping an image file on a card sets that member's portrait. Every action
+ * posts JSON and re-renders in place — nothing here reloads the page.
  */
 (function () {
   'use strict';
@@ -36,7 +43,6 @@
   var addMemberButton = section.querySelector('[data-ob-member-modal-open]');
   var preview = section.querySelector('[data-ob-member-preview]');
   var photoHint = section.querySelector('[data-ob-member-photo-hint]');
-  var pinNote = section.querySelector('[data-ob-pin-note]');
   var orgsModal = section.querySelector('[data-ob-orgs-modal]');
   var memberModalTrigger = null;
   var orgsModalTrigger = null;
@@ -127,9 +133,15 @@
     scale: 1,
     offsetX: 0,
     offsetY: 0,
-    dragId: null,
-    dragPointerOffset: { x: 0, y: 0 },
-    loading: false
+    loading: false,
+    // Last render's card elements and measured metrics, kept so a live drag can
+    // move DOM directly instead of going through render(), which rebuilds every
+    // card from scratch and would tear the dragged node out from under the
+    // pointer on every frame.
+    elements: {},
+    metrics: null,
+    drag: null,
+    seededOrganizationId: null
   };
 
   // ===== helpers =====
@@ -205,14 +217,29 @@
 
   function render() {
     state.lookup = indexNodes(state.roots);
-    state.placed = window.OrgChart.layout(state.roots, METRICS);
 
-    var box = window.OrgChart.bounds(state.placed, METRICS);
-    stage.style.width = box.width + 'px';
-    stage.style.height = box.height + 'px';
+    // Cards are content-sized — a long name or a long position widens the card
+    // (and wraps it) instead of being cut to an ellipsis — so their geometry
+    // does not exist until they are in the DOM. Build first, measure, then lay
+    // out; the layout module falls back to the fixed 200x96 box for anything
+    // that measured 0 (e.g. the panel was still hidden).
+    var built = buildCards();
+    var metrics = layoutMetrics(built.sizes);
 
-    renderEdges(box);
-    renderCards(box);
+    state.placed = window.OrgChart.layout(state.roots, metrics);
+    state.elements = built.elements;
+    state.metrics = metrics;
+
+    // Sized from the fixed origin, never from the content's bounding box: a
+    // stage that re-anchors itself on its leftmost card shifts every other
+    // card the moment a drag creates a new leftmost one, so a dropped card
+    // would not stay under the cursor that released it.
+    var size = window.OrgChart.stageSize(state.placed, metrics);
+    stage.style.width = size.width + 'px';
+    stage.style.height = size.height + 'px';
+
+    renderEdges(size, metrics);
+    positionCards(built.elements);
 
     if (emptyState) {
       emptyState.hidden = state.placed.length > 0;
@@ -230,71 +257,119 @@
     applyTransform();
   }
 
-  function renderEdges(box) {
-    var paths = window.OrgChart.connectors(state.placed, METRICS);
-    edges.setAttribute('viewBox', box.minX + ' ' + box.minY + ' ' + box.width + ' ' + box.height);
-    edges.setAttribute('width', box.width);
-    edges.setAttribute('height', box.height);
+  /** METRICS plus a measure() closure over this render's card sizes. */
+  function layoutMetrics(sizes) {
+    var metrics = {};
+    Object.keys(METRICS).forEach(function (key) {
+      metrics[key] = METRICS[key];
+    });
+    metrics.measure = function (node) {
+      return sizes[String(node.id)] || null;
+    };
+    return metrics;
+  }
+
+  function renderEdges(size, metrics) {
+    var paths = window.OrgChart.connectors(state.placed, metrics || METRICS);
+    edges.setAttribute('viewBox', '0 0 ' + size.width + ' ' + size.height);
+    edges.setAttribute('width', size.width);
+    edges.setAttribute('height', size.height);
     edges.innerHTML = paths.map(function (path) {
       return '<path class="ob-edge" d="' + path.d + '" />';
     }).join('');
   }
 
-  function renderCards(box) {
+  /**
+   * Append every card unpositioned and hidden, then read all sizes in one pass
+   * so the browser reflows once rather than once per card.
+   */
+  function buildCards() {
     cardLayer.innerHTML = '';
 
-    state.placed.forEach(function (item) {
-      var node = item.node;
-      var card = document.createElement('article');
-      card.className = 'ob-card-node';
-      card.setAttribute('data-ob-node', '');
-      card.setAttribute('data-member-id', String(node.id));
-      card.setAttribute('draggable', 'true');
-      card.setAttribute('tabindex', '0');
-      card.style.left = (item.x - box.minX) + 'px';
-      card.style.top = (item.y - box.minY) + 'px';
-      card.style.width = METRICS.cardWidth + 'px';
-      card.style.height = METRICS.cardHeight + 'px';
+    var order = window.OrgChart.flatten(state.roots);
+    var elements = {};
+    var sizes = {};
 
-      if (String(node.id) === String(state.selectedId)) {
-        card.classList.add('is-selected');
-      }
-      if (window.OrgChart.isPinned(node)) {
-        card.classList.add('is-pinned');
-      }
-
-      var avatar = document.createElement('div');
-      avatar.className = 'ob-card-node__avatar';
-      if (node.photo_path) {
-        var img = document.createElement('img');
-        img.src = '/storage/' + node.photo_path;
-        img.alt = node.name;
-        img.loading = 'lazy';
-        avatar.appendChild(img);
-      } else {
-        var span = document.createElement('span');
-        span.className = 'ob-card-node__initials';
-        span.setAttribute('aria-hidden', 'true');
-        span.textContent = initials(node.name);
-        avatar.appendChild(span);
-      }
-
-      var body = document.createElement('div');
-      body.className = 'ob-card-node__body';
-
-      var nameEl = document.createElement('div');
-      nameEl.className = 'ob-card-node__name';
-      nameEl.textContent = node.name;
-
-      var positionEl = document.createElement('div');
-      positionEl.className = 'ob-card-node__position';
-      positionEl.textContent = node.position || 'No position';
-
-      body.appendChild(nameEl);
-      body.appendChild(positionEl);
-      card.appendChild(avatar);
-      card.appendChild(body);
+    order.forEach(function (node) {
+      var card = buildCard(node);
+      card.style.visibility = 'hidden';
       cardLayer.appendChild(card);
+      elements[String(node.id)] = card;
+    });
+
+    order.forEach(function (node) {
+      var card = elements[String(node.id)];
+      var width = card.offsetWidth;
+      var height = card.offsetHeight;
+      sizes[String(node.id)] = width > 0 && height > 0
+        ? { width: width, height: height }
+        : null;
+    });
+
+    return { elements: elements, sizes: sizes };
+  }
+
+  function buildCard(node) {
+    var card = document.createElement('article');
+    card.className = 'ob-card-node';
+    card.setAttribute('data-ob-node', '');
+    card.setAttribute('data-member-id', String(node.id));
+    // Moving is a pointer gesture now (see "card dragging"), so the native
+    // HTML5 drag would only fight it — and it is what dropped the card at the
+    // release point instead of following the cursor. Photo drops still arrive
+    // through HTML5 drag-and-drop, which does not need a draggable source here.
+    card.setAttribute('draggable', 'false');
+    card.setAttribute('tabindex', '0');
+
+    if (String(node.id) === String(state.selectedId)) {
+      card.classList.add('is-selected');
+    }
+
+    // No uploaded photo means no avatar slot at all: the empty bordered
+    // circle with initials read as a broken image on the canvas, so a
+    // member without a photo is just a name and a position.
+    var avatar = null;
+    if (node.photo_path) {
+      avatar = document.createElement('div');
+      avatar.className = 'ob-card-node__avatar';
+      var img = document.createElement('img');
+      img.src = '/storage/' + node.photo_path;
+      img.alt = node.name;
+      img.loading = 'lazy';
+      avatar.appendChild(img);
+    } else {
+      card.classList.add('ob-card-node--no-photo');
+    }
+
+    var body = document.createElement('div');
+    body.className = 'ob-card-node__body';
+
+    var nameEl = document.createElement('div');
+    nameEl.className = 'ob-card-node__name';
+    nameEl.textContent = node.name;
+
+    var positionEl = document.createElement('div');
+    positionEl.className = 'ob-card-node__position';
+    positionEl.textContent = node.position || 'No position';
+
+    body.appendChild(nameEl);
+    body.appendChild(positionEl);
+    if (avatar) {
+      card.appendChild(avatar);
+    }
+    card.appendChild(body);
+    return card;
+  }
+
+  function positionCards(elements) {
+    state.placed.forEach(function (item) {
+      var card = elements[String(item.id)];
+      if (!card) {
+        return;
+      }
+      card.style.left = item.x + 'px';
+      card.style.top = item.y + 'px';
+      card.style.visibility = '';
     });
   }
 
@@ -303,24 +378,27 @@
   }
 
   function fitToView() {
-    var box = window.OrgChart.bounds(state.placed, METRICS);
+    // bounds() is still the right box to *frame* — it hugs the cards rather
+    // than the origin, so an arrangement pushed to the right of the canvas is
+    // not centred around a corner of empty grid. It is only the pan offset
+    // that leans on it; card coordinates stay absolute.
+    var box = window.OrgChart.bounds(state.placed, state.metrics || METRICS);
     var viewWidth = canvas.clientWidth || 1;
     var viewHeight = canvas.clientHeight || 1;
 
     var scale = Math.min(viewWidth / box.width, viewHeight / box.height, 1);
     state.scale = Math.max(scale, 0.25);
-    state.offsetX = (viewWidth - box.width * state.scale) / 2;
-    state.offsetY = (viewHeight - box.height * state.scale) / 2;
+    state.offsetX = (viewWidth - box.width * state.scale) / 2 - box.minX * state.scale;
+    state.offsetY = (viewHeight - box.height * state.scale) / 2 - box.minY * state.scale;
     applyTransform();
   }
 
   /** Pointer position in unscaled stage coordinates (what we persist). */
   function toStagePoint(event) {
-    var box = window.OrgChart.bounds(state.placed, METRICS);
     var rect = canvas.getBoundingClientRect();
     return {
-      x: (event.clientX - rect.left - state.offsetX) / state.scale + box.minX,
-      y: (event.clientY - rect.top - state.offsetY) / state.scale + box.minY
+      x: (event.clientX - rect.left - state.offsetX) / state.scale,
+      y: (event.clientY - rect.top - state.offsetY) / state.scale
     };
   }
 
@@ -360,40 +438,260 @@
     if (options && options.fit) {
       fitToView();
     }
+    seedPositions();
   }
 
   // ===== card dragging =====
 
-  cardLayer.addEventListener('dragstart', function (event) {
+  // Cards move under a Pointer Events drag rather than HTML5 drag-and-drop.
+  // HTML5 DnD only reports a position when the pointer is released, so a card
+  // teleported on drop instead of following the cursor, and it never fires at
+  // all for touch — on a board editors reach for on a tablet that ruled out
+  // half the input methods.
+  var DRAG_THRESHOLD = 3; // px of travel before a press becomes a drag, not a click
+  var suppressClick = false;
+
+  cardLayer.addEventListener('pointerdown', function (event) {
+    if (event.button !== 0) {
+      return;
+    }
+
     var card = event.target.closest('[data-ob-node]');
     if (!card) {
       return;
     }
 
-    state.dragId = card.getAttribute('data-member-id');
-    var rect = card.getBoundingClientRect();
-    state.dragPointerOffset = {
-      x: (event.clientX - rect.left) / state.scale,
-      y: (event.clientY - rect.top) / state.scale
+    var memberId = card.getAttribute('data-member-id');
+    var item = findPlaced(memberId);
+    if (!item) {
+      return;
+    }
+
+    var origin = toStagePoint(event);
+
+    // Alt detaches a single card from its reports; a plain drag carries the
+    // whole subtree so reorganising a branch does not mean re-placing it card
+    // by card. Descendants keep their offsets relative to the card being moved.
+    var moving = event.altKey
+      ? [item]
+      : subtreeItems(memberId);
+
+    var items = moving.map(function (moved) {
+      return { id: moved.id, startX: moved.x, startY: moved.y };
+    });
+
+    state.drag = {
+      memberId: memberId,
+      pointerId: event.pointerId,
+      originX: origin.x,
+      originY: origin.y,
+      started: false,
+      items: items,
+      // How far the group may travel before its leading edge would cross the
+      // origin. The whole subtree moves as one piece, so the *delta* is what
+      // gets clamped — clamping each card on its own would squash the branch
+      // against the left edge instead of stopping it.
+      minStartX: Math.min.apply(null, items.map(function (moved) { return moved.startX; })),
+      minStartY: Math.min.apply(null, items.map(function (moved) { return moved.startY; }))
     };
 
-    card.classList.add('is-dragging');
-    event.dataTransfer.effectAllowed = 'move';
-    try {
-      event.dataTransfer.setData('text/plain', state.dragId);
-    } catch (error) {
-      // Some browsers reject setData outside a user gesture; the drag still works.
+    // Keep receiving moves even when the pointer outruns the card.
+    if (cardLayer.setPointerCapture) {
+      try {
+        cardLayer.setPointerCapture(event.pointerId);
+      } catch (error) {
+        // Capture is a convenience; the window-level listeners still fire.
+      }
     }
   });
 
-  cardLayer.addEventListener('dragend', function (event) {
-    var card = event.target.closest('[data-ob-node]');
-    if (card) {
-      card.classList.remove('is-dragging');
+  cardLayer.addEventListener('pointermove', function (event) {
+    var drag = state.drag;
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
     }
-    state.dragId = null;
-    clearDropTargets();
+
+    var point = toStagePoint(event);
+    var dx = point.x - drag.originX;
+    var dy = point.y - drag.originY;
+
+    if (!drag.started) {
+      if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) {
+        return;
+      }
+      drag.started = true;
+      var card = state.elements[String(drag.memberId)];
+      if (card) {
+        card.classList.add('is-dragging');
+      }
+    }
+
+    event.preventDefault();
+    moveDragged(dx, dy);
+    highlightDropTarget(event);
   });
+
+  cardLayer.addEventListener('pointerup', finishDrag);
+  cardLayer.addEventListener('pointercancel', function (event) {
+    var drag = state.drag;
+    if (drag && drag.pointerId === event.pointerId) {
+      state.drag = null;
+      clearDragChrome();
+      render();
+    }
+  });
+
+  /** Live-position the dragged cards and redraw their edges, no re-render. */
+  function moveDragged(dx, dy) {
+    var drag = state.drag;
+    if (!drag) {
+      return;
+    }
+
+    var boundedX = Math.max(dx, -drag.minStartX);
+    var boundedY = Math.max(dy, -drag.minStartY);
+
+    drag.items.forEach(function (moved) {
+      var item = findPlaced(moved.id);
+      var card = state.elements[String(moved.id)];
+      if (!item) {
+        return;
+      }
+      item.x = moved.startX + boundedX;
+      item.y = moved.startY + boundedY;
+      if (card) {
+        card.style.left = item.x + 'px';
+        card.style.top = item.y + 'px';
+      }
+    });
+
+    var size = window.OrgChart.stageSize(state.placed, state.metrics || METRICS);
+    stage.style.width = size.width + 'px';
+    stage.style.height = size.height + 'px';
+    renderEdges(size, state.metrics || METRICS);
+  }
+
+  function finishDrag(event) {
+    var drag = state.drag;
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    state.drag = null;
+
+    if (cardLayer.releasePointerCapture) {
+      try {
+        cardLayer.releasePointerCapture(event.pointerId);
+      } catch (error) {
+        // Already released.
+      }
+    }
+
+    // A press that never travelled is a click: leave it to the click handler
+    // that opens the member editor.
+    if (!drag.started) {
+      clearDragChrome();
+      return;
+    }
+
+    suppressClick = true;
+
+    var target = dropTargetAt(event);
+    clearDragChrome();
+
+    if (target && isBlockedTarget(drag.memberId, target)) {
+      toast('A member cannot report to one of its own subordinates.', true);
+      render();
+      return;
+    }
+
+    // Snap only on release: snapping every frame makes the card stutter away
+    // from the pointer instead of tracking it.
+    var positions = drag.items.map(function (moved) {
+      var item = findPlaced(moved.id);
+      return {
+        member_id: moved.id,
+        pos_x: window.OrgChart.snap(item ? item.x : moved.startX),
+        pos_y: window.OrgChart.snap(item ? item.y : moved.startY)
+      };
+    });
+
+    // Landing on another card changes the reporting line, but the cards still
+    // belong where they were released — save the positions first, then the new
+    // parent, or the drop would snap everything back to where it started.
+    if (target) {
+      var memberId = drag.memberId;
+      pin(positions).then(function (saved) {
+        if (saved) {
+          reparent(memberId, target);
+        }
+      });
+      return;
+    }
+
+    pin(positions);
+  }
+
+  function findPlaced(memberId) {
+    for (var index = 0; index < state.placed.length; index += 1) {
+      if (String(state.placed[index].id) === String(memberId)) {
+        return state.placed[index];
+      }
+    }
+    return null;
+  }
+
+  /** The dragged card plus everything reporting beneath it, as placed items. */
+  function subtreeItems(memberId) {
+    var ids = window.OrgChart.subtreeIds(state.roots, memberId);
+    return state.placed.filter(function (item) {
+      return Boolean(ids[String(item.id)]);
+    });
+  }
+
+  /** The card under the pointer, ignoring the ones being dragged. */
+  function dropTargetAt(event) {
+    var drag = state.drag;
+    var moving = {};
+    (drag ? drag.items : []).forEach(function (moved) {
+      moving[String(moved.id)] = true;
+    });
+
+    var elements = document.elementsFromPoint
+      ? document.elementsFromPoint(event.clientX, event.clientY)
+      : [];
+
+    for (var index = 0; index < elements.length; index += 1) {
+      var card = elements[index].closest && elements[index].closest('[data-ob-node]');
+      if (card && !moving[String(card.getAttribute('data-member-id'))]) {
+        return card.getAttribute('data-member-id');
+      }
+    }
+    return null;
+  }
+
+  function highlightDropTarget(event) {
+    clearDropTargets();
+    var targetId = dropTargetAt(event);
+    if (!targetId) {
+      canvas.classList.add('is-drop-canvas');
+      return;
+    }
+    var card = state.elements[String(targetId)];
+    if (card) {
+      card.classList.add(
+        isBlockedTarget(state.drag.memberId, targetId) ? 'is-drop-blocked' : 'is-drop-target'
+      );
+    }
+  }
+
+  function clearDragChrome() {
+    clearDropTargets();
+    Array.prototype.forEach.call(
+      cardLayer.querySelectorAll('.is-dragging'),
+      function (node) { node.classList.remove('is-dragging'); }
+    );
+  }
 
   function clearDropTargets() {
     Array.prototype.forEach.call(
@@ -420,32 +718,20 @@
     return Array.prototype.indexOf.call(types, 'Files') !== -1;
   }
 
+  // HTML5 drag-and-drop now only carries photo drops from the desktop — cards
+  // themselves move under Pointer Events above.
   canvas.addEventListener('dragover', function (event) {
-    var card = event.target.closest('[data-ob-node]');
-
-    if (hasFiles(event)) {
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'copy';
-      clearDropTargets();
-      if (card) {
-        card.classList.add('is-drop-target');
-      }
-      return;
-    }
-
-    if (!state.dragId) {
+    if (!hasFiles(event)) {
       return;
     }
 
     event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
+    event.dataTransfer.dropEffect = 'copy';
     clearDropTargets();
 
+    var card = event.target.closest('[data-ob-node]');
     if (card) {
-      var targetId = card.getAttribute('data-member-id');
-      card.classList.add(isBlockedTarget(state.dragId, targetId) ? 'is-drop-blocked' : 'is-drop-target');
-    } else {
-      canvas.classList.add('is-drop-canvas');
+      card.classList.add('is-drop-target');
     }
   });
 
@@ -456,41 +742,17 @@
   });
 
   canvas.addEventListener('drop', function (event) {
-    var card = event.target.closest('[data-ob-node]');
-
-    if (hasFiles(event)) {
-      event.preventDefault();
-      clearDropTargets();
-      if (card) {
-        uploadPhoto(card.getAttribute('data-member-id'), event.dataTransfer.files[0]);
-      }
-      return;
-    }
-
-    if (!state.dragId) {
+    if (!hasFiles(event)) {
       return;
     }
 
     event.preventDefault();
-    var memberId = state.dragId;
-    state.dragId = null;
     clearDropTargets();
 
+    var card = event.target.closest('[data-ob-node]');
     if (card) {
-      var targetId = card.getAttribute('data-member-id');
-      if (String(targetId) === String(memberId)) {
-        return;
-      }
-      if (isBlockedTarget(memberId, targetId)) {
-        toast('A member cannot report to one of its own subordinates.', true);
-        return;
-      }
-      reparent(memberId, targetId);
-      return;
+      uploadPhoto(card.getAttribute('data-member-id'), event.dataTransfer.files[0]);
     }
-
-    var point = toStagePoint(event);
-    pin(memberId, Math.round(point.x - state.dragPointerOffset.x), Math.round(point.y - state.dragPointerOffset.y));
   });
 
   function reparent(memberId, parentId) {
@@ -503,23 +765,80 @@
       });
   }
 
-  function pin(memberId, x, y) {
-    // Paint the new position immediately so the drag feels direct, then confirm.
-    var node = state.lookup[String(memberId)];
-    if (node) {
-      node.pos_x = x;
-      node.pos_y = y;
-      render();
+  /**
+   * Persist a batch of hand-placed positions.
+   *
+   * A drag moves a whole subtree, so this posts every affected card in one
+   * request rather than one request per descendant — which would also have the
+   * server re-serialise the organization once per card.
+   */
+  function pin(positions) {
+    if (!positions || !positions.length) {
+      return Promise.resolve(false);
     }
 
-    post(urls.move, { member_id: memberId, pos_x: x, pos_y: y })
+    // Paint the snapped positions immediately so the drag feels direct, then
+    // confirm against the server.
+    positions.forEach(function (entry) {
+      var node = state.lookup[String(entry.member_id)];
+      if (node) {
+        node.pos_x = entry.pos_x;
+        node.pos_y = entry.pos_y;
+      }
+    });
+    render();
+
+    // Resolves to whether the save landed, so a caller that has follow-up work
+    // (a reparent after the drop) does not run it on top of a failed save.
+    return post(urls.move, { positions: JSON.stringify(positions) })
       .then(function (payload) {
         applyPayload(payload);
+        return true;
       })
       .catch(function (error) {
         toast(error.message || 'Could not move the member.', true);
         loadOrganization(state.organizationId);
+        return false;
       });
+  }
+
+  /**
+   * Persist the auto-layout result the first time an organization is opened.
+   *
+   * Free placement needs every card to own its coordinates, but writing a
+   * migration to seed them is not possible: cards are content-sized, so their
+   * real geometry only exists once they have been measured in a browser. The
+   * first editor to open a board therefore saves exactly what the tidy-tree
+   * pass just produced — the board looks unchanged, and from then on every
+   * card is free to move.
+   */
+  function seedPositions() {
+    if (!state.organizationId || state.drag) {
+      return;
+    }
+    if (String(state.seededOrganizationId) === String(state.organizationId)) {
+      return;
+    }
+
+    var unpinned = state.placed.filter(function (item) {
+      return !window.OrgChart.isPinned(item.node);
+    });
+
+    // Mark the org seeded either way, so a board that is already fully placed
+    // is not re-checked on every payload.
+    state.seededOrganizationId = state.organizationId;
+
+    if (!unpinned.length) {
+      return;
+    }
+
+    pin(state.placed.map(function (item) {
+      return {
+        member_id: item.id,
+        pos_x: window.OrgChart.snap(item.x),
+        pos_y: window.OrgChart.snap(item.y)
+      };
+    }));
   }
 
   function uploadPhoto(memberId, file) {
@@ -631,6 +950,10 @@
       }
       post(urls.reset, { organization_id: state.organizationId })
         .then(function (payload) {
+          // Re-seed: the reset drops every coordinate, and a free canvas wants
+          // the tidy arrangement it just produced saved back as the new
+          // starting positions rather than left on auto-layout.
+          state.seededOrganizationId = null;
           applyPayload(payload, { fit: true });
           toast('Layout reset.');
         })
@@ -643,6 +966,13 @@
   // ===== opening the member editor =====
 
   cardLayer.addEventListener('click', function (event) {
+    // A drag ends with a click on the card that was moved. Opening the editor
+    // every time someone repositions a card would make the canvas unusable.
+    if (suppressClick) {
+      suppressClick = false;
+      return;
+    }
+
     var card = event.target.closest('[data-ob-node]');
     if (!card) {
       return;
@@ -715,9 +1045,6 @@
     fillSupervisorOptions(node);
     fillPreview(node);
 
-    if (pinNote) {
-      pinNote.hidden = !(editing && window.OrgChart.isPinned(node));
-    }
     if (photoHint) {
       photoHint.textContent = editing
         ? 'Uploading a new portrait replaces the current one.'

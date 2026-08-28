@@ -1,0 +1,41 @@
+{#
+    Campus locations used by the map and wayfinding.
+
+    Extracted from gears/dashboard.html, which had grown to 1,628 lines with
+    every panel of the CMS in one file. Rendered by dashboard.html in the same
+    order it always was; DashboardController.fragment() still re-renders the
+    smaller data partials (events-list, news-slots, archives-list, videos-list).
+#}
+    <section class="gears-page" data-page-panel="locations" id="panel-locations" role="tabpanel" aria-labelledby="nav-locations" data-hero-eyebrow="Content" data-hero-title="Locations and wayfinding" data-hero-subtitle="Maintain campus locations used by maps and routing." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">Content</p>
+          <h2 class="section-head__title">Locations</h2>
+        </div>
+        <p class="section-head__subtitle">Manage campus buildings, offices, and service points.</p>
+      </div>
+
+      <div class="page-card" data-section-count="{{ locations|length }}">
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No data available</div>
+          <p class="empty-state__text">Add locations to start building wayfinding and routing flows.</p>
+        </div>
+
+        <div class="location-grid" data-section-content>
+          {% for location in locations %}
+          <article class="location-card">
+            <div class="location-card__header">
+              <div>
+                <div class="location-card__name">{{ location.name }}</div>
+                <div class="location-card__type">{{ location.type if location.type else 'Location' }}</div>
+              </div>
+              <span class="status-pill status-pill--neutral">{{ 'Route' if location.is_routable else 'Static' }}</span>
+            </div>
+            <div class="location-card__meta">Latitude: {{ location.latitude }} | Longitude: {{ location.longitude }}</div>
+          </article>
+          {% else %}
+          <div class="empty-state empty-state--embedded">No data available.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>

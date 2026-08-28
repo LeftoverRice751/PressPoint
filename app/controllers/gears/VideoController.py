@@ -22,6 +22,7 @@ VIDEO_UPLOAD_LIMIT = 10
 VIDEO_UPLOAD_WINDOW_SECONDS = 60
 VIDEO_UPLOAD_RATE_LIMIT_FILE = base_path("storage/framework/cache/video-upload-rate-limit.json")
 
+
 def _pusher_configured():
     broadcasts = config("broadcast.broadcasts", {}) or config("broadcast.BROADCASTS", {}) or {}
     pusher_settings = broadcasts.get("pusher") or {}
@@ -198,7 +199,7 @@ class VideoController(Controller):
         response.header("Service-Worker-Allowed", "/")
         response.header("Cache-Control", "no-store")
         return response.download("sw-archives.js", sw_path, force=False)
-    
+
     def upload(self, request: Request, storage: Storage, response: Response):
         limited_response = self._enforce_video_upload_rate_limit(request, response)
         if limited_response:

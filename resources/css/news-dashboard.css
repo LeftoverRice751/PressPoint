@@ -909,11 +909,12 @@
     font-family: var(--font-display);
 }
 
-/* The kiosk sets the lead body in two columns; inside the 780px editor
-   panel that fights Quill's cursor and selection. Single column here. */
+/* The kiosk clamps the lead body to nine lines behind a "Continue reading"
+   tap; the canvas has to show the whole thing, since this is where it gets
+   written. (The two-column override that used to live here is gone — the
+   kiosk sets one column now too, so canvas and screen finally agree on the
+   body's measure.) */
 .news-editor .feature-story__copy {
-    columns: 1;
-    column-rule: none;
     max-height: none;
     overflow: visible;
 }
@@ -1072,41 +1073,6 @@
     line-clamp: none;
 }
 
-/* "Edit Full Article Body" — the entry point into the focused modal
-   (Task 5). Deliberately understated: it's a utility action, not the
-   primary call to action on the card. */
-.news-editor .feature-story__edit-body-btn,
-.news-editor .secondary-story__edit-body-btn,
-.news-editor .info-card__edit-body-btn {
-    appearance: none;
-    margin-top: 0.6rem;
-    padding: 0.5rem 0.85rem;
-    font: 700 0.72rem/1 var(--font-heading);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--ink-terracotta);
-    background: transparent;
-    border: 1px solid var(--kiosk-rule, rgb(var(--brand-maroon-rgb) / 0.3));
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-.news-editor .feature-story__edit-body-btn:hover,
-.news-editor .feature-story__edit-body-btn:focus-visible,
-.news-editor .secondary-story__edit-body-btn:hover,
-.news-editor .secondary-story__edit-body-btn:focus-visible,
-.news-editor .info-card__edit-body-btn:hover,
-.news-editor .info-card__edit-body-btn:focus-visible {
-    background: rgb(var(--brand-gold-rgb) / 0.08);
-    border-color: var(--ink-terracotta);
-    color: var(--ink);
-    outline: none;
-}
-.news-editor .secondary-story__edit-body-btn,
-.news-editor .info-card__edit-body-btn {
-    margin-left: 0;
-}
-
 /* Selectable slot cards (Task 5, deliverable 3): every occupied slot is
    now a valid click target to load it into the editing surface, not just
    the lead. A subtle affordance keeps that discoverable without adding
@@ -1179,34 +1145,123 @@
     color: var(--ink);
 }
 
-/* Quill toolbar/content in the Gears palette */
-.news-editor .ql-toolbar.ql-snow,
-.news-editor .ql-container.ql-snow {
-    border-color: var(--kiosk-rule, rgb(var(--brand-maroon-rgb) / 0.18));
+/* ── Article body: sticky toolbar + in-card editor ─────────────
+   Quill's toolbar is hoisted out of the story card into a bar pinned to the
+   top of the canvas; the editor itself mounts on the card's own body region
+   (see mountBodyEditor() in news-dashboard.js), so an editor writes the copy
+   at the measure it will render at. One instance moves between cards, so
+   there is only ever one of each of these on the page. */
+.news-canvas-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 0.75rem;
+    margin: 0 0 1rem;
+    padding: 0.4rem 0.6rem;
+    background: var(--paper-bg);
+    border: 1px solid var(--rule-strong);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lift);
 }
-.news-editor .ql-toolbar.ql-snow {
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-    background: rgb(var(--brand-maroon-rgb) / 0.03);
+
+.news-canvas-toolbar__quill {
+    flex: 1 1 auto;
 }
-.news-editor .ql-container.ql-snow {
-    border-bottom-left-radius: 8px;
-    border-bottom-right-radius: 8px;
+
+/* The bar supplies the frame, so the toolbar itself contributes none. */
+.news-canvas-toolbar .ql-toolbar.ql-snow {
+    padding: 0;
+    border: 0;
+    background: transparent;
 }
+
+.news-canvas-toolbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Which story the bar is currently editing. Without it the bar is an
+   unattributed set of buttons floating over a page of several cards. */
+.news-canvas-toolbar__label {
+    max-width: 22ch;
+    overflow: hidden;
+    color: var(--ink-terracotta);
+    font: 700 0.72rem/1.2 var(--font-heading);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Parked outside the canvas whenever no story is active — and, crucially,
+   across refreshCanvasFragment()'s innerHTML swap, which would otherwise
+   detach the live Quill root. */
+.news-body-editor-park {
+    display: none;
+}
+
+.news-editor .news-body-editor-host.ql-container.ql-snow {
+    margin-top: 0.5rem;
+    border-color: var(--ink-terracotta);
+    border-radius: 6px;
+    background: rgb(var(--brand-gold-rgb) / 0.04);
+}
+
 .news-editor .ql-editor {
     min-height: 160px;
     font-size: 1rem;
     line-height: 1.7;
 }
+
+/* The plain body <div> the editor stands in for while mounted. Nothing else
+   sets `display` on these, so the UA's [hidden] rule would already do it —
+   this is here so a future layout rule on the copy regions can't silently
+   un-hide a div sitting behind a live editor. */
+.news-editor [data-news-edit="body"][hidden] {
+    display: none;
+}
+
 .news-editor .ql-snow .ql-stroke { stroke: var(--kiosk-espresso); }
 .news-editor .ql-snow .ql-fill { fill: var(--kiosk-espresso); }
-.news-editor .ql-snow.ql-toolbar button:hover .ql-stroke,
-.news-editor .ql-snow.ql-toolbar button.ql-active .ql-stroke {
+.news-canvas-toolbar .ql-snow .ql-stroke { stroke: var(--kiosk-espresso); }
+.news-canvas-toolbar .ql-snow .ql-fill { fill: var(--kiosk-espresso); }
+.news-canvas-toolbar .ql-snow.ql-toolbar button:hover .ql-stroke,
+.news-canvas-toolbar .ql-snow.ql-toolbar button.ql-active .ql-stroke {
     stroke: var(--kiosk-terracotta);
 }
-.news-editor .ql-snow.ql-toolbar button:hover .ql-fill,
-.news-editor .ql-snow.ql-toolbar button.ql-active .ql-fill {
+.news-canvas-toolbar .ql-snow.ql-toolbar button:hover .ql-fill,
+.news-canvas-toolbar .ql-snow.ql-toolbar button.ql-active .ql-fill {
     fill: var(--kiosk-terracotta);
+}
+
+/* ── Editor-only "Full article body" disclosure ────────────────
+   Secondary and widget cards render only an excerpt on the kiosk, so they
+   have no body region there — but the body still has to be writable, and
+   the card is where it should be written. Collapsed by default: four
+   secondary cards expanded at once would be four articles of scroll. */
+.news-inline-body {
+    margin-top: 0.6rem;
+    border-top: 1px dashed var(--kiosk-rule, rgb(var(--brand-maroon-rgb) / 0.3));
+    padding-top: 0.5rem;
+}
+
+.news-inline-body__summary {
+    color: var(--ink-terracotta);
+    font: 700 0.72rem/1 var(--font-heading);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.news-inline-body__summary:hover,
+.news-inline-body__summary:focus-visible {
+    color: var(--ink);
+    outline: none;
 }
 
 /* Active-story label in the properties panel */
@@ -1492,74 +1547,6 @@
     .news-library-drawer {
         width: 100vw;
         border-left: 0;
-    }
-}
-
-/* ── Focused article body editor modal (Task 5) ────────
-   Extends .article-modal (gears-dashboard.css), wider and roomier than the
-   default 760px — this is where long articles get written, so it deserves
-   more breathing room than a metadata dialog. Quill lives entirely inside
-   this dialog now; it's never mounted on the canvas. */
-.news-body-modal {
-    width: min(920px, calc(100vw - 2rem));
-}
-
-.news-body-modal__panel {
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 4rem);
-}
-
-.news-body-modal__editor {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-}
-
-.news-body-modal__editor .ql-toolbar.ql-snow {
-    border-color: var(--kiosk-rule, rgb(var(--brand-maroon-rgb) / 0.18));
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-    background: rgb(var(--brand-maroon-rgb) / 0.03);
-}
-
-.news-body-modal__editor .ql-container.ql-snow {
-    border-color: var(--kiosk-rule, rgb(var(--brand-maroon-rgb) / 0.18));
-    border-bottom-left-radius: 8px;
-    border-bottom-right-radius: 8px;
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-}
-
-.news-body-modal__editor .ql-editor {
-    min-height: min(52vh, 480px);
-    font-family: var(--font-body);
-    font-size: 1.05rem;
-    line-height: 1.75;
-    color: var(--kiosk-espresso);
-}
-
-.news-body-modal__editor .ql-editor h2,
-.news-body-modal__editor .ql-editor h3 {
-    font-family: var(--font-display);
-}
-
-.news-body-modal__editor .ql-snow .ql-stroke { stroke: var(--kiosk-espresso); }
-.news-body-modal__editor .ql-snow .ql-fill { fill: var(--kiosk-espresso); }
-.news-body-modal__editor .ql-snow.ql-toolbar button:hover .ql-stroke,
-.news-body-modal__editor .ql-snow.ql-toolbar button.ql-active .ql-stroke {
-    stroke: var(--kiosk-terracotta);
-}
-.news-body-modal__editor .ql-snow.ql-toolbar button:hover .ql-fill,
-.news-body-modal__editor .ql-snow.ql-toolbar button.ql-active .ql-fill {
-    fill: var(--kiosk-terracotta);
-}
-
-@media (max-width: 720px) {
-    .news-body-modal__editor .ql-editor {
-        min-height: 40vh;
     }
 }
 

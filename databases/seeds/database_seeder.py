@@ -11,12 +11,12 @@ class DatabaseSeeder(Seeder):
     def run(self):
         """Run the database seeds."""
         self.call(
-            UserTableSeeder, 
-            
-            AdminGearsTableSeederTableSeeder, 
-            
+            UserTableSeeder,
+
+            AdminGearsTableSeederTableSeeder,
+
             LocationsTableSeeder,
 
             OrganizationsTableSeeder
-            
+
             )

@@ -165,11 +165,9 @@
     margin: 0;
 }
 
-/* Three short columns do not need the 760px floor .events-table sets for the
-   events grid. */
-.events-table--compact {
-    min-width: 480px;
-}
+/* .events-table--compact moved to gears-dashboard.css, next to .events-table.
+   It was defined here only, so /auth/super_admin -- which wears the same class
+   on its accounts table but does not load this sheet -- got nothing from it. */
 
 /* ── Responsive ───────────────────────────────────────────────────────── */
 

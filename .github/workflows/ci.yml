@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main, testing_phase]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Lint and tests
+    runs-on: ubuntu-latest
+
+    # The unit suite is not database-free: roughly a dozen tests render real
+    # dashboard templates, which read `locations`, `news` and `users` through
+    # the ORM. They pass on a dev box only because the local `.env` points at a
+    # populated MySQL. CI therefore brings its own empty one and migrates it,
+    # so a green run means "passes against the schema in databases/migrations"
+    # rather than "passes against whatever happens to be in prod".
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: presspoint_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Write CI environment
+        run: |
+          cp .env-example .env
+          # Deliberately NOT APP_ENV=testing: that makes Masonite load
+          # .env.testing, which pins DB_CONNECTION=sqlite and would silently
+          # send the whole suite at an empty sqlite file instead of MySQL.
+          {
+            echo "DB_CONNECTION=mysql"
+            echo "DB_HOST=127.0.0.1"
+            echo "DB_PORT=3306"
+            echo "DB_USERNAME=root"
+            echo "DB_PASSWORD=root"
+            echo "DB_DATABASE=presspoint_ci"
+            echo "DB_LOG=False"
+          } >> .env
+
+      # NOT `craft migrate`. The migration history cannot rebuild the schema
+      # from scratch -- several migrations are data backfills written against
+      # the database as it stood at the time, and a fresh run stops 23
+      # migrations in. databases/schema.sql is the structure of the live
+      # database and is the source of truth; see the header in that file.
+      - name: Load schema
+        run: mysql -h 127.0.0.1 -P 3306 -uroot -proot presspoint_ci < databases/schema.sql
+
+      # Runtime directories are no longer tracked (only their .gitkeep is), and
+      # the cache FileDriver does not create its own parent.
+      - name: Prepare runtime directories
+        run: mkdir -p storage/framework/cache storage/framework/logs storage/compiled
+
+      - name: Lint
+        run: python -m flake8 .
+
+      - name: Tests
+        run: python -m pytest tests/unit -q
+
+  assets:
+    name: Asset build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # `npm ci` needs package-lock.json committed. It used to be gitignored,
+      # which meant no two installs of the frontend toolchain were guaranteed
+      # to match.
+      - name: Install
+        run: npm ci
+
+      - name: JS unit tests
+        run: npm run test:js
+
+      # Catches a resources/js|css file that was added without a webpack.mix.js
+      # entry, and any mix/node incompatibility, before it reaches a deploy.
+      - name: Production build
+        run: npm run prod

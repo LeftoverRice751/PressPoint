@@ -1,0 +1,93 @@
+{#
+    Site branding: the logo shown across the kiosk and the dashboard.
+
+    Extracted from gears/dashboard.html, which had grown to 1,628 lines with
+    every panel of the CMS in one file. Rendered by dashboard.html in the same
+    order it always was; DashboardController.fragment() still re-renders the
+    smaller data partials (events-list, news-slots, archives-list, videos-list).
+#}
+    <section class="gears-page" data-page-panel="branding" id="panel-branding" role="tabpanel" aria-labelledby="nav-branding" data-hero-eyebrow="System Tools" data-hero-title="Site logo" data-hero-subtitle="Upload the publication mark shown on the kiosk screens, this dashboard, and the sign-in pages." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">System Tools</p>
+          <h2 class="section-head__title">Branding</h2>
+        </div>
+        <p class="section-head__subtitle">One logo, used everywhere the publication mark appears.</p>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="page-card branding-card">
+        <div class="panel-header panel-header--compact">
+          <div>
+            <p class="panel-header__eyebrow">Current logo</p>
+            <h3 class="panel-header__title">How the mark looks today</h3>
+          </div>
+        </div>
+
+        <!-- Two swatches because the same mark sits on a pale kiosk header
+             and on the dark sidebar — a logo that reads on one can vanish
+             on the other. -->
+        <div class="branding-preview">
+          <figure class="branding-swatch branding-swatch--light">
+            <img class="branding-swatch__img" src="{{ site_logo() }}" alt="Current site logo on a light background">
+            <figcaption class="branding-swatch__caption">On kiosk pages</figcaption>
+          </figure>
+          <figure class="branding-swatch branding-swatch--dark">
+            <img class="branding-swatch__img" src="{{ site_logo() }}" alt="Current site logo on a dark background">
+            <figcaption class="branding-swatch__caption">On the sidebar</figcaption>
+          </figure>
+        </div>
+
+        <p class="branding-note">
+          Changing the logo updates the kiosk screens, this dashboard, the sign-in pages,
+          and the browser tab icon. Kiosks pick it up the next time a page loads.
+        </p>
+
+        <form class="branding-form form-stack" method="POST"
+              action="{{ route('branding.logo.upload', {}, False) }}"
+              enctype="multipart/form-data"
+              data-upload-form data-upload-label="logo">
+          {{ csrf_field | safe }}
+          <div class="field">
+            <span class="field__label">New logo</span>
+            <label class="dropzone" data-dropzone>
+              <input type="file" name="file" class="dropzone__input"
+                     accept="image/jpeg,image/png,image/webp" required>
+              <span class="dropzone__empty">
+                <span class="dropzone__icon" aria-hidden="true">↑</span>
+                <span class="dropzone__title">Drop a logo image, or tap to choose</span>
+                <span class="dropzone__hint">JPG, PNG, or WEBP · up to 4 MB · square works best</span>
+              </span>
+              <span class="dropzone__filled" hidden>
+                <span class="dropzone__filename" data-dropzone-name></span>
+                <span class="dropzone__size" data-dropzone-size></span>
+                <button type="button" class="dropzone__clear"
+                        data-dropzone-clear aria-label="Remove file">×</button>
+              </span>
+            </label>
+          </div>
+          <div class="branding-form__actions">
+            <button type="submit" class="primary-button">Upload logo</button>
+          </div>
+        </form>
+
+        <form class="branding-form branding-form--restore" method="POST"
+              action="{{ route('branding.logo.restore', {}, False) }}">
+          {{ csrf_field | safe }}
+          <button type="submit" class="ghost-button"
+                  data-confirm="Every screen goes back to the logo the app shipped with. Your uploaded file is kept, so you can upload it again later."
+                  data-confirm-title="Restore the default logo?"
+                  data-confirm-label="Restore default"
+                  data-confirm-cancel="Keep current">Restore default</button>
+        </form>
+      </div>
+    </section>

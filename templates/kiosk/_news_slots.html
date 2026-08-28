@@ -81,15 +81,14 @@
          plain `default` leaves as the literal "None". Location lives in the
          kicker only — repeating it here printed "Campus · Campus". #}
       <div class="feature-story__meta">By <span data-news-edit="source">{{ main_story.source | default('Editorial Desk', true) }}</span>{% if news_editor %} &middot; <span data-news-edit="location">{{ main_story.location | default('Campus', true) }}</span>{% endif %}{% if not news_editor and main_story.published_label %} &middot; <time datetime="{{ main_story.published_iso }}">{{ main_story.published_label }}</time>{% endif %}</div>
-      {# The body is display-only on the canvas (Task 5): full-article
-         writing moved into the composer's "Edit Full Article Body" modal
-         (news-dashboard.js), so no contenteditable/Quill ever attaches to
-         this div in editor mode. Kiosk viewers see exactly the same markup
-         and content they always have. #}
+      {# In editor mode this is where Quill mounts — news-dashboard.js swaps
+         the div for its editor host when this story becomes active, so the
+         body is written in the slot it will render in. (It used to be
+         display-only, with writing exiled to an "Edit Full Article Body"
+         modal that hid the very layout the editor was writing into.)
+         Kiosk viewers see exactly the same markup and content they always
+         have. #}
       <div class="feature-story__copy drop-cap" data-news-edit="body">{{ main_story.description | safe }}</div>
-      {% if news_editor %}
-      <button type="button" class="feature-story__edit-body-btn ghost-button" data-news-edit-body>Edit Full Article Body</button>
-      {% endif %}
     </div>
     {% if not news_editor %}
     <button type="button" class="feature-story__more" data-news-more>
@@ -143,7 +142,17 @@
            directly replaces the read-only truncated-body preview the kiosk
            shows below. Blank means "fall back to a truncated body". #}
         <p class="secondary-story__copy secondary-story__copy--excerpt" data-news-edit="excerpt">{{ news.excerpt | default('', true) }}</p>
-        <button type="button" class="secondary-story__edit-body-btn ghost-button" data-news-edit-body>Edit Full Article Body</button>
+        {# Editor-only body region. The kiosk never renders a secondary
+           story's full body — it shows the excerpt (or a truncated body) —
+           but the editor still has to be able to WRITE it, and doing that
+           in the card keeps the composer's one editing model. Collapsed by
+           default so four secondary cards don't become four articles tall.
+           `region(art, 'body')` in news-dashboard.js finds this generically;
+           it was simply a no-op for these cards until the region existed. #}
+        <details class="news-inline-body" data-news-body-disclosure>
+          <summary class="news-inline-body__summary">Full article body</summary>
+          <div class="secondary-story__copy secondary-story__copy--body" data-news-edit="body">{{ news.description | safe }}</div>
+        </details>
         {% else %}
         {# Brief-style lead-in: the dateline opens the summary, newspaper
            wire style, instead of trailing it like a card footer. Prefers
@@ -203,7 +212,13 @@
         <h3 class="info-card__title" data-news-edit="title">{{ widget.title }}</h3>
         {% if news_editor %}
         <p class="info-card__copy info-card__copy--excerpt" data-news-edit="excerpt">{{ widget.excerpt | default('', true) }}</p>
-        <button type="button" class="info-card__edit-body-btn ghost-button" data-news-edit-body>Edit Full Article Body</button>
+        {# Editor-only body region — same reasoning as the secondary card
+           above: the kiosk shows only the excerpt here, but the body still
+           has to be writable somewhere, and the card is that somewhere. #}
+        <details class="news-inline-body" data-news-body-disclosure>
+          <summary class="news-inline-body__summary">Full article body</summary>
+          <div class="info-card__copy info-card__copy--body" data-news-edit="body">{{ widget.description | safe }}</div>
+        </details>
         {% else %}
         <p class="info-card__copy">{% if widget.excerpt %}{{ widget.excerpt }}{% elif widget.description %}{{ widget.description | striptags | truncate(200) }}{% endif %}</p>
         {% endif %}

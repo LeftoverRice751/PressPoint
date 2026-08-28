@@ -113,7 +113,7 @@ class ArchivesController(Controller):
         # one hand. Keeping both on one payload builder means an editor's
         # upload can never appear on one surface and not the other.
         return self._render_index(view, "mobile/archives")
-    
+
     def store(self, request: Request, storage: Storage, response: Response):
         # Failures redirect to the dashboard GET route, not `back()`. The
         # form posts to /archives/dashboard, which is POST-only — without an
@@ -136,7 +136,6 @@ class ArchivesController(Controller):
             "year_published": "required",
             "file": "required|file"
         })
-        
 
         archive_file = request.input("file")
         if isinstance(archive_file, list):

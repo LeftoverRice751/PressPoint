@@ -237,13 +237,23 @@ class NewsCanvasContextTestCase(TestCase):
         widget = _Story(id=3, priority=3, layout_type="widget")
 
         with patch("app.services.DashboardContext.News") as mock_news:
-            mock_news.all.return_value = [main, secondary, widget]
+            # news_context() orders in SQL now, so the stub answers
+            # order_by(...).get() rather than all(). A bare MagicMock is
+            # iterable and yields nothing, so a stub left on all() would make
+            # this pass vacuously with an empty canvas.
+            mock_news.order_by.return_value.get.return_value = [
+                widget, secondary, main
+            ]
             context = news_canvas_context()
+
+            mock_news.order_by.assert_called_once_with("id", "desc")
+            mock_news.all.assert_not_called()
 
         self.assertIs(context["main_story"], main)
         self.assertEqual(context["secondary_stories"], [secondary])
         self.assertEqual(context["widget_news"], [widget])
         self.assertIs(context["news_editor"], True)
-        # news_context() sorts news_items by id descending (newest first) —
-        # unrelated to the slot buckets above, which sort by priority.
+        # news_items comes back id-descending (newest first) straight from the
+        # database — unrelated to the slot buckets above, which sort by
+        # priority.
         self.assertEqual(context["news_items"], [widget, secondary, main])

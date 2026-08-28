@@ -213,8 +213,17 @@
       });
   }
 
+  // A shell page with no live section and no bell has nothing for the poll to
+  // discover -- the super admin console is the case in point. Without this it
+  // would still ask /gears/dashboard/stamps every 20s for an answer nobody
+  // reads. Checked on each call rather than once at load: the bell and the
+  // panels are server-rendered, but a future page could add one later.
+  function hasLiveWork() {
+    return sections().length > 0 || Boolean(document.querySelector('[data-bell]'));
+  }
+
   function startPolling() {
-    if (pollTimer) {
+    if (pollTimer || !hasLiveWork()) {
       return;
     }
     pollTimer = window.setInterval(poll, POLL_INTERVAL_MS);
@@ -292,7 +301,9 @@
 
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') {
-      poll();
+      if (hasLiveWork()) {
+        poll();
+      }
       startPolling();
     } else {
       stopPolling();
@@ -308,5 +319,7 @@
 
   // Seed the stamps so the first poll compares against the rendered page rather
   // than refreshing everything once for no reason.
-  poll().then(startPolling);
+  if (hasLiveWork()) {
+    poll().then(startPolling);
+  }
 })();

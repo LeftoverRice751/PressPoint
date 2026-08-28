@@ -1,0 +1,105 @@
+{#
+    Kiosk video manager: upload, push to the kiosk, and set the idle loop.
+
+    Extracted from gears/dashboard.html, which had grown to 1,628 lines with
+    every panel of the CMS in one file. Rendered by dashboard.html in the same
+    order it always was; DashboardController.fragment() still re-renders the
+    smaller data partials (events-list, news-slots, archives-list, videos-list).
+#}
+    <section class="gears-page" data-page-panel="video-manager" data-live-section="videos" id="panel-video-manager" role="tabpanel" aria-labelledby="nav-video-manager" data-hero-eyebrow="System Tools" data-hero-title="Videos for the kiosk" data-hero-subtitle="Upload a video, preview it, then show it on the kiosk screen." hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-head__eyebrow">System Tools</p>
+          <h2 class="section-head__title">Kiosk Videos</h2>
+        </div>
+        <p class="section-head__subtitle">Upload a video, preview it, then show it on the kiosk.</p>
+      </div>
+
+      {% if bag().any() %}
+      <div class="dashboard-alert">
+        <ul class="dashboard-alert__list">
+          {% for message in bag().messages() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="video-manager-grid">
+        <article class="page-card video-upload-card">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Add a video</p>
+              <h3 class="panel-header__title">Upload a new video</h3>
+            </div>
+          </div>
+
+          <form action="{{ route('video.upload', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-reload="false" data-upload-label="video" data-live-form="videos">
+            {{ csrf_field | safe }}
+            <label class="field">
+              <span class="field__label">Video name</span>
+              <input type="text" name="title" class="field__input" placeholder="e.g. Foundation Day" required>
+            </label>
+
+            <div class="field">
+              <span class="field__label">MP4 file</span>
+              <label class="dropzone" data-dropzone>
+                <input type="file" name="video" accept="video/mp4" class="dropzone__input" required>
+                <span class="dropzone__empty">
+                  <span class="dropzone__icon" aria-hidden="true">↑</span>
+                  <span class="dropzone__title">Drop an MP4 here, or tap to choose</span>
+                  <span class="dropzone__hint">MP4 only · up to 500 MB</span>
+                </span>
+                <span class="dropzone__filled" hidden>
+                  <span class="dropzone__filename" data-dropzone-name></span>
+                  <span class="dropzone__size" data-dropzone-size></span>
+                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
+                </span>
+              </label>
+            </div>
+
+            <button type="submit" class="primary-button">Save to library</button>
+          </form>
+        </article>
+
+        <article class="page-card video-preview-card">
+          <div class="panel-header panel-header--compact">
+            <div>
+              <p class="panel-header__eyebrow">Preview</p>
+              <h3 class="panel-header__title">Watch before sending</h3>
+            </div>
+          </div>
+
+          <div class="video-preview" data-section-count="{{ videos|length }}">
+            <div class="empty-state" data-empty-state>
+              <div class="empty-state__title">No data available</div>
+              <p class="empty-state__text">Upload a video to preview it here.</p>
+            </div>
+
+            <div class="video-preview__viewport" data-section-content>
+              <video class="video-preview__player" data-video-preview-player controls playsinline preload="metadata"></video>
+              <div class="video-preview__placeholder" data-video-preview-placeholder>Select a video to preview it here.</div>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="page-card video-library-card" data-section-count="{{ videos|length }}">
+        <div class="panel-header panel-header--compact">
+          <div>
+            <p class="panel-header__eyebrow">All videos</p>
+            <h3 class="panel-header__title">Saved videos</h3>
+          </div>
+          <p class="panel-header__subtitle">Tap a video to preview, or send it straight to the kiosk.</p>
+        </div>
+
+        <div class="empty-state" data-empty-state>
+          <div class="empty-state__title">No data available</div>
+          <p class="empty-state__text">Upload your first video to populate the library.</p>
+        </div>
+
+        <div class="video-library" data-section-content data-live-target>
+{% include "gears/partials/videos-list.html" %}
+        </div>
+      </div>
+    </section>

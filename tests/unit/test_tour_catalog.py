@@ -13,6 +13,7 @@ verify the capture that actually ships, not our ability to parse a sample.
 
 import json
 import re
+import unittest
 from pathlib import Path
 
 from app.services.TourScenesCatalog import TourScenesCatalog
@@ -56,6 +57,11 @@ class TourCatalogTestCase(TestCase):
         for scene in TourScenesCatalog.all_scenes():
             self.assertLessEqual(len(scene["scene_id"]), 32, scene["scene_id"])
 
+    @unittest.skipUnless(
+        _TILES_DIR.is_dir(),
+        "pano tiles are gitignored (~360 MB, deployed by rsync) -- this guard only "
+        "runs where they are actually synced, e.g. a dev box or the deploy host",
+    )
     def test_every_scene_has_tiles_on_disk(self):
         missing = [
             scene["scene_id"]

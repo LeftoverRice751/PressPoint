@@ -72,7 +72,13 @@
 
         {# Notification bell. The count is server-rendered so the badge is
            correct on first paint, then kept current by the 20s stamps poll
-           (dashboard-live.js) rather than a timer of its own. #}
+           (dashboard-live.js) rather than a timer of its own.
+
+           In a block so a console with nothing to notify can drop it: the
+           notifications are editorial (a submission arrived, a story was
+           decided), which is meaningless to the super admin console and would
+           leave a bell pinned at 0 forever. #}
+{% block shell_bell %}
         <div class="gears-bell" data-bell>
           <button type="button"
                   class="gears-bell__button"
@@ -100,6 +106,7 @@
             </ul>
           </div>
         </div>
+{% endblock %}
 
         {# Profile border. Replaces the sidebar logout: the account controls
            now live together in one place, the way every other CMS puts them. #}

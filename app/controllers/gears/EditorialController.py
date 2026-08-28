@@ -1,7 +1,6 @@
 from masonite.controllers import Controller
 from masonite.request import Request
 from masonite.response import Response
-from masonite.views import View
 from masonite.facades import Broadcast
 from masonite.configuration import config
 import posixpath
@@ -19,6 +18,7 @@ def _pusher_configured():
         and pusher_settings.get("secret")
     )
 
+
 def _sanitize_video_src(value):
     src = (value or "").strip()
     if not src:
@@ -34,10 +34,8 @@ def _sanitize_video_src(value):
 
     return normalized
 
-class EditorialController(Controller):
-    def show(self, view: View):
-        return view.render("welcome")
 
+class EditorialController(Controller):
     def play_video(self, request: Request, response: Response):
         src = _sanitize_video_src(request.input("src"))
         if not src:

@@ -14,8 +14,11 @@ clone builds and the kiosk renders correctly with no manual step.
 ## ⚠ Do not use `resources/newsletter-fonts/`
 
 That folder is an **untracked scratch pile of design assets and is not
-licensable for this project.** It is named after the archive category, not after
-this feature. Its own embedded metadata forbids what the kiosk does with a font:
+licensable for this project.** (It was tracked in git until it was removed from
+the index; the files stay on disk because Gilroy is converted from them, but they
+are gitignored now so they are never redistributed with a clone.) It is named
+after the archive category, not after this feature. Its own embedded metadata
+forbids what the kiosk does with a font:
 
 - **Gotham** — *"You may not copy, modify, distribute, or download this
   software… or host it from any location."*

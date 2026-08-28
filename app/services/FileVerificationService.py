@@ -1,5 +1,6 @@
 from magic import Magic
 
+
 class FileVerificationService:
     ALLOWED_TYPES = {
         "pdf": ["application/pdf"],

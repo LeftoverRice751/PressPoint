@@ -3,14 +3,16 @@
  *
  * The dashboard renders the REAL kiosk front page (templates/kiosk/_news_slots.html).
  * Every slot (lead, secondary, widget) is a selectable editing surface: inline
- * title/dek/excerpt/source/location/caption/credit text and drop-to-attach cover
- * image. Full-article body writing happens in a focused modal (Task 5) — the
- * canvas never mounts Quill. Saves post the existing hidden form to news.store
- * (which sanitizes the HTML with bleach) and reload to re-render the real page,
- * except the body modal, which saves independently through news.body. The story
- * library is a slide-over drawer (see "Story Library drawer" below); "Place on
- * Front Page" assigns a story to a slot via news.layout — it no longer loads
- * stories into this editing surface.
+ * title/dek/excerpt/source/location/caption/credit text, drop-to-attach cover
+ * image, and the full article body in a Quill editor mounted ON the card — the
+ * body is written in the slot it will render in. (It used to live in a focused
+ * modal, which meant writing copy while the layout it had to fit was hidden
+ * behind the dialog.) Saves post the existing hidden form to news.store (which
+ * sanitizes the HTML with bleach) and reload to re-render the real page, except
+ * the body, which saves independently through news.body. The story library is a
+ * slide-over drawer (see "Story Library drawer" below); "Place on Front Page"
+ * assigns a story to a slot via news.layout — it no longer loads stories into
+ * this editing surface.
  */
 
 import Quill from 'quill';
@@ -151,20 +153,37 @@ import Sortable from 'sortablejs';
   function setText(art, key, val) { var el = region(art, key); if (el) el.textContent = val || ''; }
   function getText(art, key) { var el = region(art, key); return el ? el.textContent.trim() : ''; }
 
-  // ── Focused article body editor (modal) ───────────────
-  // Quill lives here now, not on the canvas — the canvas body region
-  // (.feature-story__copy etc.) is plain display markup, matching what the
-  // public kiosk renders. Mounted lazily, once, on first open.
-  var bodyModal        = root.querySelector('[data-news-body-modal]');
-  var bodyEditorHost    = bodyModal ? bodyModal.querySelector('[data-news-body-editor]') : null;
-  var bodyModalTitleEl  = bodyModal ? bodyModal.querySelector('[data-news-body-modal-title]') : null;
-  var bodyModalSaveBtn  = bodyModal ? bodyModal.querySelector('[data-news-body-save]') : null;
-  var bodyModalCancelBtn = bodyModal ? bodyModal.querySelector('[data-news-body-cancel]') : null;
-  var bodyModalCloseBtn = bodyModal ? bodyModal.querySelector('[data-news-body-close]') : null;
-  var bodyModalTrigger  = null;
+  // ── In-place article body editor ──────────────────────
+  // Quill mounts on the ACTIVE card's own body region (.feature-story__copy,
+  // or the editor-only disclosure inside a secondary/widget card), so the
+  // copy is written at the measure it will render at.
+  //
+  // There is exactly ONE Quill instance for the whole composer and it MOVES
+  // between cards, rather than one per card. Two reasons:
+  //
+  //   - Quill 2 has no public destroy(); constructing and discarding an
+  //     instance per selection leaks listeners and Parchment state.
+  //   - Quill binds its toolbar once, at construction. A shared sticky
+  //     toolbar is only possible with a single long-lived instance.
+  //
+  // Only one story is ever "active" (see activeArt), so one instance is all
+  // the model needs anyway.
+  var bodyToolbarBar   = root.querySelector('[data-news-body-toolbar-bar]');
+  var bodyToolbarEl    = root.querySelector('[data-news-body-toolbar]');
+  var bodySaveBtn      = root.querySelector('[data-news-body-save]');
+  var bodyLabelEl      = root.querySelector('[data-news-body-label]');
+  // The element Quill turns into its .ql-container. Created once, kept
+  // across mounts, and parked in `bodyEditorPark` (outside the canvas)
+  // whenever no card is active — including across the innerHTML swap in
+  // refreshCanvasFragment(), which would otherwise detach it mid-life.
+  var bodyEditorHost   = null;
+  var bodyEditorPark   = null;
+  // The plain body <div> the host is currently standing in for. Hidden
+  // while mounted; restored (and refilled from Quill) on unmount.
+  var mountedBodyRegion = null;
   var quill = null;
-  var bodyModalDirty = false; // local to the modal session, drives the close-confirm guard only
-  // Snapshot of f.description.value taken when the modal opens. The
+  var bodyDirty = false; // unsaved since the last news.body save / story switch
+  // Snapshot of f.description.value taken when the editor mounts. The
   // text-change handler below writes every keystroke straight into
   // f.description (so Publish always has the latest body without a
   // separate save step) — but that means a "Discard changes" confirmation
@@ -172,7 +191,7 @@ import Sortable from 'sortablejs';
   // while the discarded body stayed in the hidden form and got written by
   // the next Publish (fix round 1, I1). Restoring this snapshot on a
   // confirmed discard makes the warning true.
-  var bodyModalSnapshot = '';
+  var bodySnapshot = '';
 
   // Fonts an editor can pick. MUST match NEWSLETTER_FONTS in
   // app/controllers/NewsController.py — the server strips any ql-font-* class
@@ -185,7 +204,21 @@ import Sortable from 'sortablejs';
   var SIZES = [false, 'small', 'large', 'huge'];
 
   function ensureQuill() {
-    if (quill || !bodyEditorHost) return quill;
+    if (quill) return quill;
+    if (!bodyToolbarEl) return null;
+
+    // The host and its park live outside the canvas so that
+    // refreshCanvasFragment()'s `editor.innerHTML = …` has nothing of the
+    // editor's to destroy — unmountBodyEditor() puts the host back here
+    // before every such swap.
+    bodyEditorPark = document.createElement('div');
+    bodyEditorPark.className = 'news-body-editor-park';
+    bodyEditorPark.hidden = true;
+    root.appendChild(bodyEditorPark);
+
+    bodyEditorHost = document.createElement('div');
+    bodyEditorHost.className = 'news-body-editor-host';
+    bodyEditorPark.appendChild(bodyEditorHost);
 
     // Register CLASS-based attributors, which is what Quill does by default for
     // font/size but not for the whitelist — without registering, Quill only
@@ -203,7 +236,7 @@ import Sortable from 'sortablejs';
     // Construct first, THEN bind the change handler on the next statement —
     // Quill fires `text-change` synchronously inside its own constructor
     // while processing the (empty) host it was given. Binding before
-    // construction finishes would mark the modal dirty before the user has
+    // construction finishes would mark the body dirty before the user has
     // typed anything.
     quill = new Quill(bodyEditorHost, {
       theme: 'snow',
@@ -218,19 +251,14 @@ import Sortable from 'sortablejs';
         'header', 'bold', 'italic', 'underline', 'strike',
         'list', 'indent', 'blockquote', 'link', 'align', 'font', 'size'
       ],
-      modules: {
-        toolbar: [
-          [{ header: [2, 3, false] }],
-          [{ font: FONTS }, { size: SIZES }],
-          ['bold', 'italic', 'underline'],
-          [{ list: 'ordered' }, { list: 'bullet' }, { align: [] }],
-          ['blockquote', 'link'],
-          ['clean']
-        ]
-      }
+      // An ELEMENT, not an array: the sticky bar's buttons are authored in
+      // panel-news.html because that is the only form of external toolbar
+      // Quill accepts. The `ql-font`/`ql-size` option values there must stay
+      // in step with FONTS/SIZES above.
+      modules: { toolbar: bodyToolbarEl }
     });
     quill.on('text-change', function () {
-      bodyModalDirty = true;
+      bodyDirty = true;
       if (f.description) f.description.value = quill.root.innerHTML;
       // An unsaved scratch with no body region of its own (the secondary
       // shape) would otherwise lose this the moment anything else became the
@@ -241,138 +269,139 @@ import Sortable from 'sortablejs';
     return quill;
   }
 
-  function openBodyModal(trigger) {
-    if (!bodyModal || typeof bodyModal.showModal !== 'function') return;
-    if (!activeArt && !activeId) { toast('Select or start a story first.', true); return; }
-    ensureQuill();
-    if (quill) {
-      // Direct DOM assignment, not the Quill API — verified not to trip the
-      // text-change handler above (Parchment's MutationObserver path is
-      // suppressed by its own zero-length-diff guard), so this can safely
-      // run after the handler is already bound.
-      quill.root.innerHTML = (f.description && f.description.value) || '';
+  // Takes the editor OFF whatever card it is on: writes the current HTML
+  // back into that card's plain body <div>, reveals it again, and parks the
+  // host outside the canvas. Safe to call at any time, including when
+  // nothing is mounted.
+  //
+  // MUST run before any `editor.innerHTML = …` (refreshCanvasFragment), or
+  // the swap detaches a live Quill root and every later mount operates on a
+  // node that is no longer in the document.
+  function unmountBodyEditor() {
+    if (!quill || !bodyEditorHost) return;
+    var html = quill.root.innerHTML;
+    if (mountedBodyRegion && mountedBodyRegion.isConnected) {
+      mountedBodyRegion.innerHTML = html;
+      mountedBodyRegion.hidden = false;
     }
-    bodyModalSnapshot = (f.description && f.description.value) || '';
-    bodyModalDirty = false;
-    if (bodyModalTitleEl) {
-      var label = activeArt ? getText(activeArt, 'title') : '';
-      bodyModalTitleEl.textContent = 'Edit Full Article Body' + (label ? ' — ' + label : '');
-    }
-    bodyModalTrigger = trigger || document.activeElement;
-    bodyModal.showModal();
-    if (quill) quill.focus();
+    mountedBodyRegion = null;
+    if (bodyEditorPark) bodyEditorPark.appendChild(bodyEditorHost);
+    if (bodyToolbarBar) bodyToolbarBar.hidden = true;
   }
 
-  function closeBodyModalWithGuard() {
-    if (!bodyModal) return;
-    if (bodyModalDirty) {
-      confirmAction({
-        title: 'Discard unsaved changes?',
-        body: 'The article body has unsaved edits that will be lost.',
-        confirmLabel: 'Discard changes',
-        cancelLabel: 'Keep editing',
-        danger: true
-      }).then(function (ok) {
-        if (!ok) return;
-        // Restore what was actually staged before the modal opened — the
-        // keystroke-by-keystroke sync into f.description otherwise leaves
-        // the discarded text there for the next Publish to write (I1).
-        if (f.description) f.description.value = bodyModalSnapshot;
-        if (activeArt) {
-          var bodyRegion = region(activeArt, 'body');
-          if (bodyRegion) bodyRegion.innerHTML = bodyModalSnapshot;
-        }
-        bodyModalDirty = false;
-        bodyModal.close();
-      });
-      return;
+  // Puts the editor ON `art`'s body region. Contents come from
+  // f.description, not from the region's markup: selectStory() has already
+  // staged the authoritative body there, and for an unsaved scratch card it
+  // is the only copy that exists.
+  function mountBodyEditor(art) {
+    if (!bodyToolbarEl) return;
+    var target = region(art, 'body');
+    if (!target) { unmountBodyEditor(); return; }
+    if (!ensureQuill()) return;
+    if (mountedBodyRegion === target) return;
+
+    unmountBodyEditor();
+    mountedBodyRegion = target;
+    target.hidden = true;
+    // After the plain div, so the editor sits exactly where the copy reads.
+    target.insertAdjacentElement('afterend', bodyEditorHost);
+
+    // Direct DOM assignment, not the Quill API — verified not to trip the
+    // text-change handler above (Parchment's MutationObserver path is
+    // suppressed by its own zero-length-diff guard), so this can safely
+    // run after the handler is already bound.
+    quill.root.innerHTML = (f.description && f.description.value) || '';
+    bodySnapshot = (f.description && f.description.value) || '';
+    bodyDirty = false;
+
+    if (bodyToolbarBar) bodyToolbarBar.hidden = false;
+    if (bodyLabelEl) {
+      var label = art ? getText(art, 'title') : '';
+      bodyLabelEl.textContent = label ? 'Body: ' + label : 'Article body';
     }
-    bodyModal.close();
   }
 
-  if (bodyModal) {
-    if (bodyModalCloseBtn) bodyModalCloseBtn.addEventListener('click', closeBodyModalWithGuard);
-    if (bodyModalCancelBtn) bodyModalCancelBtn.addEventListener('click', closeBodyModalWithGuard);
-
-    // Escape fires `cancel` (cancelable) before `close` on a native
-    // <dialog>. Routing it through the same guarded path keeps the
-    // unsaved-changes warning in effect for Escape too.
-    bodyModal.addEventListener('cancel', function (event) {
-      event.preventDefault();
-      closeBodyModalWithGuard();
+  // Asks before abandoning unsaved body text. Resolves true when it is safe
+  // to proceed. Called from the card click handler when the click would
+  // switch to a DIFFERENT story — clicking inside the active card is
+  // already a no-op there, so typing is never interrupted.
+  function confirmLeavingDirtyBody() {
+    if (!bodyDirty) return Promise.resolve(true);
+    return confirmAction({
+      title: 'Discard unsaved changes?',
+      body: 'The article body has unsaved edits that will be lost.',
+      confirmLabel: 'Discard changes',
+      cancelLabel: 'Keep editing',
+      danger: true
+    }).then(function (ok) {
+      if (!ok) return false;
+      // Restore what was actually staged before the editor mounted — the
+      // keystroke-by-keystroke sync into f.description otherwise leaves the
+      // discarded text there for the next Publish to write (I1).
+      if (f.description) f.description.value = bodySnapshot;
+      if (quill) quill.root.innerHTML = bodySnapshot;
+      bodyDirty = false;
+      return true;
     });
+  }
 
-    bodyModal.addEventListener('close', function () {
-      var trigger = bodyModalTrigger;
-      bodyModalTrigger = null;
-      bodyModalDirty = false;
-      // The trigger can be a canvas element a refresh already detached
-      // (editor.innerHTML swap) between open and close — fall back to the
-      // always-present toolbar button rather than losing focus to <body>,
-      // same pattern the library drawer already uses (fix round 1, minor).
-      if (trigger && trigger.isConnected && trigger.focus) {
-        trigger.focus();
-      } else if (libraryOpenBtn) {
-        libraryOpenBtn.focus();
+  if (bodySaveBtn) {
+    bodySaveBtn.addEventListener('click', function () {
+      var html = quill ? quill.root.innerHTML : '';
+      // A brand-new story (no id yet — "+ Add a story", not yet
+      // Published) has no news.body endpoint to hit: the row doesn't
+      // exist in the DB. The text-change handler above already kept
+      // f.description in sync on every keystroke, so there's nothing
+      // left to persist here — the body goes live the same way the rest
+      // of the new story's fields do, via "Publish Page Layout".
+      if (!activeId) {
+        bodyDirty = false;
+        bodySnapshot = html;
+        toast('Body kept — it will be saved when you Publish this new story.', false);
+        return;
       }
-    });
-
-    if (bodyModalSaveBtn) {
-      bodyModalSaveBtn.addEventListener('click', function () {
-        var html = quill ? quill.root.innerHTML : '';
-        // A brand-new story (no id yet — "+ Add a story", not yet
-        // Published) has no news.body endpoint to hit: the row doesn't
-        // exist in the DB. The text-change handler above already kept
-        // f.description in sync on every keystroke, so there's nothing
-        // left to persist here except closing the modal — the body goes
-        // live the same way the rest of the new story's fields do, via
-        // "Publish Page Layout".
-        if (!activeId) {
-          bodyModalDirty = false;
-          toast('Body kept — it will be saved when you Publish this new story.', false);
-          bodyModal.close();
-          return;
-        }
-        bodyModalSaveBtn.disabled = true;
-        var fd = new FormData();
-        fd.append('description', html);
-        fetch('/news/dashboard/' + encodeURIComponent(activeId) + '/body', {
-          method: 'POST',
-          headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
-          body: fd
+      bodySaveBtn.disabled = true;
+      var fd = new FormData();
+      fd.append('description', html);
+      fetch('/news/dashboard/' + encodeURIComponent(activeId) + '/body', {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+        body: fd
+      })
+        .then(readJsonEnvelope)
+        .then(function (json) {
+          bodySaveBtn.disabled = false;
+          if (json && json.__sessionExpired) {
+            toast('Your session has expired — reload the page and sign in again.', true);
+            return;
+          }
+          if (json && json.ok) {
+            var saved = json.description || html;
+            if (f.description) f.description.value = saved;
+            // The server sanitizes, so the saved HTML can differ from what
+            // was typed. Show the sanitized form — both in the editor and
+            // in the plain region behind it, which an unmount would
+            // otherwise overwrite with the pre-sanitized text.
+            if (quill && saved !== html) quill.root.innerHTML = saved;
+            if (mountedBodyRegion) mountedBodyRegion.innerHTML = saved;
+            bodySnapshot = saved;
+            bodyDirty = false;
+            toast('Article body saved.', false);
+            // Deliberately NOT clearing layoutDirty/the "Unpublished
+            // changes" badge here (same reasoning as unassign/delete
+            // below, F1): the body is now persisted, but any pending
+            // canvas metadata edits (title/dek/excerpt/image) are not —
+            // clearing the badge would claim they were too.
+            if (window.DashboardLive) window.DashboardLive.refresh('news');
+          } else {
+            toast((json && json.errors && json.errors[0]) || 'Could not save the body.', true);
+          }
         })
-          .then(readJsonEnvelope)
-          .then(function (json) {
-            bodyModalSaveBtn.disabled = false;
-            if (json && json.__sessionExpired) {
-              toast('Your session has expired — reload the page and sign in again.', true);
-              return;
-            }
-            if (json && json.ok) {
-              if (f.description) f.description.value = json.description || html;
-              if (activeArt) {
-                var bodyRegion = region(activeArt, 'body');
-                if (bodyRegion) bodyRegion.innerHTML = json.description || html;
-              }
-              bodyModalDirty = false;
-              toast('Article body saved.', false);
-              // Deliberately NOT clearing layoutDirty/the "Unpublished
-              // changes" badge here (same reasoning as unassign/delete
-              // below, F1): the body is now persisted, but any pending
-              // canvas metadata edits (title/dek/excerpt/image) are not —
-              // clearing the badge would claim they were too.
-              if (window.DashboardLive) window.DashboardLive.refresh('news');
-              bodyModal.close();
-            } else {
-              toast((json && json.errors && json.errors[0]) || 'Could not save the body.', true);
-            }
-          })
-          .catch(function () {
-            bodyModalSaveBtn.disabled = false;
-            toast('Request failed — please try again.', true);
-          });
-      });
-    }
+        .catch(function () {
+          bodySaveBtn.disabled = false;
+          toast('Request failed — please try again.', true);
+        });
+    });
   }
 
   // ── Inline title/source/location/dek/excerpt/caption/credit ──
@@ -751,6 +780,10 @@ import Sortable from 'sortablejs';
     setStatus(data.status || 'draft');
     setFeaturedPreview(data.image ? '/storage/' + String(data.image).replace(/\\/g, '/') : '');
     if (activeLabel) activeLabel.textContent = data.id ? ('Editing: ' + (data.title || 'Untitled')) : 'New story';
+    // Last: f.description now holds this story's body, which is what the
+    // editor mounts from. A card with no body region (nothing has one but
+    // the three story shapes) unmounts instead of throwing.
+    mountBodyEditor(activeArt);
     return true;
   }
 
@@ -797,7 +830,15 @@ import Sortable from 'sortablejs';
     });
     var bodyRegion = region(art, 'body');
     if (f.description) {
-      f.description.value = bodyRegion ? bodyRegion.innerHTML : ((draft && draft.body) || '');
+      // A region the editor is currently mounted on is hidden and holds
+      // pre-edit markup — read the live editor instead of resurrecting it.
+      // (selectScratch only runs for a card that isn't already active, so
+      // this is belt-and-braces, not a live path.)
+      if (bodyRegion && bodyRegion === mountedBodyRegion && quill) {
+        f.description.value = quill.root.innerHTML;
+      } else {
+        f.description.value = bodyRegion ? bodyRegion.innerHTML : ((draft && draft.body) || '');
+      }
     }
     if (f.articleId) f.articleId.value = '';
     if (f.priority)  f.priority.value = '0';
@@ -816,6 +857,7 @@ import Sortable from 'sortablejs';
     setStatus('draft');
     var draftTitle = getText(art, 'title');
     if (activeLabel) activeLabel.textContent = draftTitle ? ('New story: ' + draftTitle) : 'New story';
+    mountBodyEditor(art);
     return true;
   }
 
@@ -1226,29 +1268,13 @@ import Sortable from 'sortablejs';
       return;
     }
 
-    // "Edit Full Article Body" — appears in the inspector (no ancestor
-    // story; targets whatever is already active) and on each slot's own
-    // card (editor-only markup in kiosk/_news_slots.html). Selects that
-    // story first if it wasn't already active, then opens the modal.
-    var editBodyBtn = event.target.closest('[data-news-edit-body]');
-    if (editBodyBtn && editor && (editor.contains(editBodyBtn) || composer.contains(editBodyBtn))) {
-      var artNode = editBodyBtn.closest('[data-news-id]');
-      if (artNode) {
-        var id = artNode.getAttribute('data-news-id');
-        var slotSection = artNode.closest('[data-news-slot]');
-        var slotTypeForBtn = slotSection ? slotSection.getAttribute('data-news-slot') : activeSlotType;
-        if (id && id !== activeId) {
-          // If this selection fails (e.g. the card lookup can't find it),
-          // do NOT fall through to opening the modal — it would open
-          // seeded with whatever was PREVIOUSLY active and Save would POST
-          // the new text to that other story's id, a wrong-row write
-          // (fix round 1, I2).
-          if (!selectStory(id, slotTypeForBtn, artNode)) return;
-        }
-      }
-      openBodyModal(editBodyBtn);
-      return;
-    }
+    // Clicks inside the mounted body editor (or on the sticky toolbar) are
+    // the editor's own — never a slot selection. Without this, clicking
+    // into the copy of a card that is NOT yet active would be handled by
+    // the selection branch below, which is correct, but a click landing on
+    // the toolbar's <select> panels (which Quill renders in the bar, not
+    // the card) has no story ancestor at all and must simply be left alone.
+    if (event.target.closest('.ql-editor, .ql-toolbar, .news-canvas-toolbar')) return;
 
     // Selecting any slot's story loads it into the editing surface in
     // place — main, secondary, and widget alike (Task 5's deliverable 3;
@@ -1263,7 +1289,14 @@ import Sortable from 'sortablejs';
       if (storyId && storyId !== activeId) {
         var section = selectableArt.closest('[data-news-slot]');
         var storySlotType = section ? section.getAttribute('data-news-slot') : 'secondary';
-        selectStory(storyId, storySlotType, selectableArt);
+        // Switching stories re-seeds f.description from the new story, so
+        // an unsaved body on the old one would vanish without a word. This
+        // is the only path that can lose it — clicking inside the active
+        // card is a no-op above, and a canvas refresh is already gated on
+        // layoutDirty, which every keystroke sets.
+        confirmLeavingDirtyBody().then(function (ok) {
+          if (ok) selectStory(storyId, storySlotType, selectableArt);
+        });
       } else if (!storyId && selectableArt !== activeArt) {
         // An id-less scratch. Clicking it USED to be a no-op (this branch
         // required a truthy id), which is what made a draft unreachable the
@@ -1271,7 +1304,9 @@ import Sortable from 'sortablejs';
         // could not be published, and the next canvas refresh deleted it
         // without a word (final review, Important 1/2). selectScratch()
         // re-activates it with its typed content intact.
-        selectScratch(selectableArt);
+        confirmLeavingDirtyBody().then(function (ok) {
+          if (ok) selectScratch(selectableArt);
+        });
       }
     }
   });
@@ -1418,6 +1453,11 @@ import Sortable from 'sortablejs';
     if (!node) return;
     var wasActive = node === activeArt;
     forgetScratchDraft(node);
+    // Get the body editor out first if it is mounted on this card —
+    // node.remove() would otherwise carry the live Quill host off in the
+    // removed subtree. (It recovers either way, since the host is held by
+    // reference, but nothing here should depend on that.)
+    if (wasActive) unmountBodyEditor();
     node.remove();
     forgetDirtySource(node);
     if (wasActive) {
@@ -2179,11 +2219,13 @@ import Sortable from 'sortablejs';
         // correct bucket class. This selector is never used again to judge
         // membership after a move; see the realCardNodes() comment above.
         draggable: CANVAS_LIST_SELECTOR[type],
-        // Scratch cards (unsaved "+ Add a story") and the Move Up/Down
-        // buttons themselves must never start a drag — `preventOnFilter:
-        // false` keeps their own click handlers (button clicks; scratch
-        // card's own inline editing) working normally.
-        filter: '.is-scratch, [data-news-move]',
+        // Scratch cards (unsaved "+ Add a story"), the Move Up/Down buttons
+        // and the mounted body editor must never start a drag —
+        // `preventOnFilter: false` keeps their own handlers (button clicks;
+        // inline editing; text selection inside Quill) working normally.
+        // Dragging a card that is being edited still works: grab it
+        // anywhere outside the editor box.
+        filter: '.is-scratch, [data-news-move], .news-body-editor-host',
         preventOnFilter: false,
         onEnd: handleCanvasSortEnd
       }));
@@ -2833,6 +2875,11 @@ import Sortable from 'sortablejs';
           if (onDone) onDone();
           return;
         }
+        // Take the Quill host out of the canvas BEFORE the swap — the
+        // instance is long-lived and shared, and innerHTML would detach its
+        // root permanently. seedActiveStory() below re-selects the same
+        // story, which re-mounts it on the rebuilt card.
+        unmountBodyEditor();
         editor.innerHTML = json.html;
         // The canvas now reflects this exact database state, so writes based
         // on it are no longer stale — adopt its token.
@@ -2887,6 +2934,9 @@ import Sortable from 'sortablejs';
     if (f.credit) f.credit.value = '';
     setSlot('main');
     if (activeLabel) activeLabel.textContent = 'New story';
+    // Nothing is being edited, so the body editor and its toolbar have no
+    // subject — park them rather than leaving a bar pointing at nothing.
+    unmountBodyEditor();
   }
 
   function seedActiveStory() {

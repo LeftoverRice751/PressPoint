@@ -10,7 +10,7 @@ class TourScenes(Model):
     only stores the wiring."""
 
     __fillable__ = [
-        "scene_id", 
-        "location_id", 
+        "scene_id",
+        "location_id",
         "display_name"
         ]

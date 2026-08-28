@@ -18,8 +18,8 @@
         - leaflet map (sized to the image's aspect, pinned to the top)
         - suggestions panel (top, while typing)
         - building pane (bottom dock; QR view lives inline here)
-        - category rail (above the search bar; doubles as legend)
-        - search bar (full-bleed black band at the bottom of the stage)
+        - category dropdown (above the search bar, opens upward; also legend)
+        - search bar (full-bleed white band at the bottom of the stage)
       .keyboard                   slides up; map shrinks above it
       .kiosk-back                 shared bottom back bar (kiosk-nav.css)
 #}
@@ -120,10 +120,28 @@
       </div>
     </aside>
 
-    <!-- Category rail — also serves as the legend (swatches match pins). -->
-    <div class="category-chips" id="category-chips" aria-label="Filter by category"></div>
+    <!-- Category filter — also serves as the legend (swatches match pins).
+         The menu is written BEFORE the trigger so the trigger stays pinned to
+         the bottom of the wrapper; the menu is then positioned above it and
+         opens upward, away from the search bar. Menu rows are built by JS. -->
+    <div class="category-dropdown" id="category-dropdown" data-open="false">
+      <div class="category-dropdown__menu"
+           id="category-menu"
+           role="listbox"
+           aria-label="Filter by category"></div>
+      <button type="button"
+              class="category-dropdown__trigger"
+              id="category-trigger"
+              data-cat="all"
+              aria-haspopup="listbox"
+              aria-expanded="false">
+        <span class="category-chip__swatch" aria-hidden="true"></span>
+        <span class="category-dropdown__label" id="category-trigger-label">All</span>
+        <span class="category-dropdown__caret" aria-hidden="true">▲</span>
+      </button>
+    </div>
 
-    <!-- Search bar — full-bleed black band at the bottom of the stage. -->
+    <!-- Search bar — full-bleed white band at the bottom of the stage. -->
     <div class="search-bar">
       <span class="search-bar__icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">

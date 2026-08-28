@@ -1,4 +1,15 @@
-/* Reusable confirm dialog — extends the .article-modal tokens. */
+/* Reusable confirm dialog — extends the .article-modal tokens.
+ *
+ * Every --ink-* alias and --font-ui below carries a fallback, because this
+ * sheet is loaded on two shells that stock different palettes. The dashboard
+ * (gears/shell.html) also loads gears-dashboard.css, which defines the
+ * editorial --ink-* aliases, so there the first value always wins and nothing
+ * here changes. The auth shell (auth/base.html) loads only kiosk-tokens.css +
+ * auth-shell.css, so without the fallbacks the super admin's confirm dialog
+ * rendered with no panel background and no rules. rate-limit-modal.css dodged
+ * this by rebuilding itself on --auth-* tokens; falling back to the generic
+ * kiosk tokens keeps one stylesheet instead of two near-copies.
+ */
 
 .confirm-modal {
     width: min(440px, calc(100vw - 2rem));
@@ -14,12 +25,12 @@
 .confirm-modal__panel {
     border-radius: var(--radius-md, 6px);
     border: 1px solid var(--rule-strong);
-    background: var(--ink-paper);
+    background: var(--ink-paper, var(--surface-raised));
     box-shadow: 0 24px 48px rgb(var(--brand-maroon-rgb) / 0.28);
     padding: 1.4rem 1.5rem 1.25rem;
     display: grid;
     gap: 0.95rem;
-    font-family: var(--font-ui);
+    font-family: var(--font-ui, var(--font-heading));
 }
 
 .confirm-modal__title {
@@ -34,7 +45,7 @@
 
 .confirm-modal__body {
     margin: 0;
-    color: var(--ink-soot);
+    color: var(--ink-soot, var(--ink-muted));
     font-size: 0.95rem;
     line-height: 1.55;
 }
@@ -45,7 +56,7 @@
     gap: 0.65rem;
     flex-wrap: wrap;
     padding-top: 0.25rem;
-    border-top: 1px solid var(--ink-rule);
+    border-top: 1px solid var(--ink-rule, var(--rule));
     margin-top: 0.35rem;
     padding-top: 0.95rem;
 }
@@ -56,7 +67,7 @@
     background: transparent;
     color: var(--ink);
     padding: 0.7rem 1.15rem;
-    font: 800 0.8rem/1 var(--font-ui);
+    font: 800 0.8rem/1 var(--font-ui, var(--font-heading));
     letter-spacing: 0.12em;
     text-transform: uppercase;
     border-radius: var(--radius-sm, 4px);
@@ -65,31 +76,31 @@
 }
 
 .confirm-modal__button:hover {
-    background: var(--ink-oxblood);
+    background: var(--ink-oxblood, var(--surface-sunken));
     color: var(--ink);
     transform: translateY(-1px);
 }
 
 .confirm-modal__button--primary {
-    background: var(--ink-marigold);
-    border-color: var(--ink-marigold);
+    background: var(--ink-marigold, var(--accent));
+    border-color: var(--ink-marigold, var(--accent));
     color: var(--accent-ink);
 }
 
 .confirm-modal__button--primary:hover {
-    background: var(--ink-terracotta);
-    border-color: var(--ink-terracotta);
+    background: var(--ink-terracotta, var(--accent-hover));
+    border-color: var(--ink-terracotta, var(--accent-hover));
     color: var(--accent-ink);
 }
 
 .confirm-modal__button--danger {
-    background: var(--ink-vermillion);
-    border-color: var(--ink-vermillion);
+    background: var(--ink-vermillion, var(--danger));
+    border-color: var(--ink-vermillion, var(--danger));
     color: var(--accent-ink);
 }
 
 .confirm-modal__button--danger:hover {
-    background: var(--ink-oxblood);
+    background: var(--ink-oxblood, var(--surface-sunken));
     border-color: var(--rule-strong);
     color: var(--ink);
 }

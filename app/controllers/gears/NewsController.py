@@ -739,7 +739,7 @@ class NewsController(Controller):
                     messages=["Layout saved."],
                 )
             return response.redirect(name="gears.dashboard").with_success(["Layout saved."])
-        except _LayoutConflict as conflict:
+        except _LayoutConflict:
             # 409, not 422 — the payload was fine, it just lost a race. The
             # composer reloads the canvas on this status rather than showing a
             # validation error.

@@ -38,7 +38,12 @@
                 <input type="file" accept="image/jpeg,image/png,image/webp" data-profile-avatar-input hidden>
                 <span class="review-btn">Change picture</span>
               </label>
-              <button type="button" class="review-btn review-btn--ghost" data-profile-avatar-remove {% if not _panel_avatar %}hidden{% endif %}>
+              <button type="button" class="review-btn review-btn--ghost" data-profile-avatar-remove {% if not _panel_avatar %}hidden{% endif %}
+                      data-confirm="Your picture is deleted from the NAS and the profile menu falls back to your initials."
+                      data-confirm-title="Remove profile picture?"
+                      data-confirm-label="Remove"
+                      data-confirm-cancel="Keep"
+                      data-confirm-danger>
                 Remove
               </button>
             </div>
