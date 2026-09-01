@@ -778,11 +778,19 @@
     });
   }
 
+  // NOT in this list: form[data-upload-form]. upload-meter.js has owned that
+  // selector since it was written -- it intercepts the submit, streams the file
+  // with progress, and dispatches upload:success for dashboard-live.js and
+  // org-board-editor.js to refresh on. Binding it here too attached a second
+  // submit listener: each file guards its own binding (form.__uploadWired here
+  // vs form.dataset.ajaxBound there) but neither guard can see the other, so
+  // both called preventDefault() and both POSTed. One click on "Upload archive"
+  // or "Add member" wrote two rows. It looked like a double click; it was one
+  // click with two handlers.
   var AJAX_SELECTORS = [
     'form[data-section-form]',
     'form[data-milestone-form]',
-    'form.about-milestone__action-form',
-    'form[data-upload-form]'
+    'form.about-milestone__action-form'
   ].join(', ');
 
   document.querySelectorAll(AJAX_SELECTORS).forEach(ajaxSubmit);

@@ -80,6 +80,11 @@ class PasswordResetController(Controller):
             return response.back().with_errors([
                 "Could not send the OTP email. Please try again later."
             ])
+        # The address this flow is for, held server-side. verify_otp() binds the
+        # submitted code against it; without that the code is not tied to any
+        # account and matching *anyone's* live row unlocks the reset (CWE-640).
+        request.session.set("pending_reset_email", email)
+
         return response.redirect(
             name="auth.forgot-password.otp",
             query_params={"email": email},
@@ -104,10 +109,22 @@ class PasswordResetController(Controller):
         if not otp or len(otp) != 6 or not otp.isdigit():
             return response.back().with_errors(["OTP code is required."])
 
+        # Which account this flow asked to reset. Matching on the token alone
+        # made every outstanding row in the table a valid answer for anybody:
+        # six digits bought you whichever account happened to own them, so an
+        # attacker could seed resets for known staff addresses and take over the
+        # first one that matched. The code is only meaningful paired with the
+        # address that requested it.
+        pending_email = (request.session.get("pending_reset_email") or "").strip().lower()
+        if not pending_email:
+            return response.redirect(name="auth.forgot-password").with_errors([
+                "Please request a new OTP code."
+            ])
+
         reset_table = config("auth.guards.password_reset_table", "password_resets")
         reset_records = application.make("builder").new().statement(
-            f"SELECT * FROM {reset_table} WHERE token = %s LIMIT 1",
-            [otp],
+            f"SELECT * FROM {reset_table} WHERE token = %s AND email = %s LIMIT 1",
+            [otp, pending_email],
         )
         reset_record = reset_records[0] if reset_records else None
 
@@ -115,9 +132,11 @@ class PasswordResetController(Controller):
             return response.back().with_errors(["Invalid OTP code. Please try again."])
 
         if self._is_reset_record_expired(reset_record):
+            # Scoped to the email too, so a guessed token cannot delete another
+            # account's pending reset.
             application.make("builder").new().statement(
-                f"DELETE FROM {reset_table} WHERE token = %s",
-                [otp],
+                f"DELETE FROM {reset_table} WHERE token = %s AND email = %s",
+                [otp, pending_email],
             )
             return response.back().with_errors(["OTP code has expired. Please request a new one."])
 
@@ -142,21 +161,40 @@ class PasswordResetController(Controller):
                 "Session expired. Please try again."
             ])
 
-        is_valid = request.validate(
+        # The account verify_otp() proved ownership of. Re-reading it from the
+        # token row would put us back where we started, so the identity comes
+        # from the session the OTP step wrote.
+        verified_email = (request.session.get("reset_email") or "").strip().lower()
+        if not verified_email:
+            return response.back().with_errors([
+                "Session expired. Please try again."
+            ])
+
+        # request.validate() returns a MessageBag of ERRORS, and MessageBag
+        # defines only __len__ -- so an error-free bag is FALSY. The test used to
+        # read `if not is_valid:`, which ran the failure branch on a *good*
+        # password and fell through to the write on a bad one. A missing field
+        # was the worst case: request.input() defaults to "", so Hash.make("")
+        # was stored and the account then accepted a blank password at login.
+        errors = request.validate(
             {
                 "password": "required|strong|confirmed",
             }
         )
 
-        if not is_valid:
-            request.session.delete("reset_token")
-            request.session.delete("reset_email")
-            return response.back().with_errors(["Password must be strong and confirmed."])
+        raw_password = request.input("password") or ""
+        if errors or not raw_password:
+            # The token stays put: a mistyped confirmation should not cost the
+            # user the OTP they already verified.
+            return response.back().with_errors([
+                "Password must be at least 8 characters with upper and lower case "
+                "letters, numbers and symbols, and must match the confirmation."
+            ])
 
         reset_table = config("auth.guards.password_reset_table", "password_resets")
         reset_records = application.make("builder").new().statement(
-            f"SELECT * FROM {reset_table} WHERE token = %s LIMIT 1",
-            [token],
+            f"SELECT * FROM {reset_table} WHERE token = %s AND email = %s LIMIT 1",
+            [token, verified_email],
         )
         reset_record = reset_records[0] if reset_records else None
 
@@ -165,23 +203,24 @@ class PasswordResetController(Controller):
 
         if self._is_reset_record_expired(reset_record):
             application.make("builder").new().statement(
-                f"DELETE FROM {reset_table} WHERE token = %s",
-                [token],
+                f"DELETE FROM {reset_table} WHERE token = %s AND email = %s",
+                [token, verified_email],
             )
             return response.back().with_errors(["Reset token has expired. Please request a new one."])
 
-        new_password = Hash.make(request.input("password"))
+        new_password = Hash.make(raw_password)
         application.make("builder").new().statement(
             "UPDATE users SET password = %s WHERE email = %s",
-            [new_password, reset_record["email"]],
+            [new_password, verified_email],
         )
         application.make("builder").new().statement(
-            f"DELETE FROM {reset_table} WHERE token = %s",
-            [token],
+            f"DELETE FROM {reset_table} WHERE token = %s AND email = %s",
+            [token, verified_email],
         )
 
         request.session.delete("reset_token")
         request.session.delete("reset_email")
+        request.session.delete("pending_reset_email")
 
         return response.redirect(name="auth.login").with_success([
             "Password Reset Successfully",

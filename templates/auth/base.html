@@ -44,6 +44,11 @@
             {% block content %}{% endblock %}
         </main>
     </div>
+    {# Outside the block on purpose: every child overrides {% block js %} without
+       {{ super() }}, so anything inside it would be dropped. Shell-level, like
+       auth-shell.css above -- a future auth page with a password field gets the
+       reveal toggle without remembering a script tag. #}
+    <script src="{{ asset_url('js/auth-password-toggle.js') }}" defer></script>
     {% block js %}{% endblock %}
 </body>
 </html>

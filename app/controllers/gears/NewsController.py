@@ -782,6 +782,17 @@ class NewsController(Controller):
 
         try:
             record.description = sanitized
+
+            # `description` is the column the kiosk renders, so rewriting it is
+            # a content change like any other and has to face the same gate
+            # store() applies. Without this an editor could get a story
+            # approved, then swap its text for anything -- on any story in the
+            # table -- and it would go straight to the campus terminal on the
+            # next cache miss. Admins are the approvers, so their edit stays put.
+            record.status = _resolve_status_for_actor(
+                _normalize_news_status(getattr(record, "status", None)), request
+            )
+
             body_editor_id = _current_user_id(request)
             if body_editor_id is not None:
                 record.updated_by_id = body_editor_id

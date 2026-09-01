@@ -233,7 +233,34 @@
     }, 6000);
   }
 
+  /**
+   * Disable every submit control in the form while its upload is running, and
+   * put them back exactly as they were afterwards. A NAS upload can sit at 90%
+   * for a while and an impatient second click posts the whole file again --
+   * gears-dashboard.js used to disable the button for these forms, and it no
+   * longer binds them (see the AJAX_SELECTORS note there), so the guard lives
+   * with the code that actually owns the submit.
+   */
+  function lockSubmits(form) {
+    var controls = form.querySelectorAll('button[type="submit"], button:not([type]), input[type="submit"]');
+    var wasDisabled = Array.prototype.map.call(controls, function (control) {
+      var previous = control.disabled;
+      control.disabled = true;
+      return previous;
+    });
+
+    return function unlock() {
+      Array.prototype.forEach.call(controls, function (control, index) {
+        control.disabled = wasDisabled[index];
+      });
+    };
+  }
+
   function submitForm(form) {
+    // Belt to lockSubmits' braces: a disabled button still leaves Enter-in-a
+    // -text-field and a programmatic UploadMeter.submit() as ways back in.
+    if (form.__uploadInFlight) return false;
+
     var fileInputs = form.querySelectorAll('input[type="file"]');
     var hasFile = false;
     Array.prototype.forEach.call(fileInputs, function (input) {
@@ -258,6 +285,21 @@
       formData.append('__token', CSRF);
     }
 
+    form.__uploadInFlight = true;
+    var unlock = lockSubmits(form);
+    var reloading = false;
+
+    // loadend, not load: it fires for an aborted or errored request too, so a
+    // failed upload cannot leave the form permanently unsubmittable. The one
+    // case that stays locked is a success that schedules a reload -- the form
+    // keeps its file selected across that second, and re-enabling the button
+    // would hand back the same double-post this guard exists to stop.
+    xhr.addEventListener('loadend', function () {
+      if (reloading) return;
+      form.__uploadInFlight = false;
+      unlock();
+    });
+
     xhr.upload.addEventListener('progress', function (event) {
       if (event.lengthComputable) {
         toast.progress(event.loaded, event.total);
@@ -276,6 +318,7 @@
         }));
         var reload = form.getAttribute('data-upload-reload');
         if (reload !== 'false') {
+          reloading = true;
           window.setTimeout(function () { window.location.reload(); }, DEFAULT_RELOAD_DELAY);
         } else {
           resetForm(form);

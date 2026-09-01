@@ -55,7 +55,9 @@
     font-weight: 800;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--ink-terracotta);
+    /* --accent-text, not gold: gold is a FILL colour and measures ~1.7:1 as
+       type on the white staff surface. See kiosk-tokens.css layer 4. */
+    color: var(--accent-text);
 }
 
 .upload-meter__close {
@@ -122,15 +124,15 @@
 }
 
 .upload-meter__toast.is-error .upload-meter__fill {
-    background: var(--ink-vermillion);
+    background: var(--danger);
 }
 
 .upload-meter__toast.is-error .upload-meter__eyebrow {
-    color: var(--ink-vermillion);
+    color: var(--danger);
 }
 
 .upload-meter__toast.is-error .upload-meter__detail {
-    color: var(--ink-vermillion);
+    color: var(--danger);
 }
 
 @media (max-width: 540px) {

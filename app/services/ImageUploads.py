@@ -35,8 +35,32 @@ def read_upload(file):
     return content
 
 
+# The extension a verified image is stored under. Derived from the magic-byte
+# result rather than the filename: the two disagreeing was a stored-XSS hole.
+# A file whose bytes are a valid PNG but whose name ended in .html was saved as
+# .html, and nginx serves these NAS folders directly with Content-Type taken
+# from the extension (no nosniff, no CSP) -- so it came back as text/html on the
+# app's own origin and any script in it ran with the viewer's session.
+EXTENSION_FOR_IMAGE_MIME = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
+
+
+def verified_image_extension(content):
+    """The extension matching this buffer's actual type, or None if it is not
+    an image type we accept."""
+    return EXTENSION_FOR_IMAGE_MIME.get(FileVerificationService.get_buffer_type(content))
+
+
 def upload_extension(file, default=""):
-    """The stored file's extension. Used only for naming, never validation."""
+    """The extension in the browser-supplied filename.
+
+    Attacker-controlled, so it must never decide how a file is stored. Kept for
+    callers that only display or compare it -- use verified_image_extension()
+    to name a file.
+    """
     raw_filename = getattr(file, "filename", "") or ""
     ext = os.path.splitext(raw_filename)[1].lower() or default
     if hasattr(file, "extension") and callable(file.extension):
@@ -70,7 +94,12 @@ def save_uploaded_image(file, nas_subdir, prefix):
     if len(content) > MAX_IMAGE_BYTES:
         return None, "Image must be 4 MB or smaller."
 
-    filename = f"{prefix}-{secrets.token_hex(8)}{upload_extension(file)}"
+    # Name the file after what it actually is, never after what it was called.
+    extension = verified_image_extension(content)
+    if not extension:
+        return None, "Upload must be a JPEG, PNG, or WEBP image."
+
+    filename = f"{prefix}-{secrets.token_hex(8)}{extension}"
     target_dir = os.path.join(gearsnas_base(), nas_subdir)
 
     # The NAS is a Samba share the editors also write to over SMB, so the

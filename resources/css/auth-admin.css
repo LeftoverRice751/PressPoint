@@ -93,8 +93,10 @@
 }
 
 .sa-role--admin {
+    /* Gold outline, maroon type: the pill still reads as the accented role,
+       but its label is a TYPE colour. Gold as type measures ~1.7:1 on white. */
     border-color: var(--ink-marigold);
-    color: var(--ink-marigold);
+    color: var(--accent-text);
 }
 
 /* The edit dialog borrows .confirm-modal for its panel, which is sized for a

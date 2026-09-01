@@ -44,3 +44,15 @@ class FileVerificationService:
     def get_file_type(file_path):
         mime = Magic(mime=True)
         return mime.from_file(file_path)
+
+    @staticmethod
+    def get_buffer_type(content):
+        """The MIME type of an in-memory upload, by magic bytes.
+
+        The buffer counterpart of get_file_type. Callers that name a stored file
+        need this: an extension taken from the browser-supplied filename is
+        attacker-controlled, and nginx serves these folders with Content-Type
+        derived from the extension.
+        """
+        mime = Magic(mime=True)
+        return mime.from_buffer(content)

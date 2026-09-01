@@ -58,7 +58,7 @@
 
 .admin-lead__label {
     margin: 0;
-    color: var(--ink-terracotta);
+    color: var(--accent-text);
     font-size: 0.74rem;
     font-weight: 700;
     letter-spacing: 0.18em;

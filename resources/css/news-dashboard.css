@@ -503,12 +503,14 @@
 }
 
 /* Canvas container.
-   A deliberate LIGHT ISLAND inside the dark staff shell. This is a WYSIWYG
-   preview of the kiosk front page, so the paper has to stay the kiosk's cream
-   whatever theme the dashboard is wearing — hence the frozen --brand-cream-light
+   A deliberate CREAM ISLAND in the staff shell. This is a WYSIWYG preview of
+   the kiosk front page, so the paper has to stay the kiosk's cream whatever
+   theme the dashboard is wearing — hence the frozen --brand-cream-light
    constant rather than --surface-raised, which flips with [data-theme]. When it
    did flip, the broadsheet went dark maroon and became indistinguishable from
    the chrome around it, and every kiosk type colour on it stopped resolving.
+   The console ground is a neutral grey now, which makes the cream read as
+   kiosk paper more clearly than it did against the old warm off-white.
    The shadow and rule are what make it read as a sheet lying on the desk
    rather than a panel someone forgot to theme. */
 .news-canvas {
@@ -1190,7 +1192,9 @@
 .news-canvas-toolbar__label {
     max-width: 22ch;
     overflow: hidden;
-    color: var(--ink-terracotta);
+    /* --accent-text, not gold: gold is a FILL colour and measures ~1.7:1 as
+       type on the white staff surface. See kiosk-tokens.css layer 4. */
+    color: var(--accent-text);
     font: 700 0.72rem/1.2 var(--font-heading);
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -1251,7 +1255,7 @@
 }
 
 .news-inline-body__summary {
-    color: var(--ink-terracotta);
+    color: var(--accent-text);
     font: 700 0.72rem/1 var(--font-heading);
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -1282,7 +1286,7 @@
     font: inherit;
     font-family: var(--font-heading);
     font-weight: 700;
-    color: var(--ink-terracotta);
+    color: var(--accent-text);
     border: 1px dashed var(--kiosk-rule, rgb(var(--brand-maroon-rgb) / 0.3));
     cursor: pointer;
     transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -1646,7 +1650,7 @@
     padding: 0;
     border: 0;
     background: none;
-    color: var(--ink-terracotta);
+    color: var(--accent-text);
     font: 700 0.74rem/1.2 var(--font-ui);
     cursor: pointer;
 }

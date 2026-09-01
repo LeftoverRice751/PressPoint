@@ -6,6 +6,7 @@ const path = require('path')
 
 
 mix.js('resources/js/app.js', 'storage/compiled/js')
+  .js('resources/js/auth-password-toggle.js', 'storage/compiled/js')
   .js('resources/js/auth-login.js', 'storage/compiled/js')
   .js('resources/js/auth-change-password.js', 'storage/compiled/js')
   .js('resources/js/auth-otp-code.js', 'storage/compiled/js')
@@ -53,15 +54,6 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
     //
   ])
   .postCss('resources/css/auth-shell.css', 'storage/compiled/css', [
-    //
-  ])
-  .postCss('resources/css/auth-login.css', 'storage/compiled/css', [
-    //
-  ])
-  .postCss('resources/css/auth-change-password.css', 'storage/compiled/css', [
-    //
-  ])
-  .postCss('resources/css/auth-otp-code.css', 'storage/compiled/css', [
     //
   ])
   .postCss('resources/css/auth-admin.css', 'storage/compiled/css', [

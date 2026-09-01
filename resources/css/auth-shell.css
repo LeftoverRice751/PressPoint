@@ -3,7 +3,13 @@
 :root {
   --auth-bg:            var(--surface);
   --auth-surface:       var(--surface-raised);
-  --auth-rail:          var(--surface-sunken);
+  /* The rail is the brand field, not a neutral. It was --surface-sunken while
+     the staff theme was dark (where sunken IS near-black); on the white theme
+     sunken is a pale beige and every cream-on-dark rule in the .auth-rail
+     region below -- there are a dozen -- would have gone invisible. Pointing it
+     at --surface-brand keeps the rail maroon in both themes, which is what the
+     pre-dark light design did and what the CMS sidebar does now. */
+  --auth-rail:          var(--surface-brand);
   --auth-ink:           var(--ink);
   --auth-ink-muted:     var(--ink-muted);
   --auth-ink-faint:     var(--ink-faint);
@@ -11,8 +17,6 @@
   --auth-rule:          var(--rule);
   --auth-rule-strong:   var(--rule-strong);
   --auth-cream-on-dark: var(--brand-cream);
-  /* Was a hardcoded var(--ok) that tracked nothing. --ok lifts a step under
-     [data-theme="gears"] so it stays legible on the dark maroon ground. */
   --auth-success:       var(--ok);
   --auth-font-ui:       var(--font-heading);
   --auth-font-body:     var(--font-body);
@@ -113,7 +117,7 @@ body.auth-body {
 }
 
 .auth-brand__eyebrow {
-  color: rgb(var(--brand-cream-rgb) / 0.55);
+  color: rgb(var(--brand-cream-rgb) / 0.82);
   font-family: var(--auth-font-ui);
   font-size: 0.68rem;
   font-weight: 700;
@@ -131,7 +135,10 @@ body.auth-body {
 }
 
 .auth-rail__eyebrow {
-  color: rgb(var(--brand-cream-rgb) / 0.55);
+  /* Cream at 0.55 measured 3.5:1 once the rail went back to maroon (it sat on
+     a near-black --surface-sunken while the staff theme was dark). 0.82 is the
+     lowest step that clears 4.5:1 against #6b2516. */
+  color: rgb(var(--brand-cream-rgb) / 0.82);
   font-family: var(--auth-font-ui);
   font-size: 0.68rem;
   font-weight: 700;
@@ -191,7 +198,7 @@ body.auth-body {
 
 .auth-rail__fineprint {
   margin: 0;
-  color: rgb(var(--brand-cream-rgb) / 0.42);
+  color: rgb(var(--brand-cream-rgb) / 0.82);
   font-size: 0.82rem;
   line-height: 1.65;
 }
@@ -293,7 +300,9 @@ body.auth-body {
 }
 
 .auth-panel__eyebrow {
-  color: var(--auth-accent);
+  /* Type on the white card, so --accent-text (maroon). --auth-accent is the
+     gold FILL and measures 1.7:1 here. */
+  color: var(--accent-text);
   font-family: var(--auth-font-ui);
   font-size: 0.72rem;
   font-weight: 700;
@@ -339,11 +348,14 @@ body.auth-body {
 }
 
 /* ── Alert ──────────────────────────────────────── */
+/* The validation banner. It was outlined and lettered in gold, which is
+   1.5:1 on the card and never said "error" anyway; it takes the semantic
+   --danger, the same move .dashboard-alert made. */
 .auth-alert {
   padding: 0.85rem 1rem;
-  border: 1px solid var(--auth-accent);
-  background: rgb(var(--brand-maroon-rgb) / 0.07);
-  color: var(--auth-accent);
+  border: 1px solid var(--danger);
+  background: var(--danger-tint);
+  color: var(--danger);
   margin-bottom: 1rem;
 }
 
@@ -408,7 +420,9 @@ body.auth-body {
   border-radius: 10px;
   padding: 0.9rem 1.2rem;
   background: var(--auth-accent);
-  color: var(--auth-cream-on-dark);
+  /* Maroon on gold (4.1:1), not cream on gold (~1.5:1). The gold fill is the
+     same in both themes, so this was wrong on the dark one too. */
+  color: var(--accent-ink);
   font-family: var(--auth-font-ui);
   font-size: 0.82rem;
   font-weight: 800;
@@ -419,7 +433,8 @@ body.auth-body {
 }
 
 .auth-form__button:hover {
-  background: var(--kiosk-maroon);
+  background: var(--surface-brand);
+  color: var(--ink-invert);
 }
 
 .auth-form__footer {
@@ -434,7 +449,9 @@ body.auth-body {
 }
 
 .auth-form__link {
-  color: var(--auth-accent);
+  /* A link on the white card, so it is TYPE: --accent-text (maroon), not the
+     gold fill, which measures 1.6:1 here. */
+  color: var(--accent-text);
   font-weight: 700;
   text-decoration: none;
   font-family: var(--auth-font-ui);
@@ -470,28 +487,55 @@ body.auth-body {
   min-width: 0;
 }
 
+/* Clears the button, which is 2.25rem wide and inset 0.4rem. */
 .password-field .auth-form__input {
-  padding-right: 3rem;
+  padding-right: 3.1rem;
 }
 
 .password-toggle {
   position: absolute;
-  right: 0.55rem;
+  right: 0.4rem;
   top: 50%;
   transform: translateY(-50%);
+  /* Square, and the same inner curve the input's 10px radius implies. */
+  width: 2.25rem;
+  height: 2.25rem;
   border: 0;
+  border-radius: 7px;
   background: transparent;
-  color: var(--auth-ink-muted);
-  padding: 0.3rem;
+  /* --accent-text, never --accent: gold is a fill colour on this surface and
+     measures ~1.7:1 as a glyph. See kiosk-tokens.css layer 4. */
+  color: var(--accent-text);
+  padding: 0;
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
   line-height: 0;
 }
 
+/* Gold appears only as a FILL behind the glyph, and only on hover/focus. */
 .password-toggle:hover {
-  color: var(--auth-ink);
+  background: var(--accent-tint);
+}
+
+.password-toggle:focus-visible {
+  background: var(--accent-tint);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* The password is on screen. Most implementations change only the glyph, and
+   the two eyes differ by one thin diagonal -- easy to miss, on the state where
+   missing it matters. A solid brand chip reads from across a shared office.
+   Same fill + --ink-invert pairing as every other brand fill in the CMS. */
+.password-toggle[aria-pressed="true"] {
+  background: var(--surface-brand);
+  color: var(--ink-invert);
+}
+
+.password-toggle[aria-pressed="true"]:hover {
+  background: var(--surface-brand-hover);
 }
 
 .password-toggle svg {
@@ -502,6 +546,26 @@ body.auth-body {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+  display: block;
+  /* Both glyphs share one grid cell, so the button is one glyph tall no matter
+     which is showing -- and if the swap below ever stops matching, they overlap
+     in place instead of stacking and doubling the button's height. */
+  grid-area: 1 / 1;
+}
+
+/* Both glyphs ship in the markup and CSS picks one, so the icon, the chip fill
+   and the screen-reader state all derive from aria-pressed and cannot drift.
+   The glyph names the ACTION: an open eye means "reveal".
+
+   Qualified with .password-toggle so these beat `.password-toggle svg` above,
+   which is (0,1,1) -- a bare `.password-toggle__eye-off` is (0,1,0) and LOSES
+   to it, which showed both glyphs at once in the unpressed state. */
+.password-toggle .password-toggle__eye-off,
+.password-toggle[aria-pressed="true"] .password-toggle__eye {
+  display: none;
+}
+
+.password-toggle[aria-pressed="true"] .password-toggle__eye-off {
   display: block;
 }
 
@@ -518,33 +582,21 @@ body.auth-body {
   border: 0;
 }
 
-/* ── Options row: show-password + forgot-password link ──── */
+/* ── Options row: trailing links under a form ───────────── */
+/* Was show-password checkbox on the left, forgot-password link on the right.
+   The checkbox moved into the field as .password-toggle, so the row's only job
+   now is trailing links -- right-aligned, or a lone link would sit under the
+   field labels and compete with them. .auth-checkbox went with it; nothing
+   else in the repo used it. */
 .auth-form__options {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 0.6rem;
 }
 
-.auth-checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--auth-ink-muted);
-  font-size: 0.82rem;
-  cursor: pointer;
-  user-select: none;
-}
-
-.auth-checkbox input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--auth-accent);
-  cursor: pointer;
-}
-
-/* ── OTP grid (folded in from orphaned auth-otp-code.css) ── */
+/* ── OTP grid (folded in from auth-otp-code.css, since deleted) ── */
 .otp-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -573,7 +625,7 @@ body.auth-body {
   box-shadow: 0 0 0 3px rgb(var(--brand-maroon-rgb) / 0.14);
 }
 
-/* ── Password strength (folded in from orphaned auth-change-password.css) ── */
+/* ── Password strength (folded in from auth-change-password.css, since deleted) ── */
 .strength-meter {
   height: 6px;
   border-radius: 9999px;

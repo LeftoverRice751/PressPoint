@@ -64,6 +64,15 @@
   --n-500:   #6b5e50;
   --n-900:   #241009;  /* warm near-black; never pure #000 against cream */
 
+  /* Cool greys — the CMS ground only; the kiosk never touches them. The warm
+     scale above is derived to sit with cream and is right on the kiosk, but at
+     full-page scale on a screen an editor stares at all shift it reads as a
+     yellow cast and tires the eye. These two are near-zero chroma, and -100 is
+     a real step below --n-white so a white card lands as paper on a desk
+     rather than white on white (1.13:1 — the usual light-UI elevation step). */
+  --n-cool-100: #ecedee;
+  --n-cool-200: #dfe1e3;
+
   /* Channel triplets for the neutrals that carry alpha (scrims, hairlines). */
   --n-white-rgb: 255 255 255;
   --n-500-rgb:   125 111 95;
@@ -87,8 +96,13 @@
   --surface-sunken: var(--brand-cream-dark);
   --surface-invert: var(--brand-maroon);
   /* A deliberately saturated brand field (nav rails, mastheads). Carries
-     --ink-invert as its text in this theme, --ink in the dark one. */
+     --ink-invert as its text. */
   --surface-brand:  var(--brand-maroon);
+  /* Hover/pressed step for a --surface-brand fill. It exists because the only
+     other lighter surface in layer 4 is --surface-sunken, a neutral: hovering a
+     maroon button onto it dropped the fill to beige while the label stayed
+     --ink-invert, i.e. cream on beige. */
+  --surface-brand-hover: var(--brand-maroon-lift);
 
   --ink:        var(--brand-maroon);
   --ink-strong: var(--n-900);
@@ -204,57 +218,68 @@
 }
 
 /*
- * Dark staff theme. Set data-theme="gears" on <html> for the GEARS CMS and the
- * auth surfaces, so an editor can tell at a glance they are not on the kiosk.
- * ONLY layer 4 is redefined here — that is the whole point of the layering.
+ * Light staff theme. Set data-theme="gears" on <html> for the GEARS CMS and the
+ * auth surfaces. ONLY layer 4 is redefined here — that is the whole point of
+ * the layering.
+ *
+ * This block used to invert the whole surface to a deep warm near-black. It was
+ * reverted: at page scale the dark ground read as saturated oxblood and made
+ * the console tiring to work in for a whole shift, which is the opposite of
+ * what a CMS wants. The staff surface is now a white content field on a light
+ * grey page, and the brand is carried where it belongs — the sidebar rail,
+ * the hero, card rules and active markers — via --surface-brand, which is
+ * maroon in both themes and is the one saturated field left.
+ *
+ * Consequence for anything written against the dark theme: a rule that fills
+ * with --surface-brand / --ink-oxblood must carry --ink-invert as its text, not
+ * --ink (which is now maroon and would be maroon-on-maroon), and gold can no
+ * longer be used as a type colour — see --accent-text below.
  */
 [data-theme="gears"] {
-  /* The ground is a deep warm near-black, NOT saturated maroon. A hue this
-     strong makes a poor canvas: at page scale it flattens everything onto one
-     value, so cards stop separating from the page and the brand colour ends up
-     doing a neutral's job. Letting the ground recede buys two things — real
-     elevation steps, and maroon back as a *structural* colour (the sidebar
-     field, card rules, active markers) rather than as the whole screen.
-     Measured against cream #e9dac4: ground 13:1, raised 11:1, brand 7.9:1.
-     Raised-to-ground is ~1.18:1 — a normal dark-UI elevation step, which reads
-     clearly once the --rule hairline below sits on top of it. */
-  --surface:        #1b0e09;
-  --surface-raised: #2e1811;
-  --surface-sunken: #120806;
-  --surface-invert: var(--brand-cream);
-  /* The one saturated brand field on the whole staff surface. */
+  /* Cards are pure white and the page behind them is a light grey, so
+     elevation is carried by the card being *lighter* than the page plus the
+     --rule hairline, the same way the kiosk does it. The ground is grey rather
+     than cream on purpose: cream under a full-width dashboard reads as a tint,
+     the kiosk already owns that ground, and at this scale its warmth is what
+     makes the console tiring. The brand is carried by the maroon rail and the
+     gold fills instead, which is a stronger signal than a tinted page.
+     The --rule hairlines stay maroon-alpha, so even the grey reads warm. */
+  --surface:        var(--n-cool-100);
+  --surface-raised: var(--n-white);
+  --surface-sunken: var(--n-cool-200);
+  --surface-invert: var(--brand-maroon);
+  /* The one saturated brand field on the whole staff surface — unchanged
+     across themes, which is why the sidebar rail survived the revert intact. */
   --surface-brand:  var(--brand-maroon);
+  --surface-brand-hover: var(--brand-maroon-lift);
 
-  --ink:        var(--brand-cream);
-  --ink-strong: var(--n-white);
-  --ink-muted:  rgb(var(--brand-cream-rgb) / 0.70);
-  --ink-faint:  rgb(var(--brand-cream-rgb) / 0.38);
-  --ink-invert: var(--brand-maroon);
+  --ink:        var(--brand-maroon);
+  --ink-strong: var(--n-900);
+  --ink-muted:  rgb(var(--brand-maroon-rgb) / 0.80);
+  --ink-faint:  rgb(var(--brand-maroon-rgb) / 0.34);
+  --ink-invert: var(--brand-cream);
 
-  --rule:        rgb(var(--brand-cream-rgb) / 0.18);
-  --rule-strong: rgb(var(--brand-cream-rgb) / 0.40);
+  --rule:        rgb(var(--brand-maroon-rgb) / 0.20);
+  --rule-strong: rgb(var(--brand-maroon-rgb) / 0.45);
 
   --accent:       var(--brand-gold);
-  --accent-ink:   var(--brand-maroon-deep);
-  --accent-hover: var(--brand-gold-lift);
-  --accent-tint:  rgb(var(--brand-gold-rgb) / 0.16);
-  --accent-text:  var(--brand-gold);  /* inverts: gold IS readable on maroon */
+  --accent-ink:   var(--brand-maroon);
+  --accent-hover: var(--brand-gold-dark);
+  --accent-tint:  rgb(var(--brand-gold-rgb) / 0.18);
+  /* Gold on white measures ~1.7:1. The rule of thumb from layer 4 applies here
+     exactly as it does on the kiosk: gold is a FILL colour, --accent-text is a
+     TYPE colour, and on a light ground that type colour is maroon. */
+  --accent-text:  var(--brand-maroon);
 
-  --focus-ring: var(--brand-gold);
+  --focus-ring: var(--brand-maroon);
 
-  --border-rule:  2px solid var(--rule-strong);
-  --shadow-press: 0 6px 0 0 rgb(0 0 0 / 0.55);
-  --shadow-lift:  0 12px 28px rgb(0 0 0 / 0.45);
+  --border-rule:  2px solid var(--ink);
+  --shadow-press: 0 6px 0 0 var(--ink);
+  --shadow-lift:  0 12px 28px rgb(var(--brand-maroon-rgb) / 0.14);
 
-  /* Semantics lift a step so they stay legible on the maroon ground. The
-     triplets move with them, or alpha tints would still be mixed from the
-     dark-on-light values and disappear into the ground. */
-  --ok:     #6fbf73;
-  --warn:   #e8a33d;
-  --danger: #ef6b62;
-  --ok-rgb:     111 191 115;
-  --warn-rgb:   232 163 61;
-  --danger-rgb: 239 107 98;
+  /* ok/warn/danger are deliberately NOT overridden any more: the dark theme had
+     to lift them off the near-black ground, and the :root values are already
+     the dark-on-light set this theme needs. */
 }
 
 @media (max-width: 540px) {

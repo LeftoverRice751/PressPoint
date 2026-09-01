@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}GEARS CMS{% endblock %}
-{# Staff surface: dark maroon theme, so an editor can never mistake the
-   dashboard for the public kiosk. Defined in kiosk-tokens.css. #}
+{# Staff surface. data-theme="gears" is the CMS's own layer-4 palette, defined
+   in kiosk-tokens.css: a white content field on an off-white page with the
+   brand carried by the maroon rail. It was a dark maroon theme for a while --
+   reverted because a saturated dark ground is tiring to work in all shift. #}
 {% block html_attrs %} data-theme="gears"{% endblock %}
 
 {#
