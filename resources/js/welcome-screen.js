@@ -203,7 +203,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The bottom CTA is purely visual — the same global listeners catch
   // taps on it.
   // ───────────────────────────────────────────────────────────────────────
-  const IDLE_MS = 20 * 1000;
+  const IDLE_MS = 30 * 1000;
   let idleTimer = null;
   let idleVideoSrc = null;
   let idleVideoTitle = "";
@@ -239,7 +239,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (typeof window.__kioskPlaySrc !== "function") return;
     idleVideoPlaying = true;
     document.body.classList.add("kiosk-idle-active");
-    window.__kioskPlaySrc(idleVideoSrc, idleVideoTitle);
+    // quiet=true: no "Now playing" banner. Nobody asked for the attract loop,
+    // so it should arrive without announcing itself. An editor's Pusher push
+    // still shows the banner.
+    window.__kioskPlaySrc(idleVideoSrc, idleVideoTitle, true);
   }
 
   function stopIdleAttract() {
@@ -254,17 +257,64 @@ document.addEventListener("DOMContentLoaded", () => {
     startIdleCountdown();
   }
 
+  // ── Swallowing the wake tap ────────────────────────────────────────────
+  //
+  // The attract video plays inside #kiosk-stage, a fixed inset:0 overlay at
+  // z-index 9999, so the finger really does land on the video and not on the
+  // menu. But stopIdleAttract() hides the stage on *pointerdown*, and the
+  // browser resolves a click's target by hit-testing the DOM as it stands
+  // when the finger *lifts*. By then the stage is display:none, so the click
+  // lands on the <a class="feature-card"> underneath and the tap that merely
+  // woke the kiosk opened Campus Map as well.
+  //
+  // This used to call stopPropagation() alone, which cannot help: propagation
+  // and default actions are separate channels. Stopping propagation silences
+  // listeners, but an anchor's navigation is its default action and only
+  // preventDefault() cancels it. The guard worked back when the cards were
+  // <button data-target> with a location.href handler — see the note at the
+  // top of this file about why they became plain links.
+  let swallowTimer = null;
+
+  function releaseSwallow() {
+    document.removeEventListener("click", swallowWakeClick, true);
+    if (swallowTimer) {
+      window.clearTimeout(swallowTimer);
+      swallowTimer = null;
+    }
+  }
+
+  function swallowWakeClick(ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (typeof ev.stopImmediatePropagation === "function") {
+      ev.stopImmediatePropagation();
+    }
+    releaseSwallow();
+  }
+
+  function armSwallow() {
+    releaseSwallow();
+    document.addEventListener("click", swallowWakeClick, true);
+    // A gesture that never becomes a click — a swipe, or a tap that drifts far
+    // enough for the browser to drop it — used to leave this listener armed
+    // forever, and it would then eat the visitor's next deliberate tap
+    // instead. Expire well after the pointerdown→click gap of a real tap, and
+    // well before anyone reaches for a second one.
+    swallowTimer = window.setTimeout(releaseSwallow, 700);
+  }
+
   function onUserActivity(e) {
     if (idleVideoPlaying) {
       if (e && typeof e.stopPropagation === "function") {
         e.stopPropagation();
       }
       stopIdleAttract();
-      // Swallow the click that follows this pointerdown so no card fires
-      document.addEventListener("click", function swallow(ev) {
-        ev.stopPropagation();
-        document.removeEventListener("click", swallow, true);
-      }, true);
+      // Only a pointer gesture produces the stray click worth swallowing. A
+      // wheel or keydown wake never will, so arming here would just leave a
+      // swallower lying in wait for an unrelated tap.
+      if (e && (e.type === "pointerdown" || e.type === "touchstart")) {
+        armSwallow();
+      }
     } else {
       startIdleCountdown();
     }
@@ -272,6 +322,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
   ["pointerdown", "touchstart", "wheel", "keydown"].forEach((evt) => {
     document.addEventListener(evt, onUserActivity, { passive: true, capture: true });
+  });
+
+  // Returning to the menu with the back bar restores this page from the
+  // browser's back/forward cache (partials/kiosk-back.html routes the bar
+  // through history.back() on purpose, to keep the ticker and scroll
+  // position). A restore does NOT re-fire DOMContentLoaded, so none of the
+  // setup above runs again — but the countdown armed before the visitor left
+  // is still pending, and a frozen setTimeout resolves the instant the page
+  // is unfrozen. The attract video therefore started immediately on every
+  // back-tap, however long the visitor had been away.
+  //
+  // Re-arm from zero instead: tear down the stale timer, close the overlay if
+  // the video did manage to start, and give the visitor the full IDLE_MS.
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    if (idleTimer) {
+      window.clearTimeout(idleTimer);
+      idleTimer = null;
+    }
+    stopIdleAttract();
+    // A restore is a fresh interaction context: never let a swallower armed
+    // before the visitor navigated away eat their first tap on the way back.
+    releaseSwallow();
+    startIdleCountdown();
   });
 
   // Initial fetch + first countdown. Re-poll every 60s so dashboard

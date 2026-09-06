@@ -385,10 +385,20 @@ def tour_context():
                 "scene_name": entry["name"],
                 "location_id": getattr(mapping, "location_id", None) if mapping else None,
                 "display_name": (getattr(mapping, "display_name", None) if mapping else "") or "",
+                # Thumbnail + 360 preview. preview.jpg already ships beside the
+                # tiles (kiosk-tour.js uses it as Marzipano's cubeMapPreviewUrl),
+                # so recognising a scene costs no new imagery -- just the band
+                # of the cube strip that faces the way the scene opens.
+                "preview_url": "/pano/tiles/{}/preview.jpg".format(entry["scene_id"]),
+                "preview_face": entry["preview_face"],
+                "initial_view": entry["initial_view"],
             }
         )
 
-    return {"tour_scene_rows": tour_scene_rows}
+    return {
+        "tour_scene_rows": tour_scene_rows,
+        "tour_geometry": TourScenesCatalog.geometry(),
+    }
 
 
 def overview_context():

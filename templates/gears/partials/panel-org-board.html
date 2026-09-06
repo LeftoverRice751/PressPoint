@@ -73,6 +73,7 @@
               <button type="button" class="ghost-button" data-ob-zoom-in aria-label="Zoom in">+</button>
               <button type="button" class="ghost-button" data-ob-fit>Fit</button>
               <button type="button" class="ghost-button" data-ob-reset-layout>Reset layout</button>
+              <span class="org-board-fit" data-ob-fit-readout role="status"></span>
             </div>
           </div>
 
@@ -80,10 +81,20 @@
             Drag a card anywhere on the canvas to place it &mdash; its reports come with it, and it snaps to the grid.
             Hold <kbd>Alt</kbd> to move one card on its own. Drag a card onto another to make them report to it.
             Drop an image file onto a card to set that member&rsquo;s photo, or click a card to edit it.
+            The kiosk shows this arrangement exactly as you leave it, scaled to fit its portrait screen with
+            no scrolling and no zooming &mdash; so a compact chart reads larger there than a spread-out one.
+            The dashed rectangle is that screen: keep the cards inside it and the board renders at full size.
+            A card parked far away from the rest is dropped back into place on the kiosk rather than shrinking
+            the whole board for visitors; here it stays exactly where you put it, so you can find it and move it.
           </p>
 
           <div class="org-board-canvas" data-ob-canvas>
             <div class="org-board-stage" data-ob-stage>
+              {# The kiosk's screen, to scale, behind the cards. Sized from
+                 OrgChart.KIOSK_FRAME so the two can never drift apart. #}
+              <div class="org-board-frame" data-ob-frame aria-hidden="true">
+                <span class="org-board-frame__label">Kiosk screen</span>
+              </div>
               <svg class="org-board-edges" data-ob-edges xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
               <div class="org-board-cards" data-ob-cards></div>
             </div>

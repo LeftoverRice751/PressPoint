@@ -1,0 +1,38 @@
+{#
+    Read-only event detail dialog, opened by clicking a row in the events
+    table (events-list.html). Populated client-side from that row's
+    data-event-* attributes -- see openEventViewModal() in gears-dashboard.js.
+#}
+    <dialog class="article-modal event-view-modal" data-event-view-modal>
+      <div class="article-modal__panel event-view-modal__panel">
+        {# The glyph is painted by CSS (::before); the word is kept for screen
+           readers only. Both visible at once rendered as "✕Close" crammed
+           into the 2rem circle, which is the close-icon bug this fixes. #}
+        <button type="button" class="event-view-modal__close" aria-label="Close"
+                data-event-view-modal-close><span class="u-visually-hidden">Close</span></button>
+
+        <div class="event-view-modal__body">
+          <h3 class="event-view-modal__title" data-event-view-title></h3>
+
+          <dl class="event-view-modal__meta">
+            <div class="event-view-modal__meta-item">
+              <dt>When</dt>
+              <dd data-event-view-when></dd>
+            </div>
+            <div class="event-view-modal__meta-item">
+              <dt>Where</dt>
+              <dd data-event-view-where></dd>
+            </div>
+          </dl>
+
+          <p class="event-view-modal__description" data-event-view-description></p>
+
+          {# Below the description, not above the title: this dialog is the
+             only place the poster is shown now that the events table dropped
+             its thumbnail column, and an editor opens a row to read it, not
+             to be met by a hero image. Stays `hidden` until
+             openEventViewModal() finds a path on the row. #}
+          <img class="event-view-modal__image" data-event-view-image alt="" hidden>
+        </div>
+      </div>
+    </dialog>

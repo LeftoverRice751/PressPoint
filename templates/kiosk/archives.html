@@ -13,6 +13,18 @@
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-nav.css') }}" />
 </head>
 <body>
+  {#
+    data-reader-eager-pdf is deliberately NOT set any more.
+
+    It used to be, because the server's page raster was fixed at zoom 1.8
+    (908x1296) and the kiosk panel is 768x1024 at DPR 2 -- so the preview was
+    visibly soft and the terminal downloaded the whole ~100 MB PDF on open just
+    to have pdf.js re-rasterise pages the server had already rendered. Pages are
+    now WebP at zoom 3.0 (1512x2160, and smaller on disk than the old PNGs), so
+    there is nothing left to paper over: the PDF is fetched only if the reader
+    actually pinch-zooms. The EAGER_PDF branch in kiosk-archive-book.js stays,
+    so re-enabling this is a one-attribute change.
+  #}
   <div
     class="archive-shell"
     data-archive-shell
@@ -68,11 +80,16 @@
               data-page-count="{{ archive.page_count }}"
               data-is-tabloid="{{ '1' if archive.is_tabloid else '0' }}"
               data-first-page-url="{{ archive.first_page_url }}"
-              {# Instant-open contract: the reader paints these pre-rendered
-                 pages immediately and only fetches the (large) PDF once the
-                 reader is engaged. A count of 0 means nothing is prewarmed,
-                 which tells the reader to load the PDF straight away. #}
+              {# Instant-open contract: the reader paints these server-rendered
+                 pages immediately, for the WHOLE document -- this used to stop
+                 at 20 pages and every page past it was rasterised from the PDF
+                 on the client. data-direct-pages is how far of that run nginx
+                 can serve by name; beyond it the reader falls back to the
+                 on-demand route, which resolves legacy .png pages too. #}
               data-page-url-base="{{ archive.page_url_base }}"
+              data-page-storage-base="{{ archive.page_storage_base }}"
+              data-page-extension="{{ archive.page_extension }}"
+              data-direct-pages="{{ archive.direct_pages if archive.direct_pages else 0 }}"
               data-prewarmed-pages="{{ archive.prewarmed_pages if archive.prewarmed_pages else 0 }}"
             >
               <span class="archive-card__cover-wrap">
@@ -155,36 +172,7 @@
 
     {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False) %}{% include 'partials/kiosk-back.html' %}{% endwith %}
 
-    <!-- Reader overlay: one mount per reading mode, adapters attach at runtime -->
-    <div class="archive-book-overlay" data-archive-book hidden aria-hidden="true">
-      <div class="kiosk-loader" data-archive-loader hidden>
-        <img class="kiosk-loader__logo" src="{{ site_logo() }}" alt="" aria-hidden="true">
-      </div>
-
-      <div class="archive-book-overlay__backdrop" data-archive-book-backdrop></div>
-
-      <div class="reader-stage" data-reader-stage>
-        <div class="reader-mount reader-mount--book"   data-reader-book   hidden></div>
-        <div class="reader-mount reader-mount--zoom"   data-reader-zoom   hidden></div>
-        <div class="reader-mount reader-mount--scroll" data-reader-scroll hidden></div>
-      </div>
-
-      <div class="reader-chrome" data-reader-chrome>
-        <button type="button" class="reader-chrome__back" data-reader-back>
-          <span aria-hidden="true">&larr;</span>
-          <span>Back to selection</span>
-        </button>
-        <div class="reader-chrome__pager" data-reader-pager>&mdash;</div>
-        <div class="reader-chrome__nav" data-reader-nav hidden>
-          <button type="button" class="reader-chrome__nav-btn reader-chrome__nav-btn--prev" data-reader-prev aria-label="Previous page">
-            <span aria-hidden="true">&#8249;</span>
-          </button>
-          <button type="button" class="reader-chrome__nav-btn reader-chrome__nav-btn--next" data-reader-next aria-label="Next page">
-            <span aria-hidden="true">&#8250;</span>
-          </button>
-        </div>
-      </div>
-    </div>
+    {% include 'kiosk/partials/_archive-reader.html' %}
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>

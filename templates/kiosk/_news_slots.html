@@ -40,15 +40,20 @@
   {% set ns.pos = ns.pos + 1 %}
   <article class="feature-story{% if main_story.headline_font %} story-font-{{ main_story.headline_font }}{% endif %}" data-news-id="{{ main_story.id }}"{% if news_editor %} data-news-context-menu="main"{% endif %}>
     {% if news_editor %}
-    <div class="news-card-controls" role="group" aria-label="Reorder {{ main_story.title }}">
+    {# `| striptags` on every ATTRIBUTE that prints a title. The headline is a
+       Quill target now and carries ql-font-*/ql-size-* spans, and autoescaping
+       an attribute turns those tags into visible &lt;span…&gt; noise read aloud
+       by a screen reader. The heading itself renders them (| safe, below);
+       attributes must not. #}
+    <div class="news-card-controls" role="group" aria-label="Reorder {{ main_story.title | striptags }}">
       <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
-      <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ main_story.title }} up">&uarr;</button>
-      <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ main_story.title }} down">&darr;</button>
+      <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ main_story.title | striptags }} up">&uarr;</button>
+      <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ main_story.title | striptags }} down">&darr;</button>
     </div>
     {% endif %}
     <figure class="feature-story__figure">
       {% if main_story.image %}
-      <img class="feature-story__image" data-news-edit="image" src="/storage/{{ main_story | news_image('large') }}" alt="{{ main_story.title }}" decoding="async" fetchpriority="high">
+      <img class="feature-story__image" data-news-edit="image" src="/storage/{{ main_story | news_image('large') }}" alt="{{ main_story.title | striptags }}" decoding="async" fetchpriority="high">
       {% else %}
       <div class="feature-story__image feature-story__image--fallback" data-news-edit="image" aria-hidden="true"></div>
       {% endif %}
@@ -66,7 +71,13 @@
     </figure>
     <div class="feature-story__content">
       <span class="feature-story__kicker">{{ main_story.location | default('Campus', true) }}</span>
-      <h2 class="feature-story__title" data-news-edit="title">{{ main_story.title }}</h2>
+      {# `| safe`: the headline is authored in Quill now, so it carries inline
+         formatting spans (ql-font-*/ql-size-*, b/i/u). NewsController's
+         _sanitize_headline_html is what makes that safe — it runs bleach over
+         an INLINE-only tag list and the same exact class allowlist the body
+         uses, so nothing but formatting survives. Every attribute that prints
+         a title takes `| striptags` instead; see the note above. #}
+      <h2 class="feature-story__title" data-news-edit="title">{{ main_story.title | safe }}</h2>
       {% if news_editor or main_story.dek %}
       <p class="feature-story__dek" data-news-edit="dek">{{ main_story.dek | default('', true) }}</p>
       {% endif %}
@@ -124,19 +135,19 @@
     {% set ns.pos = ns.pos + 1 %}
     <article class="secondary-story{% if news.headline_font %} story-font-{{ news.headline_font }}{% endif %}" data-news-id="{{ news.id }}"{% if news_editor %} data-news-context-menu="secondary"{% endif %}>
       {% if news_editor %}
-      <div class="news-card-controls" role="group" aria-label="Reorder {{ news.title }}">
+      <div class="news-card-controls" role="group" aria-label="Reorder {{ news.title | striptags }}">
         <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
-        <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ news.title }} up">&uarr;</button>
-        <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ news.title }} down">&darr;</button>
+        <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ news.title | striptags }} up">&uarr;</button>
+        <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ news.title | striptags }} down">&darr;</button>
       </div>
       {% endif %}
       {% if news.image %}
-      <img class="secondary-story__thumb" data-news-edit="image" src="/storage/{{ news | news_image('thumb') }}" alt="{{ news.title }}" loading="lazy" decoding="async">
+      <img class="secondary-story__thumb" data-news-edit="image" src="/storage/{{ news | news_image('thumb') }}" alt="{{ news.title | striptags }}" loading="lazy" decoding="async">
       {% else %}
       <div class="secondary-story__thumb secondary-story__thumb--fallback" data-news-edit="image" aria-hidden="true"></div>
       {% endif %}
       <div class="secondary-story__body">
-        <h3 class="secondary-story__title" data-news-edit="title">{{ news.title }}</h3>
+        <h3 class="secondary-story__title" data-news-edit="title">{{ news.title | safe }}</h3>
         {% if news_editor %}
         {# Editor-only: the excerpt IS the summary field here — editing it
            directly replaces the read-only truncated-body preview the kiosk
@@ -203,13 +214,13 @@
       {% set ns.pos = ns.pos + 1 %}
       <article class="info-card{% if widget.headline_font %} story-font-{{ widget.headline_font }}{% endif %}" data-news-id="{{ widget.id }}"{% if news_editor %} data-news-context-menu="widget"{% endif %}>
         {% if news_editor %}
-        <div class="news-card-controls" role="group" aria-label="Reorder {{ widget.title }}">
+        <div class="news-card-controls" role="group" aria-label="Reorder {{ widget.title | striptags }}">
           <span class="news-card-position" data-news-position-badge>Position #{{ ns.pos }}</span>
-          <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ widget.title }} up">&uarr;</button>
-          <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ widget.title }} down">&darr;</button>
+          <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ widget.title | striptags }} up">&uarr;</button>
+          <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ widget.title | striptags }} down">&darr;</button>
         </div>
         {% endif %}
-        <h3 class="info-card__title" data-news-edit="title">{{ widget.title }}</h3>
+        <h3 class="info-card__title" data-news-edit="title">{{ widget.title | safe }}</h3>
         {% if news_editor %}
         <p class="info-card__copy info-card__copy--excerpt" data-news-edit="excerpt">{{ widget.excerpt | default('', true) }}</p>
         {# Editor-only body region — same reasoning as the secondary card

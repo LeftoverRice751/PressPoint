@@ -175,14 +175,19 @@ class _FakeResponse:
 
 
 class _SavableMember(_Member):
-    """A member that records saves, so a batch move can be asserted on."""
+    """A member that records saves and deletes, so a move, an edit or a removal
+    can be asserted on."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.saves = 0
+        self.deleted = False
 
     def save(self):
         self.saves += 1
+
+    def delete(self):
+        self.deleted = True
 
 
 class CanvasPositionTestCase(TestCase):
@@ -303,3 +308,84 @@ class CanvasPositionTestCase(TestCase):
             response = _FakeResponse()
             controller._move_positions(response, payload)
             self.assertFalse(response.body["ok"], f"{payload!r} should be refused")
+
+
+class _FakeRequest:
+    """Just enough of Masonite's Request for these handlers to read inputs."""
+
+    def __init__(self, **inputs):
+        self._inputs = inputs
+
+    def input(self, name, default=None):
+        return self._inputs.get(name, default)
+
+
+class EditAndDeleteReportTruthfullyTestCase(TestCase):
+    """Editing or deleting a member must not report failure after succeeding.
+
+    `_reorder_siblings_by_position` was deleted in bbf4967 — on a free canvas an
+    x coordinate carries no ordering meaning, which is what the comment in
+    `move()` now says — but two call sites in `update()` and `destroy()` were
+    left behind. Both sit AFTER the row has already been written, inside a
+    `try` whose `except Exception` swallows the resulting AttributeError and
+    returns "Please try again". The edit lands and the editor is told it did
+    not, which is the retry-and-duplicate trap fixed for uploads in c310775.
+    """
+
+    def _controller(self, members, monkeypatched_member=None):
+        from app.controllers.gears import OrgBoardController as module
+
+        controller = module.OrgBoardController()
+        controller._all_members = lambda: members
+        controller._organization_payload = lambda organization_id: {
+            "organization_id": organization_id,
+            "members": [],
+        }
+        return controller
+
+    def test_updating_a_member_reports_success(self):
+        from unittest.mock import patch
+        from app.controllers.gears import OrgBoardController as module
+
+        member = _SavableMember(1, 22, "Old Name", position="Old Position")
+        response = _FakeResponse()
+        controller = self._controller([member])
+
+        with patch.object(module, "Member") as member_model:
+            member_model.find.return_value = member
+            controller.update(
+                _FakeRequest(member_id=1, name="New Name", position="Chair"),
+                None,
+                response,
+            )
+
+        # At least once for the edit itself; _renumber_group may write the row
+        # again as part of its sibling group, which is existing behaviour.
+        self.assertGreaterEqual(member.saves, 1, "the row should have been written")
+        self.assertTrue(
+            response.body["ok"],
+            f"update reported failure after saving: {response.body}",
+        )
+        self.assertIn("Member updated.", response.body["messages"])
+
+    def test_deleting_a_member_reports_success_and_promotes_reports(self):
+        from unittest.mock import patch
+        from app.controllers.gears import OrgBoardController as module
+
+        parent = _SavableMember(1, 22, "Chair")
+        child = _SavableMember(2, 22, "Officer", parent_id=1)
+        grandchild = _SavableMember(3, 22, "Assistant", parent_id=2)
+        response = _FakeResponse()
+        controller = self._controller([parent, child, grandchild])
+
+        with patch.object(module, "Member") as member_model:
+            member_model.find.return_value = child
+            controller.destroy(_FakeRequest(member_id=2), response)
+
+        self.assertTrue(child.deleted, "the row should have been removed")
+        self.assertEqual(grandchild.parent_id, 1, "reports should be promoted")
+        self.assertTrue(
+            response.body["ok"],
+            f"destroy reported failure after deleting: {response.body}",
+        )
+        self.assertEqual(response.body["promoted"], 1)

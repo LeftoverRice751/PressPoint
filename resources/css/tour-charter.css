@@ -1,0 +1,350 @@
+/* The 3D citizen's charter hotspot in the virtual tour.
+ *
+ * Sits inside a Marzipano hotspot container, which positions this element by
+ * transform. Anything here that establishes its own positioning context would
+ * fight that, so the wrapper only sizes and centres itself on its anchor. */
+
+.tour-charter {
+  position: absolute;
+  /* Centre the model on its yaw/pitch with NEGATIVE MARGINS, never transform.
+     Marzipano positions a hotspot by writing `transform` on this very element
+     every frame (util/positionAbsolutely.js), placing its top-left corner at
+     the anchor — so a `transform: translate(-50%,-50%)` here is silently
+     overwritten and the book hangs down-right of where it was placed. This is
+     why .link-hotspot in kiosk-tour.css uses margin-left/-top too; match that
+     pattern.
+
+     The label sits ABOVE the model (a caption below would be printed on the
+     floor tiles in front of the book it names), so margin-top has to clear the
+     label as well as half the model box: 130 + 34 + 12 = 176. That 34px is why
+     .tour-charter__label carries a fixed height rather than letting its line
+     box decide — a label whose height moved would slide the model off its
+     anchor, silently. Keep all four numbers in step. */
+  margin-left: -130px;
+  margin-top: -176px;
+  width: 260px;
+  /* NORMAL BLOCK FLOW, not flex — and for the same reason the margins above
+     are not a transform. Marzipano's positionAbsolutely() writes `display`,
+     `position` AND `transform` as INLINE styles on this element every frame,
+     and an inline style beats a stylesheet rule. A `display: flex` here is
+     simply overwritten with `display: block`, silently: the rule stays in
+     devtools looking applied while the children lay out in block flow. This
+     stylesheet used to declare flex, and it never once took effect — the old
+     label happened to sit below the model anyway because a block model-viewer
+     followed by an inline span flows that way on its own. Laying the label out
+     ABOVE the model is what exposed it, as an 8px padding bleeding over the
+     book. So: block flow, centred with `text-align`/auto margins, and no
+     property here that Marzipano also writes. */
+  text-align: center;
+  cursor: pointer;
+  /* Touch on the kiosk: never let a tap on the book scroll or select. */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.tour-charter__model {
+  width: 260px;
+  height: 260px;
+  /* model-viewer paints its own background otherwise, which would show as a
+     white square floating in the panorama. */
+  background-color: transparent;
+  --poster-color: transparent;
+  pointer-events: none; /* the wrapper owns the tap */
+}
+
+.tour-charter__label {
+  /* Height is FIXED, not derived from the line box: .tour-charter's negative
+     margin-top hardcodes 34px for this element, and a label that grew would
+     push the model off its yaw/pitch anchor with nothing to report it.
+     8 + 18 + 8 = 34. */
+  /* Block, not the span's default inline: an inline box would be laid out on a
+     line whose height comes from line-height, so this padding would overflow
+     onto the model above it instead of adding to the element's own height.
+     `width: fit-content` + auto side margins is the block-flow way to shrink
+     to the text and centre, since the wrapper cannot use flex (see above). */
+  display: block;
+  width: fit-content;
+  margin: 0 auto 12px;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  background-color: #0b1f3a;
+  color: #ffffff;
+  font-size: 15px;
+  line-height: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.tour-charter:focus-visible {
+  outline: 3px solid #ffd200;
+  outline-offset: 6px;
+  border-radius: 8px;
+}
+
+/* The model is MOVED into the inspection stage, so the hotspot is a label with
+   a hole in it while inspection is open. Hide the whole thing rather than
+   leave a caption floating over an empty patch of panorama. */
+.tour-charter.is-inspecting {
+  visibility: hidden;
+}
+
+/* ── Inspection mode ─────────────────────────────────────────────────────
+   The charter fullscreen, as an object the visitor turns over before deciding
+   to open it. The live <model-viewer> is moved into .charter-inspect__stage by
+   tour-charter.js and moved back out on exit — the stage is empty in the
+   markup on purpose, and must never be given a second viewer of its own. */
+
+.charter-inspect {
+  position: fixed;
+  inset: 0;
+  /* Between the tour's own furniture (the dock and route panel top out at 95)
+     and .archive-book-overlay's 400. The reader MUST win: it opens on top of
+     inspection and returns to it on close, so an inspection overlay above 400
+     would bury the document the whole feature exists to reach. */
+  z-index: 300;
+  display: flex;
+  /* An ANIMATION, not a transition, and the open state is the DEFAULT.
+     A transition needs a rendered start frame, so fading in from `hidden` used
+     to mean parking the overlay at `opacity: 0; pointer-events: none` and
+     having JS add an `.is-active` class one requestAnimationFrame later. That
+     put visibility AND interactivity behind a rAF callback — and a rAF
+     callback is not guaranteed to run. When it does not (a throttled or
+     backgrounded kiosk tab, a starved first frame, any headless browser) the
+     overlay opens invisible and inert, the model has already been moved into
+     it, and the visitor is left staring at a tour with the book missing and
+     every tap going nowhere. A CSS animation starts on its own the moment the
+     element becomes rendered, so the entrance needs no JS and no extra frame,
+     and the worst a starved rAF can now cost is the fade itself. */
+  animation: charter-inspect-in 240ms ease both;
+}
+
+@keyframes charter-inspect-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes charter-inspect-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* `hidden` is only a USER-AGENT rule (`[hidden] { display: none }`), and an
+   author `display` beats the user-agent origin outright — specificity never
+   enters into it. So the `display: flex` above silently cancels the `hidden`
+   attribute the template renders, and without this guard the overlay stays
+   laid out full-viewport at z-index 300 for the life of the page. `opacity: 0`
+   hides it but does NOT remove it from hit-testing, so it swallows every tap
+   on the panorama, the charter hotspot and the search bar, leaving only the
+   back bar at z-index 9000 working. That is exactly how this shipped once.
+   .archive-book-overlay carries the same guard for the same reason. Never
+   declare `display` on an element rendered with [hidden] without it. */
+.charter-inspect[hidden] {
+  display: none !important;
+}
+
+/* Closing. The exit fade runs for 240ms before `hidden` goes back on, and
+   without the pointer-events line the overlay keeps eating taps across the
+   whole screen for that quarter second — the same bug as above, only briefer
+   and much harder to attribute. Swapping `animation-name` restarts the
+   animation, so this fades out cleanly from wherever the entrance left off
+   without mixing a transition into an animated property. */
+.charter-inspect.is-closing {
+  animation-name: charter-inspect-out;
+  pointer-events: none;
+}
+
+.charter-inspect__scrim {
+  position: absolute;
+  inset: 0;
+  /* Solid, not a gradient — house convention, and a flat ground reads as the
+     room lights going down rather than as a vignette effect. */
+  background-color: #071527;
+  opacity: 0.94;
+}
+
+.charter-inspect__panel {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  /* Clear the shared kiosk back bar. It is rendered outside this feature and
+     sits at z-index 9000+ precisely so a script failure can never strand a
+     wall-mounted kiosk, which means it is ALWAYS on top of this overlay — a
+     bottom-anchored exit button lands underneath it and stops receiving taps.
+     The tour's own search dock is offset the same way; see --kiosk-back-h in
+     kiosk-nav.css and .tour-search-dock in kiosk-tour.css. */
+  padding: 32px 24px calc(24px + var(--kiosk-back-h, 104px));
+  /* Same reasoning as the overlay's own fade: an animation that runs itself,
+     not a transition waiting on a class someone has to remember to add. */
+  animation: charter-panel-in 260ms ease both;
+}
+
+@keyframes charter-panel-in {
+  from { transform: scale(0.92); }
+  to { transform: scale(1); }
+}
+
+.charter-inspect__title {
+  margin: 0;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+/* Sized in vmin so the framing survives every kiosk aspect ratio without a
+   media query per resolution; min() keeps it from overflowing a short screen. */
+.charter-inspect__stage {
+  width: min(88vw, 78vmin);
+  height: min(60vh, 78vmin);
+}
+
+.charter-inspect__stage .tour-charter__model {
+  /* Overrides the 260px hotspot box for as long as the element lives here. */
+  width: 100%;
+  height: 100%;
+  pointer-events: auto; /* in the tour the wrapper owns the tap; here the model does */
+  touch-action: none;   /* drags rotate the book, they never scroll the page */
+}
+
+.charter-inspect__stage .tour-charter__model.is-over-cover {
+  cursor: pointer;
+}
+
+.charter-inspect__chrome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.charter-inspect__hint {
+  margin: 0;
+  color: #c7d3e3;
+  font-size: 16px;
+  text-align: center;
+}
+
+/* Kiosk touch target: tall, wide, and clear of the stage above it.
+   .tour-page .reader-chrome__back below is deliberately a copy of this — see
+   the note there before changing either. */
+.charter-inspect__exit {
+  min-height: 64px;
+  min-width: 240px;
+  padding: 0 40px;
+  border: 0;
+  border-radius: 6px;
+  background-color: #ffd200;
+  color: #0b1f3a;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.charter-inspect__exit:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 4px;
+}
+
+/* ── The way out, in read mode ───────────────────────────────────────────
+   The reader ships its own back control pinned to the TOP-LEFT corner, which
+   is right on a phone (it is the only exit there, and it has to clear a notch)
+   but wrong here: on the tour the visitor has just been holding the book with
+   a big "Back to tour" button under it, and on opening the charter that
+   control jumps to the opposite corner and changes shape.
+
+   So on this page only, the reader's back button is moved to sit UNDER the
+   pages and made a copy of .charter-inspect__exit above. It is a second
+   element rather than the same one — the reader is its own overlay at
+   z-index 400 and .charter-inspect is a stacking context at 300, so no child
+   of the inspection overlay can be raised above the reader — but it is the
+   same size, colour, wording and position, so to a visitor the button simply
+   stays put across tour -> inspect -> read. Keep the two rules in step.
+
+   Scoped to .tour-page: /kiosk/gears-archive and /m/archives share this
+   partial and keep the corner placement, which is still correct for them. */
+.tour-page .reader-chrome__back {
+  top: auto;
+  left: 50%;
+  /* Clear of the fixed kiosk back bar, exactly as the inspection panel is. */
+  bottom: calc(24px + var(--kiosk-back-h, 104px));
+  transform: translateX(-50%);
+  justify-content: center;
+  min-height: 64px;
+  min-width: 240px;
+  padding: 0 40px;
+  border: 0;
+  border-radius: 6px;
+  background: #ffd200;
+  color: #0b1f3a;
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* The base rule nudges the button down on press via `transform`, which here
+   would also throw away the centring translate. */
+.tour-page .reader-chrome__back:active {
+  transform: translateX(-50%) translateY(3px);
+  box-shadow: none;
+}
+
+/* The arrow belongs to the corner treatment; the centred pill reads as a
+   label, matching the inspection button it stands in for. */
+.tour-page .reader-chrome__back > [aria-hidden='true'] {
+  display: none;
+}
+
+/* While the reader is open the inspection overlay is still mounted behind it,
+   and its own title and button would ghost through the reader's translucent
+   backdrop — including a second, dimmed copy of this very button directly
+   underneath it. Hide that furniture for the duration; the model itself stays,
+   because seeing the book you opened behind the pages is the point. */
+.charter-inspect.is-reading .charter-inspect__title,
+.charter-inspect.is-reading .charter-inspect__chrome {
+  visibility: hidden;
+}
+
+/* The touchscreen half of the cover affordance: a model-viewer hotspot pinned
+   to the cover's own surface, so it hides itself when the book is turned away.
+   model-viewer positions it, so nothing here may set position or transform. */
+.charter-inspect__cover-cue {
+  border: 0;
+  border-radius: 4px;
+  padding: 10px 18px;
+  background-color: #ffd200;
+  color: #0b1f3a;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* model-viewer marks an anchor that has rotated behind the model. Fading
+   rather than hiding keeps it from popping as the book turns. */
+.charter-inspect__cover-cue[data-visibility='hidden'] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}

@@ -104,7 +104,6 @@ import Sortable from 'sortablejs';
   };
   var propPriority = props ? props.querySelector('[data-news-prop="priority"]') : null;
   var propDate     = props ? props.querySelector('[data-news-prop="published_at"]') : null;
-  var propFont     = props ? props.querySelector('[data-news-prop="headline_font"]') : null;
 
   // ── Toast ─────────────────────────────────────────────
   function toast(msg, isError) {
@@ -152,6 +151,10 @@ import Sortable from 'sortablejs';
   function region(art, key) { return art ? art.querySelector('[data-news-edit="' + key + '"]') : null; }
   function setText(art, key, val) { var el = region(art, key); if (el) el.textContent = val || ''; }
   function getText(art, key) { var el = region(art, key); return el ? el.textContent.trim() : ''; }
+  // Only for `title`, the one inline region that is no longer plain text (it
+  // is a Quill target and carries ql-font-*/ql-size-* spans). The value comes
+  // from _news_item_to_dict, which the server has already sanitized.
+  function setHtml(art, key, val) { var el = region(art, key); if (el) el.innerHTML = val || ''; }
 
   // ── In-place article body editor ──────────────────────
   // Quill mounts on the ACTIVE card's own body region (.feature-story__copy,
@@ -182,6 +185,13 @@ import Sortable from 'sortablejs';
   // while mounted; restored (and refilled from Quill) on unmount.
   var mountedBodyRegion = null;
   var quill = null;
+  // Which region the one editor is currently on: 'title', 'excerpt' or 'body'.
+  // The editor used to serve the body alone; it is now the composer's single
+  // contextual editor and moves between the three, so every place that used to
+  // assume f.description reads TARGETS[activeTarget] instead. Getting this
+  // wrong writes one field's text into another's column, so the field is
+  // resolved in exactly one place (targetField()).
+  var activeTarget = 'body';
   var bodyDirty = false; // unsaved since the last news.body save / story switch
   // Snapshot of f.description.value taken when the editor mounts. The
   // text-change handler below writes every keystroke straight into
@@ -202,6 +212,161 @@ import Sortable from 'sortablejs';
     'bebas', 'alfa-slab', 'space-grotesk', 'caveat', 'jetbrains-mono'
   ];
   var SIZES = [false, 'small', 'large', 'huge'];
+
+  // Formats the body accepts. This IS the construction whitelist — Quill takes
+  // `formats` once, at construction, so the union has to be built here and the
+  // narrower per-target sets enforced afterwards (see normaliseForTarget).
+  var BODY_FORMATS = [
+    'header', 'bold', 'italic', 'underline', 'strike',
+    'list', 'indent', 'blockquote', 'link', 'align', 'font', 'size'
+  ];
+  // A headline is a single line of display type. Headings, lists, blockquotes,
+  // links and indents inside one would wreck the newspaper typography the
+  // composer exists to preview, so they are stripped on the way in whatever
+  // route they arrive by — toolbar, keyboard shortcut or paste.
+  var HEADLINE_FORMATS = ['bold', 'italic', 'underline', 'font', 'size'];
+
+  /**
+   * The three editable regions the one Quill instance serves.
+   *
+   *  field   the hidden form input this target persists through. Editing the
+   *          headline must never touch the body's input, which is the whole
+   *          reason this mapping is a table rather than a hard-coded
+   *          f.description.
+   *  formats what the target may contain, enforced by normaliseForTarget().
+   *  rich    whether the block-level toolbar groups apply (data-news-format
+   *          ="rich" in panel-news.html).
+   */
+  var TARGETS = {
+    title: {
+      field: 'title', label: 'Headline', formats: HEADLINE_FORMATS, rich: false,
+      placeholder: 'Write the headline…'
+    },
+    excerpt: {
+      field: 'excerpt', label: 'Front page', formats: HEADLINE_FORMATS, rich: false,
+      placeholder: 'Front-page excerpt (optional) — falls back to a truncated body when blank…'
+    },
+    body: {
+      field: 'description', label: 'Body', formats: BODY_FORMATS, rich: true,
+      placeholder: 'Write the story…'
+    }
+  };
+
+  function targetSpec(key) { return TARGETS[key] || TARGETS.body; }
+  function targetField(key) { return f[targetSpec(key).field]; }
+
+  /**
+   * Quill always wraps each line in a block (<p>, or <h2> etc.). The headline
+   * region is an <h2>/<h3> and the excerpt region is a <p>, and a block inside
+   * either is invalid nesting that the browser silently reparents — which
+   * moves the text out of the element the editor is standing in for. Unwrap to
+   * inline markup for those, keeping the spans that carry font/size.
+   */
+  function unwrapBlocks(html) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html || '';
+    var parts = [];
+    Array.prototype.slice.call(tmp.childNodes).forEach(function (node) {
+      if (node.nodeType === 3) { parts.push(node.textContent); return; }
+      if (node.nodeType !== 1) return;
+      // A block: keep what is inside it, drop the block itself.
+      parts.push(/^(P|DIV|H[1-6]|LI|OL|UL|BLOCKQUOTE)$/.test(node.tagName)
+        ? node.innerHTML
+        : node.outerHTML);
+    });
+    return parts.join(' ')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function htmlToText(html) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html || '';
+    return (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * What the editor's current HTML should be stored as for `key`.
+   *
+   * The body persists as rich HTML. The headline persists as INLINE html
+   * (formatting spans only). The excerpt is a plain-text varchar(255) column —
+   * the server runs _html_to_text over it anyway, so send text and truncate
+   * here for the same reason the contenteditable path does (MySQL is in
+   * STRICT_TRANS_TABLES, so an over-length value fails the whole Publish
+   * rather than being truncated for us).
+   */
+  function valueForTarget(key, html) {
+    if (key === 'body') return html;
+    if (key === 'excerpt') return htmlToText(html).slice(0, EXCERPT_MAX);
+    return unwrapBlocks(html);
+  }
+
+  /** Formats BODY_FORMATS allows that the active target does not. */
+  function disallowedFormats(key) {
+    var allowed = targetSpec(key).formats;
+    var off = {};
+    BODY_FORMATS.forEach(function (name) {
+      if (allowed.indexOf(name) === -1) off[name] = false;
+    });
+    return off;
+  }
+
+  // Guards normaliseForTarget against re-entering through its own edit.
+  var normalising = false;
+
+  /**
+   * Strip anything the active target does not allow.
+   *
+   * The toolbar hides the block-level groups for a restricted target, but that
+   * is only an affordance — a paste, a Ctrl+B-style shortcut or content loaded
+   * from an older story can still carry a <h2> or a list. `formats` is fixed at
+   * construction and cannot be narrowed per target, so this is the enforcement
+   * point on the client; the server's headline sanitiser is the one behind it.
+   */
+  function normaliseForTarget() {
+    if (!quill || normalising) return;
+    var off = disallowedFormats(activeTarget);
+    if (!Object.keys(off).length) return;
+
+    normalising = true;
+    try {
+      // 'silent' so this does not re-enter through the text-change handler and
+      // does not land on the undo stack as an edit the user did not make.
+      quill.formatText(0, quill.getLength(), off, 'silent');
+    } finally {
+      normalising = false;
+    }
+  }
+
+  /*
+   * Load HTML into the editor programmatically. EVERY such load must go
+   * through here.
+   *
+   * The assignment is the easy half. The hard half is that Quill 2 watches its
+   * root with a MutationObserver and delivers what it sees a microtask LATER —
+   * and because Quill did not initiate the change, it reports the source as
+   * 'user'. So a bare `quill.root.innerHTML = html` followed by
+   * `bodyDirty = false` cleared the flag first and had it set straight back to
+   * true by that spurious event. Every story therefore looked unsaved the
+   * instant it was opened, and editors hit "Discard unsaved changes?" on their
+   * next click without having typed anything — which also fired right after a
+   * discard and right after a successful body save, since both reload the
+   * editor the same way.
+   *
+   * Note a `source === 'user'` guard in the text-change handler does NOT fix
+   * this: 'user' is exactly what Quill reports for a DOM change it did not
+   * make. update('silent') instead drains the pending mutations synchronously,
+   * so Quill's model matches the DOM before this returns and no text-change is
+   * emitted at all — leaving the caller's `bodyDirty = false` as the last word.
+   *
+   * tests/js/news-body-dirty.test.mjs fails if a raw assignment comes back.
+   */
+  function setEditorHtml(html) {
+    if (!quill) return;
+    quill.root.innerHTML = html;
+    quill.update('silent');
+  }
 
   function ensureQuill() {
     if (quill) return quill;
@@ -247,10 +412,10 @@ import Sortable from 'sortablejs';
       // which the server then strips. That mismatch let an editor paste
       // styled text, see it render in the modal, and watch it flatten on save.
       // This list is exactly what _sanitize_news_html keeps.
-      formats: [
-        'header', 'bold', 'italic', 'underline', 'strike',
-        'list', 'indent', 'blockquote', 'link', 'align', 'font', 'size'
-      ],
+      // The UNION of every target's formats — Quill fixes this at
+      // construction, so the headline's narrower set is applied afterwards by
+      // normaliseForTarget() rather than here.
+      formats: BODY_FORMATS,
       // An ELEMENT, not an array: the sticky bar's buttons are authored in
       // panel-news.html because that is the only form of external toolbar
       // Quill accepts. The `ql-font`/`ql-size` option values there must stay
@@ -258,15 +423,54 @@ import Sortable from 'sortablejs';
       modules: { toolbar: bodyToolbarEl }
     });
     quill.on('text-change', function () {
+      if (normalising) return;
+      normaliseForTarget();
+
       bodyDirty = true;
-      if (f.description) f.description.value = quill.root.innerHTML;
-      // An unsaved scratch with no body region of its own (the secondary
-      // shape) would otherwise lose this the moment anything else became the
-      // active story — f.description is the only copy. See scratchDrafts.
-      rememberScratchDraft(activeArt, 'body', quill.root.innerHTML);
+      var html = valueForTarget(activeTarget, quill.root.innerHTML);
+      var input = targetField(activeTarget);
+      if (input) input.value = html;
+      // The headline drives the per-story furniture font that the kiosk still
+      // renders as `story-font-<slug>`; the dropdown that used to set it is
+      // gone, so it is derived from what Quill actually applied.
+      if (activeTarget === 'title') { syncHeadlineFontFromEditor(); syncCardFontClass(); }
+      // An unsaved scratch with no region of its own (the secondary shape)
+      // would otherwise lose this the moment anything else became the active
+      // story — the hidden input is the only copy. See scratchDrafts.
+      rememberScratchDraft(activeArt, activeTarget, html);
       markDirty();
     });
     return quill;
+  }
+
+  /**
+   * Mirror the headline's font into the hidden headline_font field.
+   *
+   * The "Headline font" dropdown was removed in favour of Quill, but the
+   * `headline_font` column and the `story-font-<slug>` class it renders both
+   * stay — stories published before the change keep their face, and the kiosk
+   * render path is untouched. Quill writes the font as a `ql-font-<slug>`
+   * class on a span; the FIRST one found wins, because the column holds one
+   * font for the whole headline and cannot express per-word runs.
+   */
+  function syncHeadlineFontFromEditor() {
+    if (!f.headlineFont || !quill) return;
+    var span = quill.root.querySelector('[class*="ql-font-"]');
+    var slug = '';
+    if (span) {
+      for (var i = 0; i < span.classList.length; i += 1) {
+        var name = span.classList[i];
+        if (name.indexOf('ql-font-') === 0) {
+          var candidate = name.slice('ql-font-'.length);
+          // Only slugs the server would accept — NEWSLETTER_FONTS normalises
+          // anything else back to the brand face, so staging it here would
+          // just be a value that silently disappears on save.
+          if (FONTS.indexOf(candidate) !== -1) slug = candidate;
+          break;
+        }
+      }
+    }
+    f.headlineFont.value = slug;
   }
 
   // Takes the editor OFF whatever card it is on: writes the current HTML
@@ -279,9 +483,14 @@ import Sortable from 'sortablejs';
   // node that is no longer in the document.
   function unmountBodyEditor() {
     if (!quill || !bodyEditorHost) return;
-    var html = quill.root.innerHTML;
+    // valueForTarget, not the raw root HTML: a headline or excerpt region is an
+    // <h2>/<p>, and putting Quill's block wrappers back into one is invalid
+    // nesting the browser reparents — which moves the text out of the very
+    // element the editor was standing in for.
+    var html = valueForTarget(activeTarget, quill.root.innerHTML);
     if (mountedBodyRegion && mountedBodyRegion.isConnected) {
-      mountedBodyRegion.innerHTML = html;
+      if (activeTarget === 'excerpt') mountedBodyRegion.textContent = html;
+      else mountedBodyRegion.innerHTML = html;
       mountedBodyRegion.hidden = false;
     }
     mountedBodyRegion = null;
@@ -293,53 +502,114 @@ import Sortable from 'sortablejs';
   // f.description, not from the region's markup: selectStory() has already
   // staged the authoritative body there, and for an unsaved scratch card it
   // is the only copy that exists.
+  // Which region a story-switching click landed on, so that clicking straight
+  // onto another story's HEADLINE selects that story AND puts the editor on its
+  // headline — one click, not "select, then click again". Consumed once by the
+  // mountBodyEditor() that selectStory()/selectScratch() run at the end.
+  var pendingTarget = null;
+
+  // The story-switch entry point. Defaults back to the body rather than
+  // carrying the previous story's target over, which is what the composer did
+  // before the editor had more than one target.
   function mountBodyEditor(art) {
+    var key = pendingTarget || 'body';
+    pendingTarget = null;
+    return mountEditor(art, key);
+  }
+
+  /**
+   * Put the editor ON `art`'s `targetKey` region — 'title', 'excerpt' or
+   * 'body'. Contents come from the hidden form field, not from the region's
+   * markup: selectStory() has already staged the authoritative value there,
+   * and for an unsaved scratch card it is the only copy that exists.
+   *
+   * The host is inserted with 'beforebegin', i.e. immediately ABOVE the
+   * content it edits, and it is an ordinary in-flow <div> — so the newsletter
+   * below simply moves down. There is deliberately no positioning code here:
+   * no fixed/absolute, no measured top/left, no translate. The browser does
+   * the layout, which is also why the host must stay content-sized (see the
+   * `height: auto` rules in news-dashboard.css).
+   */
+  function mountEditor(art, targetKey) {
     if (!bodyToolbarEl) return;
-    var target = region(art, 'body');
+    var key = TARGETS[targetKey] ? targetKey : 'body';
+    var target = region(art, key);
+    // Not every card shape has every region — a widget has no dek, a
+    // secondary has no caption — so fall back to the body rather than
+    // unmounting outright when the requested one is absent.
+    if (!target && key !== 'body') {
+      key = 'body';
+      target = region(art, 'body');
+    }
     if (!target) { unmountBodyEditor(); return; }
     if (!ensureQuill()) return;
-    if (mountedBodyRegion === target) return;
+    if (mountedBodyRegion === target && activeTarget === key) return;
 
     unmountBodyEditor();
+    activeTarget = key;
     mountedBodyRegion = target;
     target.hidden = true;
-    // After the plain div, so the editor sits exactly where the copy reads.
-    target.insertAdjacentElement('afterend', bodyEditorHost);
+    target.insertAdjacentElement('beforebegin', bodyEditorHost);
+    // Read by CSS for the per-target typography (a headline is written at
+    // headline size, see news-dashboard.css) and by the toolbar for which
+    // format groups apply.
+    bodyEditorHost.setAttribute('data-news-target', key);
+    // Quill's placeholder is a constructor option, but it renders from
+    // `content: attr(data-placeholder)` on the live root — so retargeting it
+    // is just re-setting the attribute. Without this the headline prompts
+    // "Write the story…".
+    quill.root.setAttribute('data-placeholder', targetSpec(key).placeholder || '');
 
-    // Direct DOM assignment, not the Quill API — verified not to trip the
-    // text-change handler above (Parchment's MutationObserver path is
-    // suppressed by its own zero-length-diff guard), so this can safely
-    // run after the handler is already bound.
-    quill.root.innerHTML = (f.description && f.description.value) || '';
-    bodySnapshot = (f.description && f.description.value) || '';
+    var input = targetField(key);
+    var staged = (input && input.value) || '';
+
+    // Direct DOM assignment rather than the Quill API, so the server's exact
+    // sanitized HTML survives instead of round-tripping through a Delta.
+    // setEditorHtml drains the mutation Quill would otherwise report as a user
+    // edit one microtask from now — without it, `bodyDirty = false` below is
+    // immediately undone and the story opens looking unsaved.
+    setEditorHtml(staged);
+    // Content authored before this target was rich, or pasted in, can carry
+    // formats this target does not allow.
+    normaliseForTarget();
+    bodySnapshot = staged;
     bodyDirty = false;
 
-    if (bodyToolbarBar) bodyToolbarBar.hidden = false;
+    if (bodyToolbarBar) {
+      bodyToolbarBar.hidden = false;
+      bodyToolbarBar.setAttribute('data-news-target', key);
+    }
+    if (bodySaveBtn) bodySaveBtn.hidden = key !== 'body';
     if (bodyLabelEl) {
       var label = art ? getText(art, 'title') : '';
-      bodyLabelEl.textContent = label ? 'Body: ' + label : 'Article body';
+      var what = targetSpec(key).label;
+      bodyLabelEl.textContent = label ? what + ': ' + label : what;
     }
   }
 
-  // Asks before abandoning unsaved body text. Resolves true when it is safe
-  // to proceed. Called from the card click handler when the click would
-  // switch to a DIFFERENT story — clicking inside the active card is
-  // already a no-op there, so typing is never interrupted.
+  // Asks before abandoning unsaved editor text. Resolves true when it is safe
+  // to proceed. Called from the card click handler when the click would switch
+  // to a DIFFERENT story, and when it would move the editor to a different
+  // region of the SAME story — both discard what is in the editor.
   function confirmLeavingDirtyBody() {
     if (!bodyDirty) return Promise.resolve(true);
+    var what = targetSpec(activeTarget).label.toLowerCase();
     return confirmAction({
       title: 'Discard unsaved changes?',
-      body: 'The article body has unsaved edits that will be lost.',
+      body: 'The ' + what + ' has unsaved edits that will be lost.',
       confirmLabel: 'Discard changes',
       cancelLabel: 'Keep editing',
       danger: true
     }).then(function (ok) {
       if (!ok) return false;
       // Restore what was actually staged before the editor mounted — the
-      // keystroke-by-keystroke sync into f.description otherwise leaves the
-      // discarded text there for the next Publish to write (I1).
-      if (f.description) f.description.value = bodySnapshot;
-      if (quill) quill.root.innerHTML = bodySnapshot;
+      // keystroke-by-keystroke sync into the hidden field otherwise leaves the
+      // discarded text there for the next Publish to write (I1). Restores the
+      // ACTIVE target's field, not always f.description: discarding a headline
+      // edit must not roll the body back.
+      var input = targetField(activeTarget);
+      if (input) input.value = bodySnapshot;
+      setEditorHtml(bodySnapshot);
       bodyDirty = false;
       return true;
     });
@@ -382,7 +652,7 @@ import Sortable from 'sortablejs';
             // was typed. Show the sanitized form — both in the editor and
             // in the plain region behind it, which an unmount would
             // otherwise overwrite with the pre-sanitized text.
-            if (quill && saved !== html) quill.root.innerHTML = saved;
+            if (saved !== html) setEditorHtml(saved);
             if (mountedBodyRegion) mountedBodyRegion.innerHTML = saved;
             bodySnapshot = saved;
             bodyDirty = false;
@@ -406,21 +676,26 @@ import Sortable from 'sortablejs';
 
   // ── Inline title/source/location/dek/excerpt/caption/credit ──
   var INLINE_PLACEHOLDERS = {
-    title: 'Headline…',
     source: 'Byline…',
     location: 'Location…',
     dek: 'Add a dek — one or two lines under the headline…',
-    excerpt: 'Front-page excerpt (optional) — falls back to a truncated body when blank…',
     caption: 'Photo caption…',
     credit: 'Photo credit…'
   };
-  var INLINE_KEYS = ['title', 'source', 'location', 'dek', 'excerpt', 'caption', 'credit'];
+  // `title` and `excerpt` are NOT here any more: they are Quill targets now
+  // (see TARGETS), and leaving them contenteditable would mean two editors
+  // competing for the same region — click-to-focus typing straight into the
+  // node while the click handler is also trying to mount Quill over it. The
+  // rest stay plain contenteditable: they persist to escaped columns and have
+  // no formatting to offer.
+  var INLINE_KEYS = ['source', 'location', 'dek', 'caption', 'credit'];
 
   // `excerpt` persists to a `varchar(255)` column and MySQL's `sql_mode`
   // here includes STRICT_TRANS_TABLES, so an over-length value doesn't get
   // silently truncated server-side — it raises "Data too long" and the
   // whole Publish fails. Truncate client-side so that can't happen
-  // (fix round 1, minor).
+  // (fix round 1, minor). Enforced in valueForTarget() now that the excerpt
+  // is a Quill target rather than one of the contenteditable regions below.
   var EXCERPT_MAX = 255;
 
   // Wires whatever of the inline-editable regions actually exist inside
@@ -435,23 +710,7 @@ import Sortable from 'sortablejs';
       el.setAttribute('data-placeholder', INLINE_PLACEHOLDERS[key] || '');
       el.setAttribute('data-wired', '1');
       el.addEventListener('input', function () {
-        var text = el.textContent;
-        if (key === 'excerpt' && text.length > EXCERPT_MAX) {
-          text = text.slice(0, EXCERPT_MAX);
-          el.textContent = text;
-          // Keep typing sane: put the caret back at the end after a
-          // programmatic truncation instead of leaving it wherever the
-          // browser's default post-mutation placement lands.
-          var sel = window.getSelection && window.getSelection();
-          if (sel) {
-            var range = document.createRange();
-            range.selectNodeContents(el);
-            range.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(range);
-          }
-        }
-        if (f[key]) f[key].value = text.trim();
+        if (f[key]) f[key].value = el.textContent.trim();
         markDirty();
       });
     });
@@ -736,7 +995,11 @@ import Sortable from 'sortablejs';
     if (activeArt) {
       wireInline(activeArt);
       wireImage(activeArt);
-      setText(activeArt, 'title', data.title || '');
+      // setHtml, not setText: the headline is a Quill target now and carries
+      // inline formatting spans. Every OTHER inline region below is still
+      // plain text and must stay on setText — textContent is what keeps them
+      // out of the kiosk's escaped columns.
+      setHtml(activeArt, 'title', data.title || '');
       setText(activeArt, 'source', data.source || 'Editorial Desk');
       setText(activeArt, 'location', data.location || 'Campus');
       setText(activeArt, 'dek', data.dek || '');
@@ -770,7 +1033,10 @@ import Sortable from 'sortablejs';
     if (f.articleId)   f.articleId.value = data.id || '';
     if (f.priority)    f.priority.value = data.priority || '0';
     if (propPriority)  propPriority.value = data.priority || '0';
-    if (propFont)      propFont.value = data.headline_font || '';
+    // headline_font has no control of its own any more — it rides along with
+    // the story so a re-save cannot blank a face set before the change, and
+    // syncHeadlineFontFromEditor() overwrites it once the headline is edited.
+    if (f.headlineFont) f.headlineFont.value = data.headline_font || '';
     try { if (f.image) f.image.value = ''; } catch (_) {}
 
     setSlot(activeSlotType);
@@ -828,22 +1094,27 @@ import Sortable from 'sortablejs';
       if (!f[key]) return;
       f[key].value = region(art, key) ? getText(art, key) : '';
     });
-    var bodyRegion = region(art, 'body');
-    if (f.description) {
-      // A region the editor is currently mounted on is hidden and holds
-      // pre-edit markup — read the live editor instead of resurrecting it.
-      // (selectScratch only runs for a card that isn't already active, so
-      // this is belt-and-braces, not a live path.)
-      if (bodyRegion && bodyRegion === mountedBodyRegion && quill) {
-        f.description.value = quill.root.innerHTML;
+    // The three Quill targets, staged the same way. A region the editor is
+    // currently mounted on is hidden and holds pre-edit markup, so read the
+    // live editor instead of resurrecting it; a shape with no such region
+    // (a secondary scratch has no body div) falls back to the remembered
+    // draft, which is then the only copy that exists.
+    Object.keys(TARGETS).forEach(function (key) {
+      var input = targetField(key);
+      if (!input) return;
+      var el = region(art, key);
+      if (el && el === mountedBodyRegion && quill) {
+        input.value = valueForTarget(key, quill.root.innerHTML);
+      } else if (el) {
+        input.value = key === 'excerpt' ? getText(art, key) : el.innerHTML;
       } else {
-        f.description.value = bodyRegion ? bodyRegion.innerHTML : ((draft && draft.body) || '');
+        input.value = (draft && draft[key]) || '';
       }
-    }
+    });
     if (f.articleId) f.articleId.value = '';
     if (f.priority)  f.priority.value = '0';
     if (propPriority) propPriority.value = '0';
-    if (propFont) propFont.value = '';
+    if (f.headlineFont) f.headlineFont.value = '';
     if (f.removeImage) f.removeImage.value = '';
     try { if (f.image) f.image.value = ''; } catch (_) {}
     if (draft && draft.file) {
@@ -882,16 +1153,32 @@ import Sortable from 'sortablejs';
   // "clear it".
   function syncFormFromSurface() {
     if (!activeArt) return;
-    if (f.title   && region(activeArt, 'title'))    f.title.value = getText(activeArt, 'title');
+    // A Quill target is read from the LIVE editor when mounted. Reading the
+    // region instead would pick up the hidden, pre-edit markup and publish it
+    // over what the editor is showing — and for the headline it would also
+    // flatten the formatting spans to text, since getText() is textContent.
+    Object.keys(TARGETS).forEach(function (key) {
+      var input = targetField(key);
+      var el = region(activeArt, key);
+      if (!input || !el) return;
+      if (el === mountedBodyRegion && quill) {
+        input.value = valueForTarget(key, quill.root.innerHTML);
+      } else if (key === 'excerpt') {
+        input.value = getText(activeArt, key);
+      } else if (key === 'title') {
+        input.value = unwrapBlocks(el.innerHTML);
+      }
+      // 'body' when unmounted is left alone: the region holds exactly what
+      // unmountBodyEditor() wrote back into it, and f.description already has
+      // the same value from the keystroke sync.
+    });
     if (f.source  && region(activeArt, 'source'))    f.source.value = getText(activeArt, 'source');
     if (f.location && region(activeArt, 'location')) f.location.value = getText(activeArt, 'location');
     if (f.dek     && region(activeArt, 'dek'))       f.dek.value = getText(activeArt, 'dek');
-    if (f.excerpt && region(activeArt, 'excerpt'))   f.excerpt.value = getText(activeArt, 'excerpt');
     if (f.caption && region(activeArt, 'caption'))   f.caption.value = getText(activeArt, 'caption');
     if (f.credit  && region(activeArt, 'credit'))    f.credit.value = getText(activeArt, 'credit');
     if (f.priority && propPriority) f.priority.value = propPriority.value;
     if (f.publishedAt && propDate) f.publishedAt.value = propDate.value;
-    if (f.headlineFont && propFont) f.headlineFont.value = propFont.value;
   }
 
   function postForm(onOk) {
@@ -1283,6 +1570,34 @@ import Sortable from 'sortablejs';
     // mid-edit typing/clicks never get clobbered by a reload of the same
     // data. Only stories with a real (published) id are click-selectable —
     // an unsaved new story stays on the surface until it's saved.
+    // Clicking an editable region of the story that is ALREADY active moves
+    // the one Quill editor onto that region. This is the contextual-editor
+    // route: headline, front-page excerpt and body are three targets for one
+    // instance, never three instances. A click on a region of a DIFFERENT
+    // story falls through to the story-selection branch below, which mounts
+    // the editor itself after switching.
+    var regionEl = event.target.closest('[data-news-edit]');
+    if (regionEl && editor.contains(regionEl)) {
+      var regionKey = regionEl.getAttribute('data-news-edit');
+      // A click on a region of a story that is NOT active falls through to the
+      // selection branch below; this remembers where it landed so the editor
+      // arrives on that region rather than defaulting to the body.
+      if (TARGETS[regionKey] && (!activeArt || !activeArt.contains(regionEl))) {
+        pendingTarget = regionKey;
+      }
+      if (TARGETS[regionKey] && activeArt && activeArt.contains(regionEl)) {
+        if (regionEl !== mountedBodyRegion) {
+          // Same story, different field: the staged value for the field being
+          // left is already written (every keystroke syncs it), so this only
+          // guards against silently dropping text the user has not saved.
+          confirmLeavingDirtyBody().then(function (ok) {
+            if (ok) mountEditor(activeArt, regionKey);
+          });
+        }
+        return;
+      }
+    }
+
     var selectableArt = event.target.closest('.feature-story[data-news-id], .secondary-story[data-news-id], .info-card[data-news-id]');
     if (selectableArt && editor.contains(selectableArt)) {
       var storyId = selectableArt.getAttribute('data-news-id');
@@ -1497,16 +1812,16 @@ import Sortable from 'sortablejs';
     btn.addEventListener('click', function () { setSlot(btn.getAttribute('data-news-slot-choice')); markDirty(); });
   });
   if (propDate) propDate.addEventListener('input', function () { if (f.publishedAt) f.publishedAt.value = propDate.value; markDirty(); });
-  // Reflect the choice onto the canvas card immediately — the class the kiosk
-  // will render is the same one applied here, so the composer previews truly.
-  if (propFont) propFont.addEventListener('change', function () {
-    if (f.headlineFont) f.headlineFont.value = propFont.value;
-    if (activeArt) {
-      activeArt.className = activeArt.className.replace(/\bstory-font-[\w-]+/g, '').trim();
-      if (propFont.value) activeArt.classList.add('story-font-' + propFont.value);
-    }
-    markDirty();
-  });
+  // The "Headline font" dropdown that used to live here is gone — the
+  // headline is set in Quill now. The card's `story-font-<slug>` class is
+  // still the thing the kiosk renders, so it is kept in step with whatever
+  // syncHeadlineFontFromEditor() derived, and the composer still previews
+  // truly.
+  function syncCardFontClass() {
+    if (!activeArt || !f.headlineFont) return;
+    activeArt.className = activeArt.className.replace(/\bstory-font-[\w-]+/g, '').trim();
+    if (f.headlineFont.value) activeArt.classList.add('story-font-' + f.headlineFont.value);
+  }
 
   // ── Canvas drag-and-drop + Move Up/Down + position badges (Task 6) ────
   // The canvas is modeled as several capacity-bounded Sortable "lists" that

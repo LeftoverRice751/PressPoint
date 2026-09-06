@@ -10,7 +10,19 @@
             </thead>
             <tbody>
               {% for event in events %}
-              <tr>
+              {# The poster is deliberately not a column: the table stayed wide
+                 for a 56px thumbnail that duplicated what the row already
+                 opens. data-event-image is the view modal's only source for
+                 it -- openEventViewModal() in gears-dashboard.js reads it off
+                 this <tr> -- so it must stay even though nothing here paints
+                 an image. Empty string means "no poster", and the modal hides
+                 its <img> rather than requesting a 404 through the fallback. #}
+              <tr class="events-table__row" tabindex="0" data-event-view-row
+                  data-event-title="{{ event.title }}"
+                  data-event-description="{{ event.description if event.description else 'No summary available.' }}"
+                  data-event-when="{{ event.event_date.strftime('%B %d, %Y') if event.event_date else 'Not set' }}"
+                  data-event-where="{{ location_lookup.get(event.location_id, 'Unassigned') if location_lookup else 'Unassigned' }}"
+                  data-event-image="{{ '/storage/' ~ event.event_image if event.event_image else '' }}">
                 <td>{{ event.title }}</td>
                 <td>{{ event.description if event.description else 'No summary available.' }}</td>
                 <td>{{ event.event_date.strftime('%m-%d-%Y') if event.event_date else 'Not set' }}</td>

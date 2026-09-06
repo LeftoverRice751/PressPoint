@@ -8,14 +8,20 @@
  * the viewport gets short.
  */
 
+/* 104px at kiosk size, never below the 64px touch floor. Published as a token
+   because the 360 tour's search dock is fixed to bottom:0 alongside the fixed
+   variant of this bar and has to reserve exactly this much room for it. */
+:root {
+  --kiosk-back-h: clamp(64px, 10vh, 104px);
+}
+
 .kiosk-back {
   appearance: none;
   flex: 0 0 auto;
   width: 100%;
   min-width: 0;
   border: 0;
-  /* 104px at kiosk size, never below the 64px touch floor. */
-  height: clamp(64px, 10vh, 104px);
+  height: var(--kiosk-back-h);
   display: flex;
   align-items: center;
   justify-content: center;

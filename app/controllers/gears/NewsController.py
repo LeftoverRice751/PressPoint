@@ -111,11 +111,40 @@ def _sanitize_news_html(raw_html):
     return bleach.linkify(cleaned, callbacks=[bleach.callbacks.nofollow]) if cleaned else cleaned
 
 
+# The headline is authored in Quill too now (it replaced a "Headline font"
+# dropdown), so `news.title` became an HTML column and the kiosk renders it with
+# `| safe`. It gets its OWN, much smaller allowlist rather than reusing
+# _ALLOWED_TAGS: a headline is one line of display type, and an <h2>, a list or
+# a blockquote inside one would wreck the newspaper typography the composer
+# exists to preview. Inline formatting only, no <a> (hence no linkify below —
+# a link in a headline has nowhere to go on a touchscreen kiosk).
+_HEADLINE_TAGS = ["strong", "em", "u", "s", "span"]
+_HEADLINE_ATTRS = {"span": _allow_class}
+
+
+def _sanitize_headline_html(raw_html):
+    """Return a safe INLINE-only HTML subset for a story headline.
+
+    `strip=True` unwraps rather than escapes, so Quill's block wrappers (it
+    always emits at least one <p>) collapse to their contents and a headline
+    stays one line even if something upstream sent several.
+    """
+    return bleach.clean(
+        raw_html or "",
+        tags=_HEADLINE_TAGS,
+        attributes=_HEADLINE_ATTRS,
+        strip=True,
+    )
+
+
 def normalize_headline_font(value):
     """Slug for the per-story furniture font, or None for the brand face.
 
-    Validated against the same list the sanitizer uses, so the dropdown and the
-    body allowlist can never drift apart.
+    Validated against the same list the sanitizer uses, so the control that
+    sets it and the body allowlist can never drift apart. The editor-side
+    dropdown is gone — news-dashboard.js derives this from the font Quill
+    applied to the headline — but the column and its `story-font-<slug>` render
+    both stay, so stories published before that change keep their face.
     """
     slug = (value or "").strip().lower()
     return slug if slug in NEWSLETTER_FONTS else None
@@ -336,7 +365,10 @@ def _news_item_to_dict(item, disk=None):
 def _build_flash_payload(news_item):
     reference_at = getattr(news_item, "published_at", None) or getattr(news_item, "created_at", None)
     return {
-        "headline": getattr(news_item, "title", None) or "News update",
+        # Plain text, not the stored HTML: welcome-screen.js renders this
+        # through escapeHtml(), so a headline carrying Quill's formatting spans
+        # would show as literal `<span class="ql-font-…">` in the kiosk ticker.
+        "headline": _html_to_text(getattr(news_item, "title", None) or "") or "News update",
         "date": reference_at.strftime("%b %d, %Y") if hasattr(reference_at, "strftime") else "",
         "copy": getattr(news_item, "description", None) or "",
         "kind": "news",
@@ -406,7 +438,10 @@ class NewsController(Controller):
         )
 
     def store(self, request: Request, storage: Storage, response: Response):
-        title = (request.input("title") or "").strip()
+        # The headline is rich text now and the kiosk renders it with `| safe`,
+        # so it MUST be sanitized on write exactly like the body is — through
+        # the inline-only headline allowlist, not the body's.
+        title = _sanitize_headline_html((request.input("title") or "").strip()).strip()
         description = _sanitize_news_html((request.input("description") or "").strip())
         source = (request.input("source") or "").strip()
         location = (request.input("location") or "").strip()
@@ -487,7 +522,11 @@ class NewsController(Controller):
                 return json_errors(response, messages)
             return response.back().with_errors(messages)
 
-        if not title or not _html_to_text(description):
+        # `_html_to_text(title)`, not `title`: the headline is HTML now, and an
+        # empty Quill editor still serialises to markup — `<p><br></p>`, or a
+        # bare formatting span with nothing in it. A truthiness check on the raw
+        # string would wave those through and publish a blank headline.
+        if not _html_to_text(title) or not _html_to_text(description):
             return _err(["Title and description are required."])
 
         try:

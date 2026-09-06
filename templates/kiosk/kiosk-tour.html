@@ -11,28 +11,19 @@
 <link rel="stylesheet" href="{{ asset_url('vendor/leaflet/leaflet.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/kiosk-tour.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/kiosk-nav.css') }}">
+{% if charter %}
+{#- The 3D citizen's charter and the reader it opens. Both are conditional on
+    a charter having been uploaded, so the tour costs nothing extra until one
+    exists. See app/services/CharterArchive.py. #}
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-archive-book.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/tour-charter.css') }}">
+{% endif %}
 </head>
 <body class="multiple-scenes tour-page">
 
-  <div id="tour-overlay" class="tour-overlay" aria-hidden="false">
-    <div class="tour-shell" role="dialog" aria-label="Virtual tour menu">
-      <div class="tour-app">
-        <section class="hero" aria-label="Presspoint kiosk">
-          <img class="hero__logo" src="{{ site_logo() }}" alt="Gears logo">
-          <h1 class="hero__title">PRESSPOINT</h1>
-          <p class="hero__subtitle">The Gears Publication's Official Kiosk</p>
-        </section>
-
-        <section class="tour-actions" aria-label="Virtual tour actions">
-          <button class="tour-action tour-action--primary" type="button" id="tour-start">Start</button>
-          <button class="tour-action tour-action--ghost" type="button" id="tour-exit">Exit</button>
-        </section>
-
-        <p class="tour-helper">Tap Start to begin the campus walkthrough.</p>
-      </div>
-    </div>
-  </div>
-
+  {#- No Start/Exit splash: tapping "Virtual Tour" on the kiosk menu is already
+      the start gesture, so kiosk-tour.js calls startTour() on load. The way
+      out is the shared back bar at the foot of this file. #}
   <div class="tour-viewport" aria-hidden="true">
     <div class="tour-frame">
       <div id="pano" aria-hidden="true"></div>
@@ -159,16 +150,90 @@
     </div>
   </div>
 
+  {% if charter %}
+  {#- Config + archive dataset for the 3D charter hotspot. tour-charter.js
+      reads these data-* attributes and rebuilds the same dataset an archives
+      card carries, so kiosk-archive-book.js cannot tell where it was opened
+      from. data-archive-shell is the reader's own root hook. #}
+  <div
+    data-archive-shell
+    data-tour-charter
+    data-charter-model-url="{{ charter_model_url }}"
+    data-charter-scene-id="{{ charter_scene_id }}"
+    data-charter-yaw="{{ charter_yaw }}"
+    data-charter-pitch="{{ charter_pitch }}"
+    data-charter-id="{{ charter.id if charter.id else '' }}"
+    data-charter-title="{{ charter.name | e }}"
+    data-charter-type="{{ charter.type | e }}"
+    data-charter-year="{{ charter.year if charter.year else '' }}"
+    data-charter-cover-url="{{ charter.cover_url }}"
+    data-charter-file-url="{{ charter.pdf_url }}"
+    data-charter-page-count="{{ charter.page_count }}"
+    data-charter-first-page-url="{{ charter.first_page_url }}"
+    data-charter-page-url-base="{{ charter.page_url_base }}"
+    data-charter-page-storage-base="{{ charter.page_storage_base }}"
+    data-charter-page-extension="{{ charter.page_extension }}"
+    data-charter-direct-pages="{{ charter.direct_pages if charter.direct_pages else 0 }}"
+    data-charter-prewarmed-pages="{{ charter.prewarmed_pages if charter.prewarmed_pages else 0 }}"
+  >
+    {% with reader_back_label='Back to tour' %}{% include 'kiosk/partials/_archive-reader.html' %}{% endwith %}
+
+    {#- Inspection mode: the charter goes fullscreen and becomes a 3D object the
+        visitor can turn over before deciding to read it.
+
+        Markup lives here rather than in tour-charter.js so the exit control is
+        in the DOM before any script runs — same reasoning as the shared back
+        bar below. A visitor who somehow reaches this overlay after a script
+        error can still leave it.
+
+        tour-charter.js MOVES the live <model-viewer> element into
+        [data-charter-stage] and back out again on exit; the stage is empty on
+        purpose. The element is never duplicated, so the GLB loads once for the
+        life of the page. #}
+    <div class="charter-inspect" data-charter-inspect hidden>
+      <div class="charter-inspect__scrim" data-charter-inspect-scrim></div>
+      <div class="charter-inspect__panel" role="dialog" aria-modal="true"
+           aria-label="Inspect {{ charter.name | e }}">
+        <p class="charter-inspect__title">{{ charter.name }}</p>
+        <div class="charter-inspect__stage" data-charter-stage></div>
+        <div class="charter-inspect__chrome">
+          <p class="charter-inspect__hint" data-charter-hint>Drag to turn it over · Tap the cover to read</p>
+          {#- Says the same thing as the reader's own back control and sits in
+              the same place, so the way out never moves as the visitor goes
+              tour -> inspect -> read. From here it returns to the panorama;
+              from the reader it returns to the model first. #}
+          <button type="button" class="charter-inspect__exit" data-charter-exit>
+            Back to tour
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {#- Bottom back bar, matching every other kiosk page. back_fixed because this
+      page is a fixed fullscreen panorama with no flex shell for the bar to be
+      the last row of; .tour-search-dock is offset by --kiosk-back-h so the
+      search bar and its drop-up keyboard stack on top of the bar rather than
+      under it. Deliberately outside the dock (which is display:none until
+      body.tour-ready) and outside kiosk-tour.js's reach, so a script failure
+      cannot leave a wall-mounted kiosk with no way back to the menu. #}
+  {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False), back_fixed=True %}{% include 'partials/kiosk-back.html' %}{% endwith %}
+
   <script src="/pano/vendor/screenfull.min.js" ></script>
   <script src="/pano/vendor/bowser.min.js" ></script>
   <script src="/pano/vendor/marzipano.js" ></script>
   <script src="{{ asset_url('vendor/leaflet/leaflet.js') }}"></script>
 
   <script src="{{ asset_url('js/data.js') }}"></script>
+  {% if charter %}
+  {#- Loaded before kiosk-tour.js so the 'tour:scene-created' listener is
+      registered by the time scenes are built. tour-charter.js also falls back
+      to window.__tourBridge on 'tour:ready' if that ordering ever changes. #}
+  <script src="{{ asset_url('js/tour-charter.js') }}"></script>
+  <script src="{{ asset_url('js/kiosk-archive-book.js') }}" defer></script>
+  {% endif %}
   <script src="{{ asset_url('js/kiosk-tour.js') }}"></script>
-  <!-- The tour is a fixed fullscreen panorama, so its way out is pinned to the
-       viewport rather than sitting in a flex shell like the other pages. -->
-  {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False), back_fixed=True %}{% include 'partials/kiosk-back.html' %}{% endwith %}
   {% include 'partials/kiosk-sw.html' %}
 </body>
 </html>

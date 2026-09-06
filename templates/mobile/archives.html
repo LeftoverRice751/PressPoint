@@ -70,11 +70,16 @@
               data-page-count="{{ archive.page_count }}"
               data-is-tabloid="{{ '1' if archive.is_tabloid else '0' }}"
               data-first-page-url="{{ archive.first_page_url }}"
-              {# Instant-open contract, identical to the kiosk: the reader
-                 paints these pre-rendered pages immediately and only fetches
-                 the (large) PDF once the reader is engaged. A count of 0 means
-                 nothing is prewarmed, so the reader loads the PDF straight away. #}
+              {# Instant-open contract, identical to the kiosk: the reader paints these server-rendered
+                 pages immediately, for the WHOLE document -- this used to stop
+                 at 20 pages and every page past it was rasterised from the PDF
+                 on the client. data-direct-pages is how far of that run nginx
+                 can serve by name; beyond it the reader falls back to the
+                 on-demand route, which resolves legacy .png pages too. #}
               data-page-url-base="{{ archive.page_url_base }}"
+              data-page-storage-base="{{ archive.page_storage_base }}"
+              data-page-extension="{{ archive.page_extension }}"
+              data-direct-pages="{{ archive.direct_pages if archive.direct_pages else 0 }}"
               data-prewarmed-pages="{{ archive.prewarmed_pages if archive.prewarmed_pages else 0 }}"
             >
               <span class="m-archive__cover-wrap">

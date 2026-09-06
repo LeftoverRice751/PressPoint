@@ -545,9 +545,12 @@ class OrgBoardController(Controller):
             self._renumber_group(
                 self._sibling_group(refreshed, source_organization_id, getattr(member, "parent_id", None))
             )
-            self._reorder_siblings_by_position(
-                self._sibling_group(refreshed, target_organization_id, target_parent_id)
-            )
+            # The destination group is deliberately NOT re-ordered by position:
+            # on a free canvas x carries no ordering meaning (same reasoning as
+            # move()). _reorder_siblings_by_position went with that change in
+            # bbf4967; a call to it survived here and, sitting after member.save()
+            # inside this try, turned every successful edit into "Could not
+            # update the member. Please try again."
 
             payload = self._organization_payload(target_organization_id)
             payload["moved_organization"] = target_organization_id != source_organization_id
@@ -617,9 +620,9 @@ class OrgBoardController(Controller):
 
             member.delete()
 
-            self._reorder_siblings_by_position(
-                self._sibling_group(self._all_members(), organization_id, promoted_parent_id)
-            )
+            # No re-ordering of the promoted group: see the note in update().
+            # The orphaned call that stood here reported "Could not remove the
+            # member" on every successful delete.
 
             payload = self._organization_payload(organization_id)
             payload["promoted"] = len(subordinates)

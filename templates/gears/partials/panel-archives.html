@@ -50,6 +50,13 @@
                 <option value="Magazine">Magazine</option>
                 <option value="Tabloid">Tabloid</option>
                 <option value="Newsletter">Newsletter</option>
+                {#- "Charter" is a reserved type, not another publication format:
+                    app/services/CharterArchive.py resolves the newest row with
+                    this type and hangs it in the virtual tour as the 3D
+                    citizen's charter, and ArchivesController filters it out of
+                    the public archives carousel. Renaming this value breaks
+                    both ends. #}
+                <option value="Charter">Citizen&rsquo;s Charter</option>
               </select>
             </label>
 

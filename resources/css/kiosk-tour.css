@@ -855,132 +855,6 @@ body.view-control-buttons .viewControlButton {
   margin-left: 105px;
 }
 
-.tour-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  display: grid;
-  place-items: center;
-  background: var(--brand-cream-light);
-  color: var(--n-900);
-  opacity: 1;
-  pointer-events: auto;
-  transition: opacity 0.3s ease;
-}
-
-.tour-overlay.is-hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.tour-shell {
-  position: relative;
-  width: 100vw;
-  height: 100dvh;
-  max-width: none;
-  overflow: hidden;
-  background: var(--brand-cream-light);
-  display: grid;
-  place-items: center;
-}
-
-.tour-app {
-  width: 100%;
-  height: 100%;
-  padding: 36px 30px 30px;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: 26px;
-  text-align: center;
-}
-
-.hero {
-  display: grid;
-  place-items: center;
-  gap: 0.55rem;
-  padding-top: 0.25rem;
-}
-
-.hero__logo {
-  width: min(58vw, 230px);
-  height: auto;
-  display: block;
-  filter: drop-shadow(0 16px 26px rgb(var(--brand-maroon-rgb) / 0.16));
-}
-
-.hero__title {
-  margin: 0;
-  color: var(--n-900);
-  font-size: clamp(2.2rem, 5vw, 4.3rem);
-  font-weight: 900;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  line-height: 1;
-}
-
-.hero__subtitle {
-  margin: 0;
-  max-width: 30rem;
-  color: var(--n-900);
-  font-size: clamp(0.92rem, 1.4vw, 1.1rem);
-  line-height: 1.5;
-  letter-spacing: 0.03em;
-}
-
-.tour-actions {
-  align-self: center;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px;
-  padding: 0 8px;
-}
-
-.tour-action {
-  appearance: none;
-  border: 1px solid rgb(var(--brand-maroon-rgb) / 0.12);
-  border-radius: 25px;
-  background: rgb(var(--brand-cream-rgb) / 0.98);
-  box-shadow: 0 18px 40px rgb(var(--brand-maroon-rgb) / 0.12);
-  min-height: 160px;
-  padding: 18px 16px;
-  display: grid;
-  place-items: center;
-  font-size: 1.1rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--n-900);
-  cursor: pointer;
-  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease;
-}
-
-.tour-action:focus-visible,
-.tour-action:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 24px 48px rgb(var(--brand-maroon-rgb) / 0.18);
-  outline: none;
-}
-
-.tour-action--primary {
-  background: var(--brand-maroon);
-  border-color: rgb(var(--n-white-rgb) / 0.08);
-  color: var(--brand-cream-light);
-  box-shadow: 0 24px 48px rgb(var(--brand-maroon-rgb) / 0.28);
-}
-
-.tour-action--ghost {
-  background: rgb(var(--brand-cream-rgb) / 0.98);
-}
-
-.tour-helper {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--n-500);
-}
-
 .tour-viewport {
   position: fixed;
   inset: 0;
@@ -999,21 +873,6 @@ body.view-control-buttons .viewControlButton {
   max-height: 100dvh;
   background: var(--n-900);
   overflow: hidden;
-}
-
-@media (max-width: 640px) {
-  .tour-app {
-    padding: clamp(18px, 4vw, 28px) clamp(16px, 4vw, 24px);
-    gap: clamp(14px, 3vw, 22px);
-  }
-
-  .tour-actions {
-    gap: clamp(12px, 3vw, 22px);
-  }
-
-  .tour-action {
-    min-height: clamp(120px, 28vw, 160px);
-  }
 }
 
 #titleBar,
@@ -1037,7 +896,9 @@ body.tour-ready .tour-search-dock {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* Sits on top of the fixed back bar rather than under it — both are anchored
+     to the bottom of the viewport. See --kiosk-back-h in kiosk-nav.css. */
+  bottom: var(--kiosk-back-h, 104px);
   z-index: 80;
   display: flex;
   flex-direction: column;

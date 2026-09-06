@@ -176,7 +176,20 @@
       this._hit = [];
       for (const d of drawables) this._drawOne(ctx, d, unit);
 
-      if (this._hover) this._strokeRoof(ctx, this._hover, this.options.roofHighlight);
+      // Re-resolve the hovered drawable against the drawables built THIS frame.
+      // `_hover` was captured by `_onMove`, and a drawable's `roof` holds
+      // container pixels, not lat/lngs — so re-stroking the captured object
+      // paints the outline at whatever projection was current when the pointer
+      // last moved. During a flyTo no mousemove fires, which left the highlight
+      // frozen in place while every other feature re-projected underneath it.
+      // Features are stable across renders, so `f` is the identity to match on.
+      if (this._hover) {
+        const live = this._hit.find(d => d.f === this._hover.f);
+        if (live) {
+          this._hover = live;
+          this._strokeRoof(ctx, live, this.options.roofHighlight);
+        }
+      }
     },
 
     _label: function (ctx, d) {
@@ -263,6 +276,13 @@
       const p = e.containerPoint, ctx = this._ctx;
       for (let i = this._hit.length - 1; i >= 0; i--) {
         const d = this._hit[i];
+        // Never pick the ground. `_hit` is ordered ground-first, so walking it
+        // backwards already lets buildings win — but a pointer over open campus
+        // fell through to the "Campus boundary" polygon, and `_render` then
+        // stroked its whole perimeter in roofHighlight (gold). That drew a
+        // yellow line around the entire map. `_label` and `_drawOne`'s dimming
+        // both exempt ground already; this is the third place that needs it.
+        if (d.f.props[this.options.kindProperty] === 'ground') continue;
         ctx.beginPath(); tracePath(ctx, d.roof);
         if (ctx.isPointInPath(p.x, p.y, 'evenodd')) return d;
       }
@@ -2107,22 +2127,6 @@
       ],
       [
        600,
-       -850
-      ],
-      [
-       540,
-       -850
-      ],
-      [
-       540,
-       -800
-      ],
-      [
-       480,
-       -800
-      ],
-      [
-       480,
        -850
       ],
       [

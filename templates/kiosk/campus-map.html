@@ -14,11 +14,13 @@
   Campus map kiosk — wayfinding terminal layout for 768x1024 portrait.
 
       .map-header                 brand bar + title (no back button here)
+      .map-key                    key band; outside the stage so it can
+                                  never cover the map
       .campus-map-page__stage     full-bleed map + every overlay
         - leaflet map (sized to the image's aspect, pinned to the top)
         - suggestions panel (top, while typing)
         - building pane (bottom dock; QR view lives inline here)
-        - category dropdown (above the search bar, opens upward; also legend)
+        - category dropdown (above the search bar, opens upward)
         - search bar (full-bleed white band at the bottom of the stage)
       .keyboard                   slides up; map shrinks above it
       .kiosk-back                 shared bottom back bar (kiosk-nav.css)
@@ -42,6 +44,22 @@
     </div>
   </header>
 
+  <!-- Map key. A band in the page column, NOT an overlay in the stage:
+       anything inside the stage sits on top of the Leaflet canvas, which
+       spans it edge to edge, so a floating key can only ever overlap the
+       campus. Here the stage is simply shorter and fitBounds rescales the
+       map into what is left. Rows are built by JS from the same CATEGORIES
+       list that tints the pins, so the key cannot drift from the map. -->
+  <aside class="map-key" aria-label="Map key">
+    <p class="map-key__tab">Map<br>key</p>
+    <div class="map-key__groups">
+      <!-- Left of the rule: pins the user taps. Right of it: marks the map
+           draws for them. The rule is the split, not decoration. -->
+      <ul class="map-key__list map-key__list--pins" id="map-key-pins"></ul>
+      <ul class="map-key__list map-key__list--marks" id="map-key-marks"></ul>
+    </div>
+  </aside>
+
   <main class="campus-map-page__stage" id="campus-map-stage">
     <div class="kiosk-loader is-visible" data-map-loader>
       <img class="kiosk-loader__logo" src="{{ site_logo() }}" alt="" aria-hidden="true">
@@ -56,6 +74,12 @@
         <span class="suggestions__head-hint">TAP TO OPEN</span>
       </div>
       <ul id="suggestions-list" class="suggestions__list"></ul>
+      <div class="suggestions__foot">
+        <button type="button" class="suggestions__close" data-suggestions-close>
+          <span class="suggestions__close-arrow" aria-hidden="true">&times;</span>
+          <span class="suggestions__close-label">CLOSE</span>
+        </button>
+      </div>
     </div>
 
     <!-- Building detail pane — bottom dock so the map stays visible above it.

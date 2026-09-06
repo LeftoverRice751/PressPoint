@@ -1049,13 +1049,88 @@ body {
 
 .tour-mapping-row {
     display: grid;
-    grid-template-columns: minmax(120px, 0.55fr) minmax(0, 1.25fr) minmax(0, 1.1fr) auto;
+    grid-template-columns: auto minmax(120px, 0.55fr) minmax(0, 1.25fr) minmax(0, 1.1fr) auto;
     gap: 0.85rem;
     align-items: end;
     padding: 0.85rem 1rem;
     border-radius: var(--radius-sm);
     border: 1px solid var(--ink-rule);
     background: var(--ink-paper);
+}
+
+/* Scene thumbnail.
+
+   The image is preview.jpg straight off the tile server: a 256x1536 vertical
+   strip of the six cube faces in Marzipano's 'bdflru' order, NOT a photo.
+   Cropping to one face is pure CSS -- the strip's 1:6 aspect is exact, so an
+   <img> sized to six thumbnails tall and shifted up by --face lands the right
+   band with no object-fit and no JS.
+
+   It has to be an <img> rather than a background-image: only <img> honours
+   loading="lazy", and 205 rows x 48 KB is ~10 MB if they all load at once. */
+.tour-mapping-row__preview {
+    position: relative;
+    align-self: center;
+    width: 64px;
+    padding: 0;
+    border: 1px solid var(--ink-rule-strong);
+    border-radius: var(--radius-sm);
+    background: var(--ink-cream);
+    overflow: hidden;
+    cursor: pointer;
+    display: block;
+}
+
+.tour-mapping-row__preview:hover {
+    border-color: var(--ink-oxblood);
+}
+
+.tour-mapping-row__preview:focus-visible {
+    outline: 2px solid var(--ink-oxblood);
+    outline-offset: 2px;
+}
+
+.tour-mapping-row__thumb {
+    display: block;
+    width: 64px;
+    height: 64px;
+    overflow: hidden;
+    /* Flat placeholder while the image is still lazy-loading. */
+    background: var(--ink-cream);
+}
+
+.tour-mapping-row__thumb img {
+    display: block;
+    width: 64px;
+    height: 384px; /* six 64px faces */
+    transform: translateY(calc(var(--face, 2) * -64px));
+}
+
+.tour-mapping-row__preview-hint {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    padding: 0.05rem 0.25rem;
+    background: var(--ink-oxblood);
+    color: var(--ink-invert);
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+}
+
+/* Rows with no building yet, so the 205-row list can be scanned for gaps. */
+.tour-mapping-row__badge {
+    justify-self: start;
+    margin-top: 0.2rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--radius-sm);
+    background: var(--ink-oxblood);
+    color: var(--ink-invert);
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
 }
 
 .tour-mapping-row__id {
@@ -1096,13 +1171,109 @@ body {
 
 @media (max-width: 920px) {
     .tour-mapping-row {
-        grid-template-columns: 1fr;
+        /* Thumbnail keeps its own column and pairs with the scene id; the
+           fields stack underneath rather than the image stretching full width. */
+        grid-template-columns: auto 1fr;
         gap: 0.6rem;
+    }
+
+    .tour-mapping-row__location,
+    .tour-mapping-row__display,
+    .tour-mapping-row__actions {
+        grid-column: 1 / -1;
     }
 
     .tour-mapping-row__actions {
         justify-self: end;
     }
+}
+
+/* TOUR PREVIEW MODAL */
+.tour-preview-modal {
+    width: min(900px, calc(100vw - 2rem));
+}
+
+.tour-preview-modal__panel {
+    position: relative;
+}
+
+.tour-preview-modal__close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--rule-strong);
+    border-radius: 50%;
+    background: var(--ink-paper);
+    color: var(--ink);
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+/* The glyph is painted here and the word stays visually hidden in the markup;
+   rendering both crams "X Close" into the 2rem circle. */
+.tour-preview-modal__close::before {
+    content: "\2715";
+}
+
+.tour-preview-modal__close:hover {
+    background: var(--ink-oxblood);
+    color: var(--ink-invert);
+    border-color: var(--ink-oxblood);
+}
+
+.tour-preview-modal__close:focus-visible {
+    outline: 2px solid var(--ink-oxblood);
+    outline-offset: 2px;
+}
+
+.tour-preview-modal__title {
+    margin: 0;
+    padding-right: 2.5rem;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-weight: 900;
+    line-height: 1.1;
+}
+
+.tour-preview-modal__scene {
+    margin: 0.15rem 0 0.85rem;
+    color: var(--ink-muted);
+    font-size: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Marzipano sizes its canvas to this box, so it needs real dimensions before
+   the viewer is built -- a zero-height stage renders nothing and reports no
+   error. */
+.tour-preview-modal__stage {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    min-height: 280px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--ink-rule-strong);
+    background: var(--ink-cream);
+    overflow: hidden;
+}
+
+.tour-preview-modal__hint,
+.tour-preview-modal__error {
+    margin: 0.6rem 0 0;
+    font-size: 0.78rem;
+}
+
+.tour-preview-modal__hint {
+    color: var(--ink-muted);
+}
+
+.tour-preview-modal__error {
+    color: var(--ink-oxblood);
+    font-weight: 700;
 }
 
 /* ARCHIVES */
@@ -1702,6 +1873,64 @@ body {
     transform-origin: 0 0;
 }
 
+/* The kiosk's own screen, to scale, behind the cards. This canvas is a wide
+   desktop strip and the kiosk is a 768x1024 portrait panel that scales a chart
+   to fit with no scrolling and no zoom, so an arrangement that felt roomy here
+   used to arrive there at ~0.46 with unreadable names. Sized in JS from
+   OrgChart.KIOSK_FRAME so the two can never drift apart. */
+.org-board-frame {
+    position: absolute;
+    top: 0;
+    left: 0;
+    border: 2px dashed var(--ink-rule-strong);
+    border-radius: var(--radius-sm);
+    background: var(--ink-paper);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.org-board-frame__label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 0.2rem 0.5rem;
+    background: var(--ink-rule-strong);
+    color: var(--ink-paper);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+/* Above the frame, so the chart is never painted behind it. */
+.org-board-edges,
+.org-board-cards {
+    z-index: 1;
+}
+
+.org-board-fit {
+    align-self: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    white-space: nowrap;
+}
+
+/* --ink-oxblood is fill-only (see the note at the top of this file), so the
+   attention state reads in --accent-text rather than recolouring with a fill. */
+.org-board-fit.is-tight {
+    color: var(--accent-text);
+}
+
+/* A card outside the frame does not stop anything -- the editor must show the
+   board as it really is, or whoever can move the card never learns it is out
+   there. It only says which card is costing the kiosk its scale. */
+.ob-card-node.is-outside-frame {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
 .org-board-edges {
     position: absolute;
     top: 0;
@@ -1886,6 +2115,145 @@ body {
 /* Destructive action anchored away from Save/Cancel, per the footer's flex-end. */
 .org-board-modal__delete {
     margin-right: auto;
+}
+
+/* Read-only event preview, opened from a table row rather than a form trigger.
+   No header/footer chrome: .article-modal__panel's padding is zeroed here and
+   reapplied on __body, which leaves the panel free for the absolutely
+   positioned close button to sit against. */
+.event-view-modal {
+    width: min(560px, calc(100vw - 2rem));
+}
+
+/* The poster is no longer a fixed-ratio banner at the top, so the panel's own
+   height is now content-driven and a tall portrait poster could run past the
+   viewport -- `overflow: hidden` alone would silently clip it. Cap and scroll. */
+.event-view-modal__panel {
+    position: relative;
+    padding: 0;
+    overflow: hidden auto;
+    max-height: 88vh;
+}
+
+.event-view-modal__close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--rule-strong);
+    border-radius: 50%;
+    background: var(--ink-paper);
+    color: var(--ink);
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.event-view-modal__close::before {
+    content: "\2715";
+}
+
+.event-view-modal__close:hover {
+    background: var(--ink-oxblood);
+    color: var(--ink-invert);
+    border-color: var(--ink-oxblood);
+}
+
+.event-view-modal__close:focus-visible,
+.article-modal__close--icon:focus-visible {
+    outline: 2px solid var(--ink-oxblood);
+    outline-offset: 2px;
+}
+
+/* The header close in the Add Event dialog, matched to the view dialog's
+   circular glyph so the two modals do not disagree about what "close" looks
+   like. The word "Close" is still in the DOM, visually hidden. */
+.article-modal__close--icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    font-size: 1.05rem;
+    line-height: 1;
+}
+
+.article-modal__close--icon::before {
+    content: "\2715";
+}
+
+.event-view-modal__body {
+    padding: 1.5rem;
+}
+
+.event-view-modal__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.45rem;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+}
+
+.event-view-modal__meta {
+    display: flex;
+    gap: 1.75rem;
+    margin: 0.9rem 0 1.1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--ink-rule);
+}
+
+.event-view-modal__meta-item dt {
+    margin: 0 0 0.2rem;
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+}
+
+.event-view-modal__meta-item dd {
+    margin: 0;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.event-view-modal__description {
+    margin: 0;
+    max-width: 62ch;
+    line-height: 1.6;
+    color: var(--ink);
+    white-space: pre-wrap;
+}
+
+/* `contain`, not `cover`: event posters are as often portrait as landscape and
+   this is the one place an editor can check the file they uploaded, so it must
+   not be cropped. The height cap keeps a tall poster from pushing the meta and
+   description off screen. `display: block` is safe against the element's
+   `hidden` attribute here only because of the `[hidden] { display: none
+   !important }` reset at the top of this file. */
+.event-view-modal__image {
+    display: block;
+    width: 100%;
+    max-height: 45vh;
+    margin-top: 1.25rem;
+    object-fit: contain;
+    object-position: left top;
+    border: 1px solid var(--ink-rule);
+    border-radius: var(--radius-sm);
+    background: var(--ink-cream);
+}
+
+.events-table__row {
+    cursor: pointer;
+}
+
+.events-table__row:focus-visible {
+    outline: 2px solid var(--ink-oxblood);
+    outline-offset: -2px;
 }
 
 /* Current portrait, so replacing a photo is a comparison rather than a guess. */
@@ -2444,4 +2812,182 @@ body {
      account, and the hero has little room on a narrow screen. */
   .gears-profile__name { display: none; }
   .gears-bell__panel { width: min(340px, calc(100vw - 32px)); }
+}
+
+
+/* SHARED UTILITIES
+ * ------------------------------------------------------------------ */
+
+/* Keeps a control's accessible name in the DOM while the visible affordance
+   is a CSS glyph. auth-shell.css has .sr-only but is not loaded on this page. */
+.u-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* The events table no longer carries an image column -- the poster is shown
+   in the row's view modal (.event-view-modal__image) instead -- so the
+   .events-table__thumb* rules that lived here are gone. */
+
+/* EVENT IMAGE: UPLOAD FIELD
+ * ------------------------------------------------------------------ */
+
+.field__hint {
+    margin-left: 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-muted, #6b6b6b);
+}
+
+.image-drop {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 1.1rem 1rem;
+    border: 2px dashed var(--rule-strong);
+    border-radius: var(--radius-sm);
+    background: var(--ink-paper);
+    cursor: pointer;
+}
+
+.image-drop:hover,
+.image-drop--dragging {
+    border-color: var(--ink-oxblood);
+    background: var(--ink-paper);
+}
+
+/* Focus lives on the input, which is off-screen, so the ring has to be drawn
+   on the label that stands in for it. */
+.image-drop:focus-within {
+    outline: 2px solid var(--ink-oxblood);
+    outline-offset: 2px;
+}
+
+.image-drop__input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.image-drop__icon {
+    flex: 0 0 auto;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--rule-strong);
+    border-radius: 50%;
+    color: var(--ink);
+    font-size: 1.1rem;
+}
+
+.image-drop__icon::before {
+    content: "\002B";
+}
+
+.image-drop__text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.image-drop__title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.image-drop__meta {
+    font-size: 0.75rem;
+    color: var(--ink-muted, #6b6b6b);
+}
+
+.image-drop__preview {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin-top: 0.65rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--ink-rule);
+    border-radius: var(--radius-sm);
+    background: var(--ink-paper);
+}
+
+.image-drop__thumb {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border: 1px solid var(--ink-rule);
+    border-radius: var(--radius-sm);
+}
+
+.image-drop__file {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.image-drop__filename {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.image-drop__filesize {
+    font-size: 0.72rem;
+    color: var(--ink-muted, #6b6b6b);
+}
+
+.image-drop__remove {
+    flex: 0 0 auto;
+    width: 1.85rem;
+    height: 1.85rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--rule-strong);
+    border-radius: 50%;
+    background: var(--ink-paper);
+    color: var(--ink);
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.image-drop__remove::before {
+    content: "\2715";
+}
+
+.image-drop__remove:hover {
+    background: var(--ink-oxblood);
+    border-color: var(--ink-oxblood);
+    color: var(--ink-invert);
+}
+
+.image-drop__remove:focus-visible {
+    outline: 2px solid var(--ink-oxblood);
+    outline-offset: 2px;
+}
+
+.image-drop__error {
+    margin: 0.5rem 0 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--ink-oxblood);
 }

@@ -25,7 +25,12 @@
       </div>
       {% endif %}
 
-      <div class="page-card tour-mapping-card" data-section-count="{{ tour_scene_rows|length }}">
+      {# The tile pyramid is shared by every scene in the capture, so the
+         preview modal reads it once from here instead of every row carrying a
+         copy. TourScenesCatalog.geometry() explains why that is safe, and
+         test_the_capture_is_geometrically_uniform fails if it stops being. #}
+      <div class="page-card tour-mapping-card" data-section-count="{{ tour_scene_rows|length }}"
+           data-tour-geometry='{{ tour_geometry | tojson }}'>
         <div class="empty-state" data-empty-state>
           <div class="empty-state__title">No tour scenes detected</div>
           <p class="empty-state__text">The panorama catalog is generated from <code>resources/js/data.js</code>. Re-run the tour pipeline if this list looks wrong.</p>
@@ -37,10 +42,30 @@
             {{ csrf_field | safe }}
             <input type="hidden" name="scene_id" value="{{ scene.scene_id }}">
 
+            {# A scene id tells an editor nothing about the place, so show the
+               panorama itself. The image is the cube strip Marzipano already
+               ships as a tile fallback; CSS crops it to the face the scene
+               opens on (see preview_face_index). loading="lazy" is load-bearing
+               -- 205 rows x 48 KB is ~10 MB, and the panel is `hidden` until
+               navigated to, so nothing is fetched until the page is opened. #}
+            <button type="button" class="tour-mapping-row__preview" data-tour-preview-open
+                    data-scene-id="{{ scene.scene_id }}"
+                    data-scene-name="{{ scene.scene_name or scene.scene_id }}"
+                    data-scene-view='{{ scene.initial_view | tojson }}'
+                    aria-label="Preview {{ scene.scene_name or scene.scene_id }} in 360">
+              <span class="tour-mapping-row__thumb" style="--face: {{ scene.preview_face }}">
+                <img src="{{ scene.preview_url }}" alt="" loading="lazy" decoding="async">
+              </span>
+              <span class="tour-mapping-row__preview-hint" aria-hidden="true">360°</span>
+            </button>
+
             <div class="tour-mapping-row__id">
               <span class="tour-mapping-row__scene-label">Scene</span>
               <span class="tour-mapping-row__scene-id">{{ scene.scene_name or scene.scene_id }}</span>
               <span class="tour-mapping-row__scene-raw">{{ scene.scene_id }}</span>
+              {% if not scene.location_id %}
+              <span class="tour-mapping-row__badge">Unmapped</span>
+              {% endif %}
             </div>
 
             <label class="field tour-mapping-row__location">

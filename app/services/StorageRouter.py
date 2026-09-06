@@ -11,7 +11,7 @@ from masonite.utils.location import base_path
 # In production nginx serves these roots directly and only falls back to Python
 # on a miss, so a folder added here but not there quietly routes every request
 # for it through VideoController.serve_storage — which reads ranges into memory.
-NAS_FOLDERS = ("Archives", "Videos", "About", "Branding", "Profiles")
+NAS_FOLDERS = ("Archives", "Videos", "About", "Branding", "Profiles", "Events")
 
 
 def gearsnas_base() -> str:

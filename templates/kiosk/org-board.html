@@ -8,15 +8,13 @@
 
 {% block content %}
 <div class="ob-page" data-org-board>
+  {# One slim bar. The chart below neither scrolls nor zooms, so everything the
+     page spends on chrome comes straight out of the scale the hierarchy is
+     drawn at -- the lead paragraph alone cost 44px of a 1024px screen, and the
+     deck cards and the dock already name every organization. #}
   <header class="ob-masthead">
-    <div class="ob-masthead__row">
-      <p class="ob-masthead__eyebrow">LSPU Campus</p>
-      <p class="ob-masthead__hint">Swipe to explore</p>
-    </div>
     <h1 class="ob-masthead__title">{{ campus_name if campus_name else 'Organizational Chart' }}</h1>
-    <p class="ob-masthead__lead">
-      A live structure of every department and organization on campus. Swipe across the deck below to view each one&rsquo;s leadership.
-    </p>
+    <p class="ob-masthead__hint">Swipe to explore</p>
   </header>
 
   <section class="ob-deck" aria-label="Organization directory">
@@ -30,20 +28,28 @@
         data-organization-name="{{ org.name | e }}"
         data-index="{{ loop.index0 }}"
       >
+        {# One line: chip, name, count. Stacked, these three cost 136px -- more
+           than a quarter of the chart's old height, for text the dock carries
+           too. The title ellipsises rather than wrapping; the full name is
+           always in .ob-dock__name for the card on screen. #}
         <header class="ob-card__header">
           <span class="ob-card__eyebrow">{{ org.kind_label }}</span>
           <h2 class="ob-card__title">{{ org.name }}</h2>
-          <p class="ob-card__count">{{ org.members | length }} {{ 'leader' if (org.members | length) == 1 else 'leaders' }} listed</p>
+          <p class="ob-card__count">{{ org.members | length }} {{ 'leader' if (org.members | length) == 1 else 'leaders' }}</p>
         </header>
 
         <div class="ob-card__body">
           {% if org.members %}
           <div class="ob-card__chart" data-ob-chart>
-            <div class="ob-chart__spacer" data-ob-chart-spacer aria-hidden="true"></div>
             <div class="ob-chart__stage" data-ob-chart-stage>
               <svg class="ob-chart__edges" data-ob-chart-edges xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
               <div class="ob-chart__nodes" data-ob-chart-nodes></div>
             </div>
+            {# The stage is absolutely positioned and transformed, so it gives
+               its container nothing to scroll. This spacer is sized to the
+               stage's *scaled* box by fitChart() and is the only reason a chart
+               too big to fit legibly can be reached at all. #}
+            <div class="ob-chart__extent" data-ob-chart-extent aria-hidden="true"></div>
             <script type="application/json" data-ob-chart-data>{{ org.members | tojson }}</script>
           </div>
           {% else %}

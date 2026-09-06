@@ -164,6 +164,40 @@
   opacity: 1;
 }
 
+/*
+ * A page still showing the server's preview PNG rather than a render sized for
+ * this screen. The preview's resolution was fixed at upload time, so on a large
+ * display it is visibly soft — this marks that state as in-progress instead of
+ * letting it read as the finished page.
+ *
+ * A corner tick rather than a spinner or an overlay: every page in a newsletter
+ * passes through this state, and a scroller full of spinners would be worse than
+ * the softness it is reporting. Solid colour, no gradient (house rule).
+ */
+.reader-scroll__page.is-preview::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--book-terracotta);
+  opacity: 0.55;
+  animation: reader-sharpening 1.4s steps(1, end) infinite;
+}
+
+@keyframes reader-sharpening {
+  0%, 50% { opacity: 0.55; }
+  51%, 100% { opacity: 0.15; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-scroll__page.is-preview::after {
+    animation: none;
+  }
+}
+
 /* ── Chrome (back + pager + tabloid nav) ────────────────── */
 
 .reader-chrome {

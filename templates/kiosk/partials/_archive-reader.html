@@ -1,0 +1,41 @@
+{#- The archive reader overlay: one mount per reading mode, adapters attach at
+    runtime (kiosk-archive-book.js picks Book / DeepZoom / Scroll from the
+    opened archive's type).
+
+    Shared, not duplicated: the archives page opens it from the coverflow, and
+    the virtual tour opens it from the 3D citizen's charter. Both dispatch the
+    same CustomEvent('archive:open'), so this markup and that bundle have to
+    exist on both pages. The reader binds to [data-archive-shell] as its root,
+    so any page including this partial must have that attribute on an ancestor.
+
+    templates/mobile/archives.html carries its own copy on purpose — it is a
+    different skin for a phone, not the same layout. #}
+<div class="archive-book-overlay" data-archive-book hidden aria-hidden="true">
+  <div class="kiosk-loader" data-archive-loader hidden>
+    <img class="kiosk-loader__logo" src="{{ site_logo() }}" alt="" aria-hidden="true">
+  </div>
+
+  <div class="archive-book-overlay__backdrop" data-archive-book-backdrop></div>
+
+  <div class="reader-stage" data-reader-stage>
+    <div class="reader-mount reader-mount--book"   data-reader-book   hidden></div>
+    <div class="reader-mount reader-mount--zoom"   data-reader-zoom   hidden></div>
+    <div class="reader-mount reader-mount--scroll" data-reader-scroll hidden></div>
+  </div>
+
+  <div class="reader-chrome" data-reader-chrome>
+    <button type="button" class="reader-chrome__back" data-reader-back>
+      <span aria-hidden="true">&larr;</span>
+      <span>{{ reader_back_label | default('Back to selection') }}</span>
+    </button>
+    <div class="reader-chrome__pager" data-reader-pager>&mdash;</div>
+    <div class="reader-chrome__nav" data-reader-nav hidden>
+      <button type="button" class="reader-chrome__nav-btn reader-chrome__nav-btn--prev" data-reader-prev aria-label="Previous page">
+        <span aria-hidden="true">&#8249;</span>
+      </button>
+      <button type="button" class="reader-chrome__nav-btn reader-chrome__nav-btn--next" data-reader-next aria-label="Next page">
+        <span aria-hidden="true">&#8250;</span>
+      </button>
+    </div>
+  </div>
+</div>

@@ -19,7 +19,11 @@
  * mobile-archives.js still registers it, and must keep doing so.
  */
 
-const CACHE_NAME = 'pp-archives-v1';
+// v2: archive pages moved from page-N.png to page-N.webp at a higher raster.
+// Nothing stale can be *served* -- the URLs changed, so the old entries are
+// simply never requested again -- but they are hundreds of MB of dead weight
+// on a phone, and renaming the cache is what reclaims them (see activate).
+const CACHE_NAME = 'pp-archives-v2';
 const ARCHIVE_PATH = '/storage/Archives/';
 
 self.addEventListener('install', () => {

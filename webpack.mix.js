@@ -18,6 +18,7 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/super-admin.js', 'storage/compiled/js')
   .js('resources/js/news-dashboard.js', 'storage/compiled/js')
   .js('resources/js/review-queue.js', 'storage/compiled/js')
+  .js('resources/js/tour-preview.js', 'storage/compiled/js')
   .js('resources/js/kiosk-archives.js', 'storage/compiled/js')
   .js('resources/js/kiosk-archive-book.js', 'storage/compiled/js')
   .js('resources/js/kiosk-map.js', 'storage/compiled/js')
@@ -26,6 +27,7 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/mobile-archives.js', 'storage/compiled/js')
   .js('resources/js/cookie-consent.js', 'storage/compiled/js')
   .js('resources/js/kiosk-tour.js', 'storage/compiled/js')
+  .js('resources/js/tour-charter.js', 'storage/compiled/js')
   .js('resources/js/data.js', 'storage/compiled/js')
   .js('resources/js/kiosk-clock.js', 'storage/compiled/js')
   .js('resources/js/welcome-screen.js', 'storage/compiled/js')
@@ -133,6 +135,9 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .postCss('resources/css/kiosk-nav.css', 'storage/compiled/css', [
     //
   ])
+  .postCss('resources/css/tour-charter.css', 'storage/compiled/css', [
+    //
+  ])
 
 // Vendor pdf.js (used by the archive book reader). Copy the minified ESM
 // build + worker straight into the compiled assets so they ship with the
@@ -144,6 +149,16 @@ mix.copy(
 mix.copy(
   "node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs",
   "storage/compiled/js/pdfjs/pdf.worker.min.mjs",
+)
+// <model-viewer> for the virtual tour's 3D citizen's charter. Vendored, not
+// pulled from a CDN: the kiosk is a fixed terminal and every other third-party
+// runtime here (Marzipano, pdf.js, Leaflet) is self-hosted for the same reason.
+// mix.copy rather than an import — it is a self-registering custom element
+// loaded as a module <script>, and bundling it would drag ~1 MB of WebGL into
+// a page that may never show the model.
+mix.copy(
+  "node_modules/@google/model-viewer/dist/model-viewer.min.js",
+  "storage/compiled/js/model-viewer/model-viewer.min.js",
 )
 mix.copy(
   "resources/js/sw-archives.js",

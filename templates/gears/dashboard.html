@@ -86,10 +86,12 @@
 {% include "gears/partials/panel-news.html" %}
 {% include 'gears/partials/profile-panel.html' %}
 {% include "gears/partials/events-modal.html" %}
+{% include "gears/partials/events-view-modal.html" %}
 {% include "gears/partials/panel-archives.html" %}
 {% include "gears/partials/panel-locations.html" %}
 {% include "gears/partials/panel-org-board.html" %}
 {% include "gears/partials/panel-tour-mapping.html" %}
+{% include "gears/partials/tour-preview-modal.html" %}
 {% include "gears/partials/panel-about-lspu.html" %}
 {% include "gears/partials/panel-video-manager.html" %}
 {% include "gears/partials/panel-kiosk-lock.html" %}
@@ -103,4 +105,8 @@
 <script src="{{ asset_url('js/about-lspu-editor.js') }}" defer></script>
 <script src="{{ asset_url('js/org-chart-layout.js') }}" defer></script>
 <script src="{{ asset_url('js/org-board-editor.js') }}" defer></script>
+{# Marzipano itself is NOT loaded here -- this bundle injects it from
+   /pano/vendor on the first preview click, so editors who never open one pay
+   nothing for the 211 KB. #}
+<script src="{{ asset_url('js/tour-preview.js') }}" defer></script>
 {% endblock %}

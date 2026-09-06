@@ -85,10 +85,7 @@ function initTour() {
   var sceneListToggleElement = document.querySelector('#sceneListToggle');
   var autorotateToggleElement = document.querySelector('#autorotateToggle');
   var fullscreenToggleElement = document.querySelector('#fullscreenToggle');
-  var overlayElement = document.querySelector('#tour-overlay');
   var viewportElement = document.querySelector('.tour-viewport');
-  var startButton = document.querySelector('#tour-start');
-  var exitButton = document.querySelector('#tour-exit');
   var tourStarted = false;
 
   // Detect desktop or mobile mode.
@@ -170,6 +167,14 @@ function initTour() {
       var element = createInfoHotspotElement(hotspot);
       scene.hotspotContainer().createHotspot(element, { yaw: hotspot.yaw, pitch: hotspot.pitch });
     });
+
+    // Announce the scene so other bundles can attach their own hotspots
+    // without importing this closure. tour-charter.js uses this to hang the
+    // 3D citizen's charter in scene 0-jst-1 — the alternative was putting
+    // WebGL/model-viewer code inside this already-large file.
+    document.dispatchEvent(new CustomEvent('tour:scene-created', {
+      detail: { id: data.id, scene: scene }
+    }));
 
     return {
       data: data,
@@ -581,6 +586,28 @@ function initTour() {
     viewer.setIdleMovement(Infinity);
   }
 
+  /* Freeze/thaw the panorama for an overlay that takes over the screen.
+   *
+   * Published on window.__tourBridge; see publishTourBridge(). Deliberately
+   * built out of the same two primitives a scene warp uses, so a freeze during
+   * a warp cannot leave the viewer in a state the warp doesn't recognise.
+   *
+   * unfreezeView bails while `warping` is set: startWarp() re-enables controls
+   * and restarts autorotate itself when it lands (see its `done` handler), so
+   * thawing mid-flight would hand back a panorama that is still tweening under
+   * the visitor's finger. Skipping is safe precisely because the warp will do
+   * it a moment later. */
+  function freezeView() {
+    stopAutorotate();
+    try { viewer.controls().disable(); } catch (e) {}
+  }
+
+  function unfreezeView() {
+    if (warping) return;
+    try { viewer.controls().enable(); } catch (e) {}
+    startAutorotate();
+  }
+
   function toggleAutorotate() {
     autorotateEnabled = !autorotateEnabled;
     if (autorotateToggleElement) {
@@ -939,13 +966,6 @@ function initTour() {
     return null;
   }
 
-  function hideOverlay() {
-    if (overlayElement) {
-      overlayElement.classList.add('is-hidden');
-      overlayElement.setAttribute('aria-hidden', 'true');
-    }
-  }
-
   function startTour() {
     if (tourStarted) {
       return;
@@ -959,7 +979,6 @@ function initTour() {
     if (panoElement) {
       panoElement.setAttribute('aria-hidden', 'false');
     }
-    hideOverlay();
     if (scenes.length) {
       switchScene(scenes[0]);
     }
@@ -972,23 +991,24 @@ function initTour() {
       scenes: scenes,
       findSceneById: findSceneById,
       switchScene: switchScene,
+      // Hold the panorama still while something else owns the screen.
+      // tour-charter.js uses this when the 3D charter goes fullscreen for
+      // inspection: without it the autorotate keeps turning behind the overlay
+      // and a drag that misses the model spins the tour, so the visitor exits
+      // inspection somewhere they never chose to be.
+      freezeView: freezeView,
+      unfreezeView: unfreezeView,
     };
     document.dispatchEvent(new CustomEvent('tour:ready'));
   }
 
-  if (startButton) {
-    startButton.addEventListener('click', startTour);
-  }
-
-  if (exitButton) {
-    exitButton.addEventListener('click', function() {
-      window.location.href = '/kiosk';
-    });
-  }
-
-  if (!overlayElement) {
-    startTour();
-  }
+  // The tour opens straight into the panorama — no Start/Exit splash. Tapping
+  // "Virtual Tour" on the kiosk menu is already the "start" gesture, and the
+  // splash made it two taps to see anything. The way out is the shared kiosk
+  // back bar (templates/partials/kiosk-back.html), which is rendered outside
+  // this script's reach so a failure in here can never strand a visitor on a
+  // dead page with no exit.
+  startTour();
 }
 
 ensureTourDependencies()

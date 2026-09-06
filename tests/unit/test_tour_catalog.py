@@ -12,11 +12,12 @@ verify the capture that actually ships, not our ability to parse a sample.
 """
 
 import json
+import math
 import re
 import unittest
 from pathlib import Path
 
-from app.services.TourScenesCatalog import TourScenesCatalog
+from app.services.TourScenesCatalog import TourScenesCatalog, preview_face_index
 from tests import TestCase
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -104,3 +105,92 @@ class TourCatalogTestCase(TestCase):
         for scene in TourScenesCatalog.all_scenes():
             self.assertTrue(scene["scene_id"])
             self.assertTrue(scene["name"])
+
+
+# Strip index of each cube face inside preview.jpg, which stacks the six faces
+# vertically in Marzipano's default 'bdflru' order.
+BACK, DOWN, FRONT, LEFT, RIGHT, UP = range(6)
+
+
+class TourPreviewFaceTestCase(TestCase):
+    """The Tour Mapping thumbnails crop one band out of preview.jpg.
+
+    preview.jpg is not a photo -- it is a 256x1536 strip of the six cube faces.
+    Which band we crop decides whether an editor sees the building or a blank
+    wall, so the yaw -> face mapping is worth pinning down exactly.
+    """
+
+    def test_cardinal_yaws_pick_the_matching_face(self):
+        # Marzipano yaw 0 looks at the front face and grows clockwise.
+        self.assertEqual(preview_face_index({"yaw": 0.0}), FRONT)
+        self.assertEqual(preview_face_index({"yaw": math.pi / 2}), RIGHT)
+        self.assertEqual(preview_face_index({"yaw": math.pi}), BACK)
+        self.assertEqual(preview_face_index({"yaw": -math.pi / 2}), LEFT)
+
+    def test_yaw_wraps_around_the_circle(self):
+        # data.js yaws are unnormalised radians straight out of the Marzipano
+        # Tool, so a value outside [-pi, pi) is ordinary input, not a bug.
+        self.assertEqual(preview_face_index({"yaw": 3 * math.pi}), BACK)
+        self.assertEqual(preview_face_index({"yaw": -3.2}), BACK)
+        self.assertEqual(preview_face_index({"yaw": 2 * math.pi}), FRONT)
+
+    def test_the_opening_scene_crops_its_left_face(self):
+        # 0-jst-1 opens at yaw -1.772 rad (~ -101 deg). This is the case the
+        # whole function exists for: a fixed "front" crop would show an editor
+        # a wall, not the building the panorama is of. A regression to a
+        # constant face fails right here.
+        opening = next(
+            scene
+            for scene in TourScenesCatalog.all_scenes()
+            if scene["scene_id"] == "0-jst-1"
+        )
+
+        self.assertAlmostEqual(opening["initial_view"]["yaw"], -1.7720201955843162)
+        self.assertEqual(opening["preview_face"], LEFT)
+
+    def test_a_missing_or_unusable_yaw_falls_back_to_front(self):
+        # A hand-edited data.js should not 500 the dashboard over a thumbnail.
+        self.assertEqual(preview_face_index({}), FRONT)
+        self.assertEqual(preview_face_index(None), FRONT)
+        self.assertEqual(preview_face_index({"yaw": "north"}), FRONT)
+
+    def test_every_scene_carries_a_face_and_an_opening_view(self):
+        for scene in TourScenesCatalog.all_scenes():
+            self.assertIn(scene["preview_face"], range(6), scene["scene_id"])
+            # int, not just float: a scene captured looking dead ahead lands an
+            # exact `"yaw": 0` in data.js (70-jst-72 does), and JSON keeps that
+            # an int. The face maths coerces, so this only guards the shape.
+            self.assertIsInstance(
+                scene["initial_view"].get("yaw"), (int, float), scene["scene_id"]
+            )
+
+    def test_never_picks_a_floor_or_ceiling_face(self):
+        # We deliberately ignore pitch: the horizontal faces are the only ones
+        # that show a building. Down/up must never be croppable.
+        for scene in TourScenesCatalog.all_scenes():
+            self.assertNotIn(scene["preview_face"], (DOWN, UP), scene["scene_id"])
+
+
+class TourGeometryTestCase(TestCase):
+    def test_the_capture_is_geometrically_uniform(self):
+        # geometry() reads levels/faceSize off the FIRST scene and the dashboard
+        # preview modal reuses them for every scene. That shortcut is only
+        # sound while the capture is uniform, so a re-export that mixes tile
+        # sizes has to fail loudly here rather than render half the previews
+        # at the wrong resolution.
+        payload = _raw_payload()
+
+        levels = {json.dumps(s["levels"], sort_keys=True) for s in payload["scenes"]}
+        face_sizes = {s["faceSize"] for s in payload["scenes"]}
+
+        self.assertEqual(len(levels), 1, "scenes no longer share one tile pyramid")
+        self.assertEqual(len(face_sizes), 1, "scenes no longer share one faceSize")
+
+    def test_geometry_matches_the_shipped_capture(self):
+        geometry = TourScenesCatalog.geometry()
+        payload = _raw_payload()
+
+        self.assertEqual(geometry["levels"], payload["scenes"][0]["levels"])
+        self.assertEqual(geometry["face_size"], payload["scenes"][0]["faceSize"])
+        # The viewer builds a CubeGeometry from this; an empty list renders black.
+        self.assertTrue(geometry["levels"])

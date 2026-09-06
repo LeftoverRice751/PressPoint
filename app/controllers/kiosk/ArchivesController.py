@@ -1,6 +1,7 @@
 from datetime import date, datetime
 import contextlib
 import os
+import threading
 import traceback
 from masonite.controllers import Controller
 from masonite.facades import Cache
@@ -9,7 +10,8 @@ from masonite.request import Request
 from masonite.response import Response
 from masonite.views import View
 from app.models.Archives import Archives
-from app.services.ArchiveServices import ArchiveServices
+from app.services.ArchiveServices import ArchiveServices, EAGER_PAGE_LIMIT
+from app.services.CharterArchive import is_charter_type
 from app.services.StorageRouter import absolute_path, gearsnas_base
 from app.services.PublicUrl import public_url
 from app.services.AjaxResponses import wants_json, json_success, json_errors
@@ -43,11 +45,50 @@ def _group_writable_umask():
         os.umask(previous)
 
 
+def _sweep_archive_pages_in_background(file_path):
+    """Rasterise the rest of an archive off the request thread.
+
+    Every page of an archive is rendered server-side so the kiosk never has to
+    fall back to rasterising from the PDF itself (see
+    ArchiveServices.prewarm_archive_pages). For a 180-page issue that is ~70s
+    of CPU, which no editor should spend watching an upload spinner — so the
+    request renders only the first EAGER_PAGE_LIMIT pages and this finishes the
+    job afterwards.
+
+    A plain daemon thread, matching app/providers/RosFusionProvider.py: this app
+    has no queue worker (config/queue.py is the `async` driver and nothing
+    consumes it). It swallows everything — a failed sweep degrades to the
+    on-demand route in page() below, and must never take a gunicorn worker with
+    it.
+    """
+    def run():
+        try:
+            ArchiveServices().prewarm_archive_pages(file_path)
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+
+    thread = threading.Thread(target=run, name="archive-prewarm", daemon=True)
+    thread.start()
+    return thread
+
+
 class ArchivesController(Controller):
     def _build_archives_payload(self):
         archive_services = ArchiveServices()
         archives = Archives.order_by("id", "desc").get()
-        archive_entries = [archive_services.build_archive_entry(archive) for archive in archives]
+        # The citizen's charter is an ordinary archive row (type "charter") so
+        # that editors upload it through this same form, but it is not part of
+        # the publication back-catalogue and belongs to the virtual tour, which
+        # opens it from its 3D model. It has to be filtered *out* explicitly:
+        # kiosk-archives.js treats "folio" as the fallback category (anything
+        # not tabloid/magazine/newsletter), so a charter would otherwise appear
+        # under Folios — and, since both surfaces share this payload builder,
+        # on the phone as well.
+        archive_entries = [
+            archive_services.build_archive_entry(archive)
+            for archive in archives
+            if not is_charter_type(getattr(archive, "type", None))
+        ]
         # Newest first, deterministically: year desc, then upload id desc.
         # DOM order then matches coverflow order with no client-side sorting.
         archive_entries.sort(
@@ -192,7 +233,13 @@ class ArchivesController(Controller):
             )
 
             archive_services = ArchiveServices()
-            archive_services.prewarm_archive_previews(file_path)
+            # Cover + the opening pages inline so the archive is readable the
+            # moment the card appears; the remaining pages follow in the
+            # background. Both write to the same NAS directory, and
+            # prewarm_archive_pages() skips pages that already exist, so the
+            # overlap between the two is free.
+            archive_services.prewarm_archive_previews(file_path, max_pages=EAGER_PAGE_LIMIT)
+            _sweep_archive_pages_in_background(file_path)
 
             Cache.forget(_ARCHIVES_CACHE_KEY)
 
@@ -235,15 +282,15 @@ class ArchivesController(Controller):
             return response.view("Not found", status=404)
 
         page_index = page_number - 1
-        page_relative = archive_services._page_relative_path(file_path, page_index)
+        # resolve_page_relative, not _page_relative_path: an archive uploaded
+        # before the WebP switch still has .png pages on the NAS and must not
+        # be re-rendered on every request.
+        page_relative = archive_services.resolve_page_relative(file_path, page_index)
         if not page_relative:
-            return response.view("Not found", status=404)
-
-        page_full = archive_services._storage_public_path(page_relative)
-        if not os.path.exists(page_full):
             archive_services.build_page_preview(file_path, page_index)
+            page_relative = archive_services.resolve_page_relative(file_path, page_index)
 
-        if not os.path.exists(page_full):
+        if not page_relative:
             return response.view("Not found", status=404)
 
         # Hand the storage path back so the browser can cache it directly.

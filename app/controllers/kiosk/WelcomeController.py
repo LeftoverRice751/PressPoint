@@ -10,6 +10,13 @@ from masonite.views import View
 
 from app.models.Events import Events
 from app.models.News import News
+from app.services.CharterArchive import (
+    CHARTER_MODEL_URL,
+    CHARTER_PITCH,
+    CHARTER_SCENE_ID,
+    CHARTER_YAW,
+    latest_charter_entry,
+)
 from app.services.DashboardContext import group_news_slots
 from app.services.TourScenesCatalog import TourScenesCatalog
 
@@ -91,7 +98,7 @@ class WelcomeController(Controller):
         # Imported here, not at module scope, for the same reason show() does:
         # NewsController imports DashboardContext, which imports the models this
         # module also pulls in, and a top-level import closes the cycle.
-        from app.controllers.gears.NewsController import _news_is_public
+        from app.controllers.gears.NewsController import _html_to_text, _news_is_public
 
         flash_articles = []
 
@@ -114,7 +121,11 @@ class WelcomeController(Controller):
                 self._append_flash_article(
                     flash_articles,
                     news_item,
-                    getattr(news_item, "title", None) or "News update",
+                    # Plain text: news.title is an HTML column now (the
+                    # headline is authored in Quill), and welcome-screen.js
+                    # renders this through escapeHtml(), so the formatting
+                    # spans would show as literal markup in the ticker.
+                    _html_to_text(getattr(news_item, "title", None) or "") or "News update",
                     reference_at,
                     "news",
                 )
@@ -194,11 +205,19 @@ class WelcomeController(Controller):
         # new resources/js/data.js in place. all_scenes() returns [] instead of
         # raising if that file is missing, so a broken catalog still renders a
         # page (empty drawer) rather than a 500.
+        # The charter is resolved server-side rather than fetched by the tour
+        # bundle so that "no charter uploaded yet" is a non-event: the template
+        # simply omits the 3D hotspot and the tour is what it was before.
         return view.render(
             "kiosk/kiosk-tour",
             {
                 "active_nav": "tour",
                 "tour_scenes": TourScenesCatalog.all_scenes(),
+                "charter": latest_charter_entry(),
+                "charter_model_url": CHARTER_MODEL_URL,
+                "charter_scene_id": CHARTER_SCENE_ID,
+                "charter_yaw": CHARTER_YAW,
+                "charter_pitch": CHARTER_PITCH,
             },
         )
 

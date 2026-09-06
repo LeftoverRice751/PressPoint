@@ -17,6 +17,7 @@ class LoginController(Controller):
     def store(self, request: Request, response: Response):
         username = (request.input("username") or "").strip()
         password = request.input("password") or ""
+        
 
         login = User().attempt(username, password)
 

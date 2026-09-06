@@ -121,7 +121,12 @@ function initKiosk() {
 		return raw.indexOf('/storage/') === 0 ? raw : '/storage/' + String(raw).replace(/^\/+/, '');
 	}
 
-	function playSrc(src, title) {
+	// `quiet` suppresses the success banner. An editor pushing a video from the
+	// dashboard needs the on-kiosk confirmation that their push landed; the
+	// welcome screen's idle attract loop does not — nobody triggered it, so a
+	// green "Now playing" toast over the attract video is noise aimed at a
+	// visitor who never asked for it. Failure notices still fire either way.
+	function playSrc(src, title, quiet) {
 		if (!src) {
 			return;
 		}
@@ -132,7 +137,9 @@ function initKiosk() {
 		showOverlay();
 		showLoading('Loading metadata...');
 		showStatus('Loading video metadata...');
-		showNotice(title ? ('Now playing: ' + title) : 'Video playback triggered', 'success');
+		if (!quiet) {
+			showNotice(title ? ('Now playing: ' + title) : 'Video playback triggered', 'success');
+		}
 
 		video.pause();
 		video.src = src;
@@ -180,9 +187,9 @@ function initKiosk() {
 	// reuses this overlay + playback path so we don't duplicate state
 	// machines. We also expose showStage so the caller can reveal the
 	// stage before kicking off playback.
-	window.__kioskPlaySrc = function (src, title) {
+	window.__kioskPlaySrc = function (src, title, quiet) {
 		showStage();
-		playSrc(src, title);
+		playSrc(src, title, quiet);
 	};
 	window.__kioskCloseVideo = closeVideo;
 

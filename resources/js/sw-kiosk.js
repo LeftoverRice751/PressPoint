@@ -46,7 +46,11 @@
  * surfaces (/m/archives, /m/route), which never load a kiosk page.
  */
 
-const CACHE_NAME = 'pp-kiosk-v1';
+// v2: archive pages moved from page-N.png to page-N.webp. As in
+// sw-archives.js the old entries can never be served (the URLs changed), so
+// the bump is about reclaiming their space; the shell assets it also evicts
+// are re-fetched once.
+const CACHE_NAME = 'pp-kiosk-v2';
 
 // Never touched: must be live, or is far too large to hold.
 const BYPASS_PREFIXES = [

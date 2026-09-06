@@ -14,6 +14,12 @@
   var previewPlayer = dashboardRoot.querySelector('[data-video-preview-player]');
   var previewPlaceholder = dashboardRoot.querySelector('[data-video-preview-placeholder]');
   var eventsModal = dashboardRoot.querySelector('[data-events-modal]');
+  var eventViewModal = dashboardRoot.querySelector('[data-event-view-modal]');
+  var eventViewImage = dashboardRoot.querySelector('[data-event-view-image]');
+  var eventViewTitle = dashboardRoot.querySelector('[data-event-view-title]');
+  var eventViewWhen = dashboardRoot.querySelector('[data-event-view-when]');
+  var eventViewWhere = dashboardRoot.querySelector('[data-event-view-where]');
+  var eventViewDescription = dashboardRoot.querySelector('[data-event-view-description]');
   var defaultPage = dashboardRoot.getAttribute('data-default-page') || 'dashboard';
   var openEventsModalOnLoad = dashboardRoot.getAttribute('data-open-events-modal') === 'true';
   var heroEyebrow = dashboardRoot.querySelector('[data-hero-eyebrow]');
@@ -231,6 +237,58 @@
     eventsModal.classList.remove('is-open');
   }
 
+  function openEventViewModal(row) {
+    if (!eventViewModal || !row) {
+      return;
+    }
+
+    if (eventViewTitle) {
+      eventViewTitle.textContent = row.getAttribute('data-event-title') || '';
+    }
+    if (eventViewWhen) {
+      eventViewWhen.textContent = row.getAttribute('data-event-when') || 'Not set';
+    }
+    if (eventViewWhere) {
+      eventViewWhere.textContent = row.getAttribute('data-event-where') || 'Unassigned';
+    }
+    if (eventViewDescription) {
+      eventViewDescription.textContent = row.getAttribute('data-event-description') || '';
+    }
+
+    var imageSrc = row.getAttribute('data-event-image') || '';
+    if (eventViewImage) {
+      if (imageSrc) {
+        eventViewImage.src = imageSrc;
+        eventViewImage.hidden = false;
+      } else {
+        eventViewImage.removeAttribute('src');
+        eventViewImage.hidden = true;
+      }
+    }
+
+    if (typeof eventViewModal.showModal === 'function') {
+      eventViewModal.showModal();
+      return;
+    }
+
+    eventViewModal.hidden = false;
+    eventViewModal.classList.add('is-open');
+  }
+
+  function closeEventViewModal() {
+    if (!eventViewModal) {
+      return;
+    }
+
+    if (typeof eventViewModal.close === 'function') {
+      eventViewModal.close();
+      return;
+    }
+
+    eventViewModal.hidden = true;
+    eventViewModal.classList.remove('is-open');
+  }
+
   function getHeroValue(panel, attribute, fallback) {
     if (!panel || !panel.hasAttribute(attribute)) {
       return fallback;
@@ -308,6 +366,19 @@
     if (eventsModalClose && dashboardRoot.contains(eventsModalClose)) {
       event.preventDefault();
       closeEventsModal();
+      return;
+    }
+
+    var eventViewModalClose = event.target.closest('[data-event-view-modal-close]');
+    if (eventViewModalClose && dashboardRoot.contains(eventViewModalClose)) {
+      event.preventDefault();
+      closeEventViewModal();
+      return;
+    }
+
+    var eventViewRow = event.target.closest('[data-event-view-row]');
+    if (eventViewRow && dashboardRoot.contains(eventViewRow)) {
+      openEventViewModal(eventViewRow);
       return;
     }
 
@@ -479,6 +550,162 @@
     });
   }
 
+  if (eventViewModal) {
+    eventViewModal.addEventListener('click', function (event) {
+      if (event.target === eventViewModal) {
+        closeEventViewModal();
+      }
+    });
+  }
+
+  dashboardRoot.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    var row = event.target.closest('[data-event-view-row]');
+    if (row && dashboardRoot.contains(row)) {
+      event.preventDefault();
+      openEventViewModal(row);
+    }
+  });
+
+  // Event image drop zone. Preview and validation only -- the server re-checks
+  // the bytes with libmagic (ImageUploads.save_uploaded_image), so nothing here
+  // is a security boundary; it exists so an editor is not told about a 5 MB
+  // file only after the upload finishes.
+  var EVENT_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+  var EVENT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+  var eventImageInput = dashboardRoot.querySelector('[data-event-image-input]');
+  var eventImageDrop = dashboardRoot.querySelector('[data-event-image-drop]');
+  var eventImagePreview = dashboardRoot.querySelector('[data-event-image-preview]');
+  var eventImageThumb = dashboardRoot.querySelector('[data-event-image-thumb]');
+  var eventImageName = dashboardRoot.querySelector('[data-event-image-name]');
+  var eventImageSize = dashboardRoot.querySelector('[data-event-image-size]');
+  var eventImageError = dashboardRoot.querySelector('[data-event-image-error]');
+  var eventImageRemove = dashboardRoot.querySelector('[data-event-image-remove]');
+
+  function formatFileSize(bytes) {
+    if (bytes < 1024) {
+      return bytes + ' B';
+    }
+    if (bytes < 1024 * 1024) {
+      return (bytes / 1024).toFixed(0) + ' KB';
+    }
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function showEventImageError(message) {
+    if (!eventImageError) {
+      return;
+    }
+    eventImageError.textContent = message;
+    eventImageError.hidden = !message;
+  }
+
+  function clearEventImage() {
+    if (eventImageInput) {
+      eventImageInput.value = '';
+    }
+    if (eventImageThumb) {
+      // Release the object URL: without this every re-pick leaks a blob for
+      // the lifetime of the page.
+      if (eventImageThumb.src.indexOf('blob:') === 0) {
+        URL.revokeObjectURL(eventImageThumb.src);
+      }
+      eventImageThumb.removeAttribute('src');
+    }
+    if (eventImagePreview) {
+      eventImagePreview.hidden = true;
+    }
+    showEventImageError('');
+  }
+
+  function applyEventImage(file) {
+    showEventImageError('');
+
+    if (!file) {
+      clearEventImage();
+      return;
+    }
+
+    if (EVENT_IMAGE_TYPES.indexOf(file.type) === -1) {
+      clearEventImage();
+      showEventImageError('Choose a JPEG, PNG, or WEBP image.');
+      return;
+    }
+
+    if (file.size > EVENT_IMAGE_MAX_BYTES) {
+      clearEventImage();
+      showEventImageError('Image must be 4 MB or smaller.');
+      return;
+    }
+
+    if (eventImageThumb) {
+      if (eventImageThumb.src.indexOf('blob:') === 0) {
+        URL.revokeObjectURL(eventImageThumb.src);
+      }
+      eventImageThumb.src = URL.createObjectURL(file);
+    }
+    if (eventImageName) {
+      eventImageName.textContent = file.name;
+    }
+    if (eventImageSize) {
+      eventImageSize.textContent = formatFileSize(file.size);
+    }
+    if (eventImagePreview) {
+      eventImagePreview.hidden = false;
+    }
+  }
+
+  if (eventImageInput) {
+    eventImageInput.addEventListener('change', function () {
+      applyEventImage(eventImageInput.files && eventImageInput.files[0]);
+    });
+  }
+
+  if (eventImageRemove) {
+    eventImageRemove.addEventListener('click', function (event) {
+      // The remove button sits inside the field, not inside the drop label,
+      // but stop the click anyway so it can never reopen the file picker.
+      event.preventDefault();
+      event.stopPropagation();
+      clearEventImage();
+    });
+  }
+
+  if (eventImageDrop) {
+    ['dragenter', 'dragover'].forEach(function (name) {
+      eventImageDrop.addEventListener(name, function (event) {
+        event.preventDefault();
+        eventImageDrop.classList.add('image-drop--dragging');
+      });
+    });
+
+    ['dragleave', 'dragend', 'drop'].forEach(function (name) {
+      eventImageDrop.addEventListener(name, function () {
+        eventImageDrop.classList.remove('image-drop--dragging');
+      });
+    });
+
+    eventImageDrop.addEventListener('drop', function (event) {
+      event.preventDefault();
+      var dropped = event.dataTransfer && event.dataTransfer.files;
+      if (!dropped || !dropped.length) {
+        return;
+      }
+
+      // Assigning the DataTransfer's own FileList is what makes the dropped
+      // file part of the form submission; there is no way to set input.files
+      // from a bare File.
+      if (eventImageInput) {
+        eventImageInput.files = dropped;
+      }
+      applyEventImage(dropped[0]);
+    });
+  }
+
   // Events save posts JSON and refreshes the table in place. The form keeps its
   // real action, so it still submits normally if this script never runs.
   var eventsForm = dashboardRoot.querySelector('[data-events-form]');
@@ -517,6 +744,10 @@
           }
 
           eventsForm.reset();
+          // reset() empties the file input but leaves the preview we built
+          // from it on screen, so the next Add Event opens showing the last
+          // event's poster.
+          clearEventImage();
           closeEventsModal();
           notify('Event saved.');
 

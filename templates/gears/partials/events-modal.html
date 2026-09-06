@@ -13,10 +13,15 @@
             <h3 class="article-modal__title">Add Event</h3>
             <p class="article-modal__subtitle">Create an event with a title, description, date, and location.</p>
           </div>
-          <button type="button" class="article-modal__close" data-events-modal-close>Close</button>
+          <button type="button" class="article-modal__close article-modal__close--icon"
+                  aria-label="Close" data-events-modal-close><span class="u-visually-hidden">Close</span></button>
         </div>
 
-        <form action="{{ route('events.store', {}, False) }}" method="POST" class="form-stack" data-events-form>
+        {# enctype matters only for the no-JS fallback: the AJAX path in
+           gears-dashboard.js posts a FormData either way, but a plain form
+           post degrades to url-encoded and drops the file with no error. #}
+        <form action="{{ route('events.store', {}, False) }}" method="POST"
+              enctype="multipart/form-data" class="form-stack" data-events-form>
           {{ csrf_field | safe }}
 
           <label class="field" for="event-title">
@@ -43,6 +48,38 @@
               {% endfor %}
             </select>
           </label>
+
+          {# Optional on purpose: archive-sourced events are created without an
+             image, so a required field here would contradict rows the table
+             already shows. Client-side limits mirror ImageUploads (4 MB, three
+             MIME types) for instant feedback only -- the server re-verifies by
+             magic bytes and is the authority. #}
+          <div class="field" data-event-image-field>
+            <span class="field__label">Event image <span class="field__hint">Optional</span></span>
+
+            <label class="image-drop" for="event-image" data-event-image-drop>
+              <input type="file" name="event_image" id="event-image"
+                     class="image-drop__input" accept="image/jpeg,image/png,image/webp"
+                     data-event-image-input>
+              <span class="image-drop__icon" aria-hidden="true"></span>
+              <span class="image-drop__text">
+                <strong class="image-drop__title">Drop an image here or click to browse</strong>
+                <span class="image-drop__meta">JPEG, PNG, or WEBP &middot; up to 4 MB</span>
+              </span>
+            </label>
+
+            <div class="image-drop__preview" data-event-image-preview hidden>
+              <img class="image-drop__thumb" alt="" data-event-image-thumb>
+              <div class="image-drop__file">
+                <span class="image-drop__filename" data-event-image-name></span>
+                <span class="image-drop__filesize" data-event-image-size></span>
+              </div>
+              <button type="button" class="image-drop__remove" aria-label="Remove image"
+                      data-event-image-remove><span class="u-visually-hidden">Remove image</span></button>
+            </div>
+
+            <p class="image-drop__error" role="alert" data-event-image-error hidden></p>
+          </div>
 
           <div class="article-modal__footer">
             <button type="button" class="ghost-button" data-events-modal-close>Cancel</button>

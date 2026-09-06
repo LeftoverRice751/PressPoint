@@ -113,6 +113,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dropdownTrigger: document.getElementById('category-trigger'),
         dropdownLabel: document.getElementById('category-trigger-label'),
         dropdownMenu: document.getElementById('category-menu'),
+        keyPins: document.getElementById('map-key-pins'),
+        keyMarks: document.getElementById('map-key-marks'),
     };
 
     if (!dom.mapEl || typeof L === 'undefined') {
@@ -838,6 +840,62 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!dom.dropdown.contains(event.target)) setDropdownOpen(false);
     });
 
+    // Suggestions are visible whenever the search text or the category filter
+    // is non-empty (see renderSuggestions' hasFilter) -- so dismissing the
+    // card means clearing both, not just hiding the element.
+    const closeSuggestions = () => {
+        setActiveCategory('all');
+        setSearchValue('');
+        hideKeyboard();
+    };
+
+    dom.suggestions.querySelectorAll('[data-suggestions-close]').forEach((btn) => {
+        btn.addEventListener('click', closeSuggestions);
+    });
+
+    // ── 10b. Map key ──────────────────────────────────────────────
+
+    // The two marks that are drawn FOR the user rather than tapped by them.
+    // They have no entry in CATEGORIES because they are not filterable —
+    // and they were the two things on the deck with nothing explaining them.
+    const KEY_MARKS = [
+        { swatch: 'here',  label: 'You are here' },
+        { swatch: 'route', label: 'Walking route' },
+    ];
+
+    // Built from CATEGORIES rather than written into the template, so adding
+    // a category adds its key row too. `all` is skipped: it is the no-filter
+    // chip, not a pin shape. The swatch element keeps the .category-chip__swatch
+    // class because the [data-cat] shape rules in the CSS are what make the
+    // key match the pins — restyling it here would let the two drift apart.
+    const buildMapKey = () => {
+        if (!dom.keyPins || !dom.keyMarks) return;
+
+        dom.keyPins.innerHTML = CATEGORIES
+            .filter((cat) => cat.id !== 'all')
+            .map((cat) => `
+                <li class="map-key__row" data-cat="${cat.id}">
+                    <span class="category-chip__swatch" aria-hidden="true"></span>
+                    <span class="map-key__label">${escapeHtml(cat.label)}</span>
+                </li>
+            `).join('');
+
+        dom.keyMarks.innerHTML = KEY_MARKS.map((mark) => `
+            <li class="map-key__row">
+                <span class="map-key__swatch map-key__swatch--${mark.swatch}"
+                      aria-hidden="true"></span>
+                <span class="map-key__label">${escapeHtml(mark.label)}</span>
+            </li>
+        `).join('');
+
+        // The route line's colour lives in routeStyle, not in the stylesheet,
+        // so it is pushed onto the swatch here. Retuning the polyline then
+        // retunes its key entry; a hardcoded hex in the CSS would quietly
+        // start describing a line that no longer looks like that.
+        const routeSwatch = dom.keyMarks.querySelector('.map-key__swatch--route');
+        if (routeSwatch) routeSwatch.style.setProperty('--route-line', routeStyle.color);
+    };
+
     // ── 11. Idle reset ────────────────────────────────────────────
 
     const resetKiosk = () => {
@@ -875,5 +933,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     buildKeyboard();
     buildCategoryMenu();
+    buildMapKey();
     bumpIdleTimer();
 });

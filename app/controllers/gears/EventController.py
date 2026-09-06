@@ -8,8 +8,29 @@ from app.events.NewEvent import NewEvent
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.ArchiveServices import ArchiveServices
 from app.services.FileVerificationService import FileVerificationService
+from app.services.ImageUploads import save_uploaded_image
 from app.models.Events import Events
 from app.models.Locations import Locations
+
+
+def _uploaded_image(value):
+    """The file an editor actually attached, or None.
+
+    Two shapes have to be unwrapped. Masonite's InputBag stores a multipart
+    file as `{name: [UploadedFile]}` (a list), and `request.input()` returns
+    the "" default when the field is absent entirely.
+
+    The filename check is the part that matters: a browser submits a file input
+    the editor never touched as a real part carrying an empty filename and zero
+    bytes, so the UploadedFile is truthy. Passing that to save_uploaded_image
+    fails magic-byte verification and would reject an honest imageless submit
+    with "Upload must be a JPEG, PNG, or WEBP image."
+    """
+    if isinstance(value, list):
+        value = value[0] if value else None
+    if not value or not getattr(value, "filename", ""):
+        return None
+    return value
 
 
 class EventController(Controller):
@@ -45,11 +66,24 @@ class EventController(Controller):
 
             location_id = location.id
 
+        # The event image is optional, and it is saved last so that a submit
+        # which fails validation never leaves an orphaned file on the NAS.
+        event_image = None
+        upload = _uploaded_image(request.input("event_image"))
+        if upload is not None:
+            event_image, upload_error = save_uploaded_image(upload, "Events", "event")
+            if upload_error:
+                # Reject the whole submit rather than saving the event without
+                # the poster: a silent drop leaves the editor believing an image
+                # is attached, and the events table would disagree.
+                return _err([upload_error])
+
         created_event = Events.create(
             title=title,
             description=description,
             event_date=event_date,
             location_id=location_id,
+            event_image=event_image,
             is_archive=False,
         )
 
@@ -70,47 +104,3 @@ class EventController(Controller):
         return response.redirect(name="gears.dashboard").with_success([
             "Event saved successfully.",
         ])
-
-    def extract_from_pdf(self, request: Request, response: Response):
-        is_ajax = wants_json(request)
-
-        def _err(messages):
-            if is_ajax:
-                return json_errors(response, messages)
-            return response.back().with_errors(messages)
-
-        pdf_file = request.files("pdf_file")
-
-        if not pdf_file:
-            return _err(["Please upload a PDF file."])
-
-        if pdf_file.extension().lower() != "pdf":
-            return _err(["Only PDF files are allowed."])
-
-        if not FileVerificationService.verify_file_type(pdf_file.path, "pdf"):
-            return _err(["The uploaded file is not a valid PDF."])
-
-        archive_services = ArchiveServices()
-        extracted_data = archive_services.extract_data(pdf_file.path)
-
-        if not extracted_data.get("event_date"):
-            return _err(["The archive must contain an event date."])
-
-        try:
-            event_date = datetime.strptime(extracted_data["event_date"], "%B %d, %Y")
-        except ValueError:
-            return _err(["The archive event date could not be parsed."])
-
-        Events.create(
-            title=extracted_data["title"],
-            description=extracted_data["description"],
-            event_date=event_date,
-            location_id=None,
-            is_archive=True,
-        )
-
-        if is_ajax:
-            return json_success(response, payload={"event": extracted_data},
-                                messages=["Event extracted from the archive."])
-
-        return response.json(extracted_data)

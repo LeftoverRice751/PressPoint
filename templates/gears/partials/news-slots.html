@@ -25,7 +25,13 @@
     {% set _story_status = (news.status if news.status else 'approved') %}
     <tr class="wp-posts-table__row" data-news-library-item data-news-library-id="{{ news.id }}" data-news-library-title="{{ news.title | e }}" data-news-library-description="{{ news.description | default('', true) | e }}" data-news-library-source="{{ news.source | default('', true) | e }}" data-news-library-location="{{ news.location | default('', true) | e }}" data-news-library-layout="{{ news.layout_type | default('secondary', true) | e }}" data-news-library-status="{{ _story_status | e }}" data-news-library-priority="{{ news.priority if news.priority is not none else 0 }}" data-news-library-image="{{ news.image | default('', true) | e }}" data-news-library-dek="{{ news.dek | default('', true) | e }}" data-news-library-excerpt="{{ news.excerpt | default('', true) | e }}" data-news-library-caption="{{ news.image_caption | default('', true) | e }}" data-news-library-credit="{{ news.image_credit | default('', true) | e }}">
       <td class="wp-posts-table__title-cell">
-        <div class="wp-posts-table__title">{{ news.title }}</div>
+        {# `| striptags` here but NOT on data-news-library-title above: this is
+           a display cell in a plain table (formatting spans would render as
+           visible markup once autoescaped), whereas the attribute is read back
+           by news-dashboard.js and handed to the headline region as HTML — the
+           `| e` there is attribute escaping, and getAttribute returns the
+           original markup. #}
+        <div class="wp-posts-table__title">{{ news.title | striptags }}</div>
         <div class="wp-posts-table__excerpt">{{ news.excerpt if news.excerpt else (news.description | striptags | truncate(90) if news.description else 'No summary available.') }}</div>
         {# Row actions: WordPress reveals these on hover. Kept in the DOM
            always so they stay keyboard-reachable. #}

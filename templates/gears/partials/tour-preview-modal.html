@@ -1,0 +1,31 @@
+{#
+    Single-scene 360 preview for the Tour Mapping page, opened by clicking a
+    row's thumbnail -- see resources/js/tour-preview.js.
+
+    Deliberately NOT the kiosk tour: no hotspots, no autorotate, no scene
+    navigation. An editor is identifying one building, not touring the campus,
+    and staying out of kiosk-tour.js also keeps this away from the
+    `tour:scene-created` event that tour-charter.js listens on.
+
+    The stage stays empty until Marzipano is loaded on first open; the viewer is
+    built into it at runtime.
+#}
+    <dialog class="article-modal tour-preview-modal" data-tour-preview-modal>
+      <div class="article-modal__panel tour-preview-modal__panel">
+        {# Same close-button convention as events-view-modal.html: the glyph is
+           painted by CSS (::before) and the word is kept for screen readers,
+           because rendering both crams "✕Close" into the 2rem circle. #}
+        <button type="button" class="tour-preview-modal__close" aria-label="Close"
+                data-tour-preview-close><span class="u-visually-hidden">Close</span></button>
+
+        <h3 class="tour-preview-modal__title" data-tour-preview-title></h3>
+        <p class="tour-preview-modal__scene" data-tour-preview-scene></p>
+
+        <div class="tour-preview-modal__stage" data-tour-preview-stage></div>
+
+        <p class="tour-preview-modal__hint">Drag to look around. Scroll to zoom.</p>
+        <p class="tour-preview-modal__error" data-tour-preview-error hidden>
+          This panorama could not be loaded. The tiles may not be synced on this server.
+        </p>
+      </div>
+    </dialog>

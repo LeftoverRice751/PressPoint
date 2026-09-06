@@ -19,6 +19,8 @@
 
 import { PageFlip } from 'page-flip';
 import OpenSeadragon from 'openseadragon';
+import { computeRenderScale, maxCanvasPixels, renderKey } from './archive-render-scale.mjs';
+import { hasServerPage, serverPageUrl } from './archive-page-source.mjs';
 
 document.addEventListener('DOMContentLoaded', () => {
   const root = document.querySelector('[data-archive-shell]');
@@ -40,8 +42,63 @@ document.addEventListener('DOMContentLoaded', () => {
   const backdrop = overlay.querySelector('[data-archive-book-backdrop]');
 
   const ZOOM_DURATION = 520;
-  const MAX_DPR = 3;
   const isTouchUi = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+
+  // Canvas area this device can be trusted with. Read once: neither the RAM
+  // nor the pointer type changes mid-session. MAX_DPR now lives in
+  // archive-render-scale.mjs alongside the clamp that applies it.
+  const PIXEL_BUDGET = maxCanvasPixels({
+    deviceMemory: navigator.deviceMemory,
+    coarsePointer: isTouchUi,
+  });
+
+  // Settle delay before a resize is acted on. Re-rendering every page mid-drag
+  // would queue dozens of renders the reader never sees.
+  const RESIZE_DEBOUNCE = 200;
+
+  // Same idea for the tabloid's pinch-zoom, plus a threshold: a re-render only
+  // pays for itself once the reader has zoomed meaningfully past what the
+  // current raster holds. Below this they are looking at a bitmap magnified by
+  // less than a quarter, which is not worth a visible swap.
+  const ZOOM_RESHARPEN_DEBOUNCE = 250;
+  const ZOOM_RESHARPEN_THRESHOLD = 1.25;
+
+  /*
+   * Diagnostics for tuning the kiosk, off unless ?readerdebug is in the URL.
+   *
+   * The render math multiplies by devicePixelRatio, so a panel that reports
+   * DPR 1 when it is physically 1080p renders at half the pixels it needs and
+   * there is no way to tell from the page itself. Open the reader with
+   * ?readerdebug=1 on the actual terminal and read these numbers off the
+   * console rather than guessing at the constants.
+   */
+  /*
+   * Fetch the PDF on open rather than after the 2s deferral.
+   *
+   * Nothing sets this any more, and the reason is worth keeping. The kiosk
+   * template used to, because the server's page raster was fixed at zoom 1.8
+   * (908x1296) against a 768x1024 DPR-2 panel — visibly soft — so the terminal
+   * pulled the whole ~100 MB PDF on open purely to let pdf.js re-rasterise
+   * pages the server had already rendered. Pages are now WebP at zoom 3.0
+   * (1512x2160, and smaller on disk than the old PNGs), so there is no blur
+   * left to race: the document is fetched only if the reader pinch-zooms past
+   * what the raster holds.
+   *
+   * The branch stays so re-enabling it is a one-attribute template change.
+   */
+  const EAGER_PDF = root.hasAttribute('data-reader-eager-pdf');
+
+  const DEBUG = window.location.search.includes('readerdebug');
+  function debugLog(label, data) {
+    if (!DEBUG) return;
+    // eslint-disable-next-line no-console
+    console.log(`[archive-reader] ${label}`, {
+      dpr: window.devicePixelRatio,
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+      budgetMP: +(PIXEL_BUDGET / 1024 / 1024).toFixed(1),
+      ...data,
+    });
+  }
 
   // Rendered pages are held to a memory budget rather than a fixed page
   // count, because page weight varies hugely with content and device pixel
@@ -64,9 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // its result so the library cannot disagree (see the mount comment).
   const BOOK_TWO_PAGE_MIN_WIDTH = 640;
 
-  // Rotation/resize settle delay before the book is re-laid-out.
-  const BOOK_RESIZE_DEBOUNCE = 150;
-
   const state = {
     session: 0,          // increments per open; stale async work checks it
     dataset: null,
@@ -78,25 +132,74 @@ document.addEventListener('DOMContentLoaded', () => {
     pdfDocPromise: null,
     pageUrls: new Map(),    // page number -> blob: URL
     pageBytes: new Map(),   // page number -> encoded size, drives the budget
+    pageScale: new Map(),   // page number -> renderKey it was rendered at
     pageRenders: new Map(), // page number -> Promise<string>
-    renderOpts: { pixelCap: 5200, targetSize: { width: 1400, height: 1900 } },
+    // The box a page is rendered for, and the reader's own magnification.
+    // Every adapter sets this from its real on-screen geometry at mount and
+    // again whenever that geometry changes — see setRenderOpts.
+    renderOpts: { targetWidth: 1400, targetHeight: 1900, zoom: 1 },
+    renderKey: '',          // cache generation; a page rendered under another is stale
     cursor: 1,              // reading position; drives cache eviction
     onPageEvicted: null,    // active adapter's hook to drop its own reference
     pageUrlBase: '',        // on-demand server render route
+    pageStorageBase: '',    // direct nginx prefix for rendered pages
+    pageExtension: '.webp', // extension pageStorageBase URLs are built with
     prewarmedPages: 0,      // contiguous run of server-rendered pages from 1
+    directPages: 0,         // ...of those, how many nginx can serve by name
   };
 
-  // ── Server-rendered previews (the instant-open path) ──
-  // These are ordinary HTTP URLs to PNGs the server rasterised at upload time,
-  // NOT blob URLs. They deliberately never enter state.pageUrls/pageBytes:
-  // those maps drive URL.revokeObjectURL() and the memory budget, and putting
-  // plain URLs in them would skew residentLimit() and revoke nothing.
+  // ── Render generation ─────────────────────────────────
+  /*
+   * Resolution used to be decided once, at adapter mount, and pages were
+   * cached by page number alone. Resizing the reader (or pinch-zooming a
+   * tabloid) re-fitted the layout but re-used those bitmaps, so every page on
+   * screen was a render for the old box, CSS-upscaled into the new one. That
+   * is the "archives go blurry" report.
+   *
+   * setRenderOpts stamps a generation key onto the cache instead. A page whose
+   * stamp no longer matches is still perfectly good to *look at* — it stays on
+   * screen as the stretched stand-in while the sharp render runs — but
+   * loadPage() will no longer accept it as final. Nothing is revoked here: a
+   * blank page while re-rendering would be worse than a soft one.
+   */
+  function setRenderOpts(next) {
+    const opts = {
+      targetWidth: Math.max(1, Math.round(next.targetWidth || 0)),
+      targetHeight: Math.max(1, Math.round(next.targetHeight || 0)),
+      zoom: next.zoom || 1,
+    };
+    const key = renderKey({ ...opts, dpr: window.devicePixelRatio || 1 });
+    if (key === state.renderKey) return false;
+    state.renderOpts = opts;
+    state.renderKey = key;
+    debugLog('render generation', { key, ...opts });
+    return true;
+  }
+
+  // A cached page is only reusable if it was rendered for the geometry we are
+  // showing now. Every `state.pageUrls.has(n)` check that asks "do we already
+  // have this page?" must go through here instead.
+  function hasFresh(pageNumber) {
+    return state.pageUrls.has(pageNumber)
+      && state.pageScale.get(pageNumber) === state.renderKey;
+  }
+
+  // ── Server-rendered pages (the fast path) ──
+  // These are ordinary HTTP URLs to images the server rasterised, NOT blob
+  // URLs. They deliberately never enter state.pageUrls/pageBytes: those maps
+  // drive URL.revokeObjectURL() and the memory budget, and putting plain URLs
+  // in them would skew residentLimit() and revoke nothing.
+  //
+  // `prewarmedPages` is the whole document once an archive has been swept — it
+  // used to be capped at 20 on both the server and here, and every page past
+  // that fell through to a pdf.js render on the terminal's own CPU. The tier
+  // logic lives in archive-page-source.mjs so it can be tested.
   function hasPreview(pageNumber) {
-    return !!state.pageUrlBase && pageNumber >= 1 && pageNumber <= state.prewarmedPages;
+    return hasServerPage(state, pageNumber);
   }
 
   function previewUrl(pageNumber) {
-    return hasPreview(pageNumber) ? state.pageUrlBase + '/' + pageNumber : '';
+    return serverPageUrl(state, pageNumber);
   }
 
   // ── pdf.js pipeline (ported from the previous reader) ───
@@ -182,6 +285,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function schedulePdfWarm() {
     if (pdfWarmStarted || pdfWarmTimer) return;
     if (!hasPreview(1)) { startPdfWarm(); return; }
+    // The kiosk opts out of the deferral entirely (see EAGER_PDF): the delay
+    // exists to save a phone from downloading ~100 MB it may not read, and on
+    // the terminal it only buys two seconds of staring at a preview PNG whose
+    // resolution was fixed at upload time. That wait is the blur.
+    if (EAGER_PDF) { startPdfWarm(); return; }
     pdfWarmTimer = window.setTimeout(() => { pdfWarmTimer = null; startPdfWarm(); }, PDF_WARM_DELAY);
   }
 
@@ -291,6 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     doomed.forEach(([n, url]) => {
       state.pageUrls.delete(n);
       state.pageBytes.delete(n);
+      state.pageScale.delete(n);
       try { URL.revokeObjectURL(url); } catch (_) { /* noop */ }
       if (state.onPageEvicted) state.onPageEvicted(n);
     });
@@ -302,23 +411,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pageNumber < 1 || pageNumber > doc.numPages) return '';
 
     const page = await doc.getPage(pageNumber);
-    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-    const { pixelCap, targetSize } = state.renderOpts;
+    const { targetWidth, targetHeight, zoom } = state.renderOpts;
+    // Captured before the await below: a resize mid-render must not let a page
+    // be stamped with a generation it was not actually rendered for.
+    const key = state.renderKey;
     const baseViewport = page.getViewport({ scale: 1 });
 
-    // Fit-contain inside the adapter's target box, then upscale to device
-    // pixels; cap so we never rasterize more than the reader needs.
-    let scale = Math.min(
-      targetSize.width / baseViewport.width,
-      targetSize.height / baseViewport.height,
-    ) * dpr;
-    const maxDim = Math.max(baseViewport.width, baseViewport.height) * scale;
-    if (maxDim > pixelCap) scale *= pixelCap / maxDim;
+    // Fit-contain in the adapter's box, up to device pixels and the reader's
+    // own zoom, then clamped by canvas AREA. The old clamp bounded the longest
+    // dimension, which let a tabloid ask for ~55 megapixels — an allocation
+    // iOS refuses silently, returning a blank bitmap.
+    const fit = computeRenderScale({
+      pageWidth: baseViewport.width,
+      pageHeight: baseViewport.height,
+      targetWidth,
+      targetHeight,
+      zoom,
+      dpr: window.devicePixelRatio || 1,
+      maxPixels: PIXEL_BUDGET,
+    });
 
-    const viewport = page.getViewport({ scale });
+    const viewport = page.getViewport({ scale: fit.scale });
     const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
+    canvas.width = fit.canvasWidth;
+    canvas.height = fit.canvasHeight;
     const ctx = canvas.getContext('2d', { alpha: false });
     ctx.fillStyle = '#FBF8F1';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -329,8 +445,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const blob = await encodeCanvas(canvas);
     if (!blob) return '';
     const url = URL.createObjectURL(blob);
+    // Re-rendering a page at a new generation leaves the old blob referenced by
+    // nothing; without this every resize leaks one object URL per page.
+    // Revoked on a delay, not immediately: BookAdapter.markDirty debounces its
+    // updateFromImages swap by 600ms, so PageFlip can still be drawing from the
+    // old URL when this resolves, and a revoked URL draws as a broken image.
+    const previous = state.pageUrls.get(pageNumber);
+    if (previous && previous !== url) {
+      window.setTimeout(() => {
+        try { URL.revokeObjectURL(previous); } catch (_) { /* noop */ }
+      }, 1200);
+    }
     state.pageUrls.set(pageNumber, url);
     state.pageBytes.set(pageNumber, blob.size);
+    state.pageScale.set(pageNumber, key);
+    debugLog(`page ${pageNumber} rendered`, {
+      key,
+      canvas: `${canvas.width}x${canvas.height}`,
+      megapixels: +((canvas.width * canvas.height) / 1024 / 1024).toFixed(1),
+      clampedBy: fit.clampedBy,
+      cssBox: `${targetWidth}x${targetHeight}`,
+      kb: Math.round(blob.size / 1024),
+    });
     return url;
   }
 
@@ -338,7 +474,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!pageNumber || pageNumber < 1 || (state.pageCount && pageNumber > state.pageCount)) {
       return Promise.resolve('');
     }
-    if (state.pageUrls.has(pageNumber)) {
+    // Only a page rendered for the geometry we are showing now counts as a
+    // hit. A stale-generation blob stays on screen (the adapters keep painting
+    // it) but must not short-circuit the sharp re-render.
+    if (hasFresh(pageNumber)) {
       return Promise.resolve(state.pageUrls.get(pageNumber));
     }
     if (state.pageRenders.has(pageNumber)) {
@@ -366,6 +505,8 @@ document.addEventListener('DOMContentLoaded', () => {
     state.pageUrls.clear();
     state.pageRenders.clear();
     state.pageBytes.clear();
+    state.pageScale.clear();
+    state.renderKey = '';
     state.cursor = 1;
     resetPdfWarm();
     if (state.pdfDoc) {
@@ -572,13 +713,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const { pageW, pageH, columns } = this.fitSpread(mountRect, aspect);
 
-      state.renderOpts = {
-        pixelCap: 5200,
-        targetSize: {
-          width: Math.round(pageW * OVERSAMPLE),
-          height: Math.round(pageH * OVERSAMPLE),
-        },
-      };
+      setRenderOpts({
+        targetWidth: pageW * OVERSAMPLE,
+        targetHeight: pageH * OVERSAMPLE,
+      });
 
       // Cached once: eviction re-uses it for every page it drops.
       this.blank = this.placeholder();
@@ -636,7 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.resizeTimer = window.setTimeout(() => {
           this.resizeTimer = null;
           this.relayout(container, aspect, session);
-        }, BOOK_RESIZE_DEBOUNCE);
+        }, RESIZE_DEBOUNCE);
       };
       window.addEventListener('resize', this.onResize);
 
@@ -663,6 +801,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const fit = this.fitSpread(mountRect, aspect);
       const page = this.flip.getCurrentPageIndex();
+
+      // The book used to be re-fitted here without re-rendering, so after a
+      // resize every page was a bitmap rasterised for the old spread, scaled
+      // into the new one. Re-stamp the generation from the geometry we are
+      // actually about to draw; runQueue below then re-renders what is near
+      // the reader, and markDirty swaps each in once the book is at rest.
+      const rescaled = setRenderOpts({
+        targetWidth: fit.pageW * OVERSAMPLE,
+        targetHeight: fit.pageH * OVERSAMPLE,
+      });
 
       if (fit.columns !== this.columns) {
         const host = document.createElement('div');
@@ -693,6 +841,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try { this.flip.turnToPage(page); } catch (_) { /* noop */ }
       }
       this.syncNav();
+      if (rescaled) this.runQueue(session);
     },
 
     // The document finished loading after the previews were already up: start
@@ -731,7 +880,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const lo = Math.max(1, this.cursor - radius);
         const hi = Math.min(total, this.cursor + radius);
         for (let n = lo; n <= hi; n += 1) {
-          if (state.pageUrls.has(n) || failed.has(n)) continue;
+          if (hasFresh(n) || failed.has(n)) continue;
           const dist = Math.abs(n - this.cursor);
           if (dist < bestDist) { best = n; bestDist = dist; }
         }
@@ -814,13 +963,56 @@ document.addEventListener('DOMContentLoaded', () => {
     name: 'zoom',
     viewer: null,
     page: 1,
+    container: null,
+    onZoom: null,
+    zoomTimer: null,
+    renderedZoom: 1, // magnification the current raster was rendered for
+
+    /*
+     * The magnification to render for, as a multiple of fit-to-page.
+     *
+     * Expressed relative to getHomeZoom() rather than read off getZoom()
+     * directly. OSD's raw zoom is in viewport units whose scale depends on the
+     * tile source — for these single-image sources it reads ~0.0018 at fit, and
+     * feeding that number to the renderer produced a page rendered at 39x28
+     * pixels. Home zoom is by definition the zoom at which the page fits, so
+     * their ratio is magnification in any units OSD chooses.
+     *
+     * getZoom() without an argument returns the value the viewport is settling
+     * on; getZoom(true) returns it mid-animation, which is how the spring got
+     * caught halfway in the first place. Floored at 1: below fit we are
+     * downscaling, which is already sharp.
+     */
+    zoomTarget() {
+      if (!this.viewer) return 1;
+      try {
+        const zoom = this.viewer.viewport.getZoom();
+        const home = this.viewer.viewport.getHomeZoom();
+        if (!Number.isFinite(zoom) || !Number.isFinite(home) || home <= 0) return 1;
+        return Math.max(1, zoom / home);
+      } catch (_) {
+        return 1;
+      }
+    },
+
+    // The box the page is drawn into, for setRenderOpts.
+    box() {
+      const el = this.container;
+      return {
+        targetWidth: Math.max(320, (el && el.clientWidth) || 1024),
+        targetHeight: Math.max(320, (el && el.clientHeight) || 1024),
+      };
+    },
 
     async mount(container) {
       const session = state.session;
-      state.renderOpts = {
-        pixelCap: 6000,
-        targetSize: { width: 6000, height: 6000 },
-      };
+      this.container = container;
+      // Start at fit-to-page and let the zoom handler below raise it. The old
+      // fixed 6000x6000 request was ~55 megapixels on an 11x17 broadsheet —
+      // over every mobile canvas limit, and still not sharp once pinched past
+      // it, because the raster never changed no matter how far you zoomed.
+      this.renderedZoom = 1;
+      setRenderOpts({ ...this.box(), zoom: 1 });
       state.cursor = 1;
       // OSD holds at most three pages, so the cache never reaches the trim
       // threshold here — but make sure no previous adapter's hook survives.
@@ -845,7 +1037,13 @@ document.addEventListener('DOMContentLoaded', () => {
         visibilityRatio: 1,
         constrainDuringPan: true,
         minZoomImageRatio: 0.9,
-        maxZoomPixelRatio: 2.5,
+        // Deliberately generous now. This is the ceiling on how far OSD will
+        // let you zoom relative to the raster it currently holds; it used to be
+        // the only thing standing between the reader and an obviously
+        // upscaled bitmap, because the raster never changed. The zoom handler
+        // below now re-renders from the PDF as you go in, so a low ceiling
+        // would only stop you reaching the detail we can actually supply.
+        maxZoomPixelRatio: 8,
         animationTime: 0.9,
         gestureSettingsTouch: {
           pinchToZoom: true,
@@ -867,10 +1065,59 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ev.quick) toggleChrome();
       });
 
+      // Pinching in used to magnify a flat bitmap and nothing else — the one
+      // place in the reader where zooming could only ever make things blurrier.
+      this.onZoom = () => {
+        if (this.zoomTimer) window.clearTimeout(this.zoomTimer);
+        this.zoomTimer = window.setTimeout(() => {
+          this.zoomTimer = null;
+          this.resharpen(session);
+        }, ZOOM_RESHARPEN_DEBOUNCE);
+      };
+      this.viewer.addHandler('zoom', this.onZoom);
+      this.viewer.addHandler('resize', this.onZoom);
+
       this.syncNav();
       setPager(`PAGES — 1 / ${state.pageCount}`);
       schedulePdfWarm();
       loadPage(2); // warm the next page (no-op until the document is loaded)
+    },
+
+    /*
+     * Re-render the current page for the magnification now on screen.
+     *
+     * OSD's viewport zoom is in viewport units — the image spans 1.0 whatever
+     * its pixel size — so the value survives an open() with a different raster,
+     * which is what makes swapping in a sharper one seamless.
+     *
+     * Only ever renders *up*: a reader who zooms out is looking at a downscaled
+     * bitmap, which is sharp, and re-rendering smaller would trade nothing for
+     * a visible flicker.
+     */
+    resharpen(session) {
+      if (session !== state.session || !this.viewer || !this.container) return;
+      const zoom = this.zoomTarget();
+      if (zoom <= this.renderedZoom * ZOOM_RESHARPEN_THRESHOLD) return;
+      // Nothing to re-render from until the document has arrived; onPdfReady
+      // calls back here once it has.
+      if (!state.pdfDoc) { schedulePdfWarm(); return; }
+
+      this.renderedZoom = zoom;
+      const target = this.page;
+      const changed = setRenderOpts({ ...this.box(), zoom });
+      if (!changed) return;
+
+      // Hold the reader's place: viewer.open() resets the viewport to
+      // fit-page, which would throw away exactly the position they zoomed to.
+      const bounds = this.viewer.viewport.getBounds();
+      loadPage(target).then((url) => {
+        if (session !== state.session || !this.viewer) return;
+        if (this.page !== target || !url) return;
+        this.viewer.addOnceHandler('open', () => {
+          try { this.viewer.viewport.fitBounds(bounds, true); } catch (_) { /* noop */ }
+        });
+        this.viewer.open({ type: 'image', url });
+      });
     },
 
     // Replace the preview this opened with once the sharp render exists —
@@ -879,9 +1126,18 @@ document.addEventListener('DOMContentLoaded', () => {
     onPdfReady(session) {
       if (session !== state.session || !this.viewer) return;
       const target = this.page;
+      // The reader may already have pinched in while the preview was up, so
+      // render for where they are now, not for fit-page.
+      const bounds = this.viewer.viewport.getBounds();
+      const zoom = this.zoomTarget();
+      this.renderedZoom = zoom;
+      setRenderOpts({ ...this.box(), zoom });
       loadPage(target).then((url) => {
         if (session !== state.session || !this.viewer) return;
         if (this.page !== target || !url) return;
+        this.viewer.addOnceHandler('open', () => {
+          try { this.viewer.viewport.fitBounds(bounds, true); } catch (_) { /* noop */ }
+        });
         this.viewer.open({ type: 'image', url });
       });
     },
@@ -896,6 +1152,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!this.viewer || target === this.page) return;
       const session = state.session;
 
+      // A new page opens at fit-to-page, so drop back to fit-page resolution
+      // first. Without this, paging on from a deeply-zoomed spread renders the
+      // next page — and the neighbours warmed at the bottom of this method —
+      // at the old magnification: many times the pixels the reader can see,
+      // straight into the area cap.
+      this.renderedZoom = 1;
+      setRenderOpts({ ...this.box(), zoom: 1 });
+
       // Prefer an already-rendered page, else the preview, else wait on the
       // render. Only the last case is worth a loader.
       let url = state.pageUrls.get(target) || previewUrl(target);
@@ -909,8 +1173,9 @@ document.addEventListener('DOMContentLoaded', () => {
       this.page = target;
       noteReadingProgress(target);
       this.viewer.open({ type: 'image', url });
-      // If that was a preview, upgrade it as soon as a render is available.
-      if (!state.pageUrls.has(target)) this.onPdfReady(session);
+      // If that was a preview or a page rendered for another magnification,
+      // upgrade it as soon as a render is available.
+      if (!hasFresh(target)) this.onPdfReady(session);
       this.syncNav();
       setPager(`PAGES — ${target} / ${state.pageCount}`);
       loadPage(target + 1);
@@ -921,10 +1186,19 @@ document.addEventListener('DOMContentLoaded', () => {
     prev() { this.goTo(this.page - 1); },
 
     unmount(container) {
+      if (this.zoomTimer) {
+        window.clearTimeout(this.zoomTimer);
+        this.zoomTimer = null;
+      }
       if (this.viewer) {
+        // destroy() drops OSD's own handlers with it; the reference is cleared
+        // so a debounced resharpen that already fired finds nothing to do.
         try { this.viewer.destroy(); } catch (_) { /* noop */ }
         this.viewer = null;
       }
+      this.onZoom = null;
+      this.container = null;
+      this.renderedZoom = 1;
       this.page = 1;
       if (navBlock) navBlock.hidden = true;
       container.innerHTML = '';
@@ -941,6 +1215,8 @@ document.addEventListener('DOMContentLoaded', () => {
     scroller: null,
     pages: [],
     onScroll: null,
+    onResize: null,
+    resizeTimer: null,
 
     async mount(container) {
       const session = state.session;
@@ -971,16 +1247,19 @@ document.addEventListener('DOMContentLoaded', () => {
       container.appendChild(scroller);
       this.scroller = scroller;
 
-      const boxWidth = Math.max(320, Math.round(scroller.clientWidth || container.clientWidth));
-      state.renderOpts = {
-        pixelCap: 5200,
-        targetSize: {
-          // Oversample the real on-screen width so the downscale into the box
-          // lands on crisp glyph edges rather than soft ones.
-          width: Math.round(boxWidth * OVERSAMPLE),
-          height: 6000, // width-constrained fit; height rarely binds
-        },
-      };
+      // Oversample the real on-screen width so the downscale into the box
+      // lands on crisp glyph edges rather than soft ones.
+      const measure = () => Math.max(
+        320,
+        Math.round(scroller.clientWidth || container.clientWidth),
+      );
+      const applyBox = () => setRenderOpts({
+        targetWidth: measure() * OVERSAMPLE,
+        // Width-constrained fit; the height bound rarely binds, and the area
+        // cap in computeRenderScale is what actually protects memory now.
+        targetHeight: 20000,
+      });
+      applyBox();
 
       state.cursor = 1;
       // Pages showing a server preview rather than a sharp render. Tracked so
@@ -1002,6 +1281,11 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         img.src = url;
         const n = parseInt(holder.dataset.page || '', 10);
+        // Marks a page that is showing the server's fixed-resolution preview
+        // rather than a render for this screen. The CSS turns it into a quiet
+        // "sharpening" hint, so a soft page reads as in-progress instead of
+        // as the finished article.
+        holder.classList.toggle('is-preview', !!isPreview);
         if (isPreview) this.previewOnly.add(n); else this.previewOnly.delete(n);
       };
 
@@ -1016,7 +1300,9 @@ document.addEventListener('DOMContentLoaded', () => {
           // The page may have been evicted between render and paint (the
           // reader scrolled on); its URL is revoked, so painting it would
           // show a broken image. onPageEvicted has already re-observed it.
-          if (!state.pageUrls.has(n)) return;
+          // Comparing the URL rather than just the key also catches a render
+          // that a later, sharper one has already superseded.
+          if (state.pageUrls.get(n) !== url) return;
           paint(holder, url, false);
         });
       };
@@ -1059,6 +1345,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       };
       scroller.addEventListener('scroll', this.onScroll, { passive: true });
+
+      /*
+       * This adapter had no resize handling at all: a newsletter rendered for a
+       * narrow column stayed at that resolution when the window grew or a phone
+       * was rotated, and the browser simply stretched it. Re-stamp the
+       * generation from the new column width and put every page back under
+       * observation — the IntersectionObserver, not a loop, then decides which
+       * are actually near the reader and worth re-rendering.
+       */
+      this.onResize = () => {
+        if (this.resizeTimer) window.clearTimeout(this.resizeTimer);
+        this.resizeTimer = window.setTimeout(() => {
+          this.resizeTimer = null;
+          if (session !== state.session || !this.io) return;
+          if (!applyBox()) return;
+          this.pages.forEach((holder) => this.io.observe(holder));
+        }, RESIZE_DEBOUNCE);
+      };
+      window.addEventListener('resize', this.onResize);
 
       makeTapDetector(scroller, { onTap: toggleChrome });
       setPager(`PAGES — 1 / ${state.pageCount}`);
@@ -1121,6 +1426,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (this.scroller && this.onScroll) {
         this.scroller.removeEventListener('scroll', this.onScroll);
       }
+      if (this.resizeTimer) {
+        window.clearTimeout(this.resizeTimer);
+        this.resizeTimer = null;
+      }
+      if (this.onResize) {
+        window.removeEventListener('resize', this.onResize);
+        this.onResize = null;
+      }
       this.scroller = null;
       this.onScroll = null;
       this.pages = [];
@@ -1176,6 +1489,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // PDF has been fetched at all. 0 means nothing is prewarmed — the reader
     // then behaves as it always did and loads the document immediately.
     state.pageUrlBase = state.dataset.pageUrlBase || '';
+    state.pageStorageBase = state.dataset.pageStorageBase || '';
+    state.pageExtension = state.dataset.pageExtension || '.webp';
+    state.directPages = parseInt(state.dataset.directPages || '0', 10) || 0;
     state.prewarmedPages = parseInt(state.dataset.prewarmedPages || '0', 10) || 0;
     state.originRect = detail.originRect || null;
     clearAllPages();
@@ -1304,5 +1620,13 @@ document.addEventListener('DOMContentLoaded', () => {
     window.requestIdleCallback(warmPdfjs, { timeout: 2000 });
   } else {
     window.setTimeout(warmPdfjs, 800);
+  }
+
+  // Diagnostic handle, ?readerdebug only. OpenSeadragon keeps no registry of
+  // its viewers, so without this there is no way to drive the tabloid's zoom
+  // from outside — which is exactly the path that needs checking on a real
+  // terminal, and the one that hid a render at 39x28 pixels.
+  if (DEBUG) {
+    window.__archiveReader = { state, adapters: { BookAdapter, DeepZoomAdapter, ScrollAdapter } };
   }
 });

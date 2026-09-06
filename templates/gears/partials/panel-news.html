@@ -90,9 +90,16 @@
                `ql-font`/`ql-size` option values MUST stay in step with
                FONTS/SIZES there, which in turn track NEWSLETTER_FONTS in
                NewsController. -->
-          <div class="news-canvas-toolbar" data-news-body-toolbar-bar hidden>
+          {# `data-news-target` is set by news-dashboard.js to the region the
+             editor is currently on (title / excerpt / body). CSS hides the
+             format groups marked data-news-format="rich" while the target is
+             the headline — a headline containing an <h2> or a bulleted list
+             would wreck the newspaper typography. Hiding is only the
+             affordance; the real limit is the per-target `formats` whitelist
+             passed to Quill, which is what a paste has to get past. #}
+          <div class="news-canvas-toolbar" data-news-body-toolbar-bar data-news-target="body" hidden>
             <div class="news-canvas-toolbar__quill" data-news-body-toolbar>
-              <span class="ql-formats">
+              <span class="ql-formats" data-news-format="rich">
                 <select class="ql-header">
                   <option value="2"></option>
                   <option value="3"></option>
@@ -124,20 +131,22 @@
                 <button type="button" class="ql-italic"></button>
                 <button type="button" class="ql-underline"></button>
               </span>
-              <span class="ql-formats">
+              <span class="ql-formats" data-news-format="rich">
                 <button type="button" class="ql-list" value="ordered"></button>
                 <button type="button" class="ql-list" value="bullet"></button>
                 <select class="ql-align"></select>
               </span>
               <span class="ql-formats">
-                <button type="button" class="ql-blockquote"></button>
-                <button type="button" class="ql-link"></button>
+                <span data-news-format="rich">
+                  <button type="button" class="ql-blockquote"></button>
+                  <button type="button" class="ql-link"></button>
+                </span>
                 <button type="button" class="ql-clean"></button>
               </span>
             </div>
             <div class="news-canvas-toolbar__actions">
               <span class="news-canvas-toolbar__label" data-news-body-label></span>
-              <button type="button" class="primary-button" data-news-body-save>Save Body</button>
+              <button type="button" class="primary-button" data-news-body-save>Save</button>
             </div>
           </div>
 
@@ -195,29 +204,16 @@
             </div>
           </div>
 
-          {# One font for this story's headline and dek. It is a dropdown, not
-             rich text, because the headline/dek/kicker columns are rendered
-             ESCAPED — only the body carries `| safe`. Storing a slug and
-             emitting it as a `story-font-<slug>` class keeps those columns
-             plain text, so this adds no new HTML sink. The values must match
-             NEWSLETTER_FONTS in NewsController; anything else normalises back
-             to the brand face on save. Body copy is unaffected — fonts inside
-             the story are set per-run in the body editor. #}
-          <div class="news-prop-section">
-            <div class="news-prop-section__label">Headline font</div>
-            <select class="field__input field__input--select" data-news-prop="headline_font"
-                    aria-label="Headline font for this story">
-              <option value="">Brand (default)</option>
-              <option value="playfair">Playfair Display</option>
-              <option value="lora">Lora</option>
-              <option value="tinos">Tinos</option>
-              <option value="archivo-black">Archivo Black</option>
-              <option value="bebas">Bebas Neue</option>
-              <option value="alfa-slab">Alfa Slab One</option>
-              <option value="space-grotesk">Space Grotesk</option>
-              <option value="caveat">Caveat</option>
-            </select>
-          </div>
+          {# The "Headline font" dropdown that used to sit here is gone: the
+             headline is edited in Quill now, so its font is chosen with the
+             same control as every other run of text instead of a second,
+             separate mechanism in this panel.
+
+             The `headline_font` COLUMN and the `story-font-<slug>` class it
+             renders both survive — stories published before this change keep
+             the face they were given. news-dashboard.js now derives the hidden
+             headline_font field from whatever font Quill applied, so that
+             render path keeps working without an editor-side control. #}
 
           <!-- WordPress-style Publish box: status on the left, the two ways
                out of the screen on the right. -->

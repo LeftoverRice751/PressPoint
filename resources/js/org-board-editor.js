@@ -33,6 +33,8 @@
   var edges = root.querySelector('[data-ob-edges]');
   var cardLayer = root.querySelector('[data-ob-cards]');
   var emptyState = root.querySelector('[data-ob-empty]');
+  var frame = root.querySelector('[data-ob-frame]');
+  var fitReadout = root.querySelector('[data-ob-fit-readout]');
   var organizationSelect = root.querySelector('[data-ob-organization]');
 
   var memberModal = section.querySelector('[data-ob-member-modal]');
@@ -240,6 +242,8 @@
 
     renderEdges(size, metrics);
     positionCards(built.elements);
+    renderFrame();
+    updateFitReadout();
 
     if (emptyState) {
       emptyState.hidden = state.placed.length > 0;
@@ -373,6 +377,65 @@
     });
   }
 
+  /* ---- the kiosk frame -------------------------------------------------
+   *
+   * This canvas is a wide desktop strip; the kiosk is a 768x1024 portrait panel
+   * that scales a chart to fit with no scrolling and no zoom. An arrangement
+   * that felt roomy here therefore came out ~2.8:1 landscape and had to be
+   * shrunk to ~0.46 on the kiosk -- names at 6px. Drawing the kiosk's own shape
+   * behind the cards is what lets an editor see that before a visitor does.
+   */
+
+  function renderFrame() {
+    if (!frame) return;
+    frame.style.width = window.OrgChart.KIOSK_FRAME.width + 'px';
+    frame.style.height = window.OrgChart.KIOSK_FRAME.height + 'px';
+  }
+
+  /** The scale the kiosk will render this arrangement at. */
+  function kioskScale(box) {
+    return Math.min(
+      window.OrgChart.KIOSK_FRAME.width / Math.max(box.width, 1),
+      window.OrgChart.KIOSK_FRAME.height / Math.max(box.height, 1),
+      1
+    );
+  }
+
+  /**
+   * Report the kiosk fit, and mark the cards that are costing it.
+   *
+   * A count alone would say the board is too wide without saying which card to
+   * move, so the offenders are outlined as well.
+   */
+  function updateFitReadout() {
+    if (!fitReadout) return;
+
+    if (!state.placed.length) {
+      fitReadout.textContent = '';
+      return;
+    }
+
+    var frameBox = window.OrgChart.KIOSK_FRAME;
+    var outside = 0;
+
+    state.placed.forEach(function (item) {
+      var card = state.elements && state.elements[String(item.id)];
+      var escapes = item.x < 0 || item.y < 0
+        || item.x + (item.w || METRICS.cardWidth) > frameBox.width
+        || item.y + (item.h || METRICS.cardHeight) > frameBox.height;
+      if (escapes) outside += 1;
+      if (card) card.classList.toggle('is-outside-frame', escapes);
+    });
+
+    var scale = kioskScale(window.OrgChart.bounds(state.placed, state.metrics || METRICS, 0));
+    var percent = Math.round(scale * 100);
+
+    fitReadout.classList.toggle('is-tight', outside > 0);
+    fitReadout.textContent = outside
+      ? 'Kiosk size ' + percent + '% \u2014 ' + outside + (outside === 1 ? ' card' : ' cards') + ' outside the screen'
+      : 'Kiosk size ' + percent + '% \u2713';
+  }
+
   function applyTransform() {
     stage.style.transform = 'translate(' + state.offsetX + 'px, ' + state.offsetY + 'px) scale(' + state.scale + ')';
   }
@@ -383,6 +446,19 @@
     // not centred around a corner of empty grid. It is only the pan offset
     // that leans on it; card coordinates stay absolute.
     var box = window.OrgChart.bounds(state.placed, state.metrics || METRICS);
+
+    // Frame the kiosk rectangle as well as the cards, so "Fit" always shows the
+    // target an editor is arranging against -- including on an empty board,
+    // where the cards alone would zoom the canvas into a corner of blank grid.
+    box = {
+      minX: Math.min(box.minX, 0),
+      minY: Math.min(box.minY, 0),
+      maxX: Math.max(box.maxX, window.OrgChart.KIOSK_FRAME.width),
+      maxY: Math.max(box.maxY, window.OrgChart.KIOSK_FRAME.height)
+    };
+    box.width = box.maxX - box.minX;
+    box.height = box.maxY - box.minY;
+
     var viewWidth = canvas.clientWidth || 1;
     var viewHeight = canvas.clientHeight || 1;
 
@@ -569,6 +645,7 @@
     stage.style.width = size.width + 'px';
     stage.style.height = size.height + 'px';
     renderEdges(size, state.metrics || METRICS);
+    updateFitReadout();
   }
 
   function finishDrag(event) {
@@ -596,7 +673,8 @@
 
     suppressClick = true;
 
-    var target = dropTargetAt(event);
+    // The local `drag`, not state.drag — that was cleared above.
+    var target = dropTargetAt(event, drag);
     clearDragChrome();
 
     if (target && isBlockedTarget(drag.memberId, target)) {
@@ -649,9 +727,18 @@
     });
   }
 
-  /** The card under the pointer, ignoring the ones being dragged. */
-  function dropTargetAt(event) {
-    var drag = state.drag;
+  /**
+   * The card under the pointer, ignoring the ones being dragged.
+   *
+   * The drag is a PARAMETER, deliberately: this used to read `state.drag`, and
+   * finishDrag clears that before it gets here. The exclusion set was therefore
+   * empty at drop time, so the card under the pointer — the one being dragged,
+   * which has no `pointer-events: none` — came back as the drop target. A
+   * member is always inside its own subtree, so isBlockedTarget then refused
+   * every single drag with "cannot report to one of its own subordinates" and
+   * the position was never saved. Never reach for state.drag in here.
+   */
+  function dropTargetAt(event, drag) {
     var moving = {};
     (drag ? drag.items : []).forEach(function (moved) {
       moving[String(moved.id)] = true;
@@ -672,7 +759,7 @@
 
   function highlightDropTarget(event) {
     clearDropTargets();
-    var targetId = dropTargetAt(event);
+    var targetId = dropTargetAt(event, state.drag);
     if (!targetId) {
       canvas.classList.add('is-drop-canvas');
       return;
@@ -808,9 +895,15 @@
    * Free placement needs every card to own its coordinates, but writing a
    * migration to seed them is not possible: cards are content-sized, so their
    * real geometry only exists once they have been measured in a browser. The
-   * first editor to open a board therefore saves exactly what the tidy-tree
-   * pass just produced — the board looks unchanged, and from then on every
-   * card is free to move.
+   * first editor to open a board therefore saves what a layout pass just
+   * produced, and from then on every card is free to move.
+   *
+   * That pass is bounded to the kiosk frame rather than the unbounded tidy tree
+   * the canvas itself renders. Eight siblings laid out unbounded are ~1800px
+   * wide — outside the kiosk's screen from birth, which is exactly how the live
+   * board came to need a 0.46 scale. Bounded, wide rows hang as indented stacks
+   * instead, so a new organization starts already the right shape and the
+   * editor's own view of it is the one the kiosk will show.
    */
   function seedPositions() {
     if (!state.organizationId || state.drag) {
@@ -832,7 +925,18 @@
       return;
     }
 
-    pin(state.placed.map(function (item) {
+    var metrics = state.metrics || METRICS;
+    var seeded = window.OrgChart.layout(state.roots, {
+      cardWidth: metrics.cardWidth,
+      cardHeight: metrics.cardHeight,
+      hGap: metrics.hGap,
+      vGap: metrics.vGap,
+      measure: metrics.measure,
+      ignorePins: true,
+      maxWidth: window.OrgChart.KIOSK_FRAME.width
+    });
+
+    pin(seeded.map(function (item) {
       return {
         member_id: item.id,
         pos_x: window.OrgChart.snap(item.x),

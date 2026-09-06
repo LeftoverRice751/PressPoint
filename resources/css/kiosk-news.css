@@ -667,3 +667,25 @@ body.newspaper-bg .feature-story__copy {
     }
 
 }
+
+/* Narrow phones (<400px): the 600px step alone still crowds the masthead
+   and headline type against the edges. */
+@media (max-width: 400px) {
+    .paper-masthead {
+        font-size: clamp(1.05rem, 7vw, 1.6rem);
+    }
+
+    .feature-story__copy {
+        font-size: 1rem;
+    }
+
+    .secondary-story {
+        grid-template-columns: 64px minmax(0, 1fr);
+    }
+
+    .secondary-story__thumb,
+    .secondary-story__thumb--fallback {
+        width: 64px;
+        height: 64px;
+    }
+}

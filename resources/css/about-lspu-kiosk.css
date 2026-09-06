@@ -922,3 +922,13 @@
   .seal__stage { width: min(400px, 82vw); }
   .seal__legend { grid-template-columns: 1fr; }
 }
+
+/* Short viewports: .about-hero and .about-index__row already scale down via
+   vh-based clamp()s, but give the index a scroll fallback in case its rows
+   still can't compress far enough, matching the pattern in kiosk-shell.css. */
+@media (max-height: 620px) {
+  .about-index {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}

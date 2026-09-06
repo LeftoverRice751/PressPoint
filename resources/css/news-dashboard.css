@@ -300,9 +300,17 @@
     border-color: var(--ink-terracotta);
 }
 
+/* --ink-invert, NOT --ink. This filled the pill with --ink-oxblood and then
+   painted the label in --ink, and on the staff theme both resolve to
+   --brand-maroon: maroon on maroon, 1:1 contrast, so the active chip read as a
+   solid red block with no text in it at all. The header of gears-dashboard.css
+   states the rule ("a rule that fills with --ink-oxblood must carry
+   `color: var(--ink-invert)`") but that audit only swept its own file, and this
+   rule lives here. The other two oxblood fills below (.news-card-position,
+   .news-card-move-btn:hover) were already correct. */
 .news-slot-choice.is-active {
     background: var(--ink-oxblood);
-    color: var(--ink);
+    color: var(--ink-invert);
     border-color: var(--rule-strong);
 }
 
@@ -1209,7 +1217,21 @@
     display: none;
 }
 
+/* `height: auto` is not cosmetic — it is the fix for the editor painting over
+   the Secondary Slot section below it.
+
+   Quill's own stylesheet ships `.ql-container { height: 100% }` and
+   `.ql-editor { height: 100%; overflow-y: auto }`, sized for the usual case of
+   an editor filling a box you gave it. Here the host is inserted into
+   .feature-story__content, a stretched grid item with a resolvable height, so
+   that 100% resolved against the WHOLE story column; being the last child, the
+   box then painted a full column's height downward from its own top and landed
+   on the Secondary cards. The `overflow-y: auto` was the other half: long copy
+   scrolled inside a fixed box instead of growing the newsletter.
+
+   Content-driven in both axes now. Nothing here may reintroduce a height. */
 .news-editor .news-body-editor-host.ql-container.ql-snow {
+    height: auto;
     margin-top: 0.5rem;
     border-color: var(--ink-terracotta);
     border-radius: 6px;
@@ -1217,16 +1239,90 @@
 }
 
 .news-editor .ql-editor {
-    min-height: 160px;
+    height: auto;
+    overflow: visible;
     font-size: 1rem;
     line-height: 1.7;
 }
 
-/* The plain body <div> the editor stands in for while mounted. Nothing else
-   sets `display` on these, so the UA's [hidden] rule would already do it —
-   this is here so a future layout rule on the copy regions can't silently
-   un-hide a div sitting behind a live editor. */
-.news-editor [data-news-edit="body"][hidden] {
+/* The 160px floor is for the article body only. It used to sit on the shared
+   .ql-editor rule, which was harmless while the body was the only thing Quill
+   ever mounted on — but the same editor now edits the headline and the
+   front-page excerpt, and a one-line headline in a 160px box is absurd. */
+.news-editor .news-body-editor-host[data-news-target="body"] .ql-editor {
+    min-height: 160px;
+}
+
+/* EDITING A HEADLINE MUST LOOK LIKE THE HEADLINE.
+ *
+ * The rules above set .ql-editor to the BODY's type — 1rem, --font-body, 1.7
+ * line-height — which is right for the article body and wrong for everything
+ * else the one editor now mounts on. A main headline being written dropped to
+ * body size the moment Quill took over, so the composer stopped previewing the
+ * thing it exists to preview: you could not see whether a hed fits until you
+ * clicked away from it.
+ *
+ * Each shape mirrors its own title rule (.feature-story__title et al in
+ * kiosk-news.css, with the lead's panel-scaled 1.9rem from further up this
+ * file). Keep the two in step — if a title's size changes there, change it
+ * here, or writing the headline stops matching reading it. */
+.news-editor .news-body-editor-host[data-news-target="title"] .ql-editor {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    color: var(--paper-ink);
+}
+
+.news-editor .feature-story .news-body-editor-host[data-news-target="title"] .ql-editor {
+    font-size: 1.9rem;
+    line-height: 1.04;
+}
+
+.news-editor .secondary-story .news-body-editor-host[data-news-target="title"] .ql-editor {
+    font-size: 1.35rem;
+    line-height: 1.14;
+}
+
+.news-editor .info-card .news-body-editor-host[data-news-target="title"] .ql-editor {
+    font-size: 1.25rem;
+    line-height: 1.16;
+}
+
+/* Same reasoning for the front-page excerpt: it is quiet italic metadata in
+   the card (.news-editor .feature-story__excerpt), not body copy. */
+.news-editor .news-body-editor-host[data-news-target="excerpt"] .ql-editor {
+    font-size: 0.85rem;
+    font-style: italic;
+    line-height: 1.5;
+}
+
+/* The region the editor stands in for while mounted. Nothing else sets
+   `display` on these, so the UA's [hidden] rule would already do it — this is
+   here so a future layout rule on the copy regions can't silently un-hide a
+   div sitting behind a live editor. */
+.news-editor [data-news-edit][hidden] {
+    display: none;
+}
+
+/* The excerpt regions clamp to three lines at rest so one long summary cannot
+   make its column three times its neighbour's height. That clamp would also
+   cut the editor off at three lines when it is mounted here, so lift it — the
+   same reason the :focus rule above lifts it for the contenteditable. */
+.news-editor .news-body-editor-host ~ .secondary-story__copy--excerpt,
+.news-editor .news-body-editor-host ~ .info-card__copy--excerpt {
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: none;
+    line-clamp: none;
+}
+
+/* The one toolbar serves three targets. A headline or a front-page excerpt is
+   a single line of type: headings, lists, blockquotes, links and alignment do
+   not belong in one and would wreck the newspaper typography this composer
+   exists to preview. Hiding them is the affordance; news-dashboard.js's
+   normaliseForTarget() is the actual enforcement, since a paste can carry
+   formats no button was pressed for. */
+.news-canvas-toolbar:not([data-news-target="body"]) [data-news-format="rich"] {
     display: none;
 }
 

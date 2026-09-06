@@ -50,8 +50,39 @@ body {
   position: fixed;
   inset: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  /* Four content blocks in three rows: the dock and the back bar sit side by
+     side on the last one. Stacked, those two full-width bars cost 202px of a
+     1024px kiosk screen for two controls that fit comfortably on one line, and
+     every pixel of it came out of the chart -- which here can neither scroll
+     nor zoom, so what it loses a visitor cannot get back. */
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   background: var(--ob-cream);
+  /* Local re-declaration of the shared token. The bar keeps the 64px touch
+     floor kiosk-nav.css guarantees; it just stops also being 768px wide. */
+  --kiosk-back-h: 64px;
+}
+
+.ob-masthead,
+.ob-deck {
+  grid-column: 1 / -1;
+}
+
+.ob-dock {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+/* Scoped to this page on purpose: kiosk-nav.css owns the shared bar, and every
+   other kiosk screen still wants it full width as the shell's last row. Here it
+   is a column in the dock's row, taking its width from its content. */
+.ob-page > .kiosk-back {
+  grid-column: 2;
+  grid-row: 3;
+  width: auto;
+  height: 100%;
+  min-height: var(--kiosk-back-h);
+  padding-inline: clamp(1rem, 3vw, 1.75rem);
 }
 
 /* ===== Masthead ===== */
@@ -61,26 +92,14 @@ body {
   border-bottom: 1px solid var(--ob-rule);
 }
 
-.ob-masthead__row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.ob-masthead__eyebrow,
 .ob-masthead__hint {
   margin: 0;
   font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--accent-text);
-}
-
-.ob-masthead__hint {
-  color: var(--ob-muted);
   letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ob-muted);
+  white-space: nowrap;
 }
 
 .ob-masthead__title {
@@ -92,14 +111,6 @@ body {
   letter-spacing: -0.025em;
   color: var(--ink);
   text-transform: uppercase;
-}
-
-.ob-masthead__lead {
-  margin: 0;
-  max-width: 56rem;
-  color: var(--ob-muted);
-  font-size: 1rem;
-  line-height: 1.55;
 }
 
 /* ===== Deck (swipe container) ===== */
@@ -196,29 +207,46 @@ body {
 }
 
 .ob-card__body {
+  position: relative;
   padding: 1rem 1.25rem 1.25rem;
   overflow: hidden;
   display: grid;
 }
 
-.ob-card__body::-webkit-scrollbar {
-  width: 6px;
-}
+/* Normally not a scroll surface: fitChart() scales the whole chart into this
+   box, and overflow:hidden is the safety net for a sub-pixel rounding overhang.
+   Keeping it hidden in the common case is also what hands a touch drag over the
+   chart back to the deck's own horizontal swipe.
 
-.ob-card__body::-webkit-scrollbar-thumb {
-  background: var(--ob-rule-strong);
-  border-radius: 3px;
-}
-
+   .is-scrollable is set by fitChart() only when the MIN_SCALE floor bit, i.e.
+   the chart was too big to shrink into this box without dropping below the size
+   an elderly visitor can read. Then the vertical axis opens up, because a
+   hierarchy a visitor has to swipe through is worth more than one they can see
+   all of and cannot read. touch-action pins that to one axis so the gesture
+   never fights the deck. */
 .ob-card__chart {
   position: relative;
-  overflow: auto;
+  overflow: hidden;
   min-height: 0;
-  scrollbar-width: thin;
 }
 
-.ob-chart__spacer {
+.ob-card__chart.is-scrollable {
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.ob-card__chart.is-scrollable::-webkit-scrollbar {
+  display: none;
+}
+
+/* Sized to the scaled stage by fitChart(). Purely structural: it is what gives
+   .ob-card__chart a scroll height, since the stage itself is out of flow. */
+.ob-chart__extent {
   pointer-events: none;
+  visibility: hidden;
 }
 
 .ob-chart__stage {
@@ -239,7 +267,9 @@ body {
 .ob-chart__edge {
   fill: none;
   stroke: var(--ob-rule-strong);
-  stroke-width: 2;
+  /* The reporting line is half the information on this page and used to render
+     as a hairline: 2px multiplied by the old 0.53 fit. */
+  stroke-width: 3;
   stroke-linecap: square;
 }
 
@@ -272,29 +302,51 @@ body {
 
 /* ===== Member node ===== */
 /* Content-sized, mirroring the dashboard editor's card: a long name or position
-   widens and wraps the card rather than being ellipsised. min-width/min-height
-   are the fixed box OrgChart falls back to for a card that measured 0 (chart
-   still hidden), so an unmeasured render matches the old fixed layout. */
+   widens and wraps the card rather than being ellipsised.
+
+   These sizes are set for reading from about two metres, standing at the
+   terminal, with the eyes of the people this board is mostly for. That is
+   affordable only because the kiosk stopped rendering the editor's absolute
+   coordinates: laid out for a portrait panel the hierarchy hangs in a comb that
+   uses roughly 650 of the ~750px available, so horizontal room is nearly free
+   and a wider card costs the board no scale at all.
+
+   It used to be the reverse. Every card's position was a pin on a desktop
+   canvas, the box was ~1424px wide, and the fit divided the whole board by
+   0.53 -- so a wider card bought nothing and this block argued for keeping it
+   tight. Under the comb layout the box is about one viewport wide by
+   construction, the scale sits near 1.0, and a font-size here is very nearly
+   the pixel size on the glass.
+
+   min-width/min-height are the fixed box OrgChart falls back to for a card that
+   measured 0, and must stay in step with the chartMetrics overrides in
+   org-board.js. */
 .ob-chart__node {
+  --ob-node-avatar: 48px;
+
   position: absolute;
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 0.7rem;
+  grid-template-columns: var(--ob-node-avatar) minmax(0, 1fr);
+  gap: 0.75rem;
   align-items: center;
-  padding: 0.6rem 0.75rem;
-  width: max-content;
-  min-width: 200px;
-  max-width: 320px;
+  padding: 0.7rem 0.9rem;
+  /* One width for every card, rather than max-content.
+     In the comb a child is drawn one INDENT right of its parent, so the left
+     edge of a card is the only thing that says how deep it sits. Content-sized
+     cards give every row a different left edge and the depth steps disappear
+     into the noise -- the board read as a staggered list, not a hierarchy.
+     Uniform cards make the indent the one thing that varies. */
+  width: 560px;
   min-height: 96px;
-  border: 1px solid var(--ob-rule);
+  border: 2px solid var(--ob-rule-strong);
   border-radius: 4px;
   background: var(--ob-paper);
 }
 
 .ob-chart__avatar {
-  width: 44px;
-  height: 44px;
+  width: var(--ob-node-avatar);
+  height: var(--ob-node-avatar);
   border-radius: 50%;
   background: var(--ob-cream);
   border: 1px solid var(--ob-rule);
@@ -314,7 +366,7 @@ body {
 .ob-chart__initials {
   font-family: var(--ob-font-display);
   font-weight: 900;
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   letter-spacing: -0.02em;
 }
 
@@ -329,7 +381,7 @@ body {
 .ob-chart__name {
   font-family: var(--ob-font-display);
   font-weight: 800;
-  font-size: 0.98rem;
+  font-size: 1.35rem;
   color: var(--ink);
   line-height: 1.15;
   /* `anywhere` so one unbroken token still yields instead of overflowing. */
@@ -337,7 +389,7 @@ body {
 }
 
 .ob-chart__position {
-  font-size: 0.8rem;
+  font-size: 1.05rem;
   color: var(--ob-muted);
   font-weight: 500;
   line-height: 1.25;
@@ -486,46 +538,115 @@ body {
 
 /* Bottom back bar is now the shared .kiosk-back (kiosk-nav.css). */
 
-/* ===== Responsive ===== */
+/* ===== Responsive =====
+ *
+ * The kiosk is a 768x1024 portrait panel, so this block always fires there. It
+ * is where the page's vertical budget is set. That budget used to be the whole
+ * legibility story -- the chart was scaled to fit with no floor, so a pixel
+ * spent on chrome was a pixel of scale the hierarchy lost and a visitor had no
+ * way to get it back.
+ *
+ * It is now the second half of the story. The chart is laid out for this panel
+ * rather than scaled down from a desktop canvas, and MIN_SCALE stops it
+ * shrinking below what an elder can read, so chrome costs a visitor a swipe
+ * rather than the text. The budget below still stands: a taller chart viewport
+ * is a chart that does not need scrolling at all, which is better again.
+ *
+ *   band                     before   after
+ *   .ob-masthead                160      62
+ *   deck padding-block           44      14
+ *   .ob-card__header            136      40
+ *   .ob-card__body + border      48      15
+ *   .ob-dock + .kiosk-back      202      64   (one shared row, see .ob-page)
+ *   ------------------------------------------
+ *   chrome                      590     195
+ *   chart viewport height       434     829
+ */
 @media (max-width: 900px) {
   .ob-masthead {
-    padding: 1.5rem 1.5rem 1rem;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.6rem 1.25rem;
+  }
+  .ob-masthead__title {
+    font-size: 1.45rem;
+    margin-bottom: 0;
   }
   /* Retune the card width and the gutter floor together — the centering calc
      above reads --ob-card-width, so overriding flex-basis alone would desync it.
-     Longhands only: a `padding` shorthand here would reset padding-inline. */
+     Longhands only: a `padding` shorthand here would reset padding-inline.
+     Full-bleed here: at 100vw the centering calc evaluates to 0 anyway, so the
+     two stay consistent and the chart gets the 60px the gutters were holding. */
   .ob-deck__viewport {
-    --ob-card-width: 92vw;
-    padding-block: 1.25rem 1.5rem;
-    padding-inline: max(1.25rem, calc((100vw - var(--ob-card-width)) / 2));
-    gap: 1rem;
+    --ob-card-width: 100vw;
+    padding-block: 0.375rem 0.5rem;
+    padding-inline: 0;
+    gap: 0.5rem;
   }
+  /* A radius with no gutter left to sit in reads as a clipped corner. */
+  .ob-card {
+    border-radius: 0;
+  }
+  /* One line: chip, name, count. */
   .ob-card__header {
-    padding: 1.5rem 1.5rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.9rem;
+  }
+  .ob-card__eyebrow {
+    margin-bottom: 0;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.62rem;
+    flex: 0 0 auto;
+  }
+  .ob-card__title {
+    margin: 0;
+    font-size: 1.15rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ob-card__count {
+    margin: 0;
+    flex: 0 0 auto;
+    font-size: 0.68rem;
   }
   .ob-card__body {
-    padding: 1rem 1.5rem 1.75rem;
+    padding: 0.4rem 0.5rem;
   }
+  /* Arrows, then counter / name / dots inline between them, on one row. */
   .ob-dock {
-    padding: 1rem 1.25rem 1.25rem;
+    padding: 0.4rem 0.75rem;
+    gap: 0;
   }
   .ob-dock__nav {
-    gap: 0.85rem;
+    gap: 0.6rem;
   }
   .ob-dock__arrow {
-    width: 3rem;
-    height: 3rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    font-size: 1.15rem;
+  }
+  .ob-dock__center {
+    grid-auto-flow: column;
+    align-items: center;
+    gap: 0.6rem;
+    /* The dots must give way rather than push the arrows off the row. */
+    overflow: hidden;
   }
   .ob-dock__name {
-    font-size: 1.1rem;
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-}
-
-@media (max-width: 540px) {
-  .ob-masthead__title {
-    font-size: 2rem;
-  }
-  .ob-deck__viewport {
-    --ob-card-width: 95vw;
+  .ob-dock__dots {
+    flex-wrap: nowrap;
+    max-width: none;
   }
 }

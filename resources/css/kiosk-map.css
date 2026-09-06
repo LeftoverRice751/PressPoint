@@ -6,14 +6,17 @@
  *
  *   .campus-map-page              flex column, 100vh
  *     .map-header                 fixed ~96px header bar
+ *     .map-key                    ~76px key band, outside the stage
  *     .campus-map-page__stage     flex:1; map + every overlay
  *     .keyboard                   0 collapsed, 280 expanded
  *     .kiosk-back                 shared bottom back bar (kiosk-nav.css)
  *
  * Pins encode category by shape/fill (see .kiosk-pin--<cat> below). The
- * category-chip swatches use the same shapes so the category menu doubles
- * as a legend — which is why collapsing the old rail into .category-dropdown
- * kept .category-chip as the menu row rather than inventing a new one.
+ * category-chip swatches use the same shapes — which is why collapsing the
+ * old rail into .category-dropdown kept .category-chip as the menu row
+ * rather than inventing a new one. .map-key (the band under the header)
+ * reuses those same swatch rules as the standing key, because the dropdown
+ * is closed by default and reads as a filter, not an explanation.
  */
 
 :root {
@@ -369,7 +372,126 @@ html, body {
     box-shadow: inset 0 0 0 4px var(--ink), inset 0 0 0 8px var(--orange), 0 0 0 2px var(--ink), 0 6px 14px rgb(var(--brand-maroon-rgb) / 0.22);
 }
 
-/* ── Category dropdown (filter + legend in one) ─────────────────── */
+/* ── Map key band ───────────────────────────────────────────────── */
+
+/* Sits between the header and the stage, in the page's flex column — NOT
+   inside the stage. Everything in the stage is an overlay on a Leaflet
+   canvas that spans it edge to edge, so a key positioned in there covers
+   the campus no matter where it is placed. As a band it takes its own
+   ~76px and the map fits itself into the remainder.
+
+   The category dropdown's swatches already encode the pin shapes, but that
+   control is closed by default and reads as a FILTER — a first-time user
+   has no reason to open it to learn what a diamond means. This band is the
+   standing key, and it carries the two marks the dropdown never covered:
+   the pulsing start dot and the dashed route line, which were the only
+   things on the deck with no explanation anywhere. */
+.map-key {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
+    gap: 0.9rem;
+    padding: 0 1rem;
+    background: var(--paper);
+    border-bottom: 3px solid var(--ink);
+    /* Clears the header's gold tick rule, which is drawn at bottom: -8px
+       and would otherwise land on top of the tab. */
+    padding-top: 0.7rem;
+    padding-bottom: 0.6rem;
+}
+
+/* Names the band. Not a control — there is nothing to tap in here. */
+.map-key__tab {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin: 0;
+    padding: 0.3rem 0.6rem;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--display-font);
+    font-size: 0.85rem;
+    line-height: 1.15;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.map-key__groups {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: stretch;
+    gap: 0.9rem;
+    min-width: 0;
+}
+
+.map-key__list {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(2, auto);
+    align-content: center;
+    gap: 0.4rem 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.map-key__list--pins {
+    flex: 1 1 auto;
+    /* Five pin types over two rows: three columns, last cell empty. */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-flow: row;
+}
+
+/* The rule IS the split — pins you tap on the left, marks the map draws for
+   you on the right — so it is drawn on the group, not floated between. */
+.map-key__list--marks {
+    flex: 0 0 auto;
+    padding-left: 0.9rem;
+    border-left: 2px solid var(--ink);
+    grid-auto-flow: row;
+}
+
+.map-key__row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+}
+
+.map-key__label {
+    font-family: var(--body-font);
+    font-size: 0.95rem;
+    line-height: 1.2;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Start marker: the gold core inside its ink ring, minus the pulse — a key
+   entry that animated would pull the eye off the map it is explaining. */
+.map-key__swatch--here {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--orange);
+    border: 2px solid var(--paper);
+    box-shadow: 0 0 0 2px var(--ink);
+}
+
+/* Colour is pushed in from routeStyle.color in kiosk-map.js so the key
+   cannot drift from the line it describes; the literal is only a fallback
+   for the pre-script paint. Dashes match the polyline's 12,8 dashArray. */
+.map-key__swatch--route {
+    width: 22px;
+    height: 0;
+    flex-shrink: 0;
+    border-top: 4px dashed var(--route-line, #ff5b13);
+}
+
+/* ── Category dropdown (filter) ─────────────────────────────────── */
 
 /* This was a permanent six-button rail down the left of the map. It cost a
    220x460 block of the stage to show six options the user picks from once,
@@ -604,7 +726,48 @@ html, body {
     list-style: none;
     margin: 0;
     padding: 0;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+}
+
+/* Same reasoning as the building pane: no floating × over the results, a
+   full-width CLOSE button pinned to the bottom of the card instead. */
+.suggestions__foot {
+    flex: 0 0 auto;
+    padding: 0.75rem 1rem;
+    border-top: 3px solid var(--ink);
+    background: var(--paper);
+}
+
+.suggestions__close {
+    width: 100%;
+    padding: 0.85rem 1.1rem;
+    border: 3px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--display-font);
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7rem;
+    box-shadow: 4px 4px 0 var(--ink);
+    transition: transform 0.06s ease, box-shadow 0.06s ease, background 0.12s ease;
+}
+
+.suggestions__close:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--ink);
+    background: var(--paper-soft);
+}
+
+.suggestions__close-arrow {
+    font-size: 1.35rem;
+    line-height: 1;
 }
 
 .suggestions__item {
