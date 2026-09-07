@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check /tmp/claude-1000/-home-leftoverrice-Downloads-presspoint/572c035d-c0d7-4ce0-9c4e-5d9db38299b4/scratchpad/chk.mjs)"
+    ]
+  }
+}

@@ -58,6 +58,7 @@ CREATE TABLE `about_sections` (
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `audio_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `lyric_timings` json DEFAULT NULL,
+  `meta` json DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `about_sections_slug_unique` (`slug`),
   KEY `about_sections_updated_by_id_foreign` (`updated_by_id`),
@@ -76,7 +77,7 @@ CREATE TABLE `archives` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=35 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `categories`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -103,7 +104,7 @@ CREATE TABLE `events` (
   PRIMARY KEY (`id`),
   KEY `events_location_id_foreign` (`location_id`),
   CONSTRAINT `events_location_id_foreign` FOREIGN KEY (`location_id`) REFERENCES `locations` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `kiosks`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -153,7 +154,7 @@ CREATE TABLE `members` (
   KEY `members_organization_id_foreign` (`organization_id`),
   CONSTRAINT `members_organization_id_foreign` FOREIGN KEY (`organization_id`) REFERENCES `organizations` (`id`) ON DELETE CASCADE,
   CONSTRAINT `members_parent_id_foreign` FOREIGN KEY (`parent_id`) REFERENCES `members` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=39 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=40 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `migrations`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -163,7 +164,7 @@ CREATE TABLE `migrations` (
   `migration` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `batch` int NOT NULL,
   PRIMARY KEY (`migration_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=84 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=86 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `news`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -215,7 +216,7 @@ CREATE TABLE `notifications` (
   PRIMARY KEY (`id`),
   KEY `notifications_user_id_read_at_index` (`user_id`,`read_at`),
   CONSTRAINT `notifications_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `offices`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -255,7 +256,7 @@ CREATE TABLE `password_resets` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=30 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `posts`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -303,7 +304,7 @@ CREATE TABLE `route_sessions` (
   CONSTRAINT `route_sessions_destination_location_id_foreign` FOREIGN KEY (`destination_location_id`) REFERENCES `locations` (`id`) ON DELETE CASCADE,
   CONSTRAINT `route_sessions_kiosk_id_foreign` FOREIGN KEY (`kiosk_id`) REFERENCES `kiosks` (`id`) ON DELETE SET NULL,
   CONSTRAINT `route_sessions_start_location_id_foreign` FOREIGN KEY (`start_location_id`) REFERENCES `locations` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=191 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=241 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `site_settings`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -332,7 +333,7 @@ CREATE TABLE `tour_scenes` (
   UNIQUE KEY `tour_scenes_scene_id_unique` (`scene_id`),
   KEY `tour_scenes_location_id_foreign` (`location_id`),
   CONSTRAINT `tour_scenes_location_id_foreign` FOREIGN KEY (`location_id`) REFERENCES `locations` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `users`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

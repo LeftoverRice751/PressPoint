@@ -262,29 +262,30 @@
 }
 
 /* ── The way out, in read mode ───────────────────────────────────────────
-   The reader ships its own back control pinned to the TOP-LEFT corner, which
-   is right on a phone (it is the only exit there, and it has to clear a notch)
-   but wrong here: on the tour the visitor has just been holding the book with
-   a big "Back to tour" button under it, and on opening the charter that
-   control jumps to the opposite corner and changes shape.
+   The reader already centres its own back control UNDER the pages (see
+   .reader-chrome__back in kiosk-archive-book.css), so this rule no longer
+   moves it — it only raises it clear of the tour's fixed kiosk back bar and
+   restyles it as a copy of .charter-inspect__exit above.
 
-   So on this page only, the reader's back button is moved to sit UNDER the
-   pages and made a copy of .charter-inspect__exit above. It is a second
-   element rather than the same one — the reader is its own overlay at
-   z-index 400 and .charter-inspect is a stacking context at 300, so no child
-   of the inspection overlay can be raised above the reader — but it is the
-   same size, colour, wording and position, so to a visitor the button simply
+   That copy is the point: on the tour the visitor has just been holding the
+   book with a big "Back to tour" button under it, and the button must not
+   change shape or colour when the charter opens. It is a second element
+   rather than the same one — the reader is its own overlay at z-index 400
+   and .charter-inspect is a stacking context at 300, so no child of the
+   inspection overlay can be raised above the reader — but it is the same
+   size, colour, wording and position, so to a visitor the button simply
    stays put across tour -> inspect -> read. Keep the two rules in step.
 
-   Scoped to .tour-page: /kiosk/gears-archive and /m/archives share this
-   partial and keep the corner placement, which is still correct for them. */
+   The taller band is what keeps the pages off it: the reader sizes its
+   mounts against --reader-exit-band, and here the button starts a whole
+   kiosk back bar higher than it does on /kiosk/gears-archive and /m/archives. */
+.tour-page {
+  --reader-exit-band: calc(24px + 64px + 24px + var(--kiosk-back-h, 104px));
+}
+
 .tour-page .reader-chrome__back {
-  top: auto;
-  left: 50%;
   /* Clear of the fixed kiosk back bar, exactly as the inspection panel is. */
   bottom: calc(24px + var(--kiosk-back-h, 104px));
-  transform: translateX(-50%);
-  justify-content: center;
   min-height: 64px;
   min-width: 240px;
   padding: 0 40px;

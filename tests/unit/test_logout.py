@@ -23,8 +23,12 @@ class LogoutTestCase(TestCase):
         for the current request, so the next one signs straight back in.
     """
 
-    def _logout(self, controller):
+    def _logout(self, controller, slot=0):
         request, response = Mock(), Mock()
+        request.tab_slot = slot
+        # A real cookie jar: logout now clears this slot's session cookies too
+        # (app/tab_slots.py), so it walks the jar.
+        request.cookie_jar.to_dict.return_value = {}
         controller.logout(request, response)
         return request, response
 
@@ -58,3 +62,29 @@ class LogoutTestCase(TestCase):
 
     def test_super_admin_logout_redirects_to_login_route(self):
         self._assert_redirects_to_login(SuperAdminController())
+
+    def _assert_only_this_slot_is_signed_out(self, controller):
+        """Signing out of one tab must leave the other tab signed in.
+
+        The mirror image of the bug slots exist to fix: with a single shared
+        `token` cookie, a logout anywhere logged every tab out.
+        """
+        request, response = Mock(), Mock()
+        request.tab_slot = 1
+        request.cookie_jar.to_dict.return_value = {
+            "f_success": "slot zero's flash",
+            "f_u1_success": "slot one's flash",
+        }
+        controller.logout(request, response)
+
+        response.delete_cookie.assert_any_call("token_1")
+        deleted = [call.args[0] for call in response.delete_cookie.call_args_list]
+        self.assertIn("f_u1_success", deleted)
+        self.assertNotIn("token", deleted)
+        self.assertNotIn("f_success", deleted)
+
+    def test_admin_logout_leaves_other_tabs_signed_in(self):
+        self._assert_only_this_slot_is_signed_out(UserController())
+
+    def test_super_admin_logout_leaves_other_tabs_signed_in(self):
+        self._assert_only_this_slot_is_signed_out(SuperAdminController())

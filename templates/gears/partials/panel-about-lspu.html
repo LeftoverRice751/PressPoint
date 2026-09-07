@@ -5,7 +5,30 @@
     every panel of the CMS in one file. Rendered by dashboard.html in the same
     order it always was; DashboardController.fragment() still re-renders the
     smaller data partials (events-list, news-slots, archives-list, videos-list).
+
+    Fields marked `data-meta-key` are collected by about-lspu-editor.js into the
+    form's hidden `meta` input and whitelisted server-side against
+    AboutContent.DEFAULT_META. They cover the short strings the kiosk draws
+    around the authored bodies — the hub hero, the index hints, the prev/next
+    labels, the seal callouts — which used to be literals in the kiosk template
+    and a constant in AboutController, i.e. uneditable without a deploy.
 #}
+{% macro kiosk_labels(slug) %}
+      <div class="about-meta-grid">
+        <label class="field">
+          <span class="field__label">Kiosk index hint</span>
+          <input type="text" class="field__input" data-meta-key="hint"
+                 value="{{ about_meta[slug].hint }}" maxlength="90">
+          <span class="field__hint">The small line under this section on the About hub.</span>
+        </label>
+        <label class="field">
+          <span class="field__label">Short label</span>
+          <input type="text" class="field__input" data-meta-key="short"
+                 value="{{ about_meta[slug].short }}" maxlength="20">
+          <span class="field__hint">Shown on the kiosk’s previous / next buttons.</span>
+        </label>
+      </div>
+{% endmacro %}
     <section class="gears-page" data-page-panel="about-lspu" id="panel-about-lspu" role="tabpanel" aria-labelledby="nav-about-lspu" data-hero-eyebrow="Content" data-hero-title="About LSPU" data-hero-subtitle="Manage the campus history, mission, values, seal, and supporting copy shown on the kiosk." hidden>
       <div class="section-head">
         <div>
@@ -30,7 +53,13 @@
         <!-- ── Tab navigation ─────────────────────────────── -->
         <nav class="about-section-nav" role="tablist" aria-label="About LSPU sections">
           <button type="button" class="about-section-tab is-active" role="tab"
-                  data-about-tab="mission" aria-selected="true"
+                  data-about-tab="page" aria-selected="true"
+                  aria-controls="about-panel-page" id="about-tab-page">
+            <span class="about-section-tab__icon" aria-hidden="true">⌂</span>
+            <span>Hub</span>
+          </button>
+          <button type="button" class="about-section-tab" role="tab"
+                  data-about-tab="mission" aria-selected="false"
                   aria-controls="about-panel-mission" id="about-tab-mission">
             <span class="about-section-tab__icon" aria-hidden="true">◎</span>
             <span>Mission</span>
@@ -67,10 +96,53 @@
           </button>
         </nav>
 
+        <!-- ── Panel: Hub (the landing screen of kiosk/about-lspu) ── -->
+        <section id="about-panel-page" class="about-section-panel"
+                 data-about-panel="page" role="tabpanel"
+                 aria-labelledby="about-tab-page">
+          <article class="page-card about-card">
+            <div class="panel-header panel-header--compact">
+              <div>
+                <p class="panel-header__eyebrow">Hub</p>
+                <h3 class="panel-header__title">About hub header</h3>
+              </div>
+            </div>
+            <p class="about-card__note">
+              The masthead on the first screen of About LSPU, above the list of the
+              six sections. Each section’s own hint and short label live on its tab.
+            </p>
+            <form class="about-section-form form-stack" method="POST"
+                  action="/gears/about-lspu/sections/page"
+                  data-section-form="page">
+              {{ csrf_field | safe }}
+              <label class="field">
+                <span class="field__label">Kicker</span>
+                <input type="text" class="field__input" data-meta-key="kicker"
+                       value="{{ about_page.kicker }}" maxlength="80">
+                <span class="field__hint">The small amber line above the title.</span>
+              </label>
+              <label class="field">
+                <span class="field__label">Heading</span>
+                <input type="text" class="field__input" data-meta-key="title"
+                       value="{{ about_page.title }}" maxlength="80">
+              </label>
+              <label class="field">
+                <span class="field__label">Lead paragraph</span>
+                <textarea class="field__input" data-meta-key="lead" rows="3"
+                          maxlength="240">{{ about_page.lead }}</textarea>
+              </label>
+              <input type="hidden" name="meta" class="js-meta-payload">
+              <div class="about-section-form__actions">
+                <button type="submit" class="primary-button">Save hub header</button>
+              </div>
+            </form>
+          </article>
+        </section>
+
         <!-- ── Panel: Mission ────────────────────────────── -->
         <section id="about-panel-mission" class="about-section-panel"
                  data-about-panel="mission" role="tabpanel"
-                 aria-labelledby="about-tab-mission">
+                 aria-labelledby="about-tab-mission" hidden>
           <article class="page-card about-card">
             <div class="panel-header panel-header--compact">
               <div>
@@ -88,8 +160,9 @@
                 <input type="text" name="title" class="field__input"
                        value="{{ section.title if section else '' }}" maxlength="150">
               </label>
+{{ kiosk_labels('mission') }}
               <div class="about-subblocks" data-subblocks>
-                {% for sub in (section.subsections if section else []) %}
+                {% for sub in (section.subsections or [] if section else []) %}
                 <div class="about-subblock">
                   <label class="field">
                     <span class="field__label">Heading</span>
@@ -106,6 +179,7 @@
                 {% endfor %}
               </div>
               <input type="hidden" name="subsections" class="js-subsections-payload">
+              <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="button" class="ghost-button" data-add-subblock>+ Add sub-section</button>
                 <button type="submit" class="primary-button">Save Mission</button>
@@ -135,8 +209,23 @@
                 <input type="text" name="title" class="field__input"
                        value="{{ section.title if section else '' }}" maxlength="150">
               </label>
+{{ kiosk_labels('values') }}
+              <div class="about-meta-grid">
+                <label class="field">
+                  <span class="field__label">Core values band</span>
+                  <input type="text" class="field__input" data-meta-key="core_band"
+                         value="{{ about_meta['values'].core_band }}" maxlength="80">
+                  <span class="field__hint">Caption above the STUDENTS acrostic.</span>
+                </label>
+                <label class="field">
+                  <span class="field__label">Pledge label</span>
+                  <input type="text" class="field__input" data-meta-key="pledge_label"
+                         value="{{ about_meta['values'].pledge_label }}" maxlength="40">
+                  <span class="field__hint">Sits beside the pledge, in the footer strip.</span>
+                </label>
+              </div>
               <div class="about-subblocks" data-subblocks>
-                {% for sub in (section.subsections if section else []) %}
+                {% for sub in (section.subsections or [] if section else []) %}
                 <div class="about-subblock">
                   <label class="field">
                     <span class="field__label">Heading</span>
@@ -153,6 +242,7 @@
                 {% endfor %}
               </div>
               <input type="hidden" name="subsections" class="js-subsections-payload">
+              <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="button" class="ghost-button" data-add-subblock>+ Add sub-section</button>
                 <button type="submit" class="primary-button">Save Values</button>
@@ -189,6 +279,8 @@
                 <div class="about-editor-frame js-body-editor">{{ history.body_html|safe if history else '' }}</div>
               </label>
               <input type="hidden" name="body_html" class="js-body-payload">
+{{ kiosk_labels('history') }}
+              <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="submit" class="primary-button">Save intro</button>
               </div>
@@ -199,6 +291,7 @@
               {% for m in milestones %}
               <li class="about-milestone">
                 <form method="POST" action="/gears/about-lspu/milestones/{{ m.id }}"
+                      enctype="multipart/form-data"
                       data-milestone-form class="about-milestone__form form-stack">
                   {{ csrf_field | safe }}
                   <div class="about-milestone__grid">
@@ -217,6 +310,36 @@
                     <span class="field__label">Body</span>
                     <div class="about-editor-frame js-body-editor">{{ m.body_html|safe }}</div>
                   </label>
+                  <div class="field">
+                    <span class="field__label">Photo</span>
+                    {% if m.image_path %}
+                    <img class="about-milestone__preview" src="/storage/{{ m.image_path }}"
+                         alt="Photo for the {{ m.year | e }} milestone">
+                    {% endif %}
+                    <label class="dropzone" data-dropzone>
+                      <input type="file" name="file" class="dropzone__input"
+                             accept="image/jpeg,image/png,image/webp">
+                      <span class="dropzone__empty">
+                        <span class="dropzone__icon" aria-hidden="true">↑</span>
+                        <span class="dropzone__title">Drop a photo, or tap to choose</span>
+                        <span class="dropzone__hint">
+                          {% if m.image_path %}Replaces the photo above{% else %}Optional — shown beside this milestone on the kiosk{% endif %}
+                        </span>
+                      </span>
+                      <span class="dropzone__filled" hidden>
+                        <span class="dropzone__filename" data-dropzone-name></span>
+                        <span class="dropzone__size" data-dropzone-size></span>
+                        <button type="button" class="dropzone__clear"
+                                data-dropzone-clear aria-label="Remove file">×</button>
+                      </span>
+                    </label>
+                    {% if m.image_path %}
+                    <label class="checkbox-field">
+                      <input type="checkbox" name="remove_image" value="1">
+                      <span>Remove the current photo on save</span>
+                    </label>
+                    {% endif %}
+                  </div>
                   <input type="hidden" name="body_html" class="js-body-payload">
                   <div class="about-section-form__actions">
                     <button type="submit" class="primary-button">Save milestone</button>
@@ -245,6 +368,7 @@
             </ol>
 
             <form method="POST" action="/gears/about-lspu/milestones"
+                  enctype="multipart/form-data"
                   class="about-section-form form-stack about-milestone-create"
                   data-milestone-form>
               {{ csrf_field | safe }}
@@ -265,6 +389,24 @@
                 <span class="field__label">Body</span>
                 <div class="about-editor-frame js-body-editor"></div>
               </label>
+              <div class="field">
+                <span class="field__label">Photo</span>
+                <label class="dropzone" data-dropzone>
+                  <input type="file" name="file" class="dropzone__input"
+                         accept="image/jpeg,image/png,image/webp">
+                  <span class="dropzone__empty">
+                    <span class="dropzone__icon" aria-hidden="true">↑</span>
+                    <span class="dropzone__title">Drop a photo, or tap to choose</span>
+                    <span class="dropzone__hint">Optional</span>
+                  </span>
+                  <span class="dropzone__filled" hidden>
+                    <span class="dropzone__filename" data-dropzone-name></span>
+                    <span class="dropzone__size" data-dropzone-size></span>
+                    <button type="button" class="dropzone__clear"
+                            data-dropzone-clear aria-label="Remove file">×</button>
+                  </span>
+                </label>
+              </div>
               <input type="hidden" name="body_html" class="js-body-payload">
               <div class="about-section-form__actions">
                 <button type="submit" class="primary-button">+ Add milestone</button>
@@ -299,6 +441,21 @@
                 <div class="about-editor-frame js-body-editor">{{ section.body_html|safe if section else '' }}</div>
               </label>
               <input type="hidden" name="body_html" class="js-body-payload">
+{{ kiosk_labels('quality') }}
+              <div class="about-meta-grid">
+                <label class="field">
+                  <span class="field__label">Footer, left</span>
+                  <input type="text" class="field__input" data-meta-key="footer_left"
+                         value="{{ about_meta['quality'].footer_left }}" maxlength="60">
+                </label>
+                <label class="field">
+                  <span class="field__label">Footer, right</span>
+                  <input type="text" class="field__input" data-meta-key="footer_right"
+                         value="{{ about_meta['quality'].footer_right }}" maxlength="60">
+                  <span class="field__hint">The certification line under the pull quote.</span>
+                </label>
+              </div>
+              <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="submit" class="primary-button">Save Quality Policy</button>
               </div>
@@ -332,6 +489,8 @@
                 <div class="about-editor-frame js-body-editor">{{ section.body_html|safe if section else '' }}</div>
               </label>
               <input type="hidden" name="body_html" class="js-body-payload">
+{{ kiosk_labels('hymn') }}
+              <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="submit" class="primary-button">Save Hymn</button>
               </div>
@@ -428,8 +587,74 @@
                 <div class="about-editor-frame js-body-editor">{{ seal.body_html|safe if seal else '' }}</div>
               </label>
               <input type="hidden" name="body_html" class="js-body-payload">
+{{ kiosk_labels('seal') }}
+              <label class="field">
+                <span class="field__label">Tap cue</span>
+                <input type="text" class="field__input" data-meta-key="cue"
+                       value="{{ about_meta['seal'].cue }}" maxlength="40">
+                <span class="field__hint">The prompt between the seal and its legend.</span>
+              </label>
+              <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="submit" class="primary-button">Save description</button>
+              </div>
+            </form>
+
+            {#
+              The seal's numbered callouts. These were a SEAL_HOTSPOTS constant
+              in AboutController on the grounds that they describe the artwork
+              rather than editorial copy — but an editor who uploads a different
+              seal above had no way to move or re-word a single dot. X/Y are
+              percentages of the artwork, so a dot stays put at any screen size.
+            #}
+            <h3 class="about-card__subheading">Seal callouts</h3>
+            <p class="about-card__note">
+              Each row is a numbered dot on the seal and its card in the legend
+              underneath. X and Y are percentages across and down the image —
+              0/0 is the top-left corner, 50/50 the centre.
+            </p>
+            <form class="about-section-form form-stack" method="POST"
+                  action="/gears/about-lspu/sections/seal"
+                  data-section-form="seal-hotspots">
+              {{ csrf_field | safe }}
+              <ol class="about-hotspots" data-hotspots>
+                {% for spot in about_meta['seal'].hotspots %}
+                <li class="about-hotspot" data-hotspot-row>
+                  <span class="about-hotspot__num">{{ '%02d' % loop.index }}</span>
+                  <div class="about-hotspot__fields">
+                    <label class="field">
+                      <span class="field__label">Label</span>
+                      <input type="text" class="field__input js-hotspot-label"
+                             value="{{ spot.label }}" maxlength="80">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Note</span>
+                      <input type="text" class="field__input js-hotspot-note"
+                             value="{{ spot.note }}" maxlength="240">
+                    </label>
+                    <div class="about-hotspot__coords">
+                      <label class="field">
+                        <span class="field__label">X %</span>
+                        <input type="number" class="field__input js-hotspot-x"
+                               value="{{ spot.x }}" min="0" max="100" step="0.5">
+                      </label>
+                      <label class="field">
+                        <span class="field__label">Y %</span>
+                        <input type="number" class="field__input js-hotspot-y"
+                               value="{{ spot.y }}" min="0" max="100" step="0.5">
+                      </label>
+                    </div>
+                  </div>
+                  <input type="hidden" class="js-hotspot-key" value="{{ spot.key }}">
+                  <button type="button" class="ghost-button about-icon-button"
+                          data-remove-hotspot>✕ Remove</button>
+                </li>
+                {% endfor %}
+              </ol>
+              <input type="hidden" name="meta" class="js-meta-payload">
+              <div class="about-section-form__actions">
+                <button type="button" class="ghost-button" data-add-hotspot>+ Add callout</button>
+                <button type="submit" class="primary-button">Save callouts</button>
               </div>
             </form>
           </article>

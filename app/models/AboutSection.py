@@ -16,6 +16,7 @@ class AboutSection(Model):
         "image_path",
         "audio_path",
         "lyric_timings",
+        "meta",
         "updated_by_id",
     ]
-    __casts__ = {"subsections": "json", "lyric_timings": "json"}
+    __casts__ = {"subsections": "json", "lyric_timings": "json", "meta": "json"}

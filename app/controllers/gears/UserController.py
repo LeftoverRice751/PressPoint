@@ -5,6 +5,7 @@ from masonite.response import Response
 from masonite.facades import Hash
 from app.models.User import User
 from app.services import AdminConsole, Credentials, Notifications, ReviewQueue
+from app.tab_slots import clear_slot_session, slot_cookie
 
 
 def _is_editor(user):
@@ -120,6 +121,10 @@ class UserController(Controller):
         is a literal URL, so redirect("auth.login") sends a Location header of
         "auth.login" (a relative path) rather than resolving the route.
         """
+        # Slot-scoped: signing out of this tab must leave the other tab's
+        # sign-in alone (app/tab_slots.py).
+        slot = getattr(request, "tab_slot", 0)
         request.remove_user()
-        response.delete_cookie("token")
+        response.delete_cookie(slot_cookie("token", slot))
+        clear_slot_session(request, response, slot)
         return response.redirect(name="auth.login")

@@ -22,13 +22,17 @@ from tests import TestCase
 
 
 class LoginLandingTestCase(TestCase):
-    def _sign_in_as(self, role):
+    def _sign_in_as(self, role, cookies=None):
         user = Mock(id=1, username="someone", role=role, remember_token="tok")
         request, response = Mock(), Mock()
         request.input.side_effect = lambda key: {
             "username": "someone",
             "password": "secret",
         }.get(key, "")
+        # Which token cookies the browser already carries decides which
+        # sign-in slot this login takes (app/tab_slots.py).
+        cookies = cookies or {}
+        request.cookie.side_effect = cookies.get
 
         with patch("app.controllers.auth.LoginController.User") as user_model:
             user_model.return_value.attempt.return_value = user
@@ -38,14 +42,14 @@ class LoginLandingTestCase(TestCase):
         return response
 
     def test_admin_lands_on_the_admin_console(self):
-        self._sign_in_as("admin").redirect.assert_called_once_with(name="users.view")
+        self._sign_in_as("admin").redirect.assert_called_once_with(name="users.view", query_params={})
 
     def test_editor_lands_on_the_composer(self):
-        self._sign_in_as("editor").redirect.assert_called_once_with(name="gears.dashboard")
+        self._sign_in_as("editor").redirect.assert_called_once_with(name="gears.dashboard", query_params={})
 
     def test_super_admin_lands_on_its_own_console(self):
         self._sign_in_as("superadmin").redirect.assert_called_once_with(
-            name="auth.super_admin"
+            name="auth.super_admin", query_params={}
         )
 
     def test_unknown_role_is_told_what_is_actually_wrong(self):
@@ -64,7 +68,7 @@ class LoginLandingTestCase(TestCase):
     def test_casing_drift_does_not_strand_an_admin(self):
         """The live `users.role` column holds values with stray casing, which
         is why every role comparison in this codebase is `.strip().lower()`."""
-        self._sign_in_as("  Admin ").redirect.assert_called_once_with(name="users.view")
+        self._sign_in_as("  Admin ").redirect.assert_called_once_with(name="users.view", query_params={})
 
 
 class DashboardRedirectsAdminsTestCase(TestCase):

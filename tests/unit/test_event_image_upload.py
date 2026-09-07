@@ -28,6 +28,7 @@ from masonite.facades import View
 from tests import TestCase
 
 from app.controllers.gears.EventController import EventController
+from app.models.Events import Events
 from app.services import ImageUploads
 from app.services.StorageRouter import NAS_FOLDERS, absolute_path
 
@@ -356,3 +357,42 @@ class EventControllerImageTestCase(TestCase):
 
         saver.assert_not_called()
         create.assert_not_called()
+
+
+class EventCreatePayloadIsFillableTestCase(TestCase):
+    """The store() tests above patch Events.create, so they prove the controller
+    *passes* the image path -- never that the ORM *keeps* it. It did not.
+
+    `event_image` was missing from Events.__fillable__, and Masonite's
+    QueryBuilder.create runs the payload through Model.filter_fillable, which
+    rebuilds it as {x: d[x] for x in __fillable__ if x in d}: an unlisted key is
+    dropped with no error and no warning. Every poster an editor attached was
+    written to the NAS and then orphaned, the row stored event_image = NULL, and
+    the dashboard's view modal correctly hid an <img> it had no path for.
+
+    So assert the whole create() payload survives the filter, not just the one
+    column that broke -- the next column added to the controller and forgotten
+    in the model fails exactly the same way, silently.
+    """
+
+    # Every keyword EventController.store passes to Events.create.
+    CREATE_KEYS = {
+        "title",
+        "description",
+        "event_date",
+        "location_id",
+        "event_image",
+        "is_archive",
+    }
+
+    def test_every_create_keyword_survives_mass_assignment_filtering(self):
+        payload = {key: "value" for key in self.CREATE_KEYS}
+
+        kept = Events.filter_fillable(payload)
+
+        self.assertEqual(
+            set(kept),
+            self.CREATE_KEYS,
+            "Events.__fillable__ is missing columns EventController.store writes; "
+            "the ORM drops them silently.",
+        )

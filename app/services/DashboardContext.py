@@ -367,6 +367,11 @@ def about_context():
         "sections": about_data["sections"],
         "ordered_slugs": about_data["ordered_slugs"],
         "milestones": about_data["milestones"],
+        # Short kiosk display copy (hub hero, index hints, section chrome, seal
+        # callouts), merged with AboutContent.DEFAULT_META so the editor forms
+        # render the live default rather than an empty box.
+        "about_meta": about_data["meta"],
+        "about_page": about_data["page"],
     }
 
 

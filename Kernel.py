@@ -7,22 +7,32 @@ from masonite.utils.location import base_path
 from masonite.middleware import (
     SessionMiddleware,
     EncryptCookies,
-    LoadUserMiddleware,
     MaintenanceModeMiddleware,
 )
 from masonite.routes import Route
 from masonite.configuration.Configuration import Configuration
 from masonite.configuration import config
 
-from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware, DatabaseReconnectMiddleware, SuperAdminMiddleware, ThrottleRequestsMiddleware
+from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware, DatabaseReconnectMiddleware, SuperAdminMiddleware, ThrottleRequestsMiddleware, TabSlotMiddleware, LoadSlotUserMiddleware
 
 
 class Kernel:
 
-    http_middleware = [MaintenanceModeMiddleware, EncryptCookies, DatabaseReconnectMiddleware]
+    # TabSlotMiddleware runs here, not in a route group: SessionMiddleware and
+    # LoadSlotUserMiddleware below both need request.tab_slot before they run.
+    # It must stay after EncryptCookies so the cookie jar is decrypted.
+    http_middleware = [
+        MaintenanceModeMiddleware,
+        EncryptCookies,
+        DatabaseReconnectMiddleware,
+        TabSlotMiddleware,
+    ]
 
     route_middleware = {
-        "web": [SessionMiddleware, LoadUserMiddleware, VerifyCsrfToken],
+        # LoadSlotUserMiddleware, not Masonite's LoadUserMiddleware: the
+        # framework's WebGuard hardcodes the cookie name "token", and each tab
+        # needs its own. See app/tab_slots.py.
+        "web": [SessionMiddleware, LoadSlotUserMiddleware, VerifyCsrfToken],
         "auth": [AuthenticationMiddleware],
         "admin": [AdminMiddleware],
         "super_admin": [SuperAdminMiddleware],

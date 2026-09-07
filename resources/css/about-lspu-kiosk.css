@@ -415,6 +415,9 @@
 
 .values__pledge-label {
   flex: 0 0 auto;
+  /* The label used to be literal "Performance<br>pledge" markup. It is editor
+     copy now, so the wrap is a width cap instead of a hardcoded line break. */
+  max-width: 9ch;
   font-family: var(--kiosk-font-mono);
   font-size: clamp(0.5rem, 1.4vw, 0.6875rem);
   letter-spacing: 0.18em;
@@ -764,6 +767,24 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--kiosk-paper);
+}
+
+.seal__intro {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 62ch;
+  font-size: clamp(0.75rem, 1.9vw, 0.9375rem);
+  line-height: 1.55;
+  color: var(--kiosk-ink-soft, var(--kiosk-ink));
+  text-align: center;
+}
+
+.seal__intro p {
+  margin: 0 0 0.4em;
+}
+
+.seal__intro p:last-child {
+  margin-bottom: 0;
 }
 
 /* aspect-ratio:1 + percentage dots is what keeps every callout glued to the

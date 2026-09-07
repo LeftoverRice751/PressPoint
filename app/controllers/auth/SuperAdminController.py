@@ -5,6 +5,7 @@ from masonite.response import Response
 from masonite.facades import Hash
 from app.models.User import User
 from app.services import Credentials, DashboardContext
+from app.tab_slots import clear_slot_session, slot_cookie
 
 
 def _role_of(user):
@@ -230,6 +231,10 @@ class SuperAdminController(Controller):
         remove_user() alone leaves the sign-in cookie in the browser, so the
         very next request re-authenticates and the logout looks like a no-op.
         """
+        # Slot-scoped: signing out of this tab must leave the other tab's
+        # sign-in alone (app/tab_slots.py).
+        slot = getattr(request, "tab_slot", 0)
         request.remove_user()
-        response.delete_cookie("token")
+        response.delete_cookie(slot_cookie("token", slot))
+        clear_slot_session(request, response, slot)
         return response.redirect(name="auth.login")

@@ -5,6 +5,7 @@
     "/storage/compiled/js/auth-change-password.js": "/storage/compiled/js/auth-change-password.js",
     "/storage/compiled/js/auth-otp-code.js": "/storage/compiled/js/auth-otp-code.js",
     "/storage/compiled/js/rate-limit-modal.js": "/storage/compiled/js/rate-limit-modal.js",
+    "/storage/compiled/js/tab-slot.js": "/storage/compiled/js/tab-slot.js",
     "/storage/compiled/js/gears-dashboard.js": "/storage/compiled/js/gears-dashboard.js",
     "/storage/compiled/js/dashboard-live.js": "/storage/compiled/js/dashboard-live.js",
     "/storage/compiled/js/upload-meter.js": "/storage/compiled/js/upload-meter.js",

@@ -25,6 +25,10 @@
   --book-font-mono: var(--font-mono);
   --book-zoom-duration: 520ms;
   --book-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Vertical band kept clear beneath the pages for the exit button. The page
+     mounts pay for it as bottom inset, so the button sits UNDER the spread
+     rather than over it — see .reader-chrome__back. */
+  --reader-exit-band: clamp(72px, 9vh, 104px);
 }
 
 /* ── Overlay shell ──────────────────────────────────────── */
@@ -78,8 +82,11 @@
 
 /* Book (StPageFlip): breathing room so the curl never clips; the
    library generates .stf__* wrappers inside. */
+/* Bottom inset is the exit band, not breathing room: the back button lives
+   there, and BookAdapter.sizeHost() fits the spread to this box, so the pages
+   end where the button begins. Top inset still clears the pager. */
 .reader-mount--book {
-  inset: clamp(48px, 8vh, 84px) clamp(10px, 3vw, 48px) clamp(16px, 4vh, 48px);
+  inset: clamp(48px, 8vh, 84px) clamp(10px, 3vw, 48px) var(--reader-exit-band);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -115,9 +122,11 @@
   background: transparent !important;
 }
 
-/* DeepZoom (OpenSeadragon): edge-to-edge map surface, letterbox stays dark. */
+/* DeepZoom (OpenSeadragon): edge-to-edge map surface, letterbox stays dark.
+   Edge-to-edge except at the bottom, which is the exit band — a tabloid
+   panned to its lower edge would otherwise sit under the back button. */
 .reader-mount--zoom {
-  inset: 0;
+  inset: 0 0 var(--reader-exit-band);
   background: transparent;
 }
 
@@ -138,7 +147,9 @@
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y pinch-zoom;
   overscroll-behavior: contain;
-  padding: clamp(56px, 9vh, 96px) clamp(10px, 3vw, 32px) clamp(24px, 5vh, 64px);
+  /* Bottom padding is the exit band: the last page scrolls to just above the
+     back button instead of finishing underneath it. */
+  padding: clamp(56px, 9vh, 96px) clamp(10px, 3vw, 32px) var(--reader-exit-band);
 }
 
 .reader-scroll__page {
@@ -208,17 +219,29 @@
   transition: opacity 240ms ease;
 }
 
-/* The only exit on a phone, so it gets a full touch target and clears
-   any notch / rounded corner rather than tucking underneath it. */
+/* The only exit on a phone, so it gets a full touch target and clears the
+   home indicator / rounded corner rather than tucking underneath it.
+
+   It sits centred UNDER the pages, not over them. It used to be pinned
+   top-left, which put the single most-used control diagonally opposite the
+   thumb on a 768x1024 wall panel, and at the far end of a one-handed reach on
+   a phone. Both surfaces are read from the bottom up — the kiosk's own back
+   bar, the phone's home bar and the page-turn swipe all live in that edge —
+   so the way out belongs in the same band. The mounts reserve
+   --reader-exit-band for it, so it never covers the spread it is an exit
+   from. The tour's charter reader already did this; the copy in
+   tour-charter.css restyles rather than relocates now. */
 .reader-chrome__back {
   position: absolute;
-  top: max(clamp(10px, 2vh, 22px), env(safe-area-inset-top, 0px));
-  left: max(clamp(10px, 2vw, 22px), env(safe-area-inset-left, 0px));
+  bottom: max(clamp(12px, 2vh, 24px), env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  min-height: 44px;
-  padding: 10px 18px;
+  min-height: clamp(44px, 6vh, 58px);
+  padding: 10px 26px;
   border: 2px solid var(--book-soot);
   border-radius: 999px;
   background: var(--book-paper);
@@ -233,8 +256,10 @@
   box-shadow: 0 4px 0 0 var(--book-soot);
 }
 
+/* Keep the centring translate — a bare translateY here would throw it away
+   and the button would jump half its width on every press. */
 .reader-chrome__back:active {
-  transform: translateY(3px);
+  transform: translateX(-50%) translateY(3px);
   box-shadow: 0 1px 0 0 var(--book-soot);
 }
 

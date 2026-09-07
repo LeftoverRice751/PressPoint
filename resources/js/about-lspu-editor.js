@@ -30,8 +30,45 @@ import Quill from 'quill';
   // in registration order, contrary to the comment in ajaxSubmit(). Keeping the
   // hidden inputs current at all times sidesteps the ordering entirely.
 
+  // Short kiosk strings — the hub hero, index hints, prev/next labels, the
+  // quality footer, the seal cue and its callouts — ride in one hidden `meta`
+  // input per form. The server whitelists the keys against DEFAULT_META, so a
+  // form only ever posts what it renders and a save merges rather than replaces.
+  function serializeMeta(form) {
+    var hidden = form.querySelector('.js-meta-payload');
+    if (!hidden) return;
+
+    var meta = {};
+    form.querySelectorAll('[data-meta-key]').forEach(function (field) {
+      meta[field.dataset.metaKey] = field.value;
+    });
+
+    var rows = form.querySelectorAll('[data-hotspots] [data-hotspot-row]');
+    if (form.querySelector('[data-hotspots]')) {
+      // Present-but-empty is meaningful here: deleting every callout clears the
+      // seal legend, so the key is always sent when the repeater is on the form.
+      meta.hotspots = Array.prototype.map.call(rows, function (row) {
+        function val(sel) {
+          var el = row.querySelector(sel);
+          return el ? el.value : '';
+        }
+        return {
+          key: val('.js-hotspot-key'),
+          label: val('.js-hotspot-label'),
+          note: val('.js-hotspot-note'),
+          x: val('.js-hotspot-x'),
+          y: val('.js-hotspot-y')
+        };
+      });
+    }
+
+    hidden.value = JSON.stringify(meta);
+  }
+
   function serializeForm(form) {
     if (!form) return;
+
+    serializeMeta(form);
 
     // Mission / values: a list of sub-blocks serialised to JSON.
     var payload = form.querySelector('.js-subsections-payload');
@@ -70,12 +107,19 @@ import Quill from 'quill';
     return quill;
   }
 
-  function wireHeading(input) {
-    if (input.dataset.headingBound) return;
-    input.dataset.headingBound = '1';
+  // Re-serialise on every keystroke, for the same reason the Quill editors do:
+  // the dashboard's AJAX submit snapshots FormData before any submit listener
+  // here can run, so the hidden inputs have to be correct at all times.
+  function wireInput(input) {
+    if (!input || input.dataset.aboutBound) return;
+    input.dataset.aboutBound = '1';
     input.addEventListener('input', function () {
       serializeForm(input.closest('form'));
     });
+  }
+
+  function wireHeading(input) {
+    wireInput(input);
   }
 
   // Mount every editor inside a panel and prime the hidden inputs, so a save
@@ -84,8 +128,69 @@ import Quill from 'quill';
     panel.querySelectorAll('.js-body-editor').forEach(makeEditor);
     panel.querySelectorAll('.js-sub-editor').forEach(makeEditor);
     panel.querySelectorAll('.js-sub-heading').forEach(wireHeading);
+    panel.querySelectorAll('[data-meta-key]').forEach(wireInput);
+    panel.querySelectorAll('[data-hotspot-row] input').forEach(wireInput);
+    panel.querySelectorAll('[data-hotspot-row]').forEach(wireHotspotRemove);
     panel.querySelectorAll('form').forEach(serializeForm);
   }
+
+  // ── Seal callouts ────────────────────────────────────────
+  //
+  // The dot numbers are positional: they are what pairs a dot on the artwork
+  // with its card in the legend on the kiosk, so they are renumbered after any
+  // add or remove rather than carried on the row.
+  function renumberHotspots(list) {
+    if (!list) return;
+    list.querySelectorAll('[data-hotspot-row]').forEach(function (row, i) {
+      var num = row.querySelector('.about-hotspot__num');
+      if (num) num.textContent = ('0' + (i + 1)).slice(-2);
+    });
+  }
+
+  function wireHotspotRemove(row) {
+    var btn = row.querySelector('[data-remove-hotspot]');
+    if (!btn || btn.dataset.aboutBound) return;
+    btn.dataset.aboutBound = '1';
+    btn.addEventListener('click', function () {
+      var form = row.closest('form');
+      var list = row.closest('[data-hotspots]');
+      row.remove();
+      renumberHotspots(list);
+      serializeForm(form);
+    });
+  }
+
+  document.querySelectorAll('[data-add-hotspot]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var form = btn.closest('form');
+      var list = form.querySelector('[data-hotspots]');
+      if (!list) return;
+      var row = document.createElement('li');
+      row.className = 'about-hotspot';
+      row.setAttribute('data-hotspot-row', '');
+      row.innerHTML =
+        '<span class="about-hotspot__num"></span>' +
+        '<div class="about-hotspot__fields">' +
+          '<label class="field"><span class="field__label">Label</span>' +
+            '<input type="text" class="field__input js-hotspot-label" maxlength="80"></label>' +
+          '<label class="field"><span class="field__label">Note</span>' +
+            '<input type="text" class="field__input js-hotspot-note" maxlength="240"></label>' +
+          '<div class="about-hotspot__coords">' +
+            '<label class="field"><span class="field__label">X %</span>' +
+              '<input type="number" class="field__input js-hotspot-x" value="50" min="0" max="100" step="0.5"></label>' +
+            '<label class="field"><span class="field__label">Y %</span>' +
+              '<input type="number" class="field__input js-hotspot-y" value="50" min="0" max="100" step="0.5"></label>' +
+          '</div>' +
+        '</div>' +
+        '<input type="hidden" class="js-hotspot-key">' +
+        '<button type="button" class="ghost-button about-icon-button" data-remove-hotspot>✕ Remove</button>';
+      list.appendChild(row);
+      row.querySelectorAll('input').forEach(wireInput);
+      wireHotspotRemove(row);
+      renumberHotspots(list);
+      serializeForm(form);
+    });
+  });
 
   // ── Tab switching with lazy Quill init ───────────────────
   var tabs = Array.prototype.slice.call(document.querySelectorAll('[data-about-tab]'));

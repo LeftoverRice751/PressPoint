@@ -43,6 +43,10 @@
   class="gears-dashboard"
   data-dashboard-shell
   data-default-page="{% block shell_default_page %}{{ default_page if default_page else 'dashboard' }}{% endblock %}"
+  {# This tab's sign-in slot. tab-slot.js reads it to keep `u=` on every link,
+     form and fetch, so two tabs can hold two different accounts. 0 is the
+     default single-login case and makes that script a no-op. #}
+  data-tab-slot="{{ tab_slot() }}"
 {% block shell_data %}{% endblock %}
 >
   <aside class="gears-sidebar">
@@ -157,6 +161,9 @@
 {% endblock %}
 
 {% block js %}
+{# First, and NOT deferred: it must wrap fetch/XHR before dashboard-live.js
+   starts polling, and may redirect to restore a dropped `u=` parameter. #}
+<script src="{{ asset_url('js/tab-slot.js') }}"></script>
 <script src="{{ asset_url('js/confirm-modal.js') }}" defer></script>
 <script src="{{ asset_url('js/gears-dashboard.js') }}" defer></script>
 <script src="{{ asset_url('js/dashboard-live.js') }}" defer></script>

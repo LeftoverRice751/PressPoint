@@ -6,6 +6,8 @@ from app.cache_drivers import LockingFileDriver
 from app.exceptions.Handler import Handler
 from app.exceptions.InvalidCSRFTokenHandler import InvalidCSRFTokenHandler
 from app.rate_limiters import GuestAuthLimiter
+from app.session_drivers import SlotCookieSessionDriver
+from app.tab_slots import current_slot
 from app.services import Branding, Profiles
 from app.services.AssetVersion import asset_url
 from app.services.ImageDerivatives import news_image
@@ -27,6 +29,16 @@ class AppProvider(Provider):
         # increment is an unlocked read-modify-write; see app/cache_drivers.py.
         self.application.make("cache").add_driver(
             "file", LockingFileDriver(self.application)
+        )
+
+        # Same trick as the cache driver above, one provider along: replace the
+        # session "cookie" driver with the slot-aware one. SessionProvider
+        # registers its CookieDriver under that name and runs before
+        # AppProvider (config/providers.py), so re-adding the name wins without
+        # touching config/session.py. Without it, two tabs share one flash bag
+        # and an admin's success banner pops up in the editor's tab.
+        self.application.make("session").add_driver(
+            "cookie", SlotCookieSessionDriver(self.application)
         )
 
         # Register the view filter at startup, NOT in boot(): boot() runs
@@ -64,6 +76,12 @@ class AppProvider(Provider):
         #
         # Registered here in register(), not boot(): boot() runs per request
         # after the template has already rendered.
+        # The tab's sign-in slot, for shell.html's data-tab-slot. Shared as a
+        # function, like the helpers below and for the same reason: a value
+        # would freeze one request's slot into every later render, which in a
+        # multi-worker app means handing one tab another tab's identity.
+        self.application.make(View).share({"tab_slot": current_slot})
+
         self.application.make(View).share({
             "display_name": Profiles.display_name,
             "avatar_url": Profiles.avatar_url,

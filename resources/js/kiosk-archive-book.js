@@ -202,6 +202,24 @@ document.addEventListener('DOMContentLoaded', () => {
     return serverPageUrl(state, pageNumber);
   }
 
+  /*
+   * True when the server has rendered every page of this document.
+   *
+   * This is the condition that retires pdf.js from normal reading. When it
+   * holds, downloading the (often ~100 MB) PDF cannot improve anything the
+   * reader is looking at: the server raster is 1512x2160 and the book fits a
+   * page into at most half of a 768px-wide kiosk panel, so it is already
+   * oversampled. The one thing it can still buy is pinch-zoom detail on a
+   * tabloid, and ZoomAdapter.resharpen() asks for the document explicitly when
+   * the reader actually zooms past what the raster holds.
+   *
+   * Before the whole-document sweep this was never true — the server stopped
+   * at 20 pages — so the reader always fetched the PDF and always needed to.
+   */
+  function serverCoversDocument() {
+    return state.pageCount > 0 && state.prewarmedPages >= state.pageCount;
+  }
+
   // ── pdf.js pipeline (ported from the previous reader) ───
 
   let pdfjsPromise = null;
@@ -282,8 +300,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }).catch(() => { /* previews stay on screen; nothing to undo */ });
   }
 
-  function schedulePdfWarm() {
+  function schedulePdfWarm(force) {
     if (pdfWarmStarted || pdfWarmTimer) return;
+    // Every page is already on screen at full quality; fetching the document
+    // would be ~100 MB spent to redraw what the reader is looking at. Only an
+    // explicit `force` (the tabloid's pinch-zoom resharpen) overrides this.
+    if (!force && serverCoversDocument()) return;
     if (!hasPreview(1)) { startPdfWarm(); return; }
     // The kiosk opts out of the deferral entirely (see EAGER_PDF): the delay
     // exists to save a phone from downloading ~100 MB it may not read, and on
@@ -304,6 +326,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function noteReadingProgress(pageNumber) {
     state.cursor = pageNumber || state.cursor;
     if (pdfWarmStarted) return;
+    // Turning a page used to be the signal to go and get the document, because
+    // the previews ran out at page 20 and the reader was about to walk off the
+    // end of them. With the whole document rendered there is no end to walk
+    // off, and a page turn is no longer a reason to download anything.
+    if (serverCoversDocument()) return;
     if (state.cursor > 1 || state.cursor + PDF_WARM_LOOKAHEAD >= state.prewarmedPages) {
       startPdfWarm();
     }
@@ -1099,8 +1126,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const zoom = this.zoomTarget();
       if (zoom <= this.renderedZoom * ZOOM_RESHARPEN_THRESHOLD) return;
       // Nothing to re-render from until the document has arrived; onPdfReady
-      // calls back here once it has.
-      if (!state.pdfDoc) { schedulePdfWarm(); return; }
+      // calls back here once it has. Forced: this is the one place the PDF
+      // still earns its download, because the reader has zoomed past what the
+      // server raster holds and only the vector source can go further.
+      if (!state.pdfDoc) { schedulePdfWarm(true); return; }
 
       this.renderedZoom = zoom;
       const target = this.page;
@@ -1294,6 +1323,15 @@ document.addEventListener('DOMContentLoaded', () => {
       // and the preview simply stays up.
       this.requestPage = (holder, n) => {
         const preview = previewUrl(n);
+        // When the server has rendered the whole document the preview is not a
+        // placeholder, it is the finished page -- so paint it as final and ask
+        // for nothing more. Marking it `is-preview` here would leave the CSS's
+        // "sharpening" hint on every page of the archive, permanently, waiting
+        // for a pdf.js render that is never coming (see serverCoversDocument).
+        if (preview && serverCoversDocument()) {
+          paint(holder, preview, false);
+          return;
+        }
         if (preview && !state.pageUrls.has(n)) paint(holder, preview, true);
         loadPage(n).then((url) => {
           if (session !== state.session || !url) return;

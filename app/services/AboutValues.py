@@ -14,14 +14,30 @@ who reformats the section gets a plainer pane, never a broken one or a 500.
 import re
 
 _TAGS = re.compile(r"<[^>]+>")
-_NBSP = " "
+_NBSP = "\u00a0"
+
+#: Zero-width characters Quill leaves behind, and that anything pasted out of
+#: Word brings with it. The live Core Values field stored its last acrostic
+#: letter as `<strong>\ufeffS</strong>`, and U+FEFF is a *format* character, not
+#: whitespace, so the `\s*` in ACROSTIC_RE below never matched it: the run
+#: parsed as STUDENT, failed the STUDENTS check, and the entire Core Values
+#: block silently vanished from the kiosk. They carry no meaning in this
+#: content, so every parser here drops them before matching.
+_ZERO_WIDTH = re.compile("[\ufeff\u200b\u200c\u200d\u2060]")
+
+
+def _clean(html):
+    """Drop zero-width characters. Safe on None/empty."""
+    if not html:
+        return ""
+    return _ZERO_WIDTH.sub("", html)
 
 
 def _text(html):
     """Strip tags to plain text, normalising the &nbsp; Quill sprinkles in."""
     if not html:
         return ""
-    return _TAGS.sub("", html).replace("&nbsp;", " ").replace(_NBSP, " ").strip()
+    return _TAGS.sub("", _clean(html)).replace("&nbsp;", " ").replace(_NBSP, " ").strip()
 
 
 def _blocks(html):
@@ -62,14 +78,21 @@ def acrostic(html, expected=None):
         return []
     pairs = re.findall(
         r"<strong>\s*([A-Za-z])\s*</strong>\s*(?:&nbsp;|\s)*<em>\s*([A-Za-z]+)\s*</em>",
-        html,
+        _clean(html),
         flags=re.I,
     )
     items = [{"letter": letter.upper(), "rest": rest} for letter, rest in pairs]
     if expected:
+        # Find the *run* that spells `expected`, which is what the caller asked
+        # for. This used to require the whole field to parse to exactly that
+        # word, so one extra bolded-then-italic phrase anywhere in the section
+        # -- a heading an editor styled, a stray emphasis -- blanked the entire
+        # acrostic on the kiosk with nothing in its place.
         letters = "".join(i["letter"] for i in items)
-        if letters != expected.upper():
+        start = letters.find(expected.upper())
+        if start == -1:
             return []
+        return items[start:start + len(expected)]
     return items
 
 

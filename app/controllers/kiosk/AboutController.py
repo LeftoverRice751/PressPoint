@@ -11,7 +11,12 @@ from masonite.views import View
 from app.models.AboutMilestone import AboutMilestone
 from app.models.AboutSection import AboutSection
 from app.services import AboutValues
-from app.services.AboutContent import AboutContent, SECTION_SLUGS
+from app.services.AboutContent import (
+    AboutContent,
+    EDITABLE_SLUGS,
+    PAGE_SLUG,
+    SECTION_SLUGS,
+)
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.StorageRouter import gearsnas_base
 from app.services.FileVerificationService import FileVerificationService
@@ -21,27 +26,6 @@ from app.services.ImageUploads import save_uploaded_image
 _SEAL_NAS_SUBDIR = "About"
 _MILESTONE_NAS_SUBDIR = "About/milestones"
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
-
-#: Callouts on the university seal, as percentage positions within the artwork.
-#: These are properties of the seal image itself, not editorial content, so they
-#: live in code rather than the database — an editor replacing the seal file
-#: keeps the same emblem and therefore the same anchor points. The template
-#: positions each dot inside an aspect-ratio:1 wrapper, so the percentages
-#: resolve against the artwork and stay glued to it at any size.
-SEAL_HOTSPOTS = [
-    {"key": "torch", "label": "Torch and flame", "x": 50, "y": 41,
-     "note": "Enlightenment carried into the province."},
-    {"key": "book", "label": "The open book", "x": 50, "y": 52,
-     "note": "Instruction and research: the university teaches, and it publishes."},
-    {"key": "agriculture", "label": "Agriculture", "x": 27, "y": 33,
-     "note": "The rice stalk, for the farming towns the school was founded to serve."},
-    {"key": "fisheries", "label": "Fisheries", "x": 72, "y": 31,
-     "note": "The fish of Laguna de Bay, on whose shoreline the first campus opened."},
-    {"key": "technology", "label": "Technology", "x": 50, "y": 73,
-     "note": "Gear and earth — the polytechnic mandate in industry and the trades."},
-    {"key": "founding", "label": "1952 · 2007", "x": 50, "y": 91,
-     "note": "Founding year on the ring; 2007 at the centre, when R.A. 9402 made LSPU a university."},
-]
 
 
 def _editor_redirect(response: Response):
@@ -88,7 +72,14 @@ class AboutController(Controller):
                 "quality_statement": statement,
                 "quality_support": support,
                 "hymn_lines": AboutValues.hymn_lines(hymn.body_html if hymn else ""),
-                "seal_hotspots": SEAL_HOTSPOTS,
+                # Short display copy (hub hero, index hints, section chrome, and
+                # the seal callouts) comes from each row's `meta`, falling back
+                # to AboutContent.DEFAULT_META. It used to be a `tile_meta`
+                # literal in the template and a constant in this file, so a typo
+                # on the kiosk needed a deploy to fix.
+                "tile_meta": data["meta"],
+                "page": data["page"],
+                "seal_hotspots": data["meta"]["seal"].get("hotspots") or [],
             },
         )
 
@@ -98,29 +89,53 @@ class AboutController(Controller):
         return response.redirect(name="gears.dashboard", query_params={"page": "about-lspu"})
 
     def save_section(self, slug, request: Request, response: Response):
-        if slug not in SECTION_SLUGS:
+        if slug not in EDITABLE_SLUGS:
             if wants_json(request):
                 return json_errors(response, ["Unknown section."])
             return _editor_redirect(response).with_errors(["Unknown section."])
 
         section = AboutSection.where("slug", slug).first()
+        if not section and slug == PAGE_SLUG:
+            # The six section rows are seeded; the hub row was introduced with
+            # `meta` and has no seed behind it on an existing install, so create
+            # it on first save rather than making the migration carry data.
+            section = AboutSection.create({"slug": PAGE_SLUG, "title": "About LSPU"})
         if not section:
             if wants_json(request):
                 return json_errors(response, ["Section not found."])
             return _editor_redirect(response).with_errors(["Section not found."])
 
-        if slug in ("mission", "values"):
-            raw = request.input("subsections") or "[]"
+        raw_meta = request.input("meta")
+        if raw_meta:
             try:
-                parsed = json.loads(raw)
+                parsed_meta = json.loads(raw_meta)
             except (TypeError, ValueError):
-                parsed = []
-            section.subsections = AboutContent.sanitize_subsections(parsed)
-            section.body_html = None
-        else:
-            section.body_html = AboutContent.sanitize_html(
-                request.input("body_html") or ""
-            )
+                parsed_meta = None
+            if parsed_meta is not None:
+                # Merge, don't replace: each editor form posts only the keys it
+                # renders, and the seal's two forms both target this endpoint.
+                merged = dict(section.meta or {})
+                merged.update(AboutContent.sanitize_meta(slug, parsed_meta))
+                section.meta = merged
+
+        # Only touch a body field the posted form actually carries. The seal tab
+        # now has three forms (image, description, callouts) all aimed at this
+        # endpoint, so a blind `input("body_html") or ""` would let the callout
+        # save blank the description it never rendered.
+        if slug in ("mission", "values"):
+            raw = request.input("subsections", None)
+            if raw is not None:
+                try:
+                    parsed = json.loads(raw or "[]")
+                except (TypeError, ValueError):
+                    parsed = []
+                section.subsections = AboutContent.sanitize_subsections(parsed)
+                section.body_html = None
+        elif slug != PAGE_SLUG:
+            # The hub row is hero copy in `meta` and has no body of its own.
+            raw_body = request.input("body_html", None)
+            if raw_body is not None:
+                section.body_html = AboutContent.sanitize_html(raw_body)
 
         title = (request.input("title") or section.title).strip()
         if title:
@@ -148,6 +163,17 @@ class AboutController(Controller):
                 ["Year and heading are required."]
             )
 
+        image_path = None
+        file = request.input("file")
+        if isinstance(file, list):
+            file = file[0] if file else None
+        if file:
+            image_path, err = save_uploaded_image(file, _MILESTONE_NAS_SUBDIR, "milestone")
+            if err:
+                if wants_json(request):
+                    return json_errors(response, [err])
+                return _editor_redirect(response).with_errors([err])
+
         last = AboutMilestone.order_by("sort_order", "desc").first()
         next_order = (getattr(last, "sort_order", 0) or 0) + 1
 
@@ -155,7 +181,7 @@ class AboutController(Controller):
             "year": year,
             "heading": heading,
             "body_html": body_html,
-            "image_path": None,
+            "image_path": image_path,
             "sort_order": next_order,
         })
         if wants_json(request):
@@ -179,13 +205,21 @@ class AboutController(Controller):
         if body_html is not None:
             row.body_html = AboutContent.sanitize_html(body_html)
 
-        # Optional image upload swap-in.
+        # Optional image upload swap-in. The endpoint has always accepted this;
+        # the dashboard grew the file input alongside it, so a milestone photo
+        # on the kiosk's history pager is now editable rather than seed-only.
         file = request.input("file")
+        if isinstance(file, list):
+            file = file[0] if file else None
         if file:
             relative, err = save_uploaded_image(file, _MILESTONE_NAS_SUBDIR, "milestone")
             if err:
+                if wants_json(request):
+                    return json_errors(response, [err])
                 return _editor_redirect(response).with_errors([err])
             row.image_path = relative
+        elif str(request.input("remove_image") or "").strip() in ("1", "true", "on"):
+            row.image_path = None
 
         row.save()
         if wants_json(request):
