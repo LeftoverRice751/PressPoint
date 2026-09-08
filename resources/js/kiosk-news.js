@@ -21,6 +21,9 @@
 
   var IDLE_MS = 120000;
   var HUB_URL = '/kiosk';
+  // The kiosk hub frames this page as its idle attract screen. Same-origin,
+  // so no try/catch is needed around window.top.
+  var isFramed = window.top !== window.self;
   // How many lines of the lead story the front page shows before "Continue
   // reading". Pairs with `.feature-story__copy.is-clamped`'s max-height in
   // kiosk-news.css, which is the no-JS fallback — change both together.
@@ -160,13 +163,23 @@
     lastActivity = Date.now();
   }
 
-  ['pointerdown', 'touchstart', 'touchmove', 'keydown', 'wheel', 'scroll'].forEach(function (evt) {
-    window.addEventListener(evt, markActive, { passive: true });
-  });
+  // Skip arming the idle timer entirely when framed: the kiosk hub embeds
+  // this page as its attract screen, and firing the reset here would send
+  // the framed document to /kiosk, nesting the hub inside its own attract
+  // iframe. The reader overlay is left wired up as-is -- the iframe already
+  // carries pointer-events: none, so it's unreachable, and a second disable
+  // path here would be redundant.
+  if (!isFramed) {
+    ['pointerdown', 'touchstart', 'touchmove', 'keydown', 'wheel', 'scroll'].forEach(
+      function (evt) {
+        window.addEventListener(evt, markActive, { passive: true });
+      }
+    );
 
-  setInterval(function () {
-    if (Date.now() - lastActivity >= IDLE_MS) {
-      window.location.href = HUB_URL;
-    }
-  }, 15000);
+    setInterval(function () {
+      if (Date.now() - lastActivity >= IDLE_MS) {
+        window.location.href = HUB_URL;
+      }
+    }, 15000);
+  }
 })();
