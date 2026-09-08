@@ -22,7 +22,7 @@
    ?v=<mtime> (app/services/AssetVersion.py), so a hand-written list would be a
    second copy of every template's asset list that silently drifts and
    cache-misses on every load. #}
-<script>
+<script nonce="{{ csp_nonce() }}">
   (function () {
     if (window.__kioskSW) return;
     window.__kioskSW = true;
@@ -35,7 +35,12 @@
     var SAME_OK = ['/assets/', '/pano/vendor/', '/pano/img/',
                    '/storage/Archives/', '/storage/Branding/',
                    '/storage/About/', '/storage/news/'];
-    var SAME_OK_EXACT = ['/api/locations', '/api/tour-scenes', '/kiosk'];
+    // /kiosk/latest-news is the newsletter attract screen welcome-screen.js
+    // frames into #kiosk-attract when idle with no video flagged — it must
+    // render offline the same as the menu it covers, so it needs its own
+    // allowlist entry (keep() is an allowlist, not a denylist: adding it only
+    // to the harvest() tail below would still get silently dropped here).
+    var SAME_OK_EXACT = ['/api/locations', '/api/tour-scenes', '/kiosk', '/kiosk/latest-news'];
     // The two cross-origin scripts kiosk pages load. Cached opaquely.
     var CROSS_OK = ['https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/',
                     'https://js.pusher.com/'];
@@ -80,7 +85,10 @@
       // 3. What nothing can observe: the tour's JS-built hotspot icons, the
       //    two effectively-static kiosk APIs, and the menu itself — the back
       //    button's destination, and so the single most important entry here.
-      ['/kiosk', '/api/locations', '/api/tour-scenes',
+      //    /kiosk/latest-news is the idle newsletter attract screen; it must
+      //    be precached like the menu so the attract loop still renders with
+      //    the campus link down (see the SAME_OK_EXACT comment above).
+      ['/kiosk', '/kiosk/latest-news', '/api/locations', '/api/tour-scenes',
        '/pano/img/link.png', '/pano/img/info.png', '/pano/img/close.png'].forEach(add);
 
       return out;
