@@ -203,12 +203,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // and a script failure anywhere above this line left the whole menu dead.
   // With no JS at all the six anchors are still a working menu.
   //
-  // They are no longer navigated by the browser, though: inside the carousel a
-  // tap means *select*, so the capture-phase listener further down
-  // preventDefault()s clicks on .feature-card and the stage's VIEW link is the
-  // only thing that navigates. The anchor markup stays for the two reasons
-  // above; only its default action is suppressed, and only while this script
-  // is alive.
+  // That's MORE true now than it used to be, not less: a tap on a side card
+  // still only re-centres it (the capture-phase listener further down
+  // preventDefault()s that click), but a tap on the already-centred card is
+  // no longer intercepted at all — the anchor's own default navigation is
+  // once again the actual mechanism that carries the visitor to the
+  // destination, the same as it would with no JS running at all. There used
+  // to be a separate stage VIEW button that was the only thing that ever
+  // navigated; it's gone, so the anchors are doing real work again.
   //
   // Nothing on this screen is ever "selected" either. The cards used to latch
   // an .is-selected maroon fill and aria-pressed="true" on tap. Both were
@@ -238,7 +240,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const stageTitleEl = document.querySelector("[data-wc-title]");
   const stageIconEl = document.querySelector("[data-wc-icon]");
   const stageBlurbEl = document.querySelector("[data-wc-blurb]");
-  const stageViewEl = document.querySelector("[data-wc-view]");
 
   let menuSwiper = null;
 
@@ -267,12 +268,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const icon = slide.querySelector("svg");
         stageIconEl.replaceChildren(icon ? icon.cloneNode(true) : "");
       }
-      if (stageViewEl) {
-        // getAttribute, not .href: the anchors carry root-relative paths and
-        // .href would resolve them to absolute URLs, which is fine to follow
-        // but noisier to read back in tests and DevTools.
-        stageViewEl.setAttribute("href", slide.getAttribute("href") || "#");
-      }
     };
 
     if (!stageEl) {
@@ -293,6 +288,79 @@ document.addEventListener("DOMContentLoaded", () => {
         stageEl.classList.remove("is-swapping");
       });
     });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Speculative prerender of the centred destination only.
+  //
+  // See the comment on the speculationrules block in welcome.html for why
+  // this exists in place of the old static tiers. In short: a prerender is a
+  // fully rendered, live page (unlike the .feature-card prefetch tier, which
+  // is a plain cached response), Chromium can't run more than a couple at
+  // once anyway, and running all six live would be heavier than the menu
+  // itself. This injects one at a time, for whichever card the visitor has
+  // settled on.
+  //
+  // Feature-detected up front: HTMLScriptElement.supports is itself new
+  // enough that a kiosk on an older Chromium build (or a non-Chromium
+  // browser, however unlikely on this hardware) simply never has it, and the
+  // whole thing should no-op rather than throw.
+  const supportsSpeculationRules =
+    typeof HTMLScriptElement !== "undefined" &&
+    typeof HTMLScriptElement.supports === "function" &&
+    HTMLScriptElement.supports("speculationrules");
+
+  let prerenderTimer = null;
+  let prerenderScriptEl = null;
+
+  function setActivePrerender(href) {
+    if (!href) return;
+    if (!document.head || typeof document.createElement !== "function") return;
+
+    // Remove the previous injected element first — that is what cancels the
+    // superseded prerender. Speculation rules aren't "updated" in place;
+    // Chromium just stops honoring a ruleset once the <script> carrying it
+    // is gone, so removing the old one before adding the new one is the
+    // whole mechanism.
+    if (prerenderScriptEl && prerenderScriptEl.parentNode) {
+      prerenderScriptEl.parentNode.removeChild(prerenderScriptEl);
+    }
+    prerenderScriptEl = null;
+
+    try {
+      const script = document.createElement("script");
+      script.type = "speculationrules";
+      script.setAttribute("data-wc-prerender", "");
+      // Deliberately no nonce: the CSP allows this element via the
+      // 'inline-speculation-rules' token in script-src
+      // (app/security_headers.py), which the spec matches speculation rules
+      // against specifically — a nonce is not the mechanism it checks, so
+      // adding one here would do nothing and shouldn't be "fixed" in later
+      // by someone assuming every inline <script> needs one.
+      script.textContent = JSON.stringify({
+        prerender: [{ urls: [href], eagerness: "immediate" }],
+      });
+      document.head.appendChild(script);
+      prerenderScriptEl = script;
+    } catch (error) {
+      // Degrade silently: the .feature-card prefetch tier in welcome.html
+      // still covers every destination even with no live prerender at all.
+    }
+  }
+
+  function schedulePrerender() {
+    if (!supportsSpeculationRules) return;
+    if (!menuSwiper || !menuSwiper.slides) return;
+
+    if (prerenderTimer) window.clearTimeout(prerenderTimer);
+    // Debounced ~300ms behind slideChange: swiping through several cards in
+    // a row must not spin up (and immediately tear down) a prerender for
+    // every card passed through, only the one the visitor stops on.
+    prerenderTimer = window.setTimeout(() => {
+      const slide = menuSwiper.slides[menuSwiper.activeIndex];
+      const href = slide && slide.getAttribute ? slide.getAttribute("href") : null;
+      setActivePrerender(href);
+    }, 300);
   }
 
   if (carouselEl && carouselEl.querySelector(".swiper-slide")) {
@@ -318,22 +386,75 @@ document.addEventListener("DOMContentLoaded", () => {
 
     menuSwiper.on("slideChange", syncStage);
 
-    // A tap selects; it must never navigate. Capture phase so this runs
-    // before Swiper's own click handling and before the anchor's default
-    // action is queued. No tap-vs-swipe detector is needed here: Swiper's
-    // built-in preventClicks already swallows the synthetic click a drag
-    // emits, so a swipe never reaches this listener at all. (Contrast
-    // makeTapDetector in kiosk-archive-book.js, which exists only because
-    // StPageFlip owns its own drag and Swiper is not involved.)
+    // ── Tap discrimination: side tap re-centres, centre tap navigates ────
+    //
+    // A tap on a side card must only centre it; a tap on the card that is
+    // ALREADY centred is what navigates now that the stage's VIEW button is
+    // gone (see the comment up top on why the anchors are the real
+    // navigation mechanism again). No tap-vs-swipe detector is needed to
+    // tell a swipe apart from either kind of tap: Swiper's built-in
+    // preventClicks already swallows the synthetic click a drag emits, so a
+    // swipe never reaches this listener at all. (Contrast makeTapDetector in
+    // kiosk-archive-book.js, which exists only because StPageFlip owns its
+    // own drag and Swiper is not involved.)
+    //
+    // What IS needed is a reliable way to tell "tap centred this card just
+    // now" apart from "this card was already centred before the finger
+    // landed". kiosk-archives.js answers that by comparing
+    // swiper.clickedIndex to swiper.activeIndex inside the click handler —
+    // but that trusts that Swiper hasn't already applied
+    // slideToClickedSlide's re-centring before the handler runs, and nothing
+    // guarantees that ordering. Getting it wrong here means a side tap reads
+    // as a centre tap and navigates the visitor somewhere they never chose —
+    // on an unattended public kiosk that's a real failure, not a nitpick.
+    //
+    // So this records activeIndex on pointerdown — capture phase, before
+    // Swiper's own handling and before any centring can have happened — and
+    // compares the tapped card's index against that snapshot on click. The
+    // snapshot can never be stale relative to the tap that produced it,
+    // unlike clickedIndex/activeIndex read after the fact.
+    let preTapActiveIndex = null;
+
+    carouselEl.addEventListener(
+      "pointerdown",
+      () => {
+        if (!menuSwiper) return;
+        preTapActiveIndex = menuSwiper.activeIndex;
+      },
+      { capture: true, passive: true },
+    );
+
     carouselEl.addEventListener(
       "click",
       (ev) => {
         const card = ev.target && ev.target.closest ? ev.target.closest(".feature-card") : null;
         if (!card) return;
-        ev.preventDefault();
+        if (!menuSwiper || !menuSwiper.slides) return;
+
+        const cardIndex = Array.prototype.indexOf.call(menuSwiper.slides, card);
+
+        // Unresolvable or different from the pre-tap snapshot: this was a
+        // side tap (or something we can't identify), so treat it as
+        // navigation-never — the safe default on a public kiosk. Only an
+        // index that matches the snapshot exactly is a tap on the card that
+        // was already centred, and that's the one case where the anchor's
+        // default action is allowed through.
+        if (cardIndex === -1 || cardIndex !== preTapActiveIndex) {
+          ev.preventDefault();
+        }
       },
       true,
     );
+
+    // ── Prerender only the centred destination ───────────────────────────
+    // See the long comment on the speculationrules block in welcome.html for
+    // why this exists (prerendering all six is neither possible nor
+    // desirable) and why it targets the active slide alone.
+    menuSwiper.on("slideChange", schedulePrerender);
+    // slideChange doesn't fire on init, so the initially-centred card (Campus
+    // Map, kiosk_menus[1] — see the Swiper config above) needs one explicit
+    // kick here.
+    schedulePrerender();
   }
 
   // ───────────────────────────────────────────────────────────────────────

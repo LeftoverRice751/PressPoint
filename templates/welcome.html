@@ -268,16 +268,17 @@
 
       <!-- Browse-then-commit: the carousel below is a scrubber, not six equal
            taps. One destination is centred at a time and mirrored up into the
-           stage; a swipe just re-centres and re-labels, and only the stage's
-           View button (or a direct tap on the centred slide) navigates. This
-           replaces the old flat two-column grid, which is why the moderate
-           speculation-rules tier below now targets .wc-view instead of every
-           card — see the comment there. -->
+           stage; a swipe just re-centres and re-labels. Tapping the already-
+           centred card is what navigates now — welcome-screen.js discriminates
+           a side tap (which only re-centres) from a tap on the centred card
+           (which lets the anchor's own default action fire); see the comment
+           there. There used to be a separate VIEW button for that, which is
+           why the speculation-rules block below used to have a moderate tier
+           keyed to it — see the comment there for what replaced it. -->
       <section class="wc-stage" aria-live="polite" data-wc-stage>
         <h2 class="wc-stage__title" data-wc-title>{{ kiosk_menus[1].title }}</h2>
         <div class="wc-stage__icon" aria-hidden="true" data-wc-icon>{{ menu_icon(kiosk_menus[1].id) }}</div>
         <p class="wc-stage__blurb" data-wc-blurb>{{ kiosk_menus[1].blurb }}</p>
-        <a class="wc-view" data-wc-view href="{{ kiosk_menus[1].href }}">View</a>
       </section>
 
       <section class="wc-carousel" aria-label="Kiosk destinations">
@@ -371,28 +372,35 @@
 
   <!-- Speculation rules: the kiosk menu is a fixed set of six destinations on
        idle hardware, which is the ideal case for prerendering. Chromium runs
-       each listed page to completion in a hidden frame — HTML, CSS, JS, Leaflet
-       init and all — so the tap swaps in an already-painted page instead of
-       starting a navigation.
+       a listed page to completion in a hidden frame — HTML, CSS, JS, Leaflet
+       init and all — so a tap on it swaps in an already-painted page instead
+       of starting a navigation.
 
-       Two tiers on purpose. The two lightest, most-tapped destinations render
-       eagerly while the menu sits idle. The rest wait for "moderate", which
-       fires on pointerdown — the ~150ms between finger-down and finger-up is
-       enough to win most of the load — because prerendering Archives (314KB of
-       pdf.js) and the 360 tour (Leaflet + tour data) up front would hold far
-       more memory than a 768x1024 panel should carry at rest.
+       Static tiers used to declare two eager pages up front plus a moderate
+       tier on the stage's now-removed VIEW button. Both are gone: prerendering
+       all six at once was never possible — Chromium caps concurrent immediate
+       prerenders at roughly two, moderate at roughly two more — and it isn't
+       desirable on this panel even if it were. A prerender is a fully
+       rendered, LIVE page, not a cached document: Gears Archive alone ships
+       ~410KB of JS plus pdf.js and eagerly pre-warms 20 page rasters, and the
+       360 tour parses a 180KB scene graph and starts pulling cube tiles. Six
+       of those running at once at rest would be a heavier kiosk than the
+       static menu it's meant to serve instantly.
 
-       The moderate tier matches .wc-view, not .feature-card: with the carousel,
-       pointerdown on a slide is a swipe or a re-centre, not a navigation, so
-       prerendering there would burn memory on every touch of the menu. The
-       stage's View button's href mutates as the carousel moves, but it still
-       only gets a pointerdown immediately before a real navigation to whatever
-       it currently points at — the case this tier exists for — and a stale
-       prerender (moved on before Chromium finishes) just degrades to the
-       prefetch tier's cache hit below, so a mutating href costs nothing here.
+       welcome-screen.js now injects a single `<script type="speculationrules"
+       data-wc-prerender>` naming only the carousel's currently-centred
+       card, debounced ~300ms behind slideChange and replaced (old element
+       removed, which is what cancels the superseded prerender) every time
+       the visitor settles on a new one. That keeps exactly one destination
+       live at a time and spends the memory only where the visitor has shown
+       intent, rather than speculating on all six or on none.
 
-       prefetch covers all six regardless: if a prerender is evicted or the
-       concurrency cap is hit, the document still comes from cache.
+       The .feature-card prefetch block below is unchanged and is the safety
+       net for the other five: a prefetch is a plain cached response, not a
+       rendered page, so caching all six costs nothing like a prerender does.
+       If the dynamic prerender above is evicted, superseded, or never fires
+       (feature-detection failed, or the debounce hasn't landed yet), the tap
+       still resolves from this cache instead of a cold network fetch.
 
        These responses carry a per-session CSRF token that the Campus Map and
        tour QR handoff POSTs depend on, so the document must stay fresh from the
@@ -400,21 +408,11 @@
        treats kiosk documents as network-first rather than cache-first: online,
        prerender still wins and the token is always current; the cached copy is
        served only when the network has actually failed, which is what makes the
-       back button work with the campus link down. The prefetches below travel
-       that same network-first path, so they populate the offline cache for all
+       back button work with the campus link down. The prefetch below travels
+       that same network-first path, so it populates the offline cache for all
        six destinations at no extra cost. -->
   <script type="speculationrules">
   {
-    "prerender": [
-      {
-        "urls": ["{{ route('kiosk.latest-news', {}, False) }}", "/kiosk/campus-map"],
-        "eagerness": "immediate"
-      },
-      {
-        "where": { "selector_matches": ".wc-view" },
-        "eagerness": "moderate"
-      }
-    ],
     "prefetch": [
       {
         "where": { "selector_matches": ".feature-card" },
