@@ -165,7 +165,10 @@
       position: fixed;
       inset: 0;
       z-index: 9999;
-      background: var(--kiosk-espresso);
+      /* Cream, not espresso: the framed page (kiosk/news.html) renders on a
+         cream newspaper-bg, so a dark ground here shows through as a flash
+         while the iframe loads. */
+      background: var(--kiosk-cream);
       overflow: hidden;
     }
 
@@ -187,6 +190,13 @@
       width: 100%;
       height: 100%;
       border: 0;
+      /* The attract screen is decorative only: every touch must fall through
+         to the document-level wake listeners in welcome-screen.js, never
+         land inside the framed newspaper (its own scroll / "Continue
+         reading" control). Without this, a touch scrolls the iframe instead
+         of waking the kiosk, stranding an unattended visitor with no way
+         back to the menu. */
+      pointer-events: none;
     }
   </style>
 </head>

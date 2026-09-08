@@ -156,8 +156,13 @@
 .wc-stage__title,
 .wc-stage__icon,
 .wc-stage__blurb {
-  transition: opacity var(--kiosk-dur) var(--kiosk-ease),
-              transform var(--kiosk-dur) var(--kiosk-ease);
+  /* --kiosk-dur-fast (160ms), not --kiosk-dur (280ms): this swap fires on
+     every carousel move, and the spec calls for "fast, responsive, calm" —
+     280ms read as sluggish. Token is defined in kiosk-tokens.css and not
+     shadowed by kiosk-palette.css (which only redefines --kiosk-dur), so it
+     is available here despite an earlier pass skipping it as "unavailable". */
+  transition: opacity var(--kiosk-dur-fast) var(--kiosk-ease),
+              transform var(--kiosk-dur-fast) var(--kiosk-ease);
 }
 
 .wc-stage.is-swapping .wc-stage__title,
