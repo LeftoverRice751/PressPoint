@@ -29,6 +29,88 @@ const SOURCE = readFileSync(join(here, '../../resources/js/welcome-screen.js'), 
 
 const IDLE_MS = 30 * 1000;
 
+// welcome-screen.js now opens with `import Swiper from "swiper"` plus a
+// `swiper/modules` destructure (added for the menu carousel) so laravel-mix
+// can bundle and tree-shake it. This harness still evaluates the file's text
+// with `new Function('document', 'window', 'fetch', SOURCE)`, and Function's
+// implicit body is parsed as a *script*, not a *module* — a script grammar
+// has no import declaration at all, so the literal `import` keyword is a
+// SyntaxError before a single statement of the module runs, let alone
+// DOMContentLoaded. There is no bundler in this test process to resolve
+// "swiper" against, so the fix isn't "make it a real module" — it's to strip
+// the leading import statements (the source is otherwise plain browser JS,
+// module or not) and hand the module's `new Swiper(...)` call a stub in
+// place of the real import, exactly the way `document`/`window`/`fetch`
+// already stand in for the browser.
+//
+// The strip only touches the *leading* run of import declarations — it walks
+// line by line from the top of the file, tolerating the file's opening block
+// comment and the blank lines around it, and stops for good at the first
+// line that isn't a comment, an `import`, or blank. That guards against ever
+// touching the word "import" if it later shows up inside a string or comment
+// further down the file.
+function stripLeadingImports(source) {
+  const lines = source.split('\n');
+  let inBlockComment = false;
+  let inImport = false;
+  let cut = 0;
+
+  for (; cut < lines.length; cut++) {
+    const trimmed = lines[cut].trim();
+
+    if (inBlockComment) {
+      if (trimmed.endsWith('*/')) inBlockComment = false;
+      continue;
+    }
+    if (inImport) {
+      if (trimmed.endsWith(';')) inImport = false;
+      continue;
+    }
+    if (trimmed.startsWith('/*')) {
+      inBlockComment = !trimmed.endsWith('*/');
+      continue;
+    }
+    if (trimmed.startsWith('import ')) {
+      inImport = !trimmed.endsWith(';');
+      continue;
+    }
+    if (trimmed === '') {
+      // Blank line between the header comment and the imports, or between
+      // import statements — not code, keep scanning.
+      continue;
+    }
+    break; // first real line of code — stop stripping.
+  }
+
+  return lines.slice(cut).join('\n');
+}
+
+const STRIPPED_SOURCE = stripLeadingImports(SOURCE);
+
+// Minimal, honest stand-in for the real Swiper constructor. welcome-screen.js
+// only ever reads `.slides`, `.activeIndex` and calls `.on(...)` on the
+// instance it gets back (see syncStage() and the "slideChange" wiring) — it
+// never calls `.slideTo()` or reaches into `.navigation`/`.keyboard`, so the
+// stub covers exactly that surface and no more. None of the tests in this
+// file exercise the carousel branch at all (the stub `document` here has no
+// `[data-wc-swiper]` element to find), so this mostly exists so the module
+// doesn't throw a ReferenceError merely by mentioning `Swiper` at parse-adjacent
+// evaluation time.
+function SwiperStub(container, options) {
+  const slides =
+    container && typeof container.querySelectorAll === 'function'
+      ? Array.from(container.querySelectorAll('.swiper-slide'))
+      : [];
+  return {
+    slides,
+    activeIndex: (options && options.initialSlide) || 0,
+    on() {},
+  };
+}
+const NavigationStub = {};
+const KeyboardStub = {};
+const A11yStub = {};
+
 /** Boots welcome-screen.js and returns handles to poke at it. */
 async function boot() {
   const timers = new Map();
@@ -53,6 +135,9 @@ async function boot() {
     // empty pusher key / flash URL keeps the realtime + fetch paths dormant.
     // This test is only about the idle scheduler.
     getElementById: () => null,
+    // No [data-wc-swiper] either: the carousel setup block is dead code for
+    // these tests, it just must not throw while getting there.
+    querySelector: () => null,
     body: { classList },
   };
 
@@ -71,7 +156,16 @@ async function boot() {
     json: async () => ({ src: '/storage/Videos/attract.mp4', title: 'Campus reel' }),
   });
 
-  new Function('document', 'window', 'fetch', SOURCE)(document, window, fetch);
+  new Function(
+    'document',
+    'window',
+    'fetch',
+    'Swiper',
+    'Navigation',
+    'Keyboard',
+    'A11y',
+    STRIPPED_SOURCE,
+  )(document, window, fetch, SwiperStub, NavigationStub, KeyboardStub, A11yStub);
 
   // Fire DOMContentLoaded, then let the idle-video fetch settle so the first
   // countdown is armed.
