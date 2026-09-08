@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-palette.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-shell.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/swiper-bundle.min.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/welcome-screen.css') }}" />
   <style>
     #kiosk-stage {
@@ -155,9 +156,84 @@
     #kiosk-notice[data-tone="danger"] {
       background: rgb(var(--danger-rgb) / 0.95);
     }
+
+    /* Attract screen: an idle-timeout newsletter loop shown over the menu.
+       Same fixed/full-bleed/z-index shape as #kiosk-stage (they never show
+       at once), but z-index 9999 so #lock-overlay (10000) still wins — the
+       kiosk lock must cover attract exactly as it covers the menu. */
+    #kiosk-attract {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: var(--kiosk-espresso);
+      overflow: hidden;
+    }
+
+    #kiosk-attract[hidden] {
+      display: none;
+    }
+
+    /* iframe is created by JS on first attract, not written here — see the
+       comment on the markup below for why the host stays empty at render. */
+    #kiosk-attract-frame {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #kiosk-attract-frame iframe {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
   </style>
 </head>
 <body class="kiosk-body">
+{#
+  Menu data as a single Jinja list: the carousel loop, the server-rendered
+  stage and the JS-driven stage swap (welcome-screen.js reads the same
+  data-menu-* attributes off each slide) all derive from this one source,
+  so a new destination is one entry here instead of three places kept in
+  sync by hand.
+#}
+{% set kiosk_menus = [
+  {'id': 'latest-news',   'title': 'Latest News',   'href': route('kiosk.latest-news', {}, False),
+   'blurb': 'Read recent updates from The Gears'},
+  {'id': 'campus-map',    'title': 'Campus Map',    'href': '/kiosk/campus-map',
+   'blurb': 'Find every building, office and route around campus'},
+  {'id': 'gears-archive', 'title': 'Gears Archive', 'href': '/kiosk/gears-archive',
+   'blurb': 'Read published issues of The Gears'},
+  {'id': 'virtual-tour',  'title': 'Virtual Tour',  'href': '/kiosk/virtual-tour',
+   'blurb': 'Walk the campus in 360°'},
+  {'id': 'about-lspu',    'title': 'About LSPU',    'href': route('kiosk.about-lspu', {}, False),
+   'blurb': 'Mission, history, hymn and seal'},
+  {'id': 'org-chart',     'title': 'LSPU Org Chart','href': route('kiosk.org-board', {}, False),
+   'blurb': 'Who leads which office'},
+] %}
+
+{#
+  Jinja macros do not cross {% include %} (CLAUDE.md), so the six icons stay
+  defined here rather than moving to a shared partial. Markup is unchanged
+  from the old feature-grid cards — only the dispatch is new.
+#}
+{% macro menu_icon(id) %}
+{%- if id == 'latest-news' -%}
+<svg viewBox="0 0 24 24"><path d="M5 6h14"></path><path d="M5 10h14"></path><path d="M5 14h9"></path><path d="M5 18h6"></path></svg>
+{%- elif id == 'campus-map' -%}
+<svg viewBox="0 0 24 24"><path d="M9 5 3 7.8v11.2l6-2.8 6 2.8 6-2.8V5l-6 2.8L9 5Z"></path><path d="M9 7.8v11.2"></path><path d="M15 8.6v11"></path></svg>
+{%- elif id == 'gears-archive' -%}
+<svg viewBox="0 0 24 24"><path d="M4 7h16"></path><path d="M5 7v12h14V7"></path><path d="M9 11h6"></path><path d="M9 15h6"></path></svg>
+{%- elif id == 'virtual-tour' -%}
+<svg viewBox="0 0 24 24"><path d="M7 5.5 17.5 12 7 18.5V5.5Z"></path></svg>
+{%- elif id == 'about-lspu' -%}
+<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 11v5.5"></path><path d="M12 7.75v.5"></path></svg>
+{%- elif id == 'org-chart' -%}
+<svg viewBox="0 0 24 24"><rect x="9.5" y="3.5" width="5" height="4" rx="0.6"></rect><rect x="3.5" y="15.5" width="5" height="4" rx="0.6"></rect><rect x="9.5" y="15.5" width="5" height="4" rx="0.6"></rect><rect x="15.5" y="15.5" width="5" height="4" rx="0.6"></rect><path d="M12 7.5v3"></path><path d="M6 15.5v-2.5h12v2.5"></path><path d="M12 13v2.5"></path></svg>
+{%- endif -%}
+{% endmacro %}
+
   <div class="kiosk-shell" aria-label="Kiosk terminal">
       <!-- Status bar. No aria-live: a clock that announces itself every
            minute is noise for screen-reader users. welcome-screen.js fills
@@ -180,49 +256,47 @@
         <span class="wc-masthead__meta">Santa Cruz<br>Campus</span>
       </section>
 
-      <!-- Six destinations, equal weight: two columns of three, each card its
-           own container. No ranking index — the grid reads left-to-right,
-           top-to-bottom, and nothing here is more important than the rest. -->
-      <section class="feature-grid" aria-label="Kiosk destinations">
-        <a class="feature-card" href="{{ route('kiosk.latest-news', {}, False) }}">
-          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 6h14"></path><path d="M5 10h14"></path><path d="M5 14h9"></path><path d="M5 18h6"></path></svg></span>
-          <span class="feature-card__label">Latest News</span>
-          <span class="feature-card__hint">Read recent updates</span>
-        </a>
+      <!-- Browse-then-commit: the carousel below is a scrubber, not six equal
+           taps. One destination is centred at a time and mirrored up into the
+           stage; a swipe just re-centres and re-labels, and only the stage's
+           View button (or a direct tap on the centred slide) navigates. This
+           replaces the old flat two-column grid, which is why the moderate
+           speculation-rules tier below now targets .wc-view instead of every
+           card — see the comment there. -->
+      <section class="wc-stage" aria-live="polite" data-wc-stage>
+        <h2 class="wc-stage__title" data-wc-title>{{ kiosk_menus[1].title }}</h2>
+        <div class="wc-stage__icon" aria-hidden="true" data-wc-icon>{{ menu_icon(kiosk_menus[1].id) }}</div>
+        <p class="wc-stage__blurb" data-wc-blurb>{{ kiosk_menus[1].blurb }}</p>
+        <a class="wc-view" data-wc-view href="{{ kiosk_menus[1].href }}">View</a>
+      </section>
 
-        <a class="feature-card" href="/kiosk/campus-map">
-          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 5 3 7.8v11.2l6-2.8 6 2.8 6-2.8V5l-6 2.8L9 5Z"></path><path d="M9 7.8v11.2"></path><path d="M15 8.6v11"></path></svg></span>
-          <span class="feature-card__label">Campus Map</span>
-          <span class="feature-card__hint">Find every building, office and route</span>
-        </a>
-
-        <!-- Literal path, not route('kiosk.gears-archive'): that name is registered
-             on two paths ("/" and "/kiosk/gears-archive"), route() resolves the
-             first, and the relative form renders "/" as an empty string — a card
-             that goes nowhere. -->
-        <a class="feature-card" href="/kiosk/gears-archive">
-          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16"></path><path d="M5 7v12h14V7"></path><path d="M9 11h6"></path><path d="M9 15h6"></path></svg></span>
-          <span class="feature-card__label">Gears Archive</span>
-          <span class="feature-card__hint">Read all published archives of The Gears</span>
-        </a>
-
-        <a class="feature-card" href="/kiosk/virtual-tour">
-          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 5.5 17.5 12 7 18.5V5.5Z"></path></svg></span>
-          <span class="feature-card__label">Virtual Tour</span>
-          <span class="feature-card__hint">Walk the campus in 360&deg;</span>
-        </a>
-
-        <a class="feature-card" href="{{ route('kiosk.about-lspu', {}, False) }}">
-          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 11v5.5"></path><path d="M12 7.75v.5"></path></svg></span>
-          <span class="feature-card__label">About LSPU</span>
-          <span class="feature-card__hint">Mission, history, hymn and seal</span>
-        </a>
-
-        <a class="feature-card" href="{{ route('kiosk.org-board', {}, False) }}">
-          <span class="feature-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="9.5" y="3.5" width="5" height="4" rx="0.6"></rect><rect x="3.5" y="15.5" width="5" height="4" rx="0.6"></rect><rect x="9.5" y="15.5" width="5" height="4" rx="0.6"></rect><rect x="15.5" y="15.5" width="5" height="4" rx="0.6"></rect><path d="M12 7.5v3"></path><path d="M6 15.5v-2.5h12v2.5"></path><path d="M12 13v2.5"></path></svg></span>
-          <span class="feature-card__label">LSPU Org Chart</span>
-          <span class="feature-card__hint">Who leads which office</span>
-        </a>
+      <section class="wc-carousel" aria-label="Kiosk destinations">
+        <button type="button" class="wc-arrow wc-arrow--prev" data-wc-prev aria-label="Previous">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"></path></svg>
+        </button>
+        <div class="swiper wc-swiper" data-wc-swiper>
+          <div class="swiper-wrapper">
+            {% for m in kiosk_menus %}
+            {% if m.id == 'gears-archive' %}
+            <!-- Literal path, not route('kiosk.gears-archive'): that name is registered
+                 on two paths ("/" and "/kiosk/gears-archive"), route() resolves the
+                 first, and the relative form renders "/" as an empty string — a card
+                 that goes nowhere. -->
+            {% endif %}
+            <a class="swiper-slide feature-card"
+               href="{{ m.href }}"
+               data-menu-id="{{ m.id }}"
+               data-menu-title="{{ m.title }}"
+               data-menu-blurb="{{ m.blurb }}">
+              <span class="feature-card__icon" aria-hidden="true">{{ menu_icon(m.id) }}</span>
+              <span class="feature-card__label">{{ m.title }}</span>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+        <button type="button" class="wc-arrow wc-arrow--next" data-wc-next aria-label="Next">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
+        </button>
       </section>
 
       <section class="news-ticker" aria-label="Flash updates">
@@ -259,6 +333,28 @@
     </div>
   </div>
 
+  <!-- Attract screen: shown after idle timeout instead of (or alongside) the
+       existing video overlay, looping the newsletter at /kiosk/latest-news.
+       Framing it is safe now that the CSP allows same-origin frame-src /
+       frame-ancestors and kiosk-news.js skips its own idle timer when it
+       detects it's framed (both from an earlier task) — otherwise the framed
+       page would fight this one's idle handling.
+
+       The frame host starts empty: welcome-screen.js builds the <iframe> into
+       #kiosk-attract-frame on first attract rather than at page load, so a
+       second full page (fonts, kiosk-news.js, its own DOM) never sits in
+       memory while the menu is what's actually in use.
+
+       Sits before #lock-overlay in the DOM so the lock (z-index 10000) still
+       covers attract (z-index 9999) the same way it covers #kiosk-stage. -->
+  <div id="kiosk-attract" hidden aria-hidden="true">
+    <div id="kiosk-attract-frame"></div>
+    <button type="button" class="kiosk-idle-cta" id="kiosk-attract-cta" aria-hidden="true" tabindex="-1">
+      <span class="kiosk-idle-cta__pulse" aria-hidden="true"></span>
+      <span class="kiosk-idle-cta__label">Touch to begin</span>
+    </button>
+  </div>
+
   <div id="lock-overlay" aria-hidden="true"></div>
 
   <div id="kiosk-notice" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -275,6 +371,15 @@
        enough to win most of the load — because prerendering Archives (314KB of
        pdf.js) and the 360 tour (Leaflet + tour data) up front would hold far
        more memory than a 768x1024 panel should carry at rest.
+
+       The moderate tier matches .wc-view, not .feature-card: with the carousel,
+       pointerdown on a slide is a swipe or a re-centre, not a navigation, so
+       prerendering there would burn memory on every touch of the menu. The
+       stage's View button's href mutates as the carousel moves, but it still
+       only gets a pointerdown immediately before a real navigation to whatever
+       it currently points at — the case this tier exists for — and a stale
+       prerender (moved on before Chromium finishes) just degrades to the
+       prefetch tier's cache hit below, so a mutating href costs nothing here.
 
        prefetch covers all six regardless: if a prerender is evicted or the
        concurrency cap is hit, the document still comes from cache.
@@ -296,7 +401,7 @@
         "eagerness": "immediate"
       },
       {
-        "where": { "selector_matches": ".feature-card" },
+        "where": { "selector_matches": ".wc-view" },
         "eagerness": "moderate"
       }
     ],
