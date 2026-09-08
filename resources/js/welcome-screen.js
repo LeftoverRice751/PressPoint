@@ -433,15 +433,41 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const cardIndex = Array.prototype.indexOf.call(menuSwiper.slides, card);
 
-        // Unresolvable or different from the pre-tap snapshot: this was a
-        // side tap (or something we can't identify), so treat it as
-        // navigation-never — the safe default on a public kiosk. Only an
-        // index that matches the snapshot exactly is a tap on the card that
-        // was already centred, and that's the one case where the anchor's
-        // default action is allowed through.
-        if (cardIndex === -1 || cardIndex !== preTapActiveIndex) {
+        // Keyboard activation (Enter/Space on a focused card) fires click
+        // with no preceding pointerdown, so preTapActiveIndex is either
+        // still null (first activation ever) or a stale leftover from some
+        // earlier, unrelated tap — comparing against it either blocks every
+        // keyboard activation forever or judges this one against the wrong
+        // card. A keyboard press can't have re-centred anything itself, so
+        // the live activeIndex *is* the correct "was this already centred"
+        // answer for this gesture.
+        const referenceIndex = preTapActiveIndex === null ? menuSwiper.activeIndex : preTapActiveIndex;
+
+        // Unresolvable or different from the reference index: this was a
+        // side tap / off-centre keyboard activation (or something we can't
+        // identify), so treat it as navigation-never — the safe default on
+        // a public kiosk. Only an index that matches exactly is a tap (or
+        // keypress) on the card that was already centred, and that's the
+        // one case where the anchor's default action is allowed through.
+        if (cardIndex === -1 || cardIndex !== referenceIndex) {
           ev.preventDefault();
+          // For a keyboard activation specifically, mirror what a first tap
+          // does: centre the card now so the next Enter navigates. A side
+          // *tap* already gets this from slideToClickedSlide; keyboard
+          // input never goes through Swiper's click handling at all, so
+          // without this an off-centre card could never be reached by
+          // keyboard — Enter would just keep no-op'ing on it forever.
+          if (preTapActiveIndex === null && cardIndex !== -1) {
+            menuSwiper.slideTo(cardIndex);
+          }
         }
+
+        // Reset for the next gesture so a snapshot from this tap (or the
+        // lack of one, for a keyboard press) can never leak into judging a
+        // later, unrelated activation — the exact regression this guards:
+        // preTapActiveIndex used to live on forever, so one stale/absent
+        // snapshot could block or misroute every activation after it.
+        preTapActiveIndex = null;
       },
       true,
     );
