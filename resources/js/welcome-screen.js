@@ -240,6 +240,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const stageTitleEl = document.querySelector("[data-wc-title]");
   const stageIconEl = document.querySelector("[data-wc-icon]");
   const stageBlurbEl = document.querySelector("[data-wc-blurb]");
+  const stageViewEl = document.querySelector("[data-wc-view]");
 
   let menuSwiper = null;
 
@@ -267,6 +268,12 @@ document.addEventListener("DOMContentLoaded", () => {
         // svg simply empties the box instead of throwing.
         const icon = slide.querySelector("svg");
         stageIconEl.replaceChildren(icon ? icon.cloneNode(true) : "");
+      }
+      if (stageViewEl) {
+        // getAttribute, not .href: the anchors carry root-relative paths and
+        // .href would resolve them to absolute URLs, which is fine to follow
+        // but noisier to read back in tests and DevTools.
+        stageViewEl.setAttribute("href", slide.getAttribute("href") || "#");
       }
     };
 

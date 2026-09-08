@@ -172,6 +172,56 @@
   transform: translateY(10px);
 }
 
+/* An <a>, not a <button>: its href is a real navigation, so it's
+   keyboard-activatable and it inherits whatever prerender is already warmed
+   for the centred destination. There is no static speculation-rules tier
+   keyed to this class any more — welcome-screen.js injects and replaces a
+   single speculationrules <script> for the centred slide on a debounced
+   slideChange (see setActivePrerender/schedulePrerender there); .wc-view's
+   href is just kept in sync with that same slide. */
+.wc-view {
+  appearance: none;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: var(--kiosk-touch-min);
+  min-width: clamp(180px, 45vw, 260px);
+  margin-top: clamp(2px, 0.8vh, 8px);
+  padding: 0 clamp(20px, 4vw, 36px);
+  background: var(--kiosk-amber);
+  color: var(--kiosk-espresso);
+  border: 0;
+  border-radius: 0;
+  /* Solid offset block, not a blur — same device as .kiosk-idle-cta below. */
+  box-shadow: 0 8px 0 0 var(--kiosk-espresso);
+  font-family: var(--kiosk-font-ui);
+  font-weight: 700;
+  font-size: clamp(1rem, 2.6vw, 1.3rem);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform var(--kiosk-dur) var(--kiosk-ease),
+              box-shadow var(--kiosk-dur) var(--kiosk-ease);
+}
+
+@media (hover: hover) {
+  .wc-view:hover { background: var(--kiosk-terracotta); }
+}
+
+.wc-view:focus-visible {
+  outline: 3px solid var(--kiosk-maroon);
+  outline-offset: 2px;
+}
+
+/* Shadow shortened to match the travel, same language as .kiosk-idle-cta's
+   own press state — the whole kiosk answers a finger the same way. */
+.wc-view:active {
+  transform: translateY(3px);
+  box-shadow: 0 5px 0 0 var(--kiosk-espresso);
+}
+
 /* ── Carousel: the scrubber that drives the stage above ──────────────── */
 
 .wc-carousel {

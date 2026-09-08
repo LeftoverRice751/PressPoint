@@ -269,16 +269,17 @@
       <!-- Browse-then-commit: the carousel below is a scrubber, not six equal
            taps. One destination is centred at a time and mirrored up into the
            stage; a swipe just re-centres and re-labels. Tapping the already-
-           centred card is what navigates now — welcome-screen.js discriminates
-           a side tap (which only re-centres) from a tap on the centred card
+           centred card also navigates — welcome-screen.js discriminates a
+           side tap (which only re-centres) from a tap on the centred card
            (which lets the anchor's own default action fire); see the comment
-           there. There used to be a separate VIEW button for that, which is
-           why the speculation-rules block below used to have a moderate tier
-           keyed to it — see the comment there for what replaced it. -->
+           there. VIEW below is the second, labelled way in: a first-time
+           visitor gets a visible cue for how to proceed instead of only a
+           bare carousel, without losing the tap-to-enter path. -->
       <section class="wc-stage" aria-live="polite" data-wc-stage>
         <h2 class="wc-stage__title" data-wc-title>{{ kiosk_menus[1].title }}</h2>
         <div class="wc-stage__icon" aria-hidden="true" data-wc-icon>{{ menu_icon(kiosk_menus[1].id) }}</div>
         <p class="wc-stage__blurb" data-wc-blurb>{{ kiosk_menus[1].blurb }}</p>
+        <a class="wc-view" data-wc-view href="{{ kiosk_menus[1].href }}">View</a>
       </section>
 
       <section class="wc-carousel" aria-label="Kiosk destinations">
