@@ -170,6 +170,18 @@
                (fix round 1, Minor 3). #}
             <button type="button" class="ghost-button" data-news-add-main>+ Add main headline</button>
             <button type="button" class="ghost-button" data-news-add-secondary>+ Add a story</button>
+            {# The front page has three slot types but shipped only two add
+               buttons, so a widget could be filled ONLY by assigning a story
+               that already existed, through the "+ Assign story to Widget
+               slot" placeholder's Story Library. With nothing spare in the
+               library the slot was simply unreachable — which read to editors
+               as "the widget is not editable", though `.info-card` has had
+               working title/excerpt/body regions all along.
+
+               Both widget positions hold one story each, so unlike "+ Add a
+               story" this disables at capacity — syncPlaceholders() derives
+               that, the same way it does for the lead. #}
+            <button type="button" class="ghost-button" data-news-add-widget>+ Add widget</button>
           </div>
         </div><!-- /.news-canvas -->
 

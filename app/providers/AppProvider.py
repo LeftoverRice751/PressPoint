@@ -6,6 +6,7 @@ from app.cache_drivers import LockingFileDriver
 from app.exceptions.Handler import Handler
 from app.exceptions.InvalidCSRFTokenHandler import InvalidCSRFTokenHandler
 from app.rate_limiters import GuestAuthLimiter
+from app.security_headers import csp_nonce
 from app.session_drivers import SlotCookieSessionDriver
 from app.tab_slots import current_slot
 from app.services import Branding, Profiles
@@ -81,6 +82,13 @@ class AppProvider(Provider):
         # would freeze one request's slot into every later render, which in a
         # multi-worker app means handing one tab another tab's identity.
         self.application.make(View).share({"tab_slot": current_slot})
+
+        # The per-request CSP script nonce, for the two inline <script> blocks
+        # (kiosk-sw.html, kiosk-back.html). Shared as the *function* for the
+        # same reason as everything else here: a value would freeze one
+        # request's nonce into every later render, and a reused nonce is a
+        # defeated nonce -- injected markup could simply carry it.
+        self.application.make(View).share({"csp_nonce": csp_nonce})
 
         self.application.make(View).share({
             "display_name": Profiles.display_name,

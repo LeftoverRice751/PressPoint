@@ -261,6 +261,43 @@ document.addEventListener('DOMContentLoaded', () => {
         disableAutoFetch: false,
         disableStream: false,
         disableRange: false,
+
+        // Hardening. The kiosk is an unattended public terminal and an archive
+        // PDF is editor-uploaded content we rasterise verbatim, so the document
+        // gets no active surface at all:
+        //
+        //  - enableXfa:false refuses XFA forms outright. XFA is an entire
+        //    XML/JS application format embedded in the PDF; pdf.js renders it
+        //    through XfaLayer, i.e. real DOM built from file-controlled input.
+        //    We only ever want the static page raster.
+        //  - isEvalSupported:false is a no-op on pdfjs-dist 5.x (the eval-based
+        //    font path was removed) but is kept so a downgrade or a resolution
+        //    to an older transitive copy cannot quietly re-enable it.
+        //
+        // Note what is deliberately NOT here: `enableScripting`. In pdf.js 5 it
+        // is not a getDocument option — it belongs to AnnotationLayer/the
+        // bundled viewer, which is where PDFScriptingManager actually runs a
+        // document's /JS actions. This reader uses the bare API and never
+        // constructs an annotation layer, so there is no scripting engine to
+        // switch off; the equivalent lever on this code path is annotationMode
+        // below. Do not "fix" that by adopting pdf.js's viewer.
+        enableXfa: false,
+        isEvalSupported: false,
+
+        // Where the worker fetches its image-decoder WebAssembly from. pdf.js
+        // 5 moved JPEG2000 (openjpeg), JBIG2 and ICC colour (qcms) out of the
+        // worker bundle into separate .wasm files, and with no wasmUrl it just
+        // warns and drops those images — which on a scanned newspaper archive
+        // means blank pages, since print PDFs lean on JPEG2000 heavily.
+        //
+        // Trailing slash is required: pdf.js concatenates the filename
+        // directly onto this string. The files are put there by webpack.mix.js
+        // (see the note there about what is deliberately NOT copied).
+        //
+        // Reached by fetch() from inside the worker, so the CSP needs
+        // connect-src 'self' and 'wasm-unsafe-eval' — both already in
+        // app/security_headers.py.
+        wasmUrl: '/assets/js/pdfjs/wasm/',
       });
       const doc = await task.promise;
       state.pdfDoc = doc;
@@ -435,6 +472,10 @@ document.addEventListener('DOMContentLoaded', () => {
   async function renderPage(pageNumber) {
     const doc = await ensurePdfDoc();
     if (!doc) return '';
+    // Resolved by the time a doc exists; getPdfjs() hands back its cached
+    // promise, so this is not a second module fetch. Needed for AnnotationMode
+    // in the render call below.
+    const pdfjs = await getPdfjs();
     if (pageNumber < 1 || pageNumber > doc.numPages) return '';
 
     const page = await doc.getPage(pageNumber);
@@ -466,7 +507,17 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.fillStyle = '#FBF8F1';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    // annotationMode DISABLE drops the whole annotation tree before it is
+    // walked: no widgets, no /JS or /AA action objects reaching the display
+    // layer, no link or embedded-file targets, no annotation appearance streams
+    // painted from file-controlled data. We rasterise page content only, which
+    // is all a reader ever sees here anyway — the reader has no clickable
+    // layer over the canvas, so nothing is lost visually.
+    await page.render({
+      canvasContext: ctx,
+      viewport,
+      annotationMode: pdfjs.AnnotationMode.DISABLE,
+    }).promise;
     page.cleanup();
 
     const blob = await encodeCanvas(canvas);

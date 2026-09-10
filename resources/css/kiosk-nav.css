@@ -1,18 +1,31 @@
 /*
- * Shared kiosk back bar — exactly one per page, the last row of the kiosk
- * shell's flex column. Markup: templates/partials/kiosk-back.html.
+ * In-page back control. Markup: templates/partials/kiosk-back.html.
  *
- * The kiosk is a wall-mounted touch panel: the way out is the single most
- * used control on every screen, so it is a full-width bar rather than a
- * corner pill, and its height is the one dimension never sacrificed when
- * the viewport gets short.
+ * This used to be "the single way out of any kiosk page" — a full-width
+ * maroon bar reading "◀ Kiosk menu", one on every destination, the most-used
+ * control on the terminal. It is not that any more. The carousel in
+ * welcome.html is permanently on screen below the content and is how a
+ * visitor leaves a section, so a bar to go "back" to a menu that never went
+ * away had nothing left to do.
+ *
+ * What remains is About LSPU's pane-level control, which returns to that
+ * page's own hub — a view of the same URL, so there is nothing for the
+ * carousel to take over. Still styled as the same bar: it is the last row of
+ * that page's flex shell and reads as the same affordance it always was.
  */
 
-/* 104px at kiosk size, never below the 64px touch floor. Published as a token
-   because the 360 tour's search dock is fixed to bottom:0 alongside the fixed
-   variant of this bar and has to reserve exactly this much room for it. */
+/* How much room a bottom-anchored kiosk bar reserves. ZERO now: the only
+   remaining .kiosk-back is About's, which is a flex row rather than a fixed
+   overlay, and the fixed variant this token existed for (the 360 tour's exit
+   stripe) is gone with the rest of the back bars.
+
+   Kept, rather than deleted, because the tour's search dock and the charter
+   overlay in tour-charter.css offset themselves by it — they are written as
+   var(--kiosk-back-h, 104px), so DELETING the token would silently reinstate
+   a 104px dead band along the bottom of the tour via the fallback. Setting it
+   to 0 collapses those offsets correctly with no edit to either file. */
 :root {
-  --kiosk-back-h: clamp(64px, 10vh, 104px);
+  --kiosk-back-h: 0px;
 }
 
 .kiosk-back {
@@ -21,7 +34,10 @@
   width: 100%;
   min-width: 0;
   border: 0;
-  height: var(--kiosk-back-h);
+  /* Explicit, no longer var(--kiosk-back-h): that token is now a bottom-space
+     reservation (0), not this control's height. 104px at kiosk size, never
+     below the 64px touch floor. */
+  height: clamp(64px, 10vh, 104px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -36,18 +52,6 @@
   cursor: pointer;
   transition: background-color var(--kiosk-dur) var(--kiosk-ease),
               transform var(--kiosk-dur) var(--kiosk-ease);
-}
-
-/* For pages that are a fixed fullscreen surface (the 360 tour) and so have no
-   flex shell for the bar to be the last row of. */
-.kiosk-back--fixed {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  /* Above the tour's panorama viewport and its route overlay, below the
-     keyboard//modal layers that must cover everything. */
-  z-index: 9000;
 }
 
 /* Hover only where there is a real pointer: on a touchscreen :hover latches

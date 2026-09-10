@@ -127,8 +127,41 @@ document.addEventListener('DOMContentLoaded', () => {
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
     }[ch] || ch));
 
-    const csrfToken = () =>
+    /*
+     * The token, with a cached-document fallback.
+     *
+     * The meta tag is still the fast path and is still correct whenever this
+     * document came from the server. It stops being correct once sw-kiosk.js
+     * serves kiosk pages from cache: the markup is then however old the cache
+     * entry is, while the POST below is validated against the live SESSID
+     * cookie. GET /kiosk/csrf is no-store and bypassed by the worker, so it is
+     * always the current token; see WelcomeController.csrf.
+     *
+     * Fetched once at boot and held, rather than per POST, because the token
+     * IS the session id and does not rotate. `latest` starts as the meta value
+     * so a deep-linked page is correct before the fetch even resolves.
+     */
+    let latestCsrfToken =
         document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    const csrfToken = () => latestCsrfToken;
+
+    const refreshCsrfToken = () =>
+        fetch('/kiosk/csrf', {
+            headers: { Accept: 'application/json' },
+            cache: 'no-store',
+            credentials: 'same-origin',
+        })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((body) => {
+                if (body && body.token) latestCsrfToken = body.token;
+            })
+            .catch(() => {
+                // Offline. The QR handoff needs the network anyway, so there is
+                // nothing this failure costs that isn't already lost.
+            });
+
+    refreshCsrfToken();
 
     // ── 4. Search index ───────────────────────────────────────────
 

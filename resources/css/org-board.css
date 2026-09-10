@@ -58,9 +58,6 @@ body {
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto minmax(0, 1fr) auto;
   background: var(--ob-cream);
-  /* Local re-declaration of the shared token. The bar keeps the 64px touch
-     floor kiosk-nav.css guarantees; it just stops also being 768px wide. */
-  --kiosk-back-h: 64px;
 }
 
 .ob-masthead,
@@ -71,18 +68,6 @@ body {
 .ob-dock {
   grid-column: 1;
   grid-row: 3;
-}
-
-/* Scoped to this page on purpose: kiosk-nav.css owns the shared bar, and every
-   other kiosk screen still wants it full width as the shell's last row. Here it
-   is a column in the dock's row, taking its width from its content. */
-.ob-page > .kiosk-back {
-  grid-column: 2;
-  grid-row: 3;
-  width: auto;
-  height: 100%;
-  min-height: var(--kiosk-back-h);
-  padding-inline: clamp(1rem, 3vw, 1.75rem);
 }
 
 /* ===== Masthead ===== */
@@ -536,7 +521,8 @@ body {
   background: var(--ob-terracotta);
 }
 
-/* Bottom back bar is now the shared .kiosk-back (kiosk-nav.css). */
+/* No bottom back bar on this page any more: the kiosk shell's carousel is
+   how a visitor leaves the org board. .ob-dock now owns its whole row. */
 
 /* ===== Responsive =====
  *
@@ -557,7 +543,7 @@ body {
  *   deck padding-block           44      14
  *   .ob-card__header            136      40
  *   .ob-card__body + border      48      15
- *   .ob-dock + .kiosk-back      202      64   (one shared row, see .ob-page)
+ *   .ob-dock                    202      64   (was shared with a back bar)
  *   ------------------------------------------
  *   chrome                      590     195
  *   chart viewport height       434     829

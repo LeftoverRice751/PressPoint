@@ -218,7 +218,6 @@
       under it. Deliberately outside the dock (which is display:none until
       body.tour-ready) and outside kiosk-tour.js's reach, so a script failure
       cannot leave a wall-mounted kiosk with no way back to the menu. #}
-  {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False), back_fixed=True %}{% include 'partials/kiosk-back.html' %}{% endwith %}
 
   <script src="/pano/vendor/screenfull.min.js" ></script>
   <script src="/pano/vendor/bowser.min.js" ></script>
@@ -234,6 +233,7 @@
   <script src="{{ asset_url('js/kiosk-archive-book.js') }}" defer></script>
   {% endif %}
   <script src="{{ asset_url('js/kiosk-tour.js') }}"></script>
+  {% include 'partials/kiosk-frame.html' %}
   {% include 'partials/kiosk-sw.html' %}
 </body>
 </html>

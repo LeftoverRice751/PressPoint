@@ -7,3 +7,4 @@ from .SuperAdminMiddleware import SuperAdminMiddleware
 from .ThrottleRequestsMiddleware import ThrottleRequestsMiddleware
 from .TabSlotMiddleware import TabSlotMiddleware
 from .LoadSlotUserMiddleware import LoadSlotUserMiddleware
+from .SecurityHeadersMiddleware import SecurityHeadersMiddleware

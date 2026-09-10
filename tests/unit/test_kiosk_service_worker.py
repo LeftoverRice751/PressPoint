@@ -51,6 +51,10 @@ _MUST_BYPASS = (
     "/pano/tiles/",       # ~360 MB capture; quota suicide
     "/kiosk/flash-updates",  # polled every 15s, cache: no-store
     "/kiosk/idle-video",     # cache: no-store
+    # The endpoint that exists precisely to be fresher than the cached document
+    # that would otherwise have carried the token. Caching it restores the
+    # staleness it was added to remove.
+    "/kiosk/csrf",
 )
 
 
@@ -99,18 +103,104 @@ class KioskServiceWorkerTestCase(TestCase):
                 f"{prefix} must stay in the service worker's bypass list",
             )
 
-    def test_documents_are_network_first_so_the_csrf_token_stays_fresh(self):
-        """Kiosk documents carry a per-session CSRF token that the campus map
-        and tour QR handoff POSTs depend on (see templates/welcome.html). The
-        navigation branch must therefore try fetch() first and only fall back
-        to the cache, never the other way round."""
+    def test_documents_may_only_be_cached_because_the_csrf_token_moved_out(self):
+        """This inverts an earlier guard, so it records why.
+
+        Kiosk documents used to be network-first for one reason: the markup
+        carried a per-session CSRF token that the campus map and tour QR
+        handoff POSTs read out of <meta name="csrf-token">, so a cached
+        document would hand them a stale one and the POST would 500. That cost
+        a full network round trip for HTML on every page entry, which is the
+        dominant cost of opening a destination in welcome.html's stage
+        viewport.
+
+        The token now has its own always-fresh endpoint. Serving documents from
+        cache is therefore safe -- but ONLY while that remains true, and the
+        pieces are in three different files that no one edits together. So this
+        asserts the whole chain rather than just the strategy: cache the
+        documents if and only if nothing depends on their token.
+        """
         source = _SW.read_text(encoding="utf-8")
+
+        # 1. The strategy itself: cache before network in the navigation branch.
         nav = source.index("event.request.mode === 'navigate'")
-        branch = source[nav:nav + 900]
+        branch = source[nav:nav + 1600]
         self.assertLess(
-            branch.index("await fetch(event.request)"),
             branch.index("cache.match(event.request"),
-            "kiosk navigations must hit the network before the cache",
+            branch.index("fetch(event.request)"),
+            "kiosk navigations must be served from cache first",
+        )
+        # ...and the revalidation must actually be allowed to finish. Without
+        # waitUntil the worker can be killed as soon as respondWith settles, so
+        # the refresh never lands and the cache goes permanently stale --
+        # stale-while-revalidate with the revalidate silently missing.
+        self.assertIn(
+            "event.waitUntil(network",
+            branch,
+            "the background refresh must be kept alive past respondWith",
+        )
+
+        # 2. The precondition: the endpoint exists, is a route, and is no-store.
+        self.assertTrue(hasattr(WelcomeController, "csrf"))
+        routes = (_REPO_ROOT / "routes" / "public.py").read_text(encoding="utf-8")
+        self.assertIn('Route.get("/kiosk/csrf"', routes)
+
+        controller = (
+            _REPO_ROOT / "app" / "controllers" / "kiosk" / "WelcomeController.py"
+        ).read_text(encoding="utf-8")
+        csrf_body = controller[controller.index("def csrf"):controller.index("def coming_soon")]
+        self.assertIn('response.header("Cache-Control", "no-store")', csrf_body)
+
+        # 3. The consumers: both POST call sites must fall back to it rather
+        #    than trusting the (possibly cached) meta tag alone.
+        for name in ("kiosk-map.js", "kiosk-tour.js"):
+            page = (_REPO_ROOT / "resources" / "js" / name).read_text(encoding="utf-8")
+            self.assertIn(
+                "/kiosk/csrf",
+                page,
+                f"{name} POSTs with a CSRF token but never refreshes it; a cached "
+                "document would break its route-session handoff",
+            )
+
+    def test_editor_mutable_media_is_revalidated_rather_than_pinned(self):
+        """/assets/ is cache-first because AssetVersion.py stamps every URL with
+        ?v=<mtime>, so a rebuilt file is a different URL. The /storage/ media
+        trees carry no such stamp, so cache-first pinned them for the life of
+        the cache: an editor replacing the site logo or a news image never
+        reached a terminal at all until someone bumped CACHE_NAME. They must
+        stay out of the cache-first list."""
+        source = _SW.read_text(encoding="utf-8")
+        assets = re.search(r"const ASSET_PREFIXES = \[(.*?)\];", source, re.DOTALL)
+        self.assertIsNotNone(assets, "ASSET_PREFIXES list not found")
+
+        for prefix in ("/storage/Branding/", "/storage/About/", "/storage/news/"):
+            self.assertNotIn(
+                prefix,
+                assets.group(1),
+                f"{prefix} is editor-mutable and unversioned; cache-first pins it forever",
+            )
+            self.assertIn(prefix, source, f"{prefix} must still be cached, just revalidated")
+
+        # Archives are the exception and must stay cache-first: a published
+        # issue's rasterised pages never change, and there are hundreds of MB
+        # of them that must not be re-fetched.
+        self.assertIn("/storage/Archives/", assets.group(1))
+
+    def test_the_panorama_preview_carve_out_survives_the_bypass(self):
+        """/pano/tiles/ is bypassed wholesale (362 MB), but preview.jpg is the
+        low-resolution cube Marzipano paints the instant you enter a scene, and
+        all 205 of them together are only ~20 MB. The carve-out has to be
+        tested BEFORE the bypass or the prefix swallows it, which would look
+        exactly like it working while caching nothing."""
+        source = _SW.read_text(encoding="utf-8")
+        self.assertIn("PANO_PREVIEW", source)
+
+        carve_out = source.index("const isPanoPreview")
+        bypass_check = source.index("startsWithAny(url.pathname, BYPASS_PREFIXES)) return;")
+        self.assertLess(
+            carve_out,
+            bypass_check,
+            "the preview carve-out must be computed before the bypass returns",
         )
 
     def test_the_worker_is_served_from_the_site_root_with_root_scope(self):

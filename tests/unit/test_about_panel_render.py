@@ -39,6 +39,7 @@ class _Section:
         self.subsections = overrides.get("subsections")
         self.image_path = overrides.get("image_path")
         self.audio_path = overrides.get("audio_path")
+        self.video_path = overrides.get("video_path")
         self.lyric_timings = overrides.get("lyric_timings")
         self.meta = overrides.get("meta")
 

@@ -192,7 +192,6 @@
   </div>
 
   <!-- Bottom CTA. Always visible, even with the keyboard open. -->
-  {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False) %}{% include 'partials/kiosk-back.html' %}{% endwith %}
 </div>
 {% endblock %}
 
@@ -201,5 +200,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="{{ asset_url('js/campus-2.5d.layer.js') }}"></script>
 <script src="{{ asset_url('js/kiosk-map.js') }}"></script>
+  {% include 'partials/kiosk-frame.html' %}
   {% include 'partials/kiosk-sw.html' %}
 {% endblock %}

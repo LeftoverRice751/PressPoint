@@ -21,8 +21,8 @@
 
   var IDLE_MS = 120000;
   var HUB_URL = '/kiosk';
-  // The kiosk hub frames this page as its idle attract screen. Same-origin,
-  // so no try/catch is needed around window.top.
+  // Framed at all -- by the kiosk shell's content frame, or by its attract
+  // overlay. Same-origin, so no try/catch is needed around window.top.
   var isFramed = window.top !== window.self;
   // How many lines of the lead story the front page shows before "Continue
   // reading". Pairs with `.feature-story__copy.is-clamped`'s max-height in
@@ -163,12 +163,18 @@
     lastActivity = Date.now();
   }
 
-  // Skip arming the idle timer entirely when framed: the kiosk hub embeds
-  // this page as its attract screen, and firing the reset here would send
-  // the framed document to /kiosk, nesting the hub inside its own attract
-  // iframe. The reader overlay is left wired up as-is -- the iframe already
-  // carries pointer-events: none, so it's unreachable, and a second disable
-  // path here would be redundant.
+  // Only when this page is the whole document.
+  //
+  // Framed -- as the shell's content, or as its attract loop -- this timer is
+  // not merely redundant, it is actively wrong: navigating to /kiosk would
+  // load the entire kiosk shell INSIDE the frame, nesting the terminal in its
+  // own content area. The shell runs the one navigating idle timer for the
+  // whole kiosk now, and partials/kiosk-frame.html relays activity up to it so
+  // it can tell a visitor reading an article from an abandoned terminal.
+  //
+  // The reader overlay stays wired up either way -- in the attract frame it is
+  // unreachable behind pointer-events:none, and in the content frame it is
+  // exactly what a reader wants.
   if (!isFramed) {
     ['pointerdown', 'touchstart', 'touchmove', 'keydown', 'wheel', 'scroll'].forEach(
       function (evt) {
@@ -177,9 +183,8 @@
     );
 
     setInterval(function () {
-      if (Date.now() - lastActivity >= IDLE_MS) {
-        window.location.href = HUB_URL;
-      }
+      if (Date.now() - lastActivity < IDLE_MS) return;
+      window.location.href = HUB_URL;
     }, 15000);
   }
 })();

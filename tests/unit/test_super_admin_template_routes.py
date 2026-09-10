@@ -1,8 +1,8 @@
 """The super admin page must only reference route names that are registered.
 
 This guards a failure that took down sign-in for the superadmin role: the
-template gained `route('auth.super_admin.credentials', ...)` in the same change
-that added the route, and Masonite turns an unknown route name into a
+template referenced a route name that was not registered, and Masonite turns
+an unknown route name into a
 RouteNotFoundException, which the error handler renders as a 404. Because
 /auth/super_admin is the *only* page that role lands on, a single bad name
 there means that account cannot sign in at all -- there is no other page to
@@ -34,7 +34,7 @@ class _EmptyBag:
 
 
 def _context():
-    # Both roles are present on purpose: the credential controls are wrapped
+    # Both roles are present on purpose: the reset-password control is wrapped
     # in `{% if user.role == 'admin' %}`, so an editor-only fixture would
     # never execute the route() calls this test exists to check.
     users = [
@@ -83,9 +83,7 @@ class SuperAdminTemplateRoutesTestCase(TestCase):
         body = html.split("<tbody>")[1].split("</tbody>")[0]
 
         # id=2 is the admin, id=3 the editor. Editors are managed from /users.
-        self.assertIn("/auth/super_admin/2/credentials", body)
         self.assertIn("/auth/super_admin/2/reset-password", body)
-        self.assertNotIn("/auth/super_admin/3/credentials", body)
         self.assertNotIn("/auth/super_admin/3/reset-password", body)
 
     def test_destructive_actions_carry_a_confirmation(self):

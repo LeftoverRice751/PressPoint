@@ -196,6 +196,71 @@
 }
 .about-longform { font-size: clamp(0.8rem, 2vw, 0.95rem); line-height: 1.6; }
 
+/* ── Sources ───────────────────────────────────────────────────────
+   Sits between .about-body (flex: 1 1 auto) and the prev/next bar, so it must
+   not flex: it takes its own height and the authored body absorbs the rest.
+   The list scrolls inside its own cap rather than growing the pane -- the
+   terminal is a fixed 768x1024 with no page scroll, so an eight-row citation
+   list would otherwise push the pager off the glass.
+
+   Flat colours only, no gradients: this is the kiosk's paper surface. */
+.about-sources {
+  flex: 0 0 auto;
+  max-height: 22vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: clamp(10px, 2vw, 16px) clamp(16px, 3vw, 28px);
+  border-top: 1px solid var(--kiosk-hairline);
+  background: var(--kiosk-paper);
+}
+
+.about-sources__title {
+  margin: 0 0 0.4rem;
+  font-family: var(--kiosk-font-ui);
+  font-size: clamp(0.6rem, 1.5vw, 0.72rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--kiosk-ink-soft);
+}
+
+.about-sources__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.about-sources__item {
+  position: relative;
+  padding-left: 0.85rem;
+  font-family: var(--kiosk-font-ui);
+  font-size: clamp(0.68rem, 1.7vw, 0.82rem);
+  line-height: 1.45;
+  color: var(--kiosk-ink-soft);
+  /* A citation is often a long title or a raw URL and the pane cannot scroll
+     sideways, so break rather than overflow. */
+  overflow-wrap: anywhere;
+}
+
+.about-sources__item::before {
+  content: "\00b7";
+  position: absolute;
+  left: 0;
+  color: var(--kiosk-ink-soft);
+}
+
+/* Underlined, not coloured: the kiosk has no browser to open, so the link is
+   read as provenance rather than tapped. It stays a real anchor for the phone
+   handoff and for anyone reading the page off-terminal. */
+.about-sources__link {
+  color: var(--kiosk-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .about-prevnext {
   flex: 0 0 auto;
   display: flex;
@@ -662,13 +727,68 @@
   color: var(--kiosk-on-dark);
 }
 
+/* The video stage. `aspect-ratio` alone would let a 16:9 frame eat the pane on
+   a 768x1024 portrait terminal and push the transport off the bottom, where
+   nothing can reach it — so the height is capped and the width follows. */
+.hymn__stage {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 38vh;
+  background: var(--kiosk-espresso);
+  cursor: pointer;
+  overflow: hidden;
+}
+.hymn__stage:focus-visible {
+  outline: 3px solid var(--kiosk-amber);
+  outline-offset: -3px;
+}
+
+.hymn__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Letterbox rather than crop: the capture's framing is editorial, and a
+     `cover` fit would silently cut the singers out of a 4:3 recording. */
+  object-fit: contain;
+}
+
+/* A hint for a stream that is not running. It covers the picture, so it has to
+   get out of the way the moment playback starts — .is-playing is set on the
+   .hymn root by the media element's own play/pause events, which means it stays
+   correct however playback was started. */
+.hymn__stage-glyph {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(54px, 14vw, 92px);
+  height: clamp(54px, 14vw, 92px);
+  border-radius: 50%;
+  border: 3px solid var(--kiosk-amber);
+  background: rgb(var(--kiosk-espresso-rgb) / 0.55);
+  color: var(--kiosk-amber);
+  display: grid;
+  place-items: center;
+  font-size: clamp(1.1rem, 3.4vw, 1.75rem);
+  padding-left: 0.12em; /* optically centres the triangle in the circle */
+  pointer-events: none;
+  transition: opacity var(--kiosk-dur) var(--kiosk-ease);
+}
+.hymn.is-playing .hymn__stage-glyph {
+  opacity: 0;
+}
+
 .hymn__player {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: clamp(12px, 3vw, 22px);
   padding: clamp(14px, 3vw, 26px);
-  border-bottom: 1px solid var(--kiosk-hairline-dark);
+  /* The bar sits below the lyrics now, so its rule reads upward. */
+  border-top: 1px solid var(--kiosk-hairline-dark);
 }
 
 .hymn__play {
@@ -691,6 +811,34 @@
 }
 .hymn__play:focus-visible {
   background: rgb(var(--kiosk-amber-rgb) / 0.14);
+  outline: none;
+}
+
+/* Deliberately subordinate to .hymn__play — same shape, smaller, hairline
+   instead of the amber ring. Two equally weighted circles side by side would
+   leave a reader guessing which one starts the hymn. */
+.hymn__restart {
+  appearance: none;
+  flex: 0 0 auto;
+  width: clamp(38px, 8vw, 56px);
+  height: clamp(38px, 8vw, 56px);
+  border-radius: 50%;
+  border: 2px solid var(--kiosk-hairline-dark);
+  background: transparent;
+  color: var(--kiosk-on-dark);
+  display: grid;
+  place-items: center;
+  font-size: clamp(0.9rem, 2.6vw, 1.25rem);
+  cursor: pointer;
+  transition: border-color var(--kiosk-dur) var(--kiosk-ease),
+              color var(--kiosk-dur) var(--kiosk-ease);
+}
+@media (hover: hover) {
+  .hymn__restart:hover { border-color: var(--kiosk-amber); color: var(--kiosk-amber); }
+}
+.hymn__restart:focus-visible {
+  border-color: var(--kiosk-amber);
+  color: var(--kiosk-amber);
   outline: none;
 }
 

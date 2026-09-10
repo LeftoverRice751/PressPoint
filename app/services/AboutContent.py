@@ -9,6 +9,7 @@ without spinning up the request/response cycle.
 """
 
 import copy
+from urllib.parse import urlparse
 
 import bleach
 
@@ -81,32 +82,38 @@ DEFAULT_META = {
     "mission": {
         "short": "Mission",
         "hint": "What the university is chartered to do",
+        "sources": [],
     },
     "values": {
         "short": "Values",
         "hint": "Integrity, professionalism, innovation",
         "core_band": "Core values — LSPU develops",
         "pledge_label": "Performance pledge",
+        "sources": [],
     },
     "history": {
         "short": "History",
         "hint": "1952 to now, milestone by milestone",
+        "sources": [],
     },
     "quality": {
         "short": "Quality",
         "hint": "The commitment, in one statement",
         "footer_left": "Quality management system",
         "footer_right": "ISO 9001:2015 certified",
+        "sources": [],
     },
     "hymn": {
         "short": "Hymn",
         "hint": "Play it, and follow the words",
+        "sources": [],
     },
     "seal": {
         "short": "Seal",
         "hint": "Every mark on it, explained",
         "cue": "Tap a symbol",
         "hotspots": DEFAULT_SEAL_HOTSPOTS,
+        "sources": [],
     },
 }
 
@@ -121,6 +128,15 @@ _META_MAX = {
 }
 
 MAX_HOTSPOTS = 12
+
+#: Attribution rows per section. Eight is well past what any About pane cites
+#: and keeps the kiosk's footer from growing past the fold on a 768x1024 pane.
+MAX_SOURCES = 8
+
+#: Schemes a source link may carry. `javascript:` and `data:` are the reason
+#: this is an allowlist and not a blocklist -- the kiosk renders these as real
+#: <a href>, so an unchecked scheme is stored XSS on a public terminal.
+SOURCE_PROTOCOLS = ("http", "https", "mailto")
 
 
 class AboutContent:
@@ -205,6 +221,61 @@ class AboutContent:
         return out
 
     @staticmethod
+    def sanitize_source_url(value):
+        """An editor-supplied source link, or "" if it is not one we will render.
+
+        Two things happen here that a bare strip() would not do:
+
+        - The scheme is checked against SOURCE_PROTOCOLS. The kiosk paints these
+          as real anchors, so `javascript:` or `data:` in an href is stored XSS
+          on an unauthenticated public terminal. bleach does not help: the URL
+          is stored as plain text and put into the attribute by Jinja, never
+          run through sanitize_html.
+        - A bare host ("lspu.edu.ph/about") gets an https:// prefix. Editors
+          paste what they copied out of the address bar, and a schemeless href
+          is resolved *relative to the current page*, so the citation would
+          quietly link to /kiosk/about-lspu/lspu.edu.ph/about.
+        """
+        text = AboutContent.sanitize_text(value, 500)
+        if not text:
+            return ""
+
+        parsed = urlparse(text)
+        if parsed.scheme:
+            return text if parsed.scheme.lower() in SOURCE_PROTOCOLS else ""
+
+        # No scheme. Only assume https for something that actually looks like a
+        # host; "Office of the President" belongs in the label, not the link.
+        host = text.split("/", 1)[0]
+        if "." in host and " " not in text:
+            return "https://" + text
+        return ""
+
+    @staticmethod
+    def _sanitize_sources(raw):
+        """Validate the attribution list: who/what/where, plus an optional link.
+
+        A row needs a label *or* a link to survive -- an editor who typed only a
+        URL still gets a citation (the template falls back to showing the link
+        itself), and one who names a person with nothing to link to is the whole
+        point of the field.
+        """
+        if not isinstance(raw, list):
+            return []
+        out = []
+        for entry in raw:
+            if not isinstance(entry, dict):
+                continue
+            label = AboutContent.sanitize_text(entry.get("label"), 160)
+            url = AboutContent.sanitize_source_url(entry.get("url"))
+            if not label and not url:
+                continue
+            out.append({"label": label, "url": url})
+            if len(out) >= MAX_SOURCES:
+                break
+        return out
+
+    @staticmethod
     def sanitize_meta(slug, raw):
         """Whitelist `raw` against DEFAULT_META[slug] and clean every value.
 
@@ -222,6 +293,9 @@ class AboutContent:
             if key == "hotspots":
                 cleaned[key] = AboutContent._sanitize_hotspots(raw.get(key))
                 continue
+            if key == "sources":
+                cleaned[key] = AboutContent._sanitize_sources(raw.get(key))
+                continue
             value = AboutContent.sanitize_text(raw.get(key), _META_MAX.get(key, 200))
             if value:
                 cleaned[key] = value
@@ -232,8 +306,10 @@ class AboutContent:
         """Defaults for `slug`, overridden by whatever the row stores.
 
         Empty values do not override: a cleared field falls back to the default
-        copy instead of leaving a blank strip on the kiosk. `hotspots` is the
-        exception — an editor who deletes every callout means it.
+        copy instead of leaving a blank strip on the kiosk. The two list keys —
+        `hotspots` and `sources` — are the exception: an editor who deletes
+        every callout, or every citation, means it, and there is no sensible
+        default copy to fall back to.
         """
         # deepcopy, not dict(): `hotspots` is a nested list, and a shallow copy
         # would hand every request the same one to mutate.
@@ -243,7 +319,7 @@ class AboutContent:
             for key, value in stored.items():
                 if key not in merged:
                     continue
-                if key == "hotspots":
+                if key in ("hotspots", "sources"):
                     if isinstance(value, list):
                         merged[key] = value
                 elif value:

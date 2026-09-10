@@ -15,6 +15,7 @@ class AboutSection(Model):
         "subsections",
         "image_path",
         "audio_path",
+        "video_path",
         "lyric_timings",
         "meta",
         "updated_by_id",

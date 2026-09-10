@@ -1489,10 +1489,28 @@
    there was no way out of a scratch, and creating one pins layoutDirty for
    the session). Sits top-right of the card, quiet until hovered — it is an
    escape hatch, not a primary action, and it must never compete with the
-   inline fields it floats over. */
+   inline fields it sits over.
+
+   AN OVERLAY, NOT A CHILD OF THE CARD'S GRID. This was `float: right`, and
+   floats are ignored on grid items: `.secondary-story` is a two-column grid
+   (108px thumb | text) holding exactly two elements, so the button took the
+   thumb's cell, the thumb took the text's, and the body wrapped onto a second
+   row inside the 108px column — the Discard chip where the photo belongs and
+   the mounted Quill headline editor squeezed into a narrow strip overflowing
+   onto the Secondary slot below. `.feature-story` is a grid too, so the lead
+   scratch had the same bug as a full-width row shoved in at the top.
+
+   Positioned exactly like `.news-card-controls` (the Move Up/Down overlay a
+   SAVED card carries), which is what kept that one costing the grid nothing.
+   All three card shapes are already `position: relative` in the editor, a few
+   rules up, so no containing block is needed here. A scratch never carries
+   `.news-card-controls` — it has no id and no place in the canvas order yet —
+   so the two overlays cannot collide. */
 .news-scratch-discard {
-    float: right;
-    margin: 0 0 0.4rem 0.6rem;
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
     padding: 0.25rem 0.7rem;
     border: 1px solid var(--ink-rule-strong);
     border-radius: 9999px;

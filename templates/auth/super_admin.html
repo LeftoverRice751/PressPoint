@@ -171,12 +171,6 @@
                        managed from the admin console (/users), and super admin
                        rows never reach this loop at all. #}
                     {% if user.role == 'admin' %}
-                    <button type="button" class="ghost-button"
-                            data-sa-edit
-                            data-sa-action="{{ route('auth.super_admin.credentials', {'id': user.id}, False) }}"
-                            data-sa-username="{{ user.username }}"
-                            data-sa-email="{{ user.email }}">Edit</button>
-
                     <form action="{{ route('auth.super_admin.reset_password', {'id': user.id}, False) }}" method="post">
                       {{ csrf_field | safe }}
                       <button type="submit" class="ghost-button"
@@ -216,41 +210,4 @@
 
     {% include 'gears/partials/profile-panel.html' %}
 
-{# One dialog reused by every row: the Edit buttons carry the row's values as
-   data-* and super-admin.js copies them in, so the markup does not repeat per
-   admin. Styled with .confirm-modal so it matches the confirm dialog it sits
-   alongside; the fields use .field/.field__input rather than the auth shell's
-   inputs, which used to put a 10px-radius control inside a 6px-radius panel. #}
-<dialog class="confirm-modal sa-edit-modal" data-sa-edit-modal aria-labelledby="sa-edit-title">
-    <form method="post" class="confirm-modal__panel" data-sa-edit-form>
-        {{ csrf_field | safe }}
-        <h2 class="confirm-modal__title" id="sa-edit-title">Edit admin</h2>
-        <p class="confirm-modal__body">
-            Changing the email also changes what this admin signs in with. A notice
-            is sent to both the old and the new address.
-        </p>
-
-        <label class="field" for="sa-edit-username">
-            <span class="field__label">Username</span>
-            <input type="text" name="username" id="sa-edit-username" class="field__input" required>
-        </label>
-
-        <label class="field" for="sa-edit-email">
-            <span class="field__label">Email</span>
-            <input type="email" name="email" id="sa-edit-email" class="field__input" required>
-        </label>
-
-        <div class="confirm-modal__footer">
-            <button type="button" class="confirm-modal__button" data-sa-edit-cancel>Cancel</button>
-            <button type="submit" class="confirm-modal__button confirm-modal__button--primary">Save changes</button>
-        </div>
-    </form>
-</dialog>
-{% endblock %}
-
-{% block js %}
-{{ super() }}
-{# Drives the shared edit dialog above. confirm-modal.js, which powers the
-   Reset password / Delete / Log out dialogs, comes from the shell. #}
-<script src="{{ asset_url('js/super-admin.js') }}" defer></script>
 {% endblock %}

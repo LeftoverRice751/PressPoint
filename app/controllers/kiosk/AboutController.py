@@ -27,6 +27,38 @@ _SEAL_NAS_SUBDIR = "About"
 _MILESTONE_NAS_SUBDIR = "About/milestones"
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
 
+# The hymn video is buffered whole in memory before it is written, and
+# production runs five gunicorn processes against one box, so this cap is a
+# memory guard rather than a disk one. 100 MB is a comfortable 720p hymn.
+MAX_VIDEO_BYTES = 100 * 1024 * 1024
+
+# Narrower than FileVerificationService's shared "video" set, which also allows
+# .mov and .ogg. Those upload and verify happily and then fail to decode in the
+# kiosk browser, and a video that does not decode reports nothing at all -- the
+# pane just shows a black rectangle. Rejecting at upload time is the only point
+# where anyone is around to read the error.
+HYMN_VIDEO_EXTENSIONS = (".mp4", ".webm", ".m4v")
+
+
+def _drop_stale_hymn_videos(nas_dir, keep):
+    """Delete the previous hymn video when a re-upload changed the container.
+
+    The stored name carries the extension, so uploading a .webm over a .mp4
+    writes a second file and `video_path` points at only one of them. Nothing in
+    the dashboard lists the NAS folder, so the loser is invisible -- and at up
+    to MAX_VIDEO_BYTES each they accumulate silently. Only the names this
+    endpoint itself writes are candidates, and a failure here must never fail an
+    upload that already succeeded.
+    """
+    for ext in HYMN_VIDEO_EXTENSIONS:
+        name = f"hymn_video{ext}"
+        if name == keep:
+            continue
+        try:
+            os.remove(os.path.join(nas_dir, name))
+        except OSError:
+            pass
+
 
 def _editor_redirect(response: Response):
     """Helper: every editor save endpoint redirects back to the editor page."""
@@ -343,3 +375,73 @@ class AboutController(Controller):
         if wants_json(request):
             return json_success(response, messages=["Hymn audio uploaded."])
         return _editor_redirect(response).with_success(["Hymn audio uploaded."])
+
+    def upload_hymn_video(self, request: Request, response: Response):
+        """The hymn's video, which the kiosk prefers over the audio file.
+
+        Gated twice on purpose. The extension allowlist is what keeps the
+        stored *name* safe -- nginx serves About/ directly and derives
+        Content-Type from the extension, so a stored .html would come back as
+        markup on this origin (the escalation documented in
+        tests/unit/test_upload_extension_binding.py). The libmagic check is what
+        keeps the stored *bytes* honest, since the filename comes from the
+        browser and the editor is only an `auth` role away from an admin.
+        """
+        file = request.input("file")
+        if isinstance(file, list):
+            file = file[0] if file else None
+
+        def fail(message):
+            if wants_json(request):
+                return json_errors(response, [message])
+            return _editor_redirect(response).with_errors([message])
+
+        if not file:
+            return fail("No video file provided.")
+
+        # Masonite file objects expose .filename, not .mime_type -- use extension.
+        raw_filename = getattr(file, "filename", "") or ""
+        ext = os.path.splitext(raw_filename)[1].lower()
+        if hasattr(file, "extension") and callable(file.extension):
+            ext = (file.extension() or ext).lower()
+        if ext and not ext.startswith("."):
+            ext = "." + ext
+
+        if ext not in HYMN_VIDEO_EXTENSIONS:
+            return fail("Upload must be an MP4, WEBM, or M4V video file.")
+
+        # stream() is a callable in Masonite, not a plain property.
+        content = getattr(file, "content", None)
+        if content is None and hasattr(file, "stream") and callable(file.stream):
+            s = file.stream()
+            content = s.read() if hasattr(s, "read") else s
+        if not content:
+            return fail("Could not read uploaded file.")
+        if len(content) > MAX_VIDEO_BYTES:
+            return fail("Video file must be 100 MB or smaller.")
+        if not FileVerificationService.verify_buffer(content, "video"):
+            return fail("That file is not a playable video.")
+
+        nas_dir = os.path.join(gearsnas_base(), "About")
+        filename = f"hymn_video{ext}"
+        target = os.path.join(nas_dir, filename)
+
+        old_mask = os.umask(0o002)
+        try:
+            os.makedirs(nas_dir, mode=0o775, exist_ok=True)
+            with open(target, "wb") as fh:
+                fh.write(content)
+            os.chmod(target, 0o664)
+            _drop_stale_hymn_videos(nas_dir, filename)
+        finally:
+            os.umask(old_mask)
+
+        relative = f"About/{filename}"
+        section = AboutSection.where("slug", "hymn").first()
+        if section:
+            section.video_path = relative
+            section.save()
+
+        if wants_json(request):
+            return json_success(response, messages=["Hymn video uploaded."])
+        return _editor_redirect(response).with_success(["Hymn video uploaded."])

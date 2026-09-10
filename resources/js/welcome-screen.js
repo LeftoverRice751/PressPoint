@@ -227,147 +227,150 @@ document.addEventListener("DOMContentLoaded", () => {
   window.setInterval(loadFlashArticles, 15 * 1000);
 
   // ───────────────────────────────────────────────────────────────────────
-  // Destination carousel.
+  // The carousel IS the navigation.
   //
-  // Browse-then-commit: the strip below the stage is a scrubber, not six
-  // equal taps. Whatever is centred is mirrored up into .wc-stage, and only
-  // the stage's VIEW link navigates. Structure mirrors kiosk-archives.js —
-  // same modules, same slideToClickedSlide + centeredSlides shape, same
-  // "sync the detail panel from the active slide's dataset" split.
+  // Whatever is centred is what is rendered in the content frame above. There
+  // is no preview and no commit step: swipe, arrow, or tap a card, and that
+  // section is already there.
+  //
+  // This used to be browse-then-commit — the centred card was mirrored into a
+  // `.wc-stage` preview (title, icon, blurb) and only a VIEW link actually
+  // opened it. All five gestures in the spec resolve to the same thing,
+  // Swiper's activeIndex, so they all now go through one handler and none
+  // needs special-casing.
   // ───────────────────────────────────────────────────────────────────────
   const carouselEl = document.querySelector("[data-wc-swiper]");
-  const stageEl = document.querySelector("[data-wc-stage]");
-  const stageTitleEl = document.querySelector("[data-wc-title]");
-  const stageIconEl = document.querySelector("[data-wc-icon]");
-  const stageBlurbEl = document.querySelector("[data-wc-blurb]");
-  const stageViewEl = document.querySelector("[data-wc-view]");
 
   let menuSwiper = null;
 
-  // The stage never re-declares a title, a blurb or a route: it copies them
-  // off the active anchor's data-menu-* attributes, so the Jinja kiosk_menus
-  // list in welcome.html stays the single source for all three renderings
-  // (slide, server-rendered stage, JS stage swap).
-  function syncStage() {
-    if (!menuSwiper || !menuSwiper.slides) return;
+  // Where the carousel starts. Server-rendered from the URL, so
+  // /kiosk/virtual-tour arrives with the tour both centred and already loaded
+  // in the frame — the carousel and the content can never disagree on the
+  // first paint.
+  const initialIndex = (() => {
+    const raw = configEl ? parseInt(configEl.getAttribute("data-active-index"), 10) : NaN;
+    return Number.isInteger(raw) && raw >= 0 ? raw : 0;
+  })();
 
+  function activeSlideId() {
+    if (!menuSwiper || !menuSwiper.slides) return null;
     const slide = menuSwiper.slides[menuSwiper.activeIndex];
-    if (!slide) return;
+    return slide && slide.dataset ? slide.dataset.menuId || null : null;
+  }
 
-    const applyStage = () => {
-      if (stageTitleEl) {
-        stageTitleEl.textContent = slide.dataset.menuTitle || "";
-      }
-      if (stageBlurbEl) {
-        stageBlurbEl.textContent = slide.dataset.menuBlurb || "";
-      }
-      if (stageIconEl) {
-        // The icon is inline SVG rendered by the menu_icon() Jinja macro, so
-        // clone the slide's own node rather than keeping a second copy of six
-        // icon paths in JS. replaceChildren() with no argument on a missing
-        // svg simply empties the box instead of throwing.
-        const icon = slide.querySelector("svg");
-        stageIconEl.replaceChildren(icon ? icon.cloneNode(true) : "");
-      }
-      if (stageViewEl) {
-        // getAttribute, not .href: the anchors carry root-relative paths and
-        // .href would resolve them to absolute URLs, which is fine to follow
-        // but noisier to read back in tests and DevTools.
-        stageViewEl.setAttribute("href", slide.getAttribute("href") || "#");
-      }
-    };
+  /*
+   * Commit-on-settle.
+   *
+   * A ~180ms debounce sits between the carousel moving and the content
+   * changing, and it is doing two jobs, not one:
+   *
+   *   1. A fast swipe across four cards must load ONE document, not four.
+   *   2. More importantly, it must write ONE history entry, not four.
+   *      Without that, Back would step the visitor through every card their
+   *      finger flew past — a history stack that reads as broken rather than
+   *      merely wasteful.
+   *
+   * Short enough to still feel immediate (the spec's "responsiveness >
+   * animation"), long enough that a flick never commits a card nobody chose.
+   */
+  const COMMIT_DELAY_MS = 180;
+  let commitTimer = null;
 
-    if (!stageEl) {
-      applyStage();
-      return;
+  // Set while kiosk-content.js is driving the carousel from a popstate. The
+  // slideTo() it performs fires slideChange like any other move, and without
+  // this guard that would push a fresh history entry for a Back the browser
+  // has already performed — Back would then walk in place forever.
+  let suppressCommit = false;
+
+  function scheduleCommit() {
+    if (suppressCommit) return;
+    if (!window.__kioskContent) return;
+
+    if (commitTimer) window.clearTimeout(commitTimer);
+    commitTimer = window.setTimeout(() => {
+      commitTimer = null;
+      const id = activeSlideId();
+      if (id) window.__kioskContent.show(id);
+    }, COMMIT_DELAY_MS);
+  }
+
+  // Activate a card immediately, skipping the debounce. Used for a direct tap
+  // or keyboard activation, where the visitor has named the destination
+  // outright rather than scrubbing past it — waiting 180ms there would be a
+  // lag with nothing to absorb.
+  function commitNow(id) {
+    if (!window.__kioskContent) return false;
+    if (commitTimer) {
+      window.clearTimeout(commitTimer);
+      commitTimer = null;
+    }
+    return window.__kioskContent.show(id);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // The menu drawer.
+  //
+  // The carousel folds away so the content can have its 230px. On a 768x1024
+  // panel the shell spends 480px on chrome, and Campus Map then stacks another
+  // ~258px of its own inside the frame — its live Leaflet viewport is 285px,
+  // 28% of the physical screen. Collapsing this band takes the content from
+  // 544px to 774px and the map from 285px to 516px.
+  //
+  // The band's size is pure CSS (flex-basis, see .wc-carousel); this only owns
+  // the state attribute and the things CSS cannot do — the accessible name, the
+  // pressed state, and removing a clipped carousel from the tab order.
+  //
+  // Deliberately in this file rather than a bundle of its own: the drawer has
+  // to cooperate with the Swiper instance and with the attract loop that
+  // re-opens it, and both live here and nowhere else.
+  // ───────────────────────────────────────────────────────────────────────
+  const shellEl = document.querySelector(".kiosk-shell");
+  const navToggleEl = document.querySelector("[data-wc-nav-toggle]");
+  const navPanelEl = document.getElementById("kiosk-menu");
+
+  function setNavExpanded(expanded) {
+    if (!shellEl) return;
+
+    shellEl.setAttribute("data-nav", expanded ? "expanded" : "collapsed");
+
+    if (navToggleEl) {
+      navToggleEl.setAttribute("aria-expanded", expanded ? "true" : "false");
+      // The name says what pressing it will DO, not what state it is in — the
+      // state is already carried by aria-expanded, and announcing both leaves a
+      // screen-reader user to work out which is which.
+      navToggleEl.setAttribute(
+        "aria-label",
+        expanded ? "Hide the kiosk menu" : "Show the kiosk menu",
+      );
     }
 
-    // .is-swapping fades and lifts the title/icon/blurb out (see the comment
-    // on it in welcome-screen.css); a plain content swap on a panel this size
-    // reads as a glitch. Adding and removing a class inside one frame is
-    // coalesced by the style engine into no transition at all, so the removal
-    // has to wait for a painted frame — hence the nested rAF rather than a
-    // setTimeout(0), which can land inside the same frame under load.
-    stageEl.classList.add("is-swapping");
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        applyStage();
-        stageEl.classList.remove("is-swapping");
-      });
+    if (navPanelEl) {
+      // #kiosk-menu is the carousel TRACK, not the whole band — the handle is
+      // the band's first row and must stay live, or the control that undoes
+      // the collapse would go inert along with it.
+      //
+      // inert rather than CSS: overflow:hidden clips the cards but leaves them
+      // focusable, so a keyboard visitor could tab into six links they cannot
+      // see and watch the kiosk navigate for no visible reason.
+      navPanelEl.toggleAttribute("inert", !expanded);
+    }
+
+    // Insurance, not a fix: the swiper's height is pinned in CSS precisely so
+    // its measurements do not change when the band collapses. If a later edit
+    // unpins it, this is what stops the carousel coming back mis-measured.
+    if (expanded && menuSwiper && typeof menuSwiper.update === "function") {
+      menuSwiper.update();
+    }
+  }
+
+  function navExpanded() {
+    return !shellEl || shellEl.getAttribute("data-nav") !== "collapsed";
+  }
+
+  if (navToggleEl) {
+    navToggleEl.addEventListener("click", () => {
+      setNavExpanded(!navExpanded());
     });
-  }
-
-  // ─────────────────────────────────────────────────────────────────────
-  // Speculative prerender of the centred destination only.
-  //
-  // See the comment on the speculationrules block in welcome.html for why
-  // this exists in place of the old static tiers. In short: a prerender is a
-  // fully rendered, live page (unlike the .feature-card prefetch tier, which
-  // is a plain cached response), Chromium can't run more than a couple at
-  // once anyway, and running all six live would be heavier than the menu
-  // itself. This injects one at a time, for whichever card the visitor has
-  // settled on.
-  //
-  // Feature-detected up front: HTMLScriptElement.supports is itself new
-  // enough that a kiosk on an older Chromium build (or a non-Chromium
-  // browser, however unlikely on this hardware) simply never has it, and the
-  // whole thing should no-op rather than throw.
-  const supportsSpeculationRules =
-    typeof HTMLScriptElement !== "undefined" &&
-    typeof HTMLScriptElement.supports === "function" &&
-    HTMLScriptElement.supports("speculationrules");
-
-  let prerenderTimer = null;
-  let prerenderScriptEl = null;
-
-  function setActivePrerender(href) {
-    if (!href) return;
-    if (!document.head || typeof document.createElement !== "function") return;
-
-    // Remove the previous injected element first — that is what cancels the
-    // superseded prerender. Speculation rules aren't "updated" in place;
-    // Chromium just stops honoring a ruleset once the <script> carrying it
-    // is gone, so removing the old one before adding the new one is the
-    // whole mechanism.
-    if (prerenderScriptEl && prerenderScriptEl.parentNode) {
-      prerenderScriptEl.parentNode.removeChild(prerenderScriptEl);
-    }
-    prerenderScriptEl = null;
-
-    try {
-      const script = document.createElement("script");
-      script.type = "speculationrules";
-      script.setAttribute("data-wc-prerender", "");
-      // Deliberately no nonce: the CSP allows this element via the
-      // 'inline-speculation-rules' token in script-src
-      // (app/security_headers.py), which the spec matches speculation rules
-      // against specifically — a nonce is not the mechanism it checks, so
-      // adding one here would do nothing and shouldn't be "fixed" in later
-      // by someone assuming every inline <script> needs one.
-      script.textContent = JSON.stringify({
-        prerender: [{ urls: [href], eagerness: "immediate" }],
-      });
-      document.head.appendChild(script);
-      prerenderScriptEl = script;
-    } catch (error) {
-      // Degrade silently: the .feature-card prefetch tier in welcome.html
-      // still covers every destination even with no live prerender at all.
-    }
-  }
-
-  function schedulePrerender() {
-    if (!supportsSpeculationRules) return;
-    if (!menuSwiper || !menuSwiper.slides) return;
-
-    if (prerenderTimer) window.clearTimeout(prerenderTimer);
-    // Debounced ~300ms behind slideChange: swiping through several cards in
-    // a row must not spin up (and immediately tear down) a prerender for
-    // every card passed through, only the one the visitor stops on.
-    prerenderTimer = window.setTimeout(() => {
-      const slide = menuSwiper.slides[menuSwiper.activeIndex];
-      const href = slide && slide.getAttribute ? slide.getAttribute("href") : null;
-      setActivePrerender(href);
-    }, 300);
   }
 
   if (carouselEl && carouselEl.querySelector(".swiper-slide")) {
@@ -375,10 +378,12 @@ document.addEventListener("DOMContentLoaded", () => {
       modules: [Navigation, Keyboard, A11y],
       slidesPerView: "auto",
       centeredSlides: true,
-      // Campus Map, the second entry in kiosk_menus — the required initial
-      // state, and the same index welcome.html server-renders into the stage
-      // (kiosk_menus[1]) so the first paint and the first sync agree.
-      initialSlide: 1,
+      // From the URL, via data-active-index on #kiosk-config — NOT a constant.
+      // The shell is served at all six section paths, so /kiosk/virtual-tour
+      // has to arrive with the tour centred as well as loaded in the frame;
+      // a hardcoded index would show Campus Map's card over the tour's
+      // content. See KioskShellController.shell_context.
+      initialSlide: initialIndex,
       slideToClickedSlide: true,
       speed: 420,
       grabCursor: true,
@@ -391,103 +396,79 @@ document.addEventListener("DOMContentLoaded", () => {
       watchSlidesProgress: true,
     });
 
-    menuSwiper.on("slideChange", syncStage);
+    // Swiping and the arrows both land here: any move of the carousel is a
+    // section change, committed once the visitor settles (see scheduleCommit).
+    menuSwiper.on("slideChange", scheduleCommit);
 
-    // ── Tap discrimination: side tap re-centres, centre tap navigates ────
+    // ── Card activation ──────────────────────────────────────────────────
     //
-    // A tap on a side card must only centre it; a tap on the card that is
-    // ALREADY centred is what navigates now that the stage's VIEW button is
-    // gone (see the comment up top on why the anchors are the real
-    // navigation mechanism again). No tap-vs-swipe detector is needed to
-    // tell a swipe apart from either kind of tap: Swiper's built-in
-    // preventClicks already swallows the synthetic click a drag emits, so a
-    // swipe never reaches this listener at all. (Contrast makeTapDetector in
-    // kiosk-archive-book.js, which exists only because StPageFlip owns its
-    // own drag and Swiper is not involved.)
+    // There used to be ~70 lines of tap discrimination here, snapshotting
+    // activeIndex on a capture-phase pointerdown so a tap on a SIDE card
+    // could be told from a tap on the ALREADY-centred one: the first only
+    // re-centred, and only the second was allowed to navigate. Commits
+    // f52b85e / 86747f0 / 881e017 were all fixes to that machinery.
     //
-    // What IS needed is a reliable way to tell "tap centred this card just
-    // now" apart from "this card was already centred before the finger
-    // landed". kiosk-archives.js answers that by comparing
-    // swiper.clickedIndex to swiper.activeIndex inside the click handler —
-    // but that trusts that Swiper hasn't already applied
-    // slideToClickedSlide's re-centring before the handler runs, and nothing
-    // guarantees that ordering. Getting it wrong here means a side tap reads
-    // as a centre tap and navigates the visitor somewhere they never chose —
-    // on an unattended public kiosk that's a real failure, not a nitpick.
+    // It is gone because the distinction it drew no longer exists. The
+    // carousel is the navigation now, so re-centring a card IS opening it —
+    // there is no second, committing gesture for a first tap to be
+    // distinguished from. Keeping the snapshot would mean a tap on a side
+    // card centred it and then deliberately refused to show it, which is
+    // exactly the "press View" step this change removes.
     //
-    // So this records activeIndex on pointerdown — capture phase, before
-    // Swiper's own handling and before any centring can have happened — and
-    // compares the tapped card's index against that snapshot on click. The
-    // snapshot can never be stale relative to the tap that produced it,
-    // unlike clickedIndex/activeIndex read after the fact.
-    let preTapActiveIndex = null;
-
-    carouselEl.addEventListener(
-      "pointerdown",
-      () => {
-        if (!menuSwiper) return;
-        preTapActiveIndex = menuSwiper.activeIndex;
-      },
-      { capture: true, passive: true },
-    );
-
+    // Swiper's own slideToClickedSlide still does the centring, and its
+    // preventClicks still swallows the synthetic click a drag emits, so a
+    // swipe never reaches this listener at all.
     carouselEl.addEventListener(
       "click",
       (ev) => {
         const card = ev.target && ev.target.closest ? ev.target.closest(".feature-card") : null;
         if (!card) return;
-        if (!menuSwiper || !menuSwiper.slides) return;
 
-        const cardIndex = Array.prototype.indexOf.call(menuSwiper.slides, card);
+        // Let a modified click (middle-click, ctrl/cmd-click) do what the
+        // browser would: open the section's own URL in a new tab. That URL
+        // serves the shell, so it opens a whole working kiosk rather than a
+        // bare fragment.
+        if (ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
 
-        // Keyboard activation (Enter/Space on a focused card) fires click
-        // with no preceding pointerdown, so preTapActiveIndex is either
-        // still null (first activation ever) or a stale leftover from some
-        // earlier, unrelated tap — comparing against it either blocks every
-        // keyboard activation forever or judges this one against the wrong
-        // card. A keyboard press can't have re-centred anything itself, so
-        // the live activeIndex *is* the correct "was this already centred"
-        // answer for this gesture.
-        const referenceIndex = preTapActiveIndex === null ? menuSwiper.activeIndex : preTapActiveIndex;
+        const id = card.dataset ? card.dataset.menuId : null;
+        if (!id) return;
 
-        // Unresolvable or different from the reference index: this was a
-        // side tap / off-centre keyboard activation (or something we can't
-        // identify), so treat it as navigation-never — the safe default on
-        // a public kiosk. Only an index that matches exactly is a tap (or
-        // keypress) on the card that was already centred, and that's the
-        // one case where the anchor's default action is allowed through.
-        if (cardIndex === -1 || cardIndex !== referenceIndex) {
-          ev.preventDefault();
-          // For a keyboard activation specifically, mirror what a first tap
-          // does: centre the card now so the next Enter navigates. A side
-          // *tap* already gets this from slideToClickedSlide; keyboard
-          // input never goes through Swiper's click handling at all, so
-          // without this an off-centre card could never be reached by
-          // keyboard — Enter would just keep no-op'ing on it forever.
-          if (preTapActiveIndex === null && cardIndex !== -1) {
-            menuSwiper.slideTo(cardIndex);
-          }
-        }
+        // Centre it, then render it. slideTo() fires slideChange, which would
+        // schedule a debounced commit for this same section; commitNow()
+        // cancels that timer, so a direct tap is immediate rather than waiting
+        // out a debounce it does not need.
+        const index = Array.prototype.indexOf.call(menuSwiper.slides, card);
+        if (index !== -1 && index !== menuSwiper.activeIndex) menuSwiper.slideTo(index);
 
-        // Reset for the next gesture so a snapshot from this tap (or the
-        // lack of one, for a keyboard press) can never leak into judging a
-        // later, unrelated activation — the exact regression this guards:
-        // preTapActiveIndex used to live on forever, so one stale/absent
-        // snapshot could block or misroute every activation after it.
-        preTapActiveIndex = null;
+        // preventDefault ONLY if the content frame actually took it. With
+        // kiosk-content.js absent (an older cached shell, or the bundle
+        // failing to load) the anchor navigates to the section's own URL
+        // exactly as it always did — the same no-JS guarantee the cards have
+        // always carried, and why they are still real links.
+        if (commitNow(id)) ev.preventDefault();
       },
       true,
     );
 
-    // ── Prerender only the centred destination ───────────────────────────
-    // See the long comment on the speculationrules block in welcome.html for
-    // why this exists (prerendering all six is neither possible nor
-    // desirable) and why it targets the active slide alone.
-    menuSwiper.on("slideChange", schedulePrerender);
-    // slideChange doesn't fire on init, so the initially-centred card (Campus
-    // Map, kiosk_menus[1] — see the Swiper config above) needs one explicit
-    // kick here.
-    schedulePrerender();
+    // kiosk-content.js moves the carousel on popstate; suppressCommit stops
+    // that move from pushing a duplicate history entry for a Back the browser
+    // has already performed. The section is already rendered by the time this
+    // fires — this only keeps the strip in sync with it.
+    document.addEventListener("kiosk-content:change", (ev) => {
+      const index = ev.detail ? ev.detail.index : -1;
+      if (!menuSwiper || typeof index !== "number" || index < 0) return;
+      if (index === menuSwiper.activeIndex) return;
+
+      suppressCommit = true;
+      menuSwiper.slideTo(index);
+      // Released after Swiper has emitted slideChange for the move above.
+      // A rAF rather than setTimeout(0): Swiper emits synchronously during
+      // slideTo, so one painted frame is more than enough and cannot land
+      // inside the same task as a later, genuine gesture.
+      window.requestAnimationFrame(() => {
+        suppressCommit = false;
+      });
+    });
   }
 
   // ───────────────────────────────────────────────────────────────────────
@@ -506,16 +487,24 @@ document.addEventListener("DOMContentLoaded", () => {
   // ───────────────────────────────────────────────────────────────────────
 
   // The one place to change how long the kiosk waits before attracting.
-  // Deliberately the single declaration in this file; the other kiosk pages
-  // keep their own timers (news 120s, tour/archives 60s) and are not unified
-  // here.
+  //
+  // This is now the kiosk's ONLY navigating idle timer. The content pages used
+  // to run their own and reset themselves to /kiosk; framed inside this shell
+  // that would have loaded the kiosk inside its own content area. They report
+  // activity upward instead (see the kiosk-content:activity listener below),
+  // so the countdown here is the single authority. The in-page timers that
+  // merely close a page's own overlays — the map's 60s pane reset, About's
+  // return to its hub — are untouched, because they never navigate.
   const KIOSK_IDLE_TIMEOUT = 30 * 1000;
 
+  // The EMBED path, not /kiosk/latest-news — that now serves this very shell,
+  // so framing it would nest the whole kiosk inside its own attract overlay.
+  //
   // Same-origin document, so it is a normal navigation for the service worker
   // (sw-kiosk.js isKioskDocument() matches /kiosk/*, and an iframe load IS
   // mode:'navigate') and it is precached by partials/kiosk-sw.html — the
   // attract screen has to render with the campus link down.
-  const ATTRACT_SRC = "/kiosk/latest-news";
+  const ATTRACT_SRC = "/kiosk/embed/latest-news";
 
   let idleTimer = null;
   let idleVideoSrc = null;
@@ -550,6 +539,17 @@ document.addEventListener("DOMContentLoaded", () => {
   function startIdleCountdown() {
     if (idleTimer) window.clearTimeout(idleTimer);
     if (attractShowing) return;
+    // The countdown always arms now, even though content is always showing.
+    // It used to be parked while a destination was open, back when opening one
+    // was a deliberate act the visitor could also undo; with the carousel as
+    // the navigation there is no "closed" state to return to, so an unattended
+    // terminal left on the map would never attract again.
+    //
+    // What makes that safe is the activity relay: a touch inside the content
+    // frame never reaches this document's listeners, so the framed page posts
+    // one up (see the kiosk-content:activity listener) and it re-arms the
+    // countdown exactly as a touch on the shell would.
+    //
     // There is deliberately no `if (!idleVideoSrc) return;` here any more.
     // The countdown used to be video-only, so an unflagged kiosk never armed
     // it at all; the newsletter is now the fallback attract screen, so the
@@ -588,8 +588,74 @@ document.addEventListener("DOMContentLoaded", () => {
     return true;
   }
 
+  // ── Warm the whole kiosk while nobody is using it ──────────────────────
+  //
+  // The service worker can only precache what a document actually loaded, so
+  // until now a destination stayed uncached until somebody visited it: the
+  // first visitor of the day paid full price for every screen, and a terminal
+  // whose campus link dropped overnight could only offer whatever had been
+  // opened before it went. The kiosk is idle most of the day and its
+  // destinations are a known, fixed six, so the attract screen is free time to
+  // fetch all of them.
+  //
+  // Once per boot, not per attract: the documents are stale-while-revalidate,
+  // so every later visit refreshes them anyway, and repeating a six-document
+  // sweep every 30 seconds of idle would be a busy kiosk pretending to be an
+  // idle one.
+  let routesPrecached = false;
+
+  function precacheAllDestinations() {
+    if (routesPrecached) return;
+    // typeof, not a bare read: this runs from playIdleAttract(), which the
+    // idle test harnesses drive directly in Node, where `navigator` does not
+    // exist at all on the versions this repo builds under.
+    if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
+
+    const worker = navigator.serviceWorker.controller;
+    if (!worker) return;
+
+    // data-menu-embed, NOT href. The cards' hrefs are the section paths, and
+    // every one of those serves this same shell — sweeping them would cache
+    // six copies of the menu and not one byte of the content the frame loads.
+    const routes = Array.prototype.map
+      .call(document.querySelectorAll(".feature-card"), (card) =>
+        card.getAttribute("data-menu-embed"),
+      )
+      .filter((path) => path && path.charAt(0) === "/");
+    if (!routes.length) return;
+
+    routesPrecached = true;
+
+    const send = () => worker.postMessage({ type: "PRECACHE_ROUTES", routes });
+
+    // Never precache the kiosk out of its own storage. The archives are the
+    // bulk of what is held and the most expensive to rebuild (hundreds of
+    // rasterised pages), so a sweep that pushed the origin over quota would
+    // evict exactly the thing worth keeping to cache six documents.
+    if (!navigator.storage || !navigator.storage.estimate) {
+      send();
+      return;
+    }
+
+    navigator.storage
+      .estimate()
+      .then((estimate) => {
+        const quota = estimate && estimate.quota;
+        const usage = estimate && estimate.usage;
+        if (quota && usage && usage / quota > 0.8) return;
+        send();
+      })
+      .catch(send);
+  }
+
   function playIdleAttract() {
     if (attractShowing) return;
+
+    precacheAllDestinations();
+
+    // Behind the attract overlay, so the swap is never seen — and before the
+    // flag below is set, so the reset isn't mistaken for visitor activity.
+    resetContentToDefault();
 
     if (idleVideoSrc && typeof window.__kioskPlaySrc === "function") {
       attractShowing = true;
@@ -608,6 +674,28 @@ document.addEventListener("DOMContentLoaded", () => {
     if (showNewsletterAttract()) {
       attractShowing = true;
     }
+  }
+
+  // An unattended terminal shouldn't greet the next visitor with whatever the
+  // last one left half-finished — a zoomed panorama, a route to somebody
+  // else's building, page 40 of an issue. Attracting is the point at which the
+  // previous session is over, so the content goes back to the default section.
+  //
+  // push:false: this is a reset, not somewhere the visitor navigated, so it
+  // must not add a history entry (and must not make Back walk into the section
+  // they abandoned).
+  function resetContentToDefault() {
+    // The menu comes back up with it. The drawer is deliberately sticky while
+    // somebody is using the terminal — collapse it once and it stays down
+    // across every section — so attracting is the only thing that re-opens it,
+    // and the only reason the next visitor is not met by a kiosk with no
+    // visible way to navigate.
+    setNavExpanded(true);
+
+    if (!window.__kioskContent) return;
+    const fallback = window.__kioskContent.defaultId();
+    if (!fallback || window.__kioskContent.current() === fallback) return;
+    window.__kioskContent.show(fallback, { push: false });
   }
 
   function stopIdleAttract() {
@@ -697,6 +785,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
   ["pointerdown", "touchstart", "wheel", "keydown"].forEach((evt) => {
     document.addEventListener(evt, onUserActivity, { passive: true, capture: true });
+  });
+
+  // Activity inside the content frame.
+  //
+  // Events do not cross a frame boundary, so every listener above is blind to
+  // a visitor panning the map, turning a page or dragging the panorama — this
+  // document looks completely idle while somebody is actively using it, and
+  // would drop the attract screen on them mid-gesture. The framed page relays
+  // a throttled signal up (see the bridge in partials/kiosk-back.html) and
+  // kiosk-content.js re-emits it here.
+  //
+  // Deliberately NOT routed through onUserActivity: that also handles waking
+  // FROM attract, and a relayed message is not a real gesture. The attract
+  // iframe carries pointer-events:none precisely so the wake tap lands on this
+  // document instead, and letting a message dismiss the overlay would fight
+  // the click-swallowing that keeps the wake tap from also activating a card.
+  document.addEventListener("kiosk-content:activity", () => {
+    if (attractShowing) return;
+    startIdleCountdown();
   });
 
   // Returning to the menu with the back bar restores this page from the

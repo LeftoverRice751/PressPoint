@@ -1081,12 +1081,31 @@ ensureTourDependencies()
     });
   }
 
-  function csrfToken() {
+  /*
+   * The token, with a cached-document fallback. Same reasoning as
+   * kiosk-map.js: the markup's token is only as fresh as the cache entry once
+   * sw-kiosk.js serves kiosk pages from cache, while GET /kiosk/csrf is
+   * no-store and bypassed by the worker. See WelcomeController.csrf.
+   */
+  var latestCsrfToken = (function () {
     var meta = document.querySelector('meta[name="csrf-token"]');
-    if (meta) return meta.getAttribute('content');
+    if (meta) return meta.getAttribute('content') || '';
     var input = document.querySelector('input[name="__token"]');
     return input ? input.value : '';
+  })();
+
+  function csrfToken() {
+    return latestCsrfToken;
   }
+
+  fetch('/kiosk/csrf', {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+    credentials: 'same-origin',
+  })
+    .then(function (res) { return res.ok ? res.json() : null; })
+    .then(function (body) { if (body && body.token) latestCsrfToken = body.token; })
+    .catch(function () { /* offline; the route-session POST needs the network anyway */ });
 
   function debounce(fn, wait) {
     var timer = null;

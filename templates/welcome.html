@@ -202,26 +202,27 @@
 </head>
 <body class="kiosk-body">
 {#
-  Menu data as a single Jinja list: the carousel loop, the server-rendered
-  stage and the JS-driven stage swap (welcome-screen.js reads the same
-  data-menu-* attributes off each slide) all derive from this one source,
-  so a new destination is one entry here instead of three places kept in
-  sync by hand.
+  The six destinations come from app/services/KioskSections.py as
+  `kiosk_sections`, with `active_section` and `active_index` for whichever one
+  this URL selects.
+
+  They used to be a `{% set kiosk_menus = [...] %}` literal right here. That
+  was fine while the list was only rendered, but the shell is now served at all
+  six section paths and has to turn a request path back into a section — which
+  means the list has to exist in Python, and two copies would drift the first
+  time somebody adds a destination.
+
+  Each section carries two paths, and the difference matters:
+
+    path        what the visitor sees, what the card links to, and what
+                history.pushState() writes. Serves THIS shell.
+    embed_path  what the content frame actually loads: the destination's own
+                document, from the same unchanged controller that used to serve
+                `path` directly.
+
+  If the frame loaded `path` it would load this shell inside itself, forever.
+  See routes/public.py, where the pairs are declared together.
 #}
-{% set kiosk_menus = [
-  {'id': 'latest-news',   'title': 'Latest News',   'href': route('kiosk.latest-news', {}, False),
-   'blurb': 'Read recent updates from The Gears'},
-  {'id': 'campus-map',    'title': 'Campus Map',    'href': '/kiosk/campus-map',
-   'blurb': 'Find every building, office and route around campus'},
-  {'id': 'gears-archive', 'title': 'Gears Archive', 'href': '/kiosk/gears-archive',
-   'blurb': 'Read published issues of The Gears'},
-  {'id': 'virtual-tour',  'title': 'Virtual Tour',  'href': '/kiosk/virtual-tour',
-   'blurb': 'Walk the campus in 360°'},
-  {'id': 'about-lspu',    'title': 'About LSPU',    'href': route('kiosk.about-lspu', {}, False),
-   'blurb': 'Mission, history, hymn and seal'},
-  {'id': 'org-chart',     'title': 'LSPU Org Chart','href': route('kiosk.org-board', {}, False),
-   'blurb': 'Who leads which office'},
-] %}
 
 {#
   Jinja macros do not cross {% include %} (CLAUDE.md), so the six icons stay
@@ -244,7 +245,12 @@
 {%- endif -%}
 {% endmacro %}
 
-  <div class="kiosk-shell" aria-label="Kiosk terminal">
+  {# data-nav is the menu drawer's only state. Server-rendered as "expanded" so
+     the kiosk always boots with its menu up, and flipped in place by
+     welcome-screen.js — deliberately not remembered between visitors, because
+     this is a shared terminal and the next person should not inherit the last
+     one's collapsed menu. #}
+  <div class="kiosk-shell" aria-label="Kiosk terminal" data-nav="expanded">
       <!-- Status bar. No aria-live: a clock that announces itself every
            minute is noise for screen-reader users. welcome-screen.js fills
            both spans and sets the datetime attribute. -->
@@ -266,40 +272,98 @@
         <span class="wc-masthead__meta">Santa Cruz<br>Campus</span>
       </section>
 
-      <!-- Browse-then-commit: the carousel below is a scrubber, not six equal
-           taps. One destination is centred at a time and mirrored up into the
-           stage; a swipe just re-centres and re-labels. Tapping the already-
-           centred card also navigates — welcome-screen.js discriminates a
-           side tap (which only re-centres) from a tap on the centred card
-           (which lets the anchor's own default action fire); see the comment
-           there. VIEW below is the second, labelled way in: a first-time
-           visitor gets a visible cue for how to proceed instead of only a
-           bare carousel, without losing the tap-to-enter path. -->
-      <section class="wc-stage" aria-live="polite" data-wc-stage>
-        <h2 class="wc-stage__title" data-wc-title>{{ kiosk_menus[1].title }}</h2>
-        <div class="wc-stage__icon" aria-hidden="true" data-wc-icon>{{ menu_icon(kiosk_menus[1].id) }}</div>
-        <p class="wc-stage__blurb" data-wc-blurb>{{ kiosk_menus[1].blurb }}</p>
-        <a class="wc-view" data-wc-view href="{{ kiosk_menus[1].href }}">View</a>
-      </section>
+      <!-- The content. The carousel below is the navigation, and this is what
+           it navigates: moving the carousel points this frame at the new
+           section immediately, with no preview and no confirming tap.
+
+           There used to be a `.wc-stage` here — a preview of the centred
+           destination (title, icon, blurb) plus a VIEW button that was the
+           thing that actually opened it, into a viewport with its own "Kiosk
+           menu" close button. That whole layer is gone: it made the visitor
+           commit twice to see anything, and the six destinations each carried
+           a back bar to undo it with. The card's title is now the only label,
+           and the content itself is the preview.
+
+           src is server-rendered rather than assigned by JS on boot, so a deep
+           link to /kiosk/campus-map paints the map on first frame instead of
+           flashing an empty shell. kiosk-content.js takes over from there.
+
+           name="kiosk-content" is a contract with partials/kiosk-back.html:
+           the framed page reads window.name to tell "hosted in the shell" from
+           "framed decoratively by the attract loop", which are the same thing
+           to `window.top !== window.self` and want opposite behaviour. -->
+      <main class="kiosk-content"
+            data-kiosk-content
+            data-active-section="{{ active_section.id }}"
+            aria-live="polite">
+        <iframe class="kiosk-content__frame"
+                data-kiosk-frame
+                name="kiosk-content"
+                title="{{ active_section.title }}"
+                src="{{ active_section.embed_path }}"></iframe>
+      </main>
 
       <section class="wc-carousel" aria-label="Kiosk destinations">
+        {#
+          The handle sits on top of the menu, inside the band rather than above
+          it, and that placement is what makes the drawer free.
+
+          The band collapses from 230px to just this handle's height, so the
+          handle is always on screen — it is the thing you press to bring the
+          menu back — while costing the expanded layout nothing: the content
+          frame is 544px either way, exactly as it was before the drawer
+          existed. A handle in a band of its own would have taken its height
+          off the content permanently.
+
+          It is deliberately NOT inside #kiosk-menu below. That element goes
+          `inert` while collapsed, and a toggle that went inert with the thing
+          it toggles could never be pressed to undo itself.
+
+          aria-expanded / aria-label are rewritten by welcome-screen.js in step
+          with data-nav on the shell; the values here are the expanded state the
+          shell is server-rendered in.
+        #}
+        <button type="button"
+                class="wc-nav-toggle"
+                data-wc-nav-toggle
+                aria-controls="kiosk-menu"
+                aria-expanded="true"
+                aria-label="Hide the kiosk menu">
+          <svg class="wc-nav-toggle__chevron" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 9l6 6 6-6"></path>
+          </svg>
+          <span class="wc-nav-toggle__label">Menu</span>
+        </button>
+
+        <div class="wc-carousel__track" id="kiosk-menu">
         <button type="button" class="wc-arrow wc-arrow--prev" data-wc-prev aria-label="Previous">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"></path></svg>
         </button>
         <div class="swiper wc-swiper" data-wc-swiper>
           <div class="swiper-wrapper">
-            {% for m in kiosk_menus %}
-            {% if m.id == 'gears-archive' %}
-            <!-- Literal path, not route('kiosk.gears-archive'): that name is registered
-                 on two paths ("/" and "/kiosk/gears-archive"), route() resolves the
-                 first, and the relative form renders "/" as an empty string — a card
-                 that goes nowhere. -->
-            {% endif %}
-            <a class="swiper-slide feature-card"
-               href="{{ m.href }}"
+            {#
+              Still real <a href> elements, and still deliberately so. The card
+              is what JS turns into an in-place section change, but with this
+              document's JS dead the six anchors remain a working menu that
+              navigates the old way — the same no-JS guarantee they have always
+              carried. welcome-screen.js only preventDefault()s once the
+              content frame is confirmed live.
+
+              Paths come from KioskSections rather than route(), which also
+              retires a long-standing trap: route('kiosk.gears-archive')
+              resolved to the wrong path, because that name is registered on
+              two routes ("/" and "/kiosk/gears-archive") and route() returns
+              the first — the relative form rendered "/" as an empty string, a
+              card that went nowhere.
+            #}
+            {% for m in kiosk_sections %}
+            <a class="swiper-slide feature-card{% if m.id == active_section.id %} is-active{% endif %}"
+               href="{{ m.path }}"
                data-menu-id="{{ m.id }}"
                data-menu-title="{{ m.title }}"
-               data-menu-blurb="{{ m.blurb }}">
+               data-menu-blurb="{{ m.blurb }}"
+               data-menu-embed="{{ m.embed_path }}"
+               aria-current="{{ 'page' if m.id == active_section.id else 'false' }}">
               <span class="feature-card__icon" aria-hidden="true">{{ menu_icon(m.id) }}</span>
               <span class="feature-card__label">{{ m.title }}</span>
             </a>
@@ -309,6 +373,7 @@
         <button type="button" class="wc-arrow wc-arrow--next" data-wc-next aria-label="Next">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
         </button>
+        </div>
       </section>
 
       <section class="news-ticker" aria-label="Flash updates">
@@ -316,6 +381,7 @@
         <div class="news-ticker__viewport">
           <div class="news-ticker__track" id="ticker-track"></div>
         </div>
+
       </section>
   </div>
 
@@ -324,6 +390,13 @@
     data-pusher-key="{{ pusher_key }}"
     data-pusher-cluster="{{ pusher_cluster }}"
     data-flash-updates-url="{{ route('welcome.flash-updates', {}, False) }}"
+    {# Swiper's initialSlide, and the section the frame was server-rendered
+       with. Both come from the URL, so /kiosk/virtual-tour arrives with the
+       tour centred AND loaded — the carousel and the content can never
+       disagree on first paint. #}
+    data-active-section="{{ active_section.id }}"
+    data-active-index="{{ active_index }}"
+    data-default-section="{{ kiosk_sections[0].id }}"
   ></div>
 
   <div id="kiosk-stage" hidden aria-live="polite">
@@ -346,11 +419,15 @@
   </div>
 
   <!-- Attract screen: shown after idle timeout instead of (or alongside) the
-       existing video overlay, looping the newsletter at /kiosk/latest-news.
-       Framing it is safe now that the CSP allows same-origin frame-src /
+       existing video overlay, looping the newsletter at
+       /kiosk/embed/latest-news. Note the EMBED path — /kiosk/latest-news now
+       serves this very shell, so framing it would nest the kiosk inside its
+       own attract overlay.
+
+       Framing is safe because the CSP allows same-origin frame-src /
        frame-ancestors and kiosk-news.js skips its own idle timer when it
-       detects it's framed (both from an earlier task) — otherwise the framed
-       page would fight this one's idle handling.
+       detects it's framed — otherwise the framed page would fight this one's
+       idle handling.
 
        The frame host starts empty: welcome-screen.js builds the <iframe> into
        #kiosk-attract-frame on first attract rather than at page load, so a
@@ -371,52 +448,47 @@
 
   <div id="kiosk-notice" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <!-- Speculation rules: the kiosk menu is a fixed set of six destinations on
-       idle hardware, which is the ideal case for prerendering. Chromium runs
-       a listed page to completion in a hidden frame — HTML, CSS, JS, Leaflet
-       init and all — so a tap on it swaps in an already-painted page instead
-       of starting a navigation.
+  <!-- Prefetch, and NOT prerender. Read this before adding a prerender tier
+       back.
 
-       Static tiers used to declare two eager pages up front plus a moderate
-       tier on the stage's now-removed VIEW button. Both are gone: prerendering
-       all six at once was never possible — Chromium caps concurrent immediate
-       prerenders at roughly two, moderate at roughly two more — and it isn't
-       desirable on this panel even if it were. A prerender is a fully
-       rendered, LIVE page, not a cached document: Gears Archive alone ships
-       ~410KB of JS plus pdf.js and eagerly pre-warms 20 page rasters, and the
-       360 tour parses a 180KB scene graph and starts pulling cube tiles. Six
-       of those running at once at rest would be a heavier kiosk than the
-       static menu it's meant to serve instantly.
+       This block used to be paired with a dynamic `<script
+       type="speculationrules" data-wc-prerender>` that welcome-screen.js
+       injected for whichever card the carousel had centred. That is gone,
+       because the navigation it accelerated is gone: a section now renders
+       into the content frame in this document, and a prerender only ever
+       accelerates a MAIN-FRAME navigation. It cannot serve a frame at all, so
+       keeping it would have spent a fully-rendered live page's worth of memory
+       for nothing.
 
-       welcome-screen.js now injects a single `<script type="speculationrules"
-       data-wc-prerender>` naming only the carousel's currently-centred
-       card, debounced ~300ms behind slideChange and replaced (old element
-       removed, which is what cancels the superseded prerender) every time
-       the visitor settles on a new one. That keeps exactly one destination
-       live at a time and spends the memory only where the visitor has shown
-       intent, rather than speculating on all six or on none.
+       It also can no longer be `selector_matches: .feature-card`. Those
+       anchors now point at the SHELL paths (/kiosk/campus-map), which all
+       return this same document — prefetching them would cache six copies of
+       the menu and not one byte of the content the frame actually loads. So
+       the embed paths are listed explicitly instead; they are not links
+       anywhere on the page, so no selector could reach them.
 
-       The .feature-card prefetch block below is unchanged and is the safety
-       net for the other five: a prefetch is a plain cached response, not a
-       rendered page, so caching all six costs nothing like a prerender does.
-       If the dynamic prerender above is evicted, superseded, or never fires
-       (feature-detection failed, or the debounce hasn't landed yet), the tap
-       still resolves from this cache instead of a cold network fetch.
+       A prefetch is a plain cached response rather than a rendered page, so
+       caching all six costs nothing like a prerender would, and an iframe load
+       is a mode:'navigate' request travelling the same sw-kiosk.js path a
+       top-level navigation does. Deliberately NOT six live iframes: Gears
+       Archive alone ships ~410KB of JS plus pdf.js and eagerly pre-warms 20
+       page rasters, and the 360 tour parses a 180KB scene graph and starts
+       pulling cube tiles. Six of those live at rest would be a heavier kiosk
+       than the content they are meant to serve.
 
-       These responses carry a per-session CSRF token that the Campus Map and
-       tour QR handoff POSTs depend on, so the document must stay fresh from the
-       server whenever there is a connection. That is exactly why sw-kiosk.js
-       treats kiosk documents as network-first rather than cache-first: online,
-       prerender still wins and the token is always current; the cached copy is
-       served only when the network has actually failed, which is what makes the
-       back button work with the campus link down. The prefetch below travels
-       that same network-first path, so it populates the offline cache for all
-       six destinations at no extra cost. -->
+       These responses used to have to stay fresh from the server on every
+       load, because the markup carried a per-session CSRF token that the
+       Campus Map and tour QR handoff POSTs read out of it — which is why
+       sw-kiosk.js treated kiosk documents as network-first. That token now has
+       its own always-fresh endpoint (GET /kiosk/csrf, which the worker
+       bypasses; see WelcomeController.csrf), so the documents are static,
+       the worker serves them stale-while-revalidate, and this prefetch
+       populates that cache for all six sections at no extra cost. -->
   <script type="speculationrules">
   {
     "prefetch": [
       {
-        "where": { "selector_matches": ".feature-card" },
+        "urls": [{% for m in kiosk_sections %}"{{ m.embed_path }}"{{ "," if not loop.last }}{% endfor %}],
         "eagerness": "immediate"
       }
     ]
@@ -424,6 +496,13 @@
   </script>
 
   <script src="{{ asset_url('js/kiosk-clock.js') }}" defer></script>
+  <!-- Before welcome-screen.js, and both deferred so they run in source order:
+       the carousel feature-detects window.__kioskContent to decide whether a
+       card activation changes the section in place or falls through to the
+       anchor's own navigation, so the content controller must have had its
+       chance to define itself first. Reversed, the first gesture after every
+       load would navigate away from the shell. -->
+  <script src="{{ asset_url('js/kiosk-content.js') }}" defer></script>
   <script src="{{ asset_url('js/welcome-screen.js') }}" defer></script>
   <script src="{{ asset_url('js/app.js') }}" defer></script>
   <script src="{{ asset_url('js/welcome-lock.js') }}" defer></script>

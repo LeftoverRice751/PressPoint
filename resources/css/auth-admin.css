@@ -98,9 +98,3 @@
     border-color: var(--ink-marigold);
     color: var(--accent-text);
 }
-
-/* The edit dialog borrows .confirm-modal for its panel, which is sized for a
-   two-line question rather than a form. */
-.sa-edit-modal {
-    width: min(460px, calc(100vw - 2rem));
-}

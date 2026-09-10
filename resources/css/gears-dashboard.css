@@ -811,9 +811,7 @@ body {
 .field__input {
     /* Content-box + width:100% + 0.95rem of padding painted every field ~32px
        wider than its container. On /auth/super_admin that slid the email input
-       under the Create admin button in .sa-invite, and pushed it past the
-       .sa-edit-modal panel, where <dialog>'s UA `overflow: auto` turned the
-       overshoot into a horizontal scrollbar. There is no global reset on this
+       under the Create admin button in .sa-invite. There is no global reset on this
        surface -- the kiosk sheets each declare their own -- so the field has to
        declare it. Also covers .field__textarea and .field__input--select, which
        are always written alongside this class, never alone. */
@@ -1520,6 +1518,57 @@ body {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 8rem));
     gap: 0.75rem;
+}
+
+/* ── Sources repeater ──────────────────────────────────────
+   Deliberately shaped like .about-hotspot above: same card, same numbered
+   gutter, same trailing Remove. They are the two repeaters on this page and an
+   editor should not have to learn each one separately. The row is two fields
+   rather than four, so the fields sit side by side until the panel is narrow. */
+.about-sources-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--ink-rule);
+}
+
+.about-sources-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.about-source {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.9rem;
+    padding: 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--ink-rule);
+    background: var(--ink-cream);
+}
+
+.about-source__num {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--ink-muted);
+    padding-top: 1.9rem;
+}
+
+.about-source__fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+@media (max-width: 900px) {
+    .about-source__fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .checkbox-field {

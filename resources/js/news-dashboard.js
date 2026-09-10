@@ -1134,8 +1134,15 @@ import Sortable from 'sortablejs';
 
   // There is at most ONE unsaved scratch at a time (see the add-button
   // handlers), so this can look anywhere in the canvas for it.
+  // Every scratch shape has to be listed here, not just the ones with an
+  // "add" button: this is what enforces one-unsaved-draft-at-a-time, and a
+  // shape missing from the selector is a draft that can be created ALONGSIDE
+  // another and is then guaranteed to be lost (Publish only ever writes the
+  // active story, and the next canvas refresh deletes the other one silently).
   function existingScratch() {
-    return editor.querySelector('.feature-story[data-news-id=""], .secondary-story[data-news-id=""]');
+    return editor.querySelector(
+      '.feature-story[data-news-id=""], .secondary-story[data-news-id=""], .info-card[data-news-id=""]'
+    );
   }
 
   // ── Save (Publish) ────────────────────────────────────
@@ -1698,9 +1705,50 @@ import Sortable from 'sortablejs';
       '</div>' +
     '</article>';
 
+  // "+ Add widget"'s scratch. Mirrors the real `article.info-card` markup in
+  // kiosk/_news_slots.html's widget section — which is a SHORTER shape than
+  // either of the two above: the kiosk renders a widget as a headline plus a
+  // summary and nothing else, so there is deliberately no image, dek, source,
+  // location or cutline here. Adding those regions would let an editor type
+  // into fields the campus terminal silently throws away, which is a worse
+  // failure than the missing ones; giving widgets a photo is a change to the
+  // kiosk's own render, not to this template.
+  //
+  // The body still gets a region despite never appearing on the kiosk widget:
+  // syncFormFromSurface() only writes a field when its region exists on the
+  // active card, so without it `description` would be dropped on Publish, and
+  // the story would lose its body the moment it were moved to another slot.
+  // It sits in the same collapsed <details> the real card uses so two widget
+  // cards don't become two articles tall.
+  var SCRATCH_WIDGET_HTML =
+    '<article class="info-card is-scratch" data-news-id="">' +
+      SCRATCH_DISCARD_HTML +
+      '<h3 class="info-card__title" data-news-edit="title"></h3>' +
+      '<p class="info-card__copy info-card__copy--excerpt" data-news-edit="excerpt"></p>' +
+      '<details class="news-inline-body" data-news-body-disclosure>' +
+        '<summary class="news-inline-body__summary">Full article body</summary>' +
+        '<div class="info-card__copy info-card__copy--body" data-news-edit="body"></div>' +
+      '</details>' +
+    '</article>';
+
+  // Each `data-news-slot-list="widget"` cell is capacity 1 — the two-widget
+  // cap IS there being exactly two such cells — so this picks the first one
+  // with no real card in it rather than simply the first one. Dropping a
+  // scratch into an occupied cell would put an unsaved draft on top of a
+  // published widget story, and fixOverflow() counts occupancy with
+  // realCardNodes(), which never sees the scratch at all.
+  function firstOpenWidgetList() {
+    var cells = slotListContainers().widget;
+    for (var i = 0; i < cells.length; i++) {
+      if (realCardNodes(cells[i]).length === 0) return cells[i];
+    }
+    return null;
+  }
+
   var SCRATCH_SHAPE = {
     main:      { list: function () { return editor.querySelector('[data-news-slot-list="main"]'); }, selector: '.feature-story[data-news-id=""]', html: SCRATCH_MAIN_HTML },
-    secondary: { list: function () { return editor.querySelector('.secondary-grid'); }, selector: '.secondary-story[data-news-id=""]', html: SCRATCH_SECONDARY_HTML }
+    secondary: { list: function () { return editor.querySelector('.secondary-grid'); }, selector: '.secondary-story[data-news-id=""]', html: SCRATCH_SECONDARY_HTML },
+    widget:    { list: firstOpenWidgetList, selector: '.info-card[data-news-id=""]', html: SCRATCH_WIDGET_HTML }
   };
 
   // Slot-aware: targets the lead's own list for 'main', the secondary grid
@@ -1808,6 +1856,18 @@ import Sortable from 'sortablejs';
     });
   }
 
+  // "+ Add widget". Guarded like "+ Add main headline" rather than like
+  // "+ Add a story": both widget cells are capacity 1, so the button is
+  // disabled at capacity (syncPlaceholders derives it) and a queued click
+  // must not slip past the disable.
+  var addWidgetBtn = composer.querySelector('[data-news-add-widget]');
+  if (addWidgetBtn) {
+    addWidgetBtn.addEventListener('click', function () {
+      if (addWidgetBtn.disabled) return;
+      startOrResumeScratch('widget');
+    });
+  }
+
   props && Array.prototype.slice.call(props.querySelectorAll('[data-news-slot-choice]')).forEach(function (btn) {
     btn.addEventListener('click', function () { setSlot(btn.getAttribute('data-news-slot-choice')); markDirty(); });
   });
@@ -1877,7 +1937,10 @@ import Sortable from 'sortablejs';
     // 2 fixed the separate, in-scope occupancy bug in canvasMainId()).
     main: '.feature-story:not(.is-scratch)',
     secondary: '.secondary-story:not(.is-scratch)',
-    widget: '.info-card'
+    // `:not(.is-scratch)` here for the same reason as the two above, now that
+    // "+ Add widget" can put an unsaved draft in a widget cell: without it
+    // Sortable indexes that draft as a real, draggable card.
+    widget: '.info-card:not(.is-scratch)'
   };
   var canvasSortables = [];
 
@@ -2024,10 +2087,16 @@ import Sortable from 'sortablejs';
         );
       }
     }
+    var widgetCellsFree = 0;
     lists.widget.forEach(function (w) {
       var real = realCardNodes(w);
+      // An unsaved draft occupies its cell too. The cell is capacity 1, so
+      // leaving "+ Assign story to Widget slot N" sitting beside a scratch
+      // would offer a second story a place that is already taken — the lead
+      // resolves this the same way, via mainSlotOccupied().
+      var occupied = real.length > 0 || !!w.querySelector('.info-card[data-news-id=""]');
       var existingBtn = w.querySelector('.paper-empty--action');
-      if (real.length === 0 && !existingBtn) {
+      if (!occupied && !existingBtn) {
         var pos = w.getAttribute('data-news-slot-position') || '1';
         w.insertAdjacentHTML(
           'beforeend',
@@ -2035,10 +2104,19 @@ import Sortable from 'sortablejs';
             'data-news-assign-slot data-news-slot-type="widget" data-news-slot-position="' + pos + '">' +
             '+ Assign story to Widget slot ' + pos + '</button>'
         );
-      } else if (real.length > 0 && existingBtn) {
+      } else if (occupied && existingBtn) {
         existingBtn.remove();
       }
+      if (real.length === 0) widgetCellsFree += 1;
     });
+    // Only a SAVED story disables "+ Add widget" — a scratch-occupied cell
+    // still counts as free here, deliberately, for the same reason spelled
+    // out for addMainBtn above: once the scratch exists its assign-story
+    // placeholder is gone and Remove/Delete both need an article_id it does
+    // not have yet, so re-clicking the add button is the only in-app route
+    // back to that draft (startOrResumeScratch → selectScratch, content
+    // intact). Disabling here would make it a dead end.
+    if (addWidgetBtn) addWidgetBtn.disabled = widgetCellsFree === 0;
     // Whoever owns the lead may have just changed, which is what the Slot
     // palette's "Lead" button is enabled/disabled from (Important 3). This is
     // the one function every mutation, refresh and init already funnels

@@ -1,0 +1,102 @@
+{# Frame bridge — what a kiosk page says to the shell that is rendering it.
+
+   Include once, in <body>, on every kiosk destination:
+
+     {% include 'partials/kiosk-frame.html' %}
+
+   welcome.html is now the only document the terminal loads; the six
+   destinations render inside its content frame, driven by the carousel. That
+   frame boundary blocks events, so the shell cannot see a visitor panning the
+   map or turning a page — this partial is how the page tells it.
+
+   Inline rather than a compiled entry, for the same reason the back bar's
+   handler used to be: this is included by six templates that agree on no
+   shared JS bundle at all (campus-map and org-board extend base.html and load
+   no kiosk JS whatsoever). A compiled entry would have to be added to each of
+   them anyway, and would be subject to the very cache it participates in.
+
+   Two things are published, both guarded so a double include is harmless
+   (About LSPU includes the back bar twice, and had the same guard):
+
+     window.__kioskFrame.embedded  — are we inside the shell's content frame?
+     window.__kioskFrame.post(t)   — send the shell a message
+
+   `embedded` reads window.name rather than `window.top !== window.self`,
+   because the shell frames a kiosk page in TWO ways that want opposite
+   behaviour, and those are identical to a top/self comparison:
+
+     - the content frame, named "kiosk-content" — the page the visitor is
+       actually using;
+     - the attract overlay, unnamed — /kiosk/embed/latest-news looping
+       decoratively behind pointer-events:none, where there is no visitor to
+       report activity for and kiosk-news.js already suppresses its own timer.
+
+   welcome.html renders name="kiosk-content" as an attribute, so it is readable
+   here at parse time rather than arriving later as a message. #}
+<script nonce="{{ csp_nonce() }}">
+  (function () {
+    if (window.__kioskFrame) return;
+
+    var embedded = false;
+    try {
+      embedded = window.name === 'kiosk-content' && window.top !== window.self;
+    } catch (_) {
+      // Same-origin throughout, so this cannot actually throw — but a frame
+      // whose parent has gone away should degrade to "standalone", never
+      // break the page.
+      embedded = false;
+    }
+
+    function post(type) {
+      if (!embedded) return false;
+      try {
+        window.parent.postMessage(
+          { source: 'kiosk-frame', type: type },
+          window.location.origin
+        );
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    window.__kioskFrame = { embedded: embedded, post: post };
+
+    if (!embedded) return;
+
+    // Lets a framed page style itself for the shell without guessing.
+    document.documentElement.setAttribute('data-kiosk-embedded', '');
+
+    /* ── Activity relay ──────────────────────────────────────────────────
+     *
+     * The shell runs the kiosk's only navigating idle timer (30s → attract
+     * screen). Its listeners are on ITS document, and events do not cross a
+     * frame boundary, so without this it sees a completely idle terminal
+     * while somebody is reading an article or dragging the campus map — and
+     * drops the attract overlay on them mid-gesture.
+     *
+     * Throttled hard: a pan or a scroll fires these continuously, and the
+     * shell only needs to know "someone is still here" often enough to keep a
+     * 30-second countdown from expiring. One message per second is two orders
+     * of magnitude more than that requires and costs nothing.
+     *
+     * Capture phase and passive: this must never interfere with the page's own
+     * handling of the same gesture, only observe it.
+     */
+    var THROTTLE_MS = 1000;
+    var lastPost = 0;
+
+    function relayActivity() {
+      var now = Date.now();
+      if (now - lastPost < THROTTLE_MS) return;
+      lastPost = now;
+      post('activity');
+    }
+
+    ['pointerdown', 'touchstart', 'touchmove', 'wheel', 'scroll', 'keydown'].forEach(
+      function (type) {
+        window.addEventListener(type, relayActivity, { passive: true, capture: true });
+      }
+    );
+  })();
+</script>

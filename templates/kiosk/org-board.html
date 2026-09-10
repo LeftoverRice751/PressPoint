@@ -105,12 +105,12 @@
     {% endif %}
   </footer>
 
-  {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False) %}{% include 'partials/kiosk-back.html' %}{% endwith %}
 </div>
 {% endblock %}
 
 {% block js %}
 <script src="{{ asset_url('js/org-chart-layout.js') }}" defer></script>
 <script src="{{ asset_url('js/org-board.js') }}" defer></script>
+  {% include 'partials/kiosk-frame.html' %}
   {% include 'partials/kiosk-sw.html' %}
 {% endblock %}

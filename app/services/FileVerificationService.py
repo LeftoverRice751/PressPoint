@@ -5,7 +5,13 @@ class FileVerificationService:
     ALLOWED_TYPES = {
         "pdf": ["application/pdf"],
         "image": ["image/jpeg", "image/png", "image/webp"],
-        "csv": ["text/csv", "text/plain"]
+        "csv": ["text/csv", "text/plain"],
+        # Only the containers a kiosk browser actually decodes. "video" had an
+        # extension set but no MIME list, so verify_buffer(content, "video")
+        # checked against an empty allowlist and rejected every real video --
+        # which is why callers gated on the filename extension alone instead.
+        # libmagic reports .m4v as video/x-m4v, not video/mp4.
+        "video": ["video/mp4", "video/webm", "video/x-m4v"],
     }
 
     ALLOWED_EXTENSIONS = {

@@ -62,6 +62,24 @@ import Quill from 'quill';
       });
     }
 
+    if (form.querySelector('[data-sources]')) {
+      // Same present-but-empty rule as hotspots: removing every citation has to
+      // clear the kiosk's attribution block, not fall back to what was stored.
+      // Guarded on the repeater existing so the seal's other two forms -- which
+      // post to the same endpoint and merge into the same `meta` -- cannot send
+      // an empty list and wipe the citations they never rendered.
+      meta.sources = Array.prototype.map.call(
+        form.querySelectorAll('[data-sources] [data-source-row]'),
+        function (row) {
+          function val(sel) {
+            var el = row.querySelector(sel);
+            return el ? el.value : '';
+          }
+          return { label: val('.js-source-label'), url: val('.js-source-url') };
+        }
+      );
+    }
+
     hidden.value = JSON.stringify(meta);
   }
 
@@ -131,6 +149,8 @@ import Quill from 'quill';
     panel.querySelectorAll('[data-meta-key]').forEach(wireInput);
     panel.querySelectorAll('[data-hotspot-row] input').forEach(wireInput);
     panel.querySelectorAll('[data-hotspot-row]').forEach(wireHotspotRemove);
+    panel.querySelectorAll('[data-source-row] input').forEach(wireInput);
+    panel.querySelectorAll('[data-source-row]').forEach(wireSourceRemove);
     panel.querySelectorAll('form').forEach(serializeForm);
   }
 
@@ -188,6 +208,60 @@ import Quill from 'quill';
       row.querySelectorAll('input').forEach(wireInput);
       wireHotspotRemove(row);
       renumberHotspots(list);
+      serializeForm(form);
+    });
+  });
+
+  // ── Sources ──────────────────────────────────────────────
+  //
+  // Unlike the seal callouts the number here is decoration: nothing on the
+  // kiosk pairs with it, the list simply renders in order. It is renumbered on
+  // add/remove anyway so the editor never reads "1, 3, 4" after a delete.
+  function renumberSources(list) {
+    if (!list) return;
+    list.querySelectorAll('[data-source-row]').forEach(function (row, i) {
+      var num = row.querySelector('.about-source__num');
+      if (num) num.textContent = i + 1;
+    });
+  }
+
+  function wireSourceRemove(row) {
+    var btn = row.querySelector('[data-remove-source]');
+    if (!btn || btn.dataset.aboutBound) return;
+    btn.dataset.aboutBound = '1';
+    btn.addEventListener('click', function () {
+      var form = row.closest('form');
+      var list = row.closest('[data-sources]');
+      row.remove();
+      renumberSources(list);
+      serializeForm(form);
+    });
+  }
+
+  document.querySelectorAll('[data-add-source]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var form = btn.closest('form');
+      var list = form.querySelector('[data-sources]');
+      if (!list) return;
+      var row = document.createElement('div');
+      row.className = 'about-source';
+      row.setAttribute('data-source-row', '');
+      row.innerHTML =
+        '<span class="about-source__num"></span>' +
+        '<div class="about-source__fields">' +
+          '<label class="field"><span class="field__label">Who, what, or where</span>' +
+            '<input type="text" class="field__input js-source-label" maxlength="160" ' +
+              'placeholder="LSPU Charter, R.A. 9402 (2007)"></label>' +
+          '<label class="field">' +
+            '<span class="field__label">Link <span class="field__hint">Optional</span></span>' +
+            '<input type="url" class="field__input js-source-url" maxlength="500" ' +
+              'placeholder="https://lspu.edu.ph/about"></label>' +
+        '</div>' +
+        '<button type="button" class="ghost-button about-icon-button" data-remove-source>✕ Remove</button>';
+      list.appendChild(row);
+      row.querySelectorAll('input').forEach(wireInput);
+      wireSourceRemove(row);
+      renumberSources(list);
       serializeForm(form);
     });
   });

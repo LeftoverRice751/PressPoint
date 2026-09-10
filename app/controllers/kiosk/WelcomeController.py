@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from masonite.configuration import config
 from masonite.controllers import Controller
+from masonite.request import Request
 from masonite.response import Response
 from masonite.views import View
 
@@ -159,31 +160,51 @@ class WelcomeController(Controller):
             for item in flash_articles
         ]
 
-    def show(self, view: View):
-        broadcasts = config("broadcast.broadcasts", {}) or config("broadcast.BROADCASTS", {}) or {}
-        pusher_settings = broadcasts.get("pusher") or {}
-
-        # Same lead-story selection NewsController.show uses (group_news_slots
-        # is the single source of truth for "main" per CLAUDE.md) — imported
-        # locally to avoid a module-load cycle with NewsController.
-        from app.controllers.gears.NewsController import _news_is_public
-
-        news_items = [item for item in News.order_by("id", "desc").get() if _news_is_public(item)]
-        main_news = group_news_slots(news_items)["main_news"]
-
-        return view.render(
-            "welcome",
-            {
-                "pusher_key": pusher_settings.get("client") or pusher_settings.get("key") or "",
-                "pusher_cluster": pusher_settings.get("cluster") or "mt1",
-                "main_news": main_news,
-            },
-        )
+    # The kiosk menu used to be rendered from here, by a show() that also
+    # loaded every public News row to derive a `main_news` value welcome.html
+    # never referenced. Rendering the shell now lives in KioskShellController,
+    # because the shell is served at seven URLs rather than one and has to
+    # resolve which section a request path selects. This controller keeps the
+    # kiosk's JSON and asset endpoints.
 
     def flash_updates(self, response: Response):
         return response.json({
             "flash_articles": self._build_flash_articles(),
         })
+
+    def csrf(self, request: Request, response: Response):
+        """Hand the current CSRF token to a kiosk page whose HTML came from cache.
+
+        This exists to get the token OUT of the document, which is what lets
+        sw-kiosk.js serve kiosk pages from cache instead of network-first.
+        Every kiosk page used to be fetched from the network on every entry for
+        one reason: the markup carries a per-session token that the campus
+        map's QR handoff (POST /api/route-sessions) needs, and a cached
+        document would carry a stale one. With the token available separately,
+        the documents are static and can be served instantly.
+
+        Masonite's VerifyCsrfToken.create_token() returns request.cookie(
+        "SESSID") verbatim, so the token IS the session id: stable for the life
+        of the session rather than rotated per request, which is what makes
+        this safe to fetch once at page init and hold. It cannot simply be read
+        from document.cookie instead — config/session.py leaves http_only at
+        its True default (masonite/cookies/Cookie.py), and the cookie is
+        encrypted on the way out.
+
+        A same-origin GET that returns the CSRF token is the standard shape for
+        this (Laravel's /sanctum/csrf-cookie, Django's ensure_csrf_cookie): CORS
+        stops a cross-origin page reading the response, so the only actor this
+        helps is one who can already run same-origin script — at which point
+        CSRF was bypassed anyway. It is not a hole to be closed later.
+
+        no-store, and listed in sw-kiosk.js's BYPASS_PREFIXES, because a cached
+        token is the exact failure this endpoint exists to prevent.
+        """
+        token = request.cookie("SESSID") or ""
+        # Headers before json(): Response.json() returns the serialized body
+        # rather than the response, so it is not chainable.
+        response.header("Cache-Control", "no-store")
+        return response.json({"token": token})
 
     def coming_soon(self, view: View, label: str):
         return view.render(

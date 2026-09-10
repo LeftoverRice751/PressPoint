@@ -29,6 +29,51 @@
         </label>
       </div>
 {% endmacro %}
+{#
+    Attribution for a section: who, what, or where the copy came from, with an
+    optional link. Repeatable like the seal callouts and stored the same way —
+    a `sources` list on the row's `meta`, whitelisted by
+    AboutContent.sanitize_meta — so no column and no migration.
+
+    The label is what the kiosk prints. The link is optional and validated
+    server-side against AboutContent.SOURCE_PROTOCOLS: the kiosk renders it as
+    a real <a href> on an unauthenticated terminal, so a `javascript:` scheme
+    reaching the attribute would be stored XSS.
+#}
+{% macro sources_editor(slug) %}
+              <div class="about-sources-block">
+                <h4 class="about-card__subheading">Sources</h4>
+                <p class="about-card__note">
+                  Where this section’s information came from — a document, an
+                  office, a person, or a page. Shown to readers under the
+                  section on the kiosk. Leave empty to print nothing.
+                </p>
+                <div class="about-sources-list" data-sources>
+                  {% for source in about_meta[slug].sources or [] %}
+                  <div class="about-source" data-source-row>
+                    <span class="about-source__num">{{ loop.index }}</span>
+                    <div class="about-source__fields">
+                      <label class="field">
+                        <span class="field__label">Who, what, or where</span>
+                        <input type="text" class="field__input js-source-label"
+                               value="{{ source.label }}" maxlength="160"
+                               placeholder="LSPU Charter, R.A. 9402 (2007)">
+                      </label>
+                      <label class="field">
+                        <span class="field__label">Link <span class="field__hint">Optional</span></span>
+                        <input type="url" class="field__input js-source-url"
+                               value="{{ source.url }}" maxlength="500"
+                               placeholder="https://lspu.edu.ph/about">
+                      </label>
+                    </div>
+                    <button type="button" class="ghost-button about-icon-button"
+                            data-remove-source>✕ Remove</button>
+                  </div>
+                  {% endfor %}
+                </div>
+                <button type="button" class="ghost-button" data-add-source>+ Add source</button>
+              </div>
+{% endmacro %}
     <section class="gears-page" data-page-panel="about-lspu" id="panel-about-lspu" role="tabpanel" aria-labelledby="nav-about-lspu" data-hero-eyebrow="Content" data-hero-title="About LSPU" data-hero-subtitle="Manage the campus history, mission, values, seal, and supporting copy shown on the kiosk." hidden>
       <div class="section-head">
         <div>
@@ -179,6 +224,7 @@
                 {% endfor %}
               </div>
               <input type="hidden" name="subsections" class="js-subsections-payload">
+{{ sources_editor('mission') }}
               <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="button" class="ghost-button" data-add-subblock>+ Add sub-section</button>
@@ -242,6 +288,7 @@
                 {% endfor %}
               </div>
               <input type="hidden" name="subsections" class="js-subsections-payload">
+{{ sources_editor('values') }}
               <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="button" class="ghost-button" data-add-subblock>+ Add sub-section</button>
@@ -280,6 +327,7 @@
               </label>
               <input type="hidden" name="body_html" class="js-body-payload">
 {{ kiosk_labels('history') }}
+{{ sources_editor('history') }}
               <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="submit" class="primary-button">Save intro</button>
@@ -455,6 +503,7 @@
                   <span class="field__hint">The certification line under the pull quote.</span>
                 </label>
               </div>
+{{ sources_editor('quality') }}
               <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="submit" class="primary-button">Save Quality Policy</button>
@@ -490,9 +539,45 @@
               </label>
               <input type="hidden" name="body_html" class="js-body-payload">
 {{ kiosk_labels('hymn') }}
+{{ sources_editor('hymn') }}
               <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="submit" class="primary-button">Save Hymn</button>
+              </div>
+            </form>
+
+            <form class="about-section-form form-stack" method="POST"
+                  action="/gears/about-lspu/hymn/video" enctype="multipart/form-data"
+                  data-upload-form data-upload-label="hymn video">
+              {{ csrf_field | safe }}
+              <label class="field">
+                <span class="field__label">Hymn video</span>
+                <label class="dropzone" data-dropzone>
+                  {# .mov and .ogg are refused server-side: they upload and
+                     verify fine and then fail to decode on the kiosk, which
+                     shows as a black rectangle with no error anywhere. #}
+                  <input type="file" name="file" class="dropzone__input"
+                         accept="video/mp4,video/webm,video/x-m4v">
+                  <span class="dropzone__empty">
+                    <span class="dropzone__icon" aria-hidden="true">▶</span>
+                    <span class="dropzone__title">Drop an MP4/WEBM/M4V, or tap to choose</span>
+                    {% if section and section.video_path %}
+                    <span class="dropzone__hint">Current: {{ section.video_path }}</span>
+                    {% else %}
+                    <span class="dropzone__hint">No video uploaded yet — the kiosk falls back to the audio file</span>
+                    {% endif %}
+                  </span>
+                  <span class="dropzone__filled" hidden>
+                    <span class="dropzone__filename" data-dropzone-name></span>
+                    <span class="dropzone__size" data-dropzone-size></span>
+                    <button type="button" class="dropzone__clear"
+                            data-dropzone-clear aria-label="Remove file">×</button>
+                  </span>
+                </label>
+              </label>
+              <p class="field__hint">Shown on the kiosk above the lyrics. Maximum 100 MB.</p>
+              <div class="about-section-form__actions">
+                <button type="submit" class="primary-button">Upload video</button>
               </div>
             </form>
 
@@ -501,7 +586,7 @@
                   data-upload-form data-upload-label="hymn audio">
               {{ csrf_field | safe }}
               <label class="field">
-                <span class="field__label">Hymn audio file</span>
+                <span class="field__label">Hymn audio file (fallback)</span>
                 <label class="dropzone" data-dropzone>
                   <input type="file" name="file" class="dropzone__input"
                          accept="audio/mpeg,audio/ogg,audio/wav,audio/mp4">
@@ -594,6 +679,7 @@
                        value="{{ about_meta['seal'].cue }}" maxlength="40">
                 <span class="field__hint">The prompt between the seal and its legend.</span>
               </label>
+{{ sources_editor('seal') }}
               <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
                 <button type="submit" class="primary-button">Save description</button>

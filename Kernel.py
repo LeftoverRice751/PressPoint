@@ -13,7 +13,7 @@ from masonite.routes import Route
 from masonite.configuration.Configuration import Configuration
 from masonite.configuration import config
 
-from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware, DatabaseReconnectMiddleware, SuperAdminMiddleware, ThrottleRequestsMiddleware, TabSlotMiddleware, LoadSlotUserMiddleware
+from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware, DatabaseReconnectMiddleware, SuperAdminMiddleware, ThrottleRequestsMiddleware, TabSlotMiddleware, LoadSlotUserMiddleware, SecurityHeadersMiddleware
 
 
 class Kernel:
@@ -22,6 +22,11 @@ class Kernel:
     # LoadSlotUserMiddleware below both need request.tab_slot before they run.
     # It must stay after EncryptCookies so the cookie jar is decrypted.
     http_middleware = [
+        # First: Pipeline.through() stops at the first middleware whose
+        # after() returns something other than the request, and
+        # DatabaseReconnectMiddleware below returns the response. Anything
+        # listed after it never gets its after() hook called.
+        SecurityHeadersMiddleware,
         MaintenanceModeMiddleware,
         EncryptCookies,
         DatabaseReconnectMiddleware,

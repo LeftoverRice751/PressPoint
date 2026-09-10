@@ -56,9 +56,9 @@
     </button>
   </div>
 
-  {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False) %}{% include 'partials/kiosk-back.html' %}{% endwith %}
 
   <script src="{{ asset_url('js/kiosk-news.js') }}"></script>
+  {% include 'partials/kiosk-frame.html' %}
   {% include 'partials/kiosk-sw.html' %}
 </body>
 </html>

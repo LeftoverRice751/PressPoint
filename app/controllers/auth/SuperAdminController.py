@@ -24,17 +24,6 @@ def _is_admin(user):
     return _role_of(user) == "admin"
 
 
-def _other_user_holds(users, field, value, target_id):
-    """True if some *other* row already uses this username/email."""
-    needle = (value or "").strip().lower()
-    for row in users or []:
-        if getattr(row, "id", None) == target_id:
-            continue
-        if (getattr(row, field, "") or "").strip().lower() == needle:
-            return True
-    return False
-
-
 class SuperAdminController(Controller):
     def show(self, view: View, request: Request):
         # Super admins are deliberately absent from this list: one super admin
@@ -93,79 +82,6 @@ class SuperAdminController(Controller):
         return response.redirect(name="auth.super_admin").with_success([
             "Admin created and credentials emailed successfully.",
         ])
-
-    def update_credentials(self, request: Request, response: Response):
-        """Correct an admin's username and/or sign-in email.
-
-        This exists because the only previous remedy for a typo'd email was
-        delete-and-recreate, which drops the account row and nulls the
-        author_id / updated_by_id that news stories point at.
-        """
-        user = User.find(request.param("id"))
-
-        # show() only renders these controls on admin rows, but the route
-        # takes a bare id -- a hand-crafted POST must not reach an editor or
-        # a super admin either.
-        if not user or not _is_admin(user):
-            return response.redirect(name="auth.super_admin").with_errors([
-                "Only admin accounts can be edited here.",
-            ])
-
-        username = (request.input("username") or "").strip()
-        email = (request.input("email") or "").strip().lower()
-
-        if not username or not email:
-            return response.redirect(name="auth.super_admin").with_errors([
-                "Username and email are required.",
-            ])
-
-        if "@" not in email or "." not in email.split("@")[-1]:
-            return response.redirect(name="auth.super_admin").with_errors([
-                "That does not look like a valid email address.",
-            ])
-
-        everyone = User.all() or []
-        target_id = getattr(user, "id", None)
-
-        if _other_user_holds(everyone, "email", email, target_id):
-            return response.redirect(name="auth.super_admin").with_errors([
-                "That email is already in use.",
-            ])
-
-        if _other_user_holds(everyone, "username", username, target_id):
-            return response.redirect(name="auth.super_admin").with_errors([
-                "That username is already taken.",
-            ])
-
-        previous_email = (getattr(user, "email", "") or "").strip().lower()
-
-        # Assigned one field at a time, never .update(request.all()):
-        # User.__fillable__ includes `role`, so a mass assignment here would
-        # let a crafted POST hand the target a superadmin role.
-        user.username = username
-        user.email = email
-        user.save()
-
-        messages = ["Admin credentials updated."]
-
-        if previous_email and previous_email != email:
-            # Best-effort. A mail outage must not block a correction the super
-            # admin needs to make -- the record is already saved by this point.
-            sent_new = Credentials.send_email_change_notice(
-                email, username, previous_email, email
-            )
-            sent_old = Credentials.send_email_change_notice(
-                previous_email, username, previous_email, email
-            )
-            if sent_new and sent_old:
-                messages.append("Change notice emailed to both addresses.")
-            else:
-                return response.redirect(name="auth.super_admin").with_errors([
-                    "Credentials updated, but the change notice could not be "
-                    "emailed to both addresses.",
-                ])
-
-        return response.redirect(name="auth.super_admin").with_success(messages)
 
     def reset_password(self, request: Request, response: Response):
         """Mint a new password for an admin and email it to them.

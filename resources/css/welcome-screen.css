@@ -1,15 +1,19 @@
 /*
- * Welcome screen — the kiosk's main menu.
+ * Kiosk shell — the one document the terminal loads.
  *
- * A "browse then commit" layout: one destination is shown large in the stage
- * panel at a time, and a carousel below scrubs between the six. This
- * replaced the earlier 2x3 equal-tile grid (six boxes tapped directly) and,
- * before that, a ranked stack — neither survived contact with a screen this
- * short once the stage needed its own dedicated band.
+ * The carousel IS the navigation: whatever it centres is what renders in the
+ * content band above it, immediately. Four fixed bands, one flexible:
  *
- *   status 44px · masthead 148px · stage (flex 1) · carousel ~230px · ticker 58px
+ *   status 44px · masthead 148px · CONTENT (flex 1) · carousel ~230px · ticker 58px
  *
- * Shell, status bar and back-bar rules live in kiosk-shell.css; colours in
+ * This was "browse then commit" until the carousel took over: the content band
+ * was a `.wc-stage` preview of the centred destination (title, icon, blurb)
+ * and a VIEW button was what actually opened it, into a viewport with its own
+ * close control. Before that it was a 2x3 tile grid, and before that a ranked
+ * stack. The band count and heights are unchanged — only what fills the middle
+ * one, and it now gets the height the preview's furniture used to occupy.
+ *
+ * Shell and status bar rules live in kiosk-shell.css; colours in
  * kiosk-palette.css. Solid fills only.
  */
 
@@ -83,161 +87,111 @@
   color: var(--kiosk-on-dark-faint);
 }
 
-/* ── Stage: the one destination currently centred in the carousel ───── */
-
-/*
- * flex: 1 1 auto is what makes the stage the shrinkable row — masthead,
- * carousel and ticker are all flex: 0 0 auto (fixed content), so the stage
- * is the only band that gives up height when the viewport is short. Without
- * min-height: 0 a flex child never shrinks below its content's intrinsic
- * height no matter what flex-grow/shrink say, and centred flex content with
- * a multi-line blurb has plenty of intrinsic height to overflow with.
+/* ── Content: the section the carousel has selected ─────────────────────
+ *
+ * This band used to be `.wc-stage`, a preview of the centred destination —
+ * title, icon, blurb — with a VIEW button that was the thing that actually
+ * opened it, and a viewport that slid over the top once it did. All of it is
+ * gone: the carousel is the navigation now, so what sits here is simply the
+ * content, and the card's own label is the only title it needs.
+ *
+ * flex: 1 1 auto is what makes this the shrinkable row — masthead, carousel
+ * and ticker are all flex: 0 0 auto, so this is the only band that gives up
+ * height when the viewport is short. min-height: 0 matters because a flex
+ * child never shrinks below its content's intrinsic height without it, and
+ * an iframe's intrinsic height is its default 150px, not its content's.
  */
-.wc-stage {
+.kiosk-content {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(10px, 2vh, 20px);
-  padding: clamp(14px, 3vh, 30px) clamp(20px, 6vw, 40px);
   background: var(--kiosk-paper);
   border-bottom: 1px solid var(--kiosk-hairline);
-  text-align: center;
+  /* No padding and no max-width: the framed page brings its own layout, and
+     boxing it in twice was the "content is clipped" failure of the old stage.
+     The frame scrolls internally, so a long article, a PDF or a wide org
+     chart is the framed document's problem to solve — as it already does when
+     served standalone. */
   overflow: hidden;
 }
 
-.wc-stage__title {
-  margin: 0;
-  font-family: var(--kiosk-font-display);
-  font-size: clamp(1.5rem, 5.4vw, 2.5rem);
-  line-height: 1.05;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--kiosk-ink);
-}
-
-.wc-stage__icon {
-  flex: 0 0 auto;
-  width: clamp(88px, 22vw, 150px);
-  height: clamp(88px, 22vw, 150px);
-  display: grid;
-  place-items: center;
-  color: var(--kiosk-maroon);
-}
-
-.wc-stage__icon svg {
+.kiosk-content__frame {
+  display: block;
+  flex: 1 1 auto;
   width: 100%;
+  /* Explicit 100% rather than `height: auto`: an iframe is a replaced element
+     and would otherwise sit at its 150px default no matter what flex says. */
   height: 100%;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.wc-stage__blurb {
-  margin: 0;
-  max-width: 22ch;
-  font-size: clamp(0.85rem, 2.4vw, 1.05rem);
-  line-height: 1.45;
-  color: var(--kiosk-ink-soft);
-}
-
-/* welcome-screen.js toggles .is-swapping on .wc-stage for one tick around a
-   carousel re-centre, so the outgoing title/icon/blurb fade+rise out before
-   the swapped-in text appears rather than snapping — a plain content swap on
-   a panel this size reads as a glitch, not a menu change. The global
-   prefers-reduced-motion override in kiosk-tokens.css collapses the
-   transition duration to ~0, which is enough: this class only ever touches
-   opacity/transform, so a flattened duration just removes the motion and
-   leaves the content swap instant. */
-.wc-stage__title,
-.wc-stage__icon,
-.wc-stage__blurb {
-  /* --kiosk-dur-fast (160ms), not --kiosk-dur (280ms): this swap fires on
-     every carousel move, and the spec calls for "fast, responsive, calm" —
-     280ms read as sluggish. Token is defined in kiosk-tokens.css and not
-     shadowed by kiosk-palette.css (which only redefines --kiosk-dur), so it
-     is available here despite an earlier pass skipping it as "unavailable". */
-  transition: opacity var(--kiosk-dur-fast) var(--kiosk-ease),
-              transform var(--kiosk-dur-fast) var(--kiosk-ease);
-}
-
-.wc-stage.is-swapping .wc-stage__title,
-.wc-stage.is-swapping .wc-stage__icon,
-.wc-stage.is-swapping .wc-stage__blurb {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-/* An <a>, not a <button>: its href is a real navigation, so it's
-   keyboard-activatable and it inherits whatever prerender is already warmed
-   for the centred destination. There is no static speculation-rules tier
-   keyed to this class any more — welcome-screen.js injects and replaces a
-   single speculationrules <script> for the centred slide on a debounced
-   slideChange (see setActivePrerender/schedulePrerender there); .wc-view's
-   href is just kept in sync with that same slide. */
-.wc-view {
-  appearance: none;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  min-height: var(--kiosk-touch-min);
-  min-width: clamp(180px, 45vw, 260px);
-  margin-top: clamp(2px, 0.8vh, 8px);
-  padding: 0 clamp(20px, 4vw, 36px);
-  background: var(--kiosk-amber);
-  color: var(--kiosk-espresso);
+  min-height: 0;
   border: 0;
-  border-radius: 0;
-  /* Solid offset block, not a blur — same device as .kiosk-idle-cta below. */
-  box-shadow: 0 8px 0 0 var(--kiosk-espresso);
-  font-family: var(--kiosk-font-ui);
-  font-weight: 700;
-  font-size: clamp(1rem, 2.6vw, 1.3rem);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: transform var(--kiosk-dur) var(--kiosk-ease),
-              box-shadow var(--kiosk-dur) var(--kiosk-ease);
+  background: var(--kiosk-paper);
 }
 
-@media (hover: hover) {
-  .wc-view:hover { background: var(--kiosk-terracotta); }
+/* ── Carousel: the navigation, and a drawer that folds away ──────────── */
+
+/*
+ * Published as a token because three rules need the same number: the band's
+ * own basis, the swiper's pinned height below, and the padding subtracted
+ * from it. 230px at kiosk size (26vh of 1024 = 266, clamped).
+ */
+:root {
+  --wc-carousel-h: clamp(190px, 26vh, 230px);
+  --wc-carousel-pad: clamp(6px, 1.4vh, 14px);
+  /* The handle on top of the menu, and the height the band collapses TO. */
+  --wc-nav-handle-h: clamp(40px, 4.6vh, 48px);
 }
 
-.wc-view:focus-visible {
-  outline: 3px solid var(--kiosk-maroon);
-  outline-offset: 2px;
-}
-
-/* Shadow shortened to match the travel, same language as .kiosk-idle-cta's
-   own press state — the whole kiosk answers a finger the same way. */
-.wc-view:active {
-  transform: translateY(3px);
-  box-shadow: 0 5px 0 0 var(--kiosk-espresso);
-}
-
-/* ── Carousel: the scrubber that drives the stage above ──────────────── */
-
+/*
+ * flex-basis rather than height, and overflow:hidden, so the band can animate
+ * itself to nothing while .kiosk-content (the only flex:1 1 auto row) absorbs
+ * the 230px. Same idiom as the on-screen keyboards in kiosk-map.css and
+ * kiosk-tour.css, which is the closest thing this codebase has to a house
+ * drawer pattern.
+ *
+ * Why collapse at all: the shell spends 480px of a 1024px screen on chrome,
+ * and Campus Map then stacks another ~258px of its own inside the frame, so
+ * the live map ends up at 285px — 28% of the physical panel. Folding this band
+ * takes the content from 544px to 774px and the map from 285px to 516px.
+ */
 .wc-carousel {
+  flex: 0 0 var(--wc-carousel-h);
+  display: flex;
+  flex-direction: column;
+  background: var(--kiosk-cream);
+  overflow: hidden;
+  transition: flex-basis var(--kiosk-dur) var(--kiosk-ease);
+}
+
+/* Collapsed = just the handle. NOT zero: the handle is inside this band and
+   has to stay on screen, because it is the only way to bring the menu back. */
+.kiosk-shell[data-nav="collapsed"] .wc-carousel {
+  flex-basis: var(--wc-nav-handle-h);
+}
+
+/* The part that actually goes away. Separate from .wc-carousel so the handle
+   above can survive the collapse, and so `inert` can be applied here without
+   also disabling the button that undoes it. */
+.wc-carousel__track {
   flex: 0 0 auto;
   position: relative;
   display: flex;
   align-items: center;
-  height: clamp(190px, 26vh, 230px);
-  padding: clamp(6px, 1.4vh, 14px) 0;
-  background: var(--kiosk-cream);
+  height: calc(var(--wc-carousel-h) - var(--wc-nav-handle-h));
+  padding: var(--wc-carousel-pad) 0;
   /* pan-y lets the page's own vertical scroll (short-landscape fallback)
      still work through the carousel; overscroll-behavior-x stops a fast
      horizontal swipe at the end of the track from rubber-banding into a
      browser back/forward gesture. */
   touch-action: pan-y;
   overscroll-behavior-x: contain;
+}
+
+/* Clipped by the band above, but a clipped element is still hit-testable at
+   its edges. welcome-screen.js also marks it inert, which is what removes it
+   from the tab order. */
+.kiosk-shell[data-nav="collapsed"] .wc-carousel__track {
+  pointer-events: none;
 }
 
 .wc-arrow {
@@ -290,10 +244,24 @@
   transform: translateY(-50%) translateY(2px);
 }
 
+/*
+ * Pinned to a real px height, NOT height:100%, and this is the load-bearing
+ * line of the whole drawer.
+ *
+ * .wc-swiper and .feature-card were both height:100% of the carousel. Once the
+ * carousel animates its basis to 0, "100%" walks down to 0 too — so every slide
+ * would flatten during the slide-away, and Swiper (watchSlidesProgress) would
+ * re-measure cards that are on their way out. Giving the track the height the
+ * band has when open means the content keeps its size throughout and only the
+ * parent's clip moves. Exactly what .keyboard__rows { height: 280px } does in
+ * kiosk-map.css.
+ */
 .wc-swiper {
   flex: 1 1 auto;
   min-width: 0;
-  height: 100%;
+  height: calc(
+    var(--wc-carousel-h) - var(--wc-nav-handle-h) - 2 * var(--wc-carousel-pad)
+  );
   overflow: hidden;
   /* Clears the two absolutely positioned arrows so the end slides don't
      render underneath them. */
@@ -306,9 +274,11 @@
   height: 100%;
 }
 
-/* An <a>, not a <button>: Chromium's "immediate" speculation-rules prefetch
-   tier in welcome.html matches .feature-card, and only a real link gives it
-   something to prefetch. */
+/* An <a>, not a <button>: the card carries its section's real URL, so the
+   six of them remain a working menu with this page's JS dead, and a
+   middle-click still opens a section in its own tab. (It is no longer what
+   the speculation-rules prefetch matches — those hrefs all serve this same
+   shell now, so welcome.html lists the embed paths explicitly instead.) */
 .feature-card {
   appearance: none;
   text-decoration: none;
@@ -345,14 +315,28 @@
               border-color var(--kiosk-dur) var(--kiosk-ease);
 }
 
-/* Swiper adds this class to whichever slide is centred; welcome-screen.js
-   reads the same slide to drive the stage above, so "active" here and "on
-   the stage" are always the same slide by construction. */
+/* Two different "active"s, and the distinction is the point.
+
+   .swiper-slide-active is where the CAROUSEL is — applied by Swiper the
+   instant a swipe settles. .is-active is what is actually RENDERED in the
+   content band — set by kiosk-content.js when a section commits, ~180ms
+   later (see COMMIT_DELAY_MS in welcome-screen.js, which stops a fast swipe
+   from loading six documents).
+
+   They are the same card almost always, and briefly differ mid-swipe. Giving
+   the centred card its full size and weight immediately keeps the carousel
+   feeling instant, while the maroon rule underneath tracks what the visitor
+   is actually looking at — so a card can never claim to be the current
+   section before its content has arrived. */
 .feature-card.swiper-slide-active {
   opacity: 1;
   transform: scale(1);
   border: 2px solid var(--kiosk-maroon);
   border-bottom: 4px solid var(--kiosk-amber);
+}
+
+.feature-card.is-active {
+  border-bottom-color: var(--kiosk-maroon);
 }
 
 @media (hover: hover) {
@@ -425,6 +409,89 @@
   padding: 0 clamp(10px, 2.4vw, 18px);
 }
 
+/* ── Menu handle ──────────────────────────────────────────────────────
+ *
+ * Sits on top of the menu, as the carousel band's own first row. Full width,
+ * so the whole strip is the target — the kiosk's 61px touch minimum is about
+ * small targets, and a 768px-wide bar is not one.
+ *
+ * Two states, and the difference is doing real work rather than decorating:
+ *
+ *   expanded   cream on cream — a quiet header belonging to the menu below it,
+ *              which is already on screen and needs no announcement.
+ *   collapsed  solid maroon — now it is the ONLY menu chrome left, so it stops
+ *              being a header and becomes the thing you press. Same full-width
+ *              maroon bar the kiosk used for its back control, which is the
+ *              vocabulary a returning visitor already knows.
+ */
+.wc-nav-toggle {
+  appearance: none;
+  flex: 0 0 var(--wc-nav-handle-h);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 1.6vw, 14px);
+  border: 0;
+  border-top: 1px solid var(--kiosk-hairline);
+  background: var(--kiosk-cream);
+  color: var(--kiosk-ink);
+  font-family: var(--kiosk-font-ui);
+  font-weight: 700;
+  font-size: clamp(0.78rem, 2vw, 0.95rem);
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--kiosk-dur) var(--kiosk-ease),
+              color var(--kiosk-dur) var(--kiosk-ease);
+}
+
+.kiosk-shell[data-nav="collapsed"] .wc-nav-toggle {
+  background: var(--kiosk-maroon);
+  color: var(--kiosk-paper);
+  border-top-color: transparent;
+}
+
+.wc-nav-toggle__chevron {
+  width: clamp(18px, 3vw, 24px);
+  height: clamp(18px, 3vw, 24px);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* Points down while the menu is up — press it and the menu goes that way.
+     The global prefers-reduced-motion rule in kiosk-tokens.css flattens this
+     to nothing, which is correct: the rotation is the nicety, the chevron's
+     direction is the information. */
+  transition: transform var(--kiosk-dur) var(--kiosk-ease);
+}
+
+.kiosk-shell[data-nav="collapsed"] .wc-nav-toggle__chevron {
+  transform: rotate(180deg);
+}
+
+@media (hover: hover) {
+  .wc-nav-toggle:hover { background: var(--kiosk-row-alt); }
+  .kiosk-shell[data-nav="collapsed"] .wc-nav-toggle:hover {
+    background: var(--kiosk-maroon-lift);
+  }
+}
+
+.wc-nav-toggle:focus-visible {
+  outline: 3px solid var(--kiosk-maroon);
+  outline-offset: -4px;
+}
+
+.kiosk-shell[data-nav="collapsed"] .wc-nav-toggle:focus-visible {
+  outline-color: var(--kiosk-amber);
+}
+
+.wc-nav-toggle:active {
+  background: var(--kiosk-maroon);
+  color: var(--kiosk-paper);
+}
+
 .news-ticker__track {
   display: flex;
   width: max-content;
@@ -472,14 +539,14 @@
 /* ── Phone ─────────────────────────────────────────────────────────── */
 
 @media (max-width: 480px) {
-  /* Shrink the stage icon and the slide width rather than reflowing the
-     carousel to fewer columns or letting it wrap — a carousel that wraps is
-     no longer a carousel, and either change would risk the horizontal
-     page-scroll the shell (kiosk-shell.css) explicitly forbids. */
-  .wc-stage__icon {
-    width: clamp(64px, 20vw, 100px);
-    height: clamp(64px, 20vw, 100px);
-  }
+  /* Shrink the slide width rather than reflowing the carousel to fewer
+     columns or letting it wrap — a carousel that wraps is no longer a
+     carousel, and either change would risk the horizontal page-scroll the
+     shell (kiosk-shell.css) explicitly forbids.
+
+     Nothing here touches the content band: it is flex: 1 1 auto and simply
+     takes whatever the carousel gives back. The rules that used to shrink the
+     stage's icon went with the stage. */
   .feature-card {
     width: clamp(120px, 34vw, 170px);
   }
@@ -488,17 +555,18 @@
 /* ── Short landscape ───────────────────────────────────────────────── */
 
 @media (max-height: 620px) {
+  /* Buy height for the content by taking it from the two fixed bands. The
+     content band needs no rule of its own — it is the only flexible row, so
+     every pixel freed here lands in it.
+
+     Retune the TOKEN, not .wc-carousel's height: the band is sized by
+     flex-basis now, and the track and the swiper both derive their heights
+     from the same token. Setting `height` here would be ignored by the band
+     and silently leave the track at its full size. */
   .wc-masthead { height: 76px; }
-  .wc-stage {
-    padding: clamp(10px, 2vh, 18px) clamp(16px, 4vw, 28px);
-    gap: clamp(6px, 1.2vh, 12px);
-  }
-  .wc-stage__icon {
-    width: clamp(56px, 16vw, 90px);
-    height: clamp(56px, 16vw, 90px);
-  }
-  .wc-carousel {
-    height: clamp(150px, 22vh, 190px);
+  :root {
+    --wc-carousel-h: clamp(150px, 22vh, 190px);
+    --wc-nav-handle-h: clamp(36px, 6vh, 40px);
   }
 }
 

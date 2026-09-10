@@ -884,9 +884,11 @@ body.view-control-buttons .viewControlButton {
   display: none !important;
 }
 
-/* The bottom exit stripe is now the shared .kiosk-back bar (kiosk-nav.css),
-   included with back_fixed=True because this page is a fixed fullscreen
-   panorama with no flex shell to be the last row of. */
+/* There is no bottom exit stripe on this page any more. It used to be the
+   shared .kiosk-back bar, fixed to bottom:0 because this page is a fullscreen
+   panorama with no flex shell to be the last row of; the carousel in the
+   kiosk shell replaced it. --kiosk-back-h is 0 accordingly, so the dock below
+   now sits on the viewport floor. */
 
 .tour-search-dock {
   display: none;
@@ -896,9 +898,11 @@ body.tour-ready .tour-search-dock {
   position: fixed;
   left: 0;
   right: 0;
-  /* Sits on top of the fixed back bar rather than under it — both are anchored
-     to the bottom of the viewport. See --kiosk-back-h in kiosk-nav.css. */
-  bottom: var(--kiosk-back-h, 104px);
+  /* Offset by whatever a bottom-anchored kiosk bar reserves. That is 0 now
+     that the back bar is gone (see --kiosk-back-h in kiosk-nav.css), so the
+     dock sits on the viewport floor; the token stays in the expression so the
+     dock follows automatically if a bottom bar ever returns. */
+  bottom: var(--kiosk-back-h, 0px);
   z-index: 80;
   display: flex;
   flex-direction: column;

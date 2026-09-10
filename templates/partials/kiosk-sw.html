@@ -28,6 +28,22 @@
     window.__kioskSW = true;
     if (!('serviceWorker' in navigator)) return;
 
+    // Ask for persistent storage.
+    //
+    // By default the Cache Storage this worker fills is "best-effort": the
+    // browser may evict all of it, without warning, whenever it decides the
+    // origin is using too much. That is a reasonable default for a website and
+    // a bad one for a wall-mounted terminal whose whole offline story is that
+    // cache — ~20 MB of panorama previews plus every rasterised archive page,
+    // rebuilt over hours of idle time, thrown away because a visitor opened a
+    // long issue. Granted silently on an installed/engaged origin; a refusal
+    // is simply today's behaviour, so nothing branches on the result.
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persisted()
+        .then(function (already) { return already || navigator.storage.persist(); })
+        .catch(function () {});
+    }
+
     // Mirrors ASSET_PREFIXES/REVALIDATE_PREFIXES in resources/js/sw-kiosk.js.
     // An allowlist, not a denylist: the resource-timing sweep below sees every
     // byte the page pulled, and on the 360 tour that is hundreds of panorama
@@ -35,12 +51,24 @@
     var SAME_OK = ['/assets/', '/pano/vendor/', '/pano/img/',
                    '/storage/Archives/', '/storage/Branding/',
                    '/storage/About/', '/storage/news/'];
-    // /kiosk/latest-news is the newsletter attract screen welcome-screen.js
-    // frames into #kiosk-attract when idle with no video flagged — it must
-    // render offline the same as the menu it covers, so it needs its own
-    // allowlist entry (keep() is an allowlist, not a denylist: adding it only
-    // to the harvest() tail below would still get silently dropped here).
-    var SAME_OK_EXACT = ['/api/locations', '/api/tour-scenes', '/kiosk', '/kiosk/latest-news'];
+    // The kiosk documents worth holding, by exact path. keep() is an
+    // allowlist, not a denylist, so anything added to the harvest() tail below
+    // without an entry here is silently dropped.
+    //
+    // Both halves of the shell/embed split are listed on purpose:
+    //   /kiosk and the six section paths all serve the SHELL, and any one of
+    //     them can be what the terminal boots on.
+    //   /kiosk/embed/* are what the shell's content frame actually loads, so
+    //     without them an offline kiosk would render its own chrome around
+    //     six blank frames.
+    // /kiosk/embed/latest-news doubles as the idle attract screen.
+    var SAME_OK_EXACT = ['/api/locations', '/api/tour-scenes', '/kiosk',
+                         '/kiosk/latest-news', '/kiosk/campus-map',
+                         '/kiosk/gears-archive', '/kiosk/virtual-tour',
+                         '/kiosk/about-lspu', '/kiosk/org-board',
+                         '/kiosk/embed/latest-news', '/kiosk/embed/campus-map',
+                         '/kiosk/embed/gears-archive', '/kiosk/embed/virtual-tour',
+                         '/kiosk/embed/about-lspu', '/kiosk/embed/org-board'];
     // The two cross-origin scripts kiosk pages load. Cached opaquely.
     var CROSS_OK = ['https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/',
                     'https://js.pusher.com/'];
@@ -83,12 +111,14 @@
       }
 
       // 3. What nothing can observe: the tour's JS-built hotspot icons, the
-      //    two effectively-static kiosk APIs, and the menu itself — the back
-      //    button's destination, and so the single most important entry here.
-      //    /kiosk/latest-news is the idle newsletter attract screen; it must
-      //    be precached like the menu so the attract loop still renders with
-      //    the campus link down (see the SAME_OK_EXACT comment above).
-      ['/kiosk', '/kiosk/latest-news', '/api/locations', '/api/tour-scenes',
+      //    two effectively-static kiosk APIs, and the shell itself.
+      //    /kiosk/embed/latest-news is both the default section's content and
+      //    the idle attract screen, so it must be here for the kiosk to boot
+      //    to anything at all with the campus link down. The other five
+      //    sections are fetched by the idle sweep in welcome-screen.js
+      //    (PRECACHE_ROUTES) rather than listed here, because pulling all six
+      //    on every page load would be six documents nobody asked for.
+      ['/kiosk', '/kiosk/embed/latest-news', '/api/locations', '/api/tour-scenes',
        '/pano/img/link.png', '/pano/img/info.png', '/pano/img/close.png'].forEach(add);
 
       return out;

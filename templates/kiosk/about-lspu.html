@@ -191,14 +191,56 @@
               {% endif %}
             </section>
 
-          {# ── Hymn: player + line-synced lyrics ── #}
+          {# ── Hymn: video stage, lyrics, then the transport ──
+
+               Reading order is deliberate: watch, read along, and only then
+               reach for the controls. The three are one flex column, so this
+               DOM order *is* the layout.
+
+               `video_path` wins over `audio_path` rather than replacing it --
+               an install that has only ever uploaded an MP3 keeps its player.
+               Both media elements answer to `data-hymn-media` so one branch of
+               about-lspu-kiosk.js drives either one. #}
           {% elif slug == 'hymn' %}
+            {% set hymn_video = section.video_path %}
+            {% set hymn_media = hymn_video or section.audio_path %}
             <section class="hymn" data-hymn
                      data-timings='{{ (section.lyric_timings or []) | tojson }}'>
-              {% if section.audio_path %}
+              {% if hymn_video %}
+                {# The whole stage is the play toggle: on a 768x1024 terminal a
+                   thumb lands on the picture long before it finds a button. #}
+                <div class="hymn__stage" data-hymn-stage role="button" tabindex="0"
+                     aria-label="Play or pause the university hymn">
+                  {# No `controls`: browser chrome plus the bar below the lyrics
+                     is two transports for one stream, and the native one cannot
+                     be styled to match the kiosk.
+
+                     The `#t=0.1` media fragment makes the browser seek and
+                     paint frame one. `preload="metadata"` alone leaves a black
+                     rectangle until first play, and a poster image would mean a
+                     second upload for the editor to keep in sync. #}
+                  <video class="hymn__video" data-hymn-media playsinline
+                         preload="metadata"
+                         src="/storage/{{ hymn_video | replace('\\', '/') }}#t=0.1"></video>
+                  <span class="hymn__stage-glyph" data-hymn-stage-glyph aria-hidden="true">&#9654;</span>
+                </div>
+              {% endif %}
+
+              <div class="hymn__lyrics" data-hymn-lyrics>
+                {% for line in hymn_lines %}
+                  <p class="hymn__line" data-hymn-line data-index="{{ loop.index0 }}">{{ line }}</p>
+                {% else %}
+                  <div>{{ section.body_html|safe }}</div>
+                {% endfor %}
+              </div>
+
+              {% if hymn_media %}
                 <div class="hymn__player">
                   <button type="button" class="hymn__play" data-hymn-play aria-label="Play the university hymn">
                     <span class="hymn__play-glyph" data-hymn-glyph aria-hidden="true">&#9654;</span>
+                  </button>
+                  <button type="button" class="hymn__restart" data-hymn-restart aria-label="Play the university hymn from the beginning">
+                    <span aria-hidden="true">&#8634;</span>
                   </button>
                   <div class="hymn__meta">
                     <span class="hymn__title">{{ section.title }}</span>
@@ -210,18 +252,12 @@
                       <span data-hymn-total>0:00</span>
                     </div>
                   </div>
-                  <audio data-hymn-audio preload="metadata"
-                         src="/storage/{{ section.audio_path | replace('\\', '/') }}"></audio>
+                  {% if not hymn_video %}
+                    <audio data-hymn-media preload="metadata"
+                           src="/storage/{{ section.audio_path | replace('\\', '/') }}"></audio>
+                  {% endif %}
                 </div>
               {% endif %}
-
-              <div class="hymn__lyrics" data-hymn-lyrics>
-                {% for line in hymn_lines %}
-                  <p class="hymn__line" data-hymn-line data-index="{{ loop.index0 }}">{{ line }}</p>
-                {% else %}
-                  <div>{{ section.body_html|safe }}</div>
-                {% endfor %}
-              </div>
             </section>
 
           {# ── Seal: hotspots pinned to the artwork + legend grid ── #}
@@ -261,6 +297,36 @@
           {% endif %}
         </div>
 
+        {#
+            Attribution, authored per section on the dashboard's About LSPU page
+            and stored as `sources` on the row's meta. One block serves all six
+            panes because this sits outside the per-slug if/elif above -- a
+            section that cites nothing renders nothing at all, no empty rule.
+
+            The URL is validated on write against AboutContent.SOURCE_PROTOCOLS
+            (http/https/mailto), which is what makes it safe to put straight
+            into an href on an unauthenticated terminal. A source with a link
+            but no label prints the link, so a row can never render blank.
+        #}
+        {% set sources = tile_meta[slug].sources or [] %}
+        {% if sources %}
+        <section class="about-sources" aria-label="Sources for this section">
+          <h3 class="about-sources__title">Sources</h3>
+          <ul class="about-sources__list">
+            {% for source in sources %}
+            <li class="about-sources__item">
+              {% if source.url %}
+              <a class="about-sources__link" href="{{ source.url }}"
+                 rel="noopener noreferrer nofollow" target="_blank">{{ source.label or source.url }}</a>
+              {% else %}
+              {{ source.label }}
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+
         <nav class="about-prevnext" aria-label="Nearby sections">
           <button type="button" class="about-prevnext__btn" data-target="{{ prev_slug }}">
             <span aria-hidden="true">&larr;</span> {{ tile_meta[prev_slug].short }}
@@ -272,10 +338,16 @@
       </div>
     {% endfor %}
 
-    {# One back control per view: the hub leaves the section, a pane returns to the hub. #}
-    <div class="about-back about-back--hub">
-      {% with back_label='Kiosk menu', back_href=route('kiosk', {}, False) %}{% include 'partials/kiosk-back.html' %}{% endwith %}
-    </div>
+    {# One back control, and only on a detail pane: it returns to this
+       section's own hub, which is a view of this same URL and so has no
+       address to link to.
+
+       The hub used to carry a second one labelled "Kiosk menu" that left the
+       section entirely. That is gone with every other kiosk-navigation back
+       control — the carousel is permanently on screen below this frame and is
+       how a visitor leaves. A pane-level control is a different thing: it
+       moves between views *inside* About LSPU, which the carousel knows
+       nothing about. #}
     <div class="about-back about-back--detail">
       {% with back_label='About LSPU', back_action='hub' %}{% include 'partials/kiosk-back.html' %}{% endwith %}
     </div>
@@ -283,6 +355,7 @@
 
   <script src="{{ asset_url('js/kiosk-clock.js') }}" defer></script>
   <script src="{{ asset_url('js/about-lspu-kiosk.js') }}" defer></script>
+  {% include 'partials/kiosk-frame.html' %}
   {% include 'partials/kiosk-sw.html' %}
 </body>
 </html>

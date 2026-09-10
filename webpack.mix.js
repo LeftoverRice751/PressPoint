@@ -16,7 +16,6 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/dashboard-live.js', 'storage/compiled/js')
   .js('resources/js/upload-meter.js', 'storage/compiled/js')
   .js('resources/js/confirm-modal.js', 'storage/compiled/js')
-  .js('resources/js/super-admin.js', 'storage/compiled/js')
   .js('resources/js/news-dashboard.js', 'storage/compiled/js')
   .js('resources/js/review-queue.js', 'storage/compiled/js')
   .js('resources/js/tour-preview.js', 'storage/compiled/js')
@@ -31,6 +30,7 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/tour-charter.js', 'storage/compiled/js')
   .js('resources/js/data.js', 'storage/compiled/js')
   .js('resources/js/kiosk-clock.js', 'storage/compiled/js')
+  .js('resources/js/kiosk-content.js', 'storage/compiled/js')
   .js('resources/js/welcome-screen.js', 'storage/compiled/js')
   .js('resources/js/welcome-lock.js', 'storage/compiled/js')
   .js('resources/js/about-lspu-kiosk.js', 'storage/compiled/js')
@@ -151,6 +151,44 @@ mix.copy(
   "node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs",
   "storage/compiled/js/pdfjs/pdf.worker.min.mjs",
 )
+// pdf.js 5's image decoders, which live outside the worker bundle and are
+// fetched at runtime from the `wasmUrl` directory (set in
+// resources/js/kiosk-archive-book.js). Without them the worker warns and the
+// page renders with those images missing:
+//
+//   openjpeg  — JPEG2000. Print-workflow PDFs use it constantly, so this is
+//               the one that actually bites a scanned newspaper archive.
+//   jbig2     — JBIG2, the bilevel codec scanners emit for text pages.
+//   qcms_bg   — ICC colour spaces. Its absence is the explicit
+//               "No ICC color space support due to missing `wasmUrl` API
+//               option" warning, and it costs colour fidelity on the folios.
+//
+// The *_nowasm_fallback.js files are the pure-JS decoders pdf.js dynamic
+// imports only when instantiating the matching .wasm fails. They are dead
+// weight on disk and never fetched in the normal path, but they mean a
+// tightened CSP (one that drops 'wasm-unsafe-eval') degrades to slow images
+// rather than no images.
+//
+// Listed file by file rather than copying node_modules/pdfjs-dist/wasm
+// wholesale, and this is deliberate: that directory also contains
+// quickjs-eval.wasm, which is the QuickJS interpreter pdf.js uses to execute
+// a *document's own JavaScript* in its viewer sandbox. This reader never
+// builds that sandbox (see the getDocument comment in kiosk-archive-book.js),
+// and an unattended public kiosk should not be serving the engine that would
+// run a hostile PDF's code even in principle. Do not swap this for a
+// directory copy.
+;[
+  "openjpeg.wasm",
+  "openjpeg_nowasm_fallback.js",
+  "jbig2.wasm",
+  "jbig2_nowasm_fallback.js",
+  "qcms_bg.wasm",
+].forEach((file) => {
+  mix.copy(
+    `node_modules/pdfjs-dist/wasm/${file}`,
+    `storage/compiled/js/pdfjs/wasm/${file}`,
+  )
+})
 // <model-viewer> for the virtual tour's 3D citizen's charter. Vendored, not
 // pulled from a CDN: the kiosk is a fixed terminal and every other third-party
 // runtime here (Marzipano, pdf.js, Leaflet) is self-hosted for the same reason.

@@ -58,6 +58,7 @@ ROUTES = [
     Route.post("/gears/about-lspu/milestones/@id/reorder", "kiosk.AboutController@reorder_milestone").middleware("auth"),
     Route.post("/gears/about-lspu/seal/upload", "kiosk.AboutController@upload_seal").middleware("auth"),
     Route.post("/gears/about-lspu/hymn/audio", "kiosk.AboutController@upload_hymn_audio").middleware("auth"),
+    Route.post("/gears/about-lspu/hymn/video", "kiosk.AboutController@upload_hymn_video").middleware("auth"),
     Route.post("/gears/branding/logo", "gears.BrandingController@upload").name("branding.logo.upload").middleware("auth"),
     Route.post("/gears/branding/logo/restore", "gears.BrandingController@restore").name("branding.logo.restore").middleware("auth"),
 ]
