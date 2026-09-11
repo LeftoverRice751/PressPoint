@@ -250,6 +250,13 @@ class TourTemplateTestCase(TestCase):
         self.assertIn("js/tour-charter.js", html)
         self.assertIn("js/kiosk-archive-book.js", html)
 
+    def test_charter_carries_the_detail_tier_contract(self):
+        html = _render_tour({**self.ENTRY, "detail_pages": 12, "detail_suffix": "@2x"})
+        self.assertIn('data-charter-detail-pages="12"', html)
+        self.assertIn('data-charter-detail-suffix="@2x"', html)
+        # Absent from an older entry dict -> 0, never a blank attribute.
+        self.assertIn('data-charter-detail-pages="0"', _render_tour(self.ENTRY))
+
     def test_renders_the_plain_tour_when_no_charter_exists(self):
         html = _render_tour(None)
 

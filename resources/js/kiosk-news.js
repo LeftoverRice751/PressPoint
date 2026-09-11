@@ -1,7 +1,14 @@
 /*
  * Kiosk Latest News — front-page behaviour.
  *
- * Two jobs, no dependencies:
+ * Three jobs:
+ *
+ *   0. The story carousel. Slide 1 is the broadsheet the composer arranges;
+ *      slides 2..N are the remaining approved stories, one each. Swiper's
+ *      stylesheet is linked by hand in templates/kiosk/news.html from the
+ *      vendored copy — never `import 'swiper/css'` here, because Mix extracts
+ *      JS-imported CSS to storage/compiled/js/<entry>.css, an unlinked path
+ *      that silently shadows the real stylesheet.
  *
  *   1. Reader overlay. The lead story's body is clamped to a readable
  *      block on the front page so the rest of the issue stays above the
@@ -15,6 +22,9 @@
  *      now counts as activity, the window is 120s, and idle returns to
  *      the kiosk hub instead of reloading in place.
  */
+
+import Swiper from 'swiper';
+import { Navigation, Pagination, Keyboard, A11y } from 'swiper/modules';
 
 (function () {
   'use strict';
@@ -55,6 +65,8 @@
 
     reader.hidden = false;
     isOpen = true;
+    // The overlay sits above the carousel, which still owns horizontal drags.
+    setCarouselInteractive(false);
     document.body.style.overflow = 'hidden';
     readerPart('body').scrollTop = 0;
     reader.querySelector('[data-reader-close]').focus();
@@ -64,6 +76,7 @@
     if (!reader || !isOpen) return;
     reader.hidden = true;
     isOpen = false;
+    setCarouselInteractive(true);
     document.body.style.overflow = '';
     if (trigger) trigger.focus();
   }
@@ -137,6 +150,55 @@
     document.addEventListener('keydown', function (event) {
       if (event.key === 'Escape') closeReader();
     });
+  }
+
+  /* ── Story carousel ─────────────────────────────────────────── */
+
+  var swiperEl = document.querySelector('[data-news-swiper]');
+  var newsSwiper = null;
+
+  if (swiperEl && swiperEl.querySelector('.swiper-slide')) {
+    newsSwiper = new Swiper(swiperEl, {
+      // No EffectCoverflow, matching welcome-screen.js: coverflow's
+      // translateZ pushes the peeking slides behind .swiper-wrapper, so side
+      // taps stop hit-testing on a touchscreen. A flat slide is also the
+      // right register for a broadsheet.
+      modules: [Navigation, Pagination, Keyboard, A11y],
+      // 'auto' + a CSS-sized .swiper-slide is the house pattern; never a
+      // numeric slidesPerView.
+      slidesPerView: 'auto',
+      centeredSlides: true,
+      speed: 420,
+      grabCursor: true,
+      keyboard: { enabled: true },
+      navigation: {
+        prevEl: '[data-news-prev]',
+        nextEl: '[data-news-next]',
+        disabledClass: 'is-disabled',
+      },
+      pagination: {
+        el: '[data-news-pagination]',
+        clickable: true,
+      },
+      watchSlidesProgress: true,
+    });
+
+    // The lead's clamp is measured against a laid-out element. On first paint
+    // only slide 1 is on screen, so a later slide measured while off-screen
+    // would compute a nonsense height — re-measure whenever the broadsheet
+    // comes back into view.
+    newsSwiper.on('slideChange', function () {
+      if (newsSwiper.activeIndex === 0) measure();
+    });
+  }
+
+  // Swiper owns horizontal drags on the whole page, including inside the
+  // reader overlay that sits above it — so a reader trying to select or drag
+  // text would swipe the story out from under themselves. Freeze the
+  // carousel while the overlay is open.
+  function setCarouselInteractive(enabled) {
+    if (!newsSwiper) return;
+    newsSwiper.allowTouchMove = enabled;
   }
 
   /* ── Scroll hint ────────────────────────────────────────────── */

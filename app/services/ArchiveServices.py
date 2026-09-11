@@ -38,13 +38,92 @@ def _is_under_nas(path):
     return resolved == nas_root or resolved.startswith(nas_root + os.sep)
 
 
-# Per-page raster zoom. The kiosk panel is 768x1024 at DPR 2, so a full-bleed
-# page wants roughly 1536x2048 device pixels; 3.0 yields 1512x2160 on a normal
-# A4-ish page. This used to be 1.8 (908x1296), which is visibly soft on the
-# terminal -- and that softness is the entire reason the kiosk template used to
-# carry `data-reader-eager-pdf` to force a ~100 MB PDF download on open just so
-# pdf.js could re-rasterise pages the server had already rendered.
-PAGE_RENDER_ZOOM = 3.0
+# Per-page raster size, as a target on the page's LONG edge in pixels.
+#
+# This used to be a fixed zoom multiplier (PAGE_RENDER_ZOOM = 3.0, and 1.8
+# before that) over the PDF's own point size, which made resolution a property
+# of the upload rather than the screen: a 432 pt half-size scan rendered at
+# 1296 px -- under the kiosk's 1536 device pixels *and* under the 1742 px scan
+# embedded in the PDF -- while a 1191 pt tabloid rendered at 3573 px. The
+# "archives are blurry" reports were the small-page issues.
+#
+# Two tiers per page now. FIT is what the reader paints at fit-to-screen: the
+# kiosk panel is 768x1024 at DPR 2 and a phone is ~1170 px wide at DPR 3, so
+# 2400 on the long edge oversamples both. DETAIL is what pinch-zoom swaps in
+# before the reader has to fall back to downloading the PDF for pdf.js.
+FIT_LONG_EDGE = 2400
+DETAIL_LONG_EDGE = 4800
+# A scanned page cannot be sharper than the raster inside it, so both tiers are
+# capped at the scan's native pixels: upsampling past that is the same blur in
+# more bytes. The floor keeps a badly-scanned page from rendering at, say,
+# 600 px, which is unreadable on any panel even if it is "faithful".
+MIN_FIT_LONG_EDGE = 1536
+# The detail tier only earns its file if it holds meaningfully more than fit.
+DETAIL_MIN_RATIO = 1.4
+# Fraction of the page an image (or images together) must cover to be a scan.
+_SCAN_COVERAGE = 0.8
+
+
+def plan_page_zooms(width_pt, height_pt, native_zoom=None):
+    """(fit_zoom, detail_zoom) for a page of the given size in points.
+
+    `native_zoom` is the zoom at which the page's scan is rendered 1:1 (see
+    scan_native_zoom); None means the page is vector and has no ceiling.
+    `detail_zoom` is None when a second tier would not be worth its file.
+    """
+    long_pt = float(max(width_pt, height_pt) or 1)
+    if native_zoom:
+        native_px = native_zoom * long_pt
+        fit_px = min(FIT_LONG_EDGE, max(native_px, MIN_FIT_LONG_EDGE))
+        detail_px = min(DETAIL_LONG_EDGE, native_px)
+    else:
+        fit_px = FIT_LONG_EDGE
+        detail_px = DETAIL_LONG_EDGE
+
+    detail_zoom = detail_px / long_pt if detail_px >= fit_px * DETAIL_MIN_RATIO else None
+    return fit_px / long_pt, detail_zoom
+
+
+def scan_native_zoom(page):
+    """Zoom at which a scanned page's raster is 1:1, or None if not a scan.
+
+    A page is a scan when its placed images cover most of it. The native zoom
+    is the pixels-per-point of the image doing the covering -- the one with
+    the largest placed area -- because rendering above that only interpolates.
+    Not the max over every image: a 200 px logo dropped into a 5 pt box has a
+    pixels-per-point of 40, and a page-1 masthead icon like that turned a
+    1140 px photo page into a 3500 px "detail tier". Uses get_image_info(),
+    which reads placement and dimensions from the content stream without
+    decoding a single pixel.
+    """
+    try:
+        page_rect = page.rect
+        page_area = page_rect.width * page_rect.height
+        infos = page.get_image_info()
+    except Exception:
+        return None
+    if page_area <= 0 or not infos:
+        return None
+
+    covered = 0.0
+    largest_area = 0.0
+    native_zoom = 0.0
+    for info in infos:
+        bbox = fitz.Rect(info.get("bbox", (0, 0, 0, 0))) & page_rect
+        if bbox.is_empty or bbox.width <= 0 or bbox.height <= 0:
+            continue
+        area = bbox.width * bbox.height
+        covered += area
+        if area > largest_area:
+            largest_area = area
+            width_px = float(info.get("width") or 0)
+            height_px = float(info.get("height") or 0)
+            native_zoom = max(width_px / bbox.width, height_px / bbox.height)
+
+    if covered / page_area < _SCAN_COVERAGE or native_zoom <= 0:
+        return None
+    return native_zoom
+
 
 # Pages are stored as WebP, not PNG. These are photographic newspaper scans, so
 # lossless costs a fortune for nothing: measured on a real 180-page archive,
@@ -52,6 +131,10 @@ PAGE_RENDER_ZOOM = 3.0
 # sharper AND ~9x smaller. Same trade ImageDerivatives.py makes for news images.
 PAGE_EXTENSION = ".webp"
 LEGACY_PAGE_EXTENSION = ".png"
+# The detail tier sits beside the fit tier as `page-N@2x.webp`. The reader
+# builds these URLs itself (see archive-page-source.mjs), so the suffix is
+# published in the archive entry rather than assumed on both sides.
+DETAIL_SUFFIX = "@2x"
 _WEBP_QUALITY = 82
 _WEBP_METHOD = 4
 
@@ -65,6 +148,10 @@ EAGER_PAGE_LIMIT = 6
 # Written into the pages directory once a sweep has rendered the whole
 # document, so count_prewarmed_pages() can answer without stat-ing every page.
 _RENDERED_SIDECAR = "rendered.txt"
+# Same idea for the detail tier. Only written when every page that the plan
+# called for has its @2x file -- a document planned with no detail tier gets a
+# marker of 0, which is what lets count_detail_pages() answer with one stat.
+_DETAIL_SIDECAR = "detail.txt"
 
 
 class ArchiveServices:
@@ -95,15 +182,32 @@ class ArchiveServices:
         # editors don't see a stray top-level covers folder over SMB.
         return os.path.join("Archives", "covers", f"{base_name}-{suffix}.png").replace("\\", "/")
 
-    def _page_relative_path(self, file_path, page_index, extension=PAGE_EXTENSION):
+    def _page_relative_path(self, file_path, page_index, extension=PAGE_EXTENSION, suffix=""):
         slug = self._archive_slug(file_path)
         if not slug:
             return ""
         # 1-indexed on disk so the URL `/storage/Archives/pages/<slug>/page-1.webp`
         # matches the page number a reader sees.
         return os.path.join(
-            "Archives", "pages", slug, f"page-{page_index + 1}{extension}"
+            "Archives", "pages", slug, f"page-{page_index + 1}{suffix}{extension}"
         ).replace("\\", "/")
+
+    def _detail_relative_path(self, file_path, page_index):
+        return self._page_relative_path(file_path, page_index, suffix=DETAIL_SUFFIX)
+
+    def _render_plan(self, doc):
+        """(fit_zoom, detail_zoom) for this document, decided from page 1.
+
+        One plan per document, not per page: a reader flips through pages of
+        one size, and the client caches by page number, so mixed sizes within
+        an issue would buy nothing and cost a scan-detect per page.
+        """
+        try:
+            page = doc.load_page(0)
+            rect = page.rect
+            return plan_page_zooms(rect.width, rect.height, scan_native_zoom(page))
+        except Exception:
+            return plan_page_zooms(595, 842)
 
     def resolve_page_relative(self, file_path, page_index):
         """Relative path of a page that actually exists, or "".
@@ -222,8 +326,8 @@ class ArchiveServices:
         cover_path = self._storage_public_path(cover_relative_path)
         return self._render_preview(source_path, cover_path, 0)
 
-    def build_page_preview(self, file_path, page_index, zoom=PAGE_RENDER_ZOOM):
-        """Render a single page on-demand. Returns absolute path or '' on failure."""
+    def build_page_preview(self, file_path, page_index):
+        """Render a single page on-demand (fit tier only). Returns absolute path or ''."""
         normalized_path = self._normalized_archive_path(file_path)
         if not normalized_path:
             return ""
@@ -244,10 +348,14 @@ class ArchiveServices:
             return ""
 
         page_path = self._storage_public_path(page_relative)
-        return self._render_preview(source_path, page_path, page_index, zoom=zoom)
+        try:
+            with fitz.open(source_path) as doc:
+                fit_zoom, _ = self._render_plan(doc)
+        except Exception:
+            return ""
+        return self._render_preview(source_path, page_path, page_index, zoom=fit_zoom)
 
-    def prewarm_archive_pages(self, file_path, max_pages=None, zoom=PAGE_RENDER_ZOOM,
-                              start_index=0, progress=None):
+    def prewarm_archive_pages(self, file_path, max_pages=None, start_index=0, progress=None):
         """Rasterise pages in one fitz session. `max_pages=None` means all of them.
 
         This used to stop at 20 pages, which was the whole bug behind "later
@@ -261,6 +369,10 @@ class ArchiveServices:
         One fitz session for the lot: cheaper than N build_page_preview calls
         because the document is opened once. Also writes the page-count sidecar
         so the kiosk page-render path doesn't have to crack the PDF every visit.
+
+        Each page gets the fit tier and, when _render_plan says the source has
+        the headroom, the detail tier beside it. Zoom is per document (see
+        plan_page_zooms), not the old fixed multiplier.
         """
         normalized_path = self._normalized_archive_path(file_path)
         if not normalized_path:
@@ -271,32 +383,42 @@ class ArchiveServices:
             return []
 
         rendered = []
+        detail_rendered = 0
         try:
             with fitz.open(source_path) as doc:
                 self._write_page_count(normalized_path, doc.page_count)
                 limit = doc.page_count if max_pages is None else min(doc.page_count, start_index + max_pages)
-                matrix = fitz.Matrix(zoom, zoom)
+                fit_zoom, detail_zoom = self._render_plan(doc)
+                fit_matrix = fitz.Matrix(fit_zoom, fit_zoom)
+                detail_matrix = fitz.Matrix(detail_zoom, detail_zoom) if detail_zoom else None
                 for index in range(start_index, limit):
+                    page = None
                     existing = self.resolve_page_relative(normalized_path, index)
                     if existing:
                         rendered.append(existing)
-                        continue
+                    else:
+                        page_relative = self._page_relative_path(normalized_path, index)
+                        page_path = self._storage_public_path(page_relative)
+                        self._ensure_parent_directory(page_path)
+                        try:
+                            page = doc.load_page(index)
+                            self._write_page_file(page, fit_matrix, page_path)
+                            rendered.append(page_relative)
+                        except Exception:
+                            continue
 
-                    page_relative = self._page_relative_path(normalized_path, index)
-                    page_path = self._storage_public_path(page_relative)
-                    self._ensure_parent_directory(page_path)
-                    try:
-                        page = doc.load_page(index)
-                        pixmap = page.get_pixmap(matrix=matrix, alpha=False)
-                        page_path = self._write_pixmap(pixmap, page_path)
-                        if _is_under_nas(page_path):
+                    if detail_matrix is not None:
+                        detail_relative = self._detail_relative_path(normalized_path, index)
+                        detail_path = self._storage_public_path(detail_relative)
+                        if os.path.exists(detail_path):
+                            detail_rendered += 1
+                        else:
                             try:
-                                os.chmod(page_path, _NAS_FILE_MODE)
-                            except OSError:
+                                page = page or doc.load_page(index)
+                                self._write_page_file(page, detail_matrix, detail_path)
+                                detail_rendered += 1
+                            except Exception:
                                 pass
-                        rendered.append(page_relative)
-                    except Exception:
-                        continue
                     if progress:
                         progress(index + 1, doc.page_count)
 
@@ -309,10 +431,27 @@ class ArchiveServices:
                 if (start_index == 0 and limit >= doc.page_count
                         and len(rendered) == doc.page_count and canonical):
                     self._write_rendered_marker(normalized_path, doc.page_count)
+                    # Same rule for the detail tier. A document with no detail
+                    # tier planned is *complete* at zero, and the marker says
+                    # so explicitly so the reader is not left probing for
+                    # @2x files that were never meant to exist.
+                    planned = doc.page_count if detail_matrix is not None else 0
+                    if detail_rendered == planned:
+                        self._write_detail_marker(normalized_path, planned)
         except Exception:
             pass
 
         return rendered
+
+    def _write_page_file(self, page, matrix, target_path):
+        pixmap = page.get_pixmap(matrix=matrix, alpha=False)
+        target_path = self._write_pixmap(pixmap, target_path)
+        if _is_under_nas(target_path):
+            try:
+                os.chmod(target_path, _NAS_FILE_MODE)
+            except OSError:
+                pass
+        return target_path
 
     def _rendered_marker_relative(self, file_path):
         directory = self._page_directory_relative(file_path)
@@ -343,6 +482,15 @@ class ArchiveServices:
 
     def _write_rendered_marker(self, file_path, rendered_count):
         self._write_sidecar(self._rendered_marker_relative(file_path), rendered_count)
+
+    def _detail_marker_relative(self, file_path):
+        directory = self._page_directory_relative(file_path)
+        if not directory:
+            return ""
+        return f"{directory}/{_DETAIL_SIDECAR}"
+
+    def _write_detail_marker(self, file_path, detail_count):
+        self._write_sidecar(self._detail_marker_relative(file_path), detail_count)
 
     def _read_sidecar(self, sidecar_relative):
         if not sidecar_relative:
@@ -434,6 +582,72 @@ class ArchiveServices:
         if not self._page_directory_relative(normalized_path):
             return 0
         return self._contiguous_pages(normalized_path, page_count, canonical_only=True)
+
+    def count_detail_pages(self, file_path, page_count):
+        """Contiguous run from page 1 that has a detail (`@2x`) tier on disk.
+
+        Zero is the normal answer for a scan with no headroom past the fit
+        tier: the sweep decides per document whether a second file is worth
+        writing (plan_page_zooms), and the reader must not guess. Like the
+        other two counts, a completed sweep settles this with one stat via the
+        detail marker; otherwise it walks the files.
+        """
+        normalized_path = self._normalized_archive_path(file_path)
+        if not normalized_path or page_count <= 0:
+            return 0
+        if not self._page_directory_relative(normalized_path):
+            return 0
+
+        complete = self._read_sidecar(self._detail_marker_relative(normalized_path))
+        if complete is not None:
+            return min(int(complete), int(page_count))
+
+        found = 0
+        for index in range(int(page_count)):
+            relative = self._detail_relative_path(normalized_path, index)
+            if not os.path.exists(self._storage_public_path(relative)):
+                break
+            found += 1
+        return found
+
+    def is_rendered_to_plan(self, file_path, page_count):
+        """Is what is on disk what the current plan would produce?
+
+        The backfill script's one question per archive. Compares page 1's
+        pixel size against the planned fit tier (a few px of tolerance — the
+        off-axis rounds) and requires the detail tier to be exactly as
+        planned: all pages when the plan wants one, none when it does not.
+        Any legacy .png page fails, since the detail count can only be trusted
+        beside canonical files (see count_direct_pages).
+        """
+        normalized_path = self._normalized_archive_path(file_path)
+        if not normalized_path or page_count <= 0:
+            return False
+        if self.count_direct_pages(normalized_path, page_count) < page_count:
+            return False
+
+        source_path = self._storage_public_path(normalized_path)
+        try:
+            with fitz.open(source_path) as doc:
+                fit_zoom, detail_zoom = self._render_plan(doc)
+                rect = doc.load_page(0).rect
+        except Exception:
+            return False
+
+        planned_long = max(rect.width, rect.height) * fit_zoom
+        first_page = self._storage_public_path(self._page_relative_path(normalized_path, 0))
+        try:
+            if Image is None:
+                return False
+            with Image.open(first_page) as image:
+                actual_long = max(image.size)
+        except Exception:
+            return False
+        if abs(actual_long - planned_long) > 4:
+            return False
+
+        planned_detail = page_count if detail_zoom else 0
+        return self.count_detail_pages(normalized_path, page_count) == planned_detail
 
     def _contiguous_pages(self, normalized_path, page_count, canonical_only):
         # A completed sweep leaves a marker, and it is only written when the
@@ -542,6 +756,11 @@ class ArchiveServices:
             "page_extension": PAGE_EXTENSION,
             # How far the reader may skip the Python route entirely.
             "direct_pages": self.count_direct_pages(file_path, page_count),
+            # Pages with a higher-resolution tier for pinch-zoom, addressed as
+            # `page-N@2x.webp` under the same prefix. Zero when the source had
+            # no more to give than the fit tier.
+            "detail_pages": self.count_detail_pages(file_path, page_count),
+            "detail_suffix": DETAIL_SUFFIX,
             "page_url_base": f"/kiosk/archives/{archive_id}/pages" if archive_id is not None else "",
             # Tells the reader how far it can paint instantly without the PDF.
             "prewarmed_pages": self.count_prewarmed_pages(file_path, page_count),

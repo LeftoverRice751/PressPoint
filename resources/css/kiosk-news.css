@@ -689,3 +689,150 @@ body.newspaper-bg .feature-story__copy {
         height: 64px;
     }
 }
+
+/* ── Story carousel ─────────────────────────────────────────────────────────
+   Slide 1 is the broadsheet; slides 2..N are one story each. Scoped under
+   body.newspaper-bg like the rest of the kiosk-only rules in this file, so
+   the dashboard composer — which shares this stylesheet — never picks them
+   up. Solid fills only; no gradients, and no Swiper slide shadows. */
+body.newspaper-bg .news-swiper {
+    width: 100%;
+    overflow: hidden;
+}
+
+/* `slidesPerView: 'auto'` reads the width from here. 100% because each story
+   is a full page on a 768x1024 portrait terminal — a peeking neighbour would
+   just steal column width from the text. */
+body.newspaper-bg .news-slide {
+    width: 100%;
+    height: auto;
+    align-self: flex-start;
+}
+
+body.newspaper-bg .news-slide--story {
+    padding: 0 var(--kiosk-s-3);
+}
+
+body.newspaper-bg .news-slide__inner {
+    width: min(100%, clamp(720px, 92vw, 1180px));
+    margin: 0 auto;
+    padding: clamp(20px, 2.6vw, 40px);
+    background: var(--paper-cream);
+    border: 1px solid var(--paper-line);
+}
+
+/* The one place accent is spent on a story slide, matching the front page's
+   rule that gold appears only as kicker, drop cap and back stripe. */
+body.newspaper-bg .news-slide__category {
+    margin: 0 0 var(--kiosk-s-2);
+    padding-bottom: var(--kiosk-s-2);
+    border-bottom: 2px solid var(--paper-ink);
+    color: var(--accent-text);
+    font-family: var(--font-heading);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+}
+
+body.newspaper-bg .news-slide__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.9rem, 4.8vw, 2.9rem);
+    line-height: 1.05;
+    letter-spacing: -0.005em;
+}
+
+body.newspaper-bg .news-slide__dek {
+    margin: var(--kiosk-s-2) 0 0;
+    font-size: 1.25rem;
+    font-weight: 400;
+    line-height: 1.4;
+    color: var(--paper-muted);
+}
+
+body.newspaper-bg .news-slide__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--kiosk-s-3);
+    margin: var(--kiosk-s-2) 0 0;
+    padding-bottom: var(--kiosk-s-2);
+    border-bottom: 1px solid var(--paper-line);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    color: var(--paper-muted);
+}
+
+body.newspaper-bg .news-slide__image {
+    display: block;
+    width: 100%;
+    height: min(34vh, 300px);
+    margin: var(--kiosk-s-3) 0 0;
+    object-fit: cover;
+    border: 1px solid var(--paper-line);
+    background: rgb(var(--brand-maroon-rgb) / 0.08);
+}
+
+body.newspaper-bg .news-slide__copy {
+    margin: var(--kiosk-s-3) 0 0;
+    max-width: 68ch;
+    font-size: 1.2rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    orphans: 2;
+    widows: 2;
+    text-wrap: pretty;
+}
+
+/* ── Carousel controls ──────────────────────────────────────────────────────
+   Visible prev/next and dots, so the page is navigable without a swipe —
+   mouse, keyboard, and the kiosk's own touch are all first-class. */
+body.newspaper-bg .news-swiper__nav {
+    display: flex;
+    justify-content: center;
+    gap: var(--kiosk-s-3);
+    padding: var(--kiosk-s-3) 0;
+}
+
+body.newspaper-bg .news-swiper__arrow {
+    min-width: var(--kiosk-touch-min);
+    min-height: var(--kiosk-touch-min);
+    border: 2px solid var(--paper-ink);
+    background: var(--paper-cream);
+    color: var(--paper-ink);
+    font-family: var(--font-heading);
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+body.newspaper-bg .news-swiper__arrow:active {
+    background: var(--paper-ink);
+    color: var(--paper-cream);
+}
+
+/* Swiper's own `disabledClass`, set in the init to match the house pattern. */
+body.newspaper-bg .news-swiper__arrow.is-disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+body.newspaper-bg .news-swiper__pagination {
+    position: static;
+    padding: var(--kiosk-s-2) 0 0;
+}
+
+body.newspaper-bg .news-swiper__pagination .swiper-pagination-bullet {
+    width: 12px;
+    height: 12px;
+    background: var(--paper-ink);
+    opacity: 0.25;
+}
+
+body.newspaper-bg .news-swiper__pagination .swiper-pagination-bullet-active {
+    background: var(--paper-orange);
+    opacity: 1;
+}

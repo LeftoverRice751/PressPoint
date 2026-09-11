@@ -125,3 +125,30 @@ export function renderKey(opts = {}) {
   const zoom = Math.max(0.05, Number(opts.zoom) || 1).toFixed(2);
   return `${w}x${h}@${dpr}z${zoom}`;
 }
+
+/*
+ * The magnification at which a raster on screen runs out of pixels.
+ *
+ * The tabloid viewer swaps rasters as the reader pinches in — fit tier, then
+ * the server's detail tier, then a pdf.js render — and each swap should be
+ * triggered by the raster on screen actually being exhausted, not by a fixed
+ * magnification. A 2400 px fit tier in a 700 css-px box at DPR 2 is still
+ * sharp at 1.6x; asking pdf.js for it at 1.25x means downloading the whole
+ * PDF to redraw what is already crisp.
+ *
+ * Fit-contain: the raster is displayed at the size the binding axis allows,
+ * so headroom is content pixels over displayed device pixels on that axis.
+ * Floored at 1 — a raster smaller than the box is already being upscaled.
+ */
+export function rasterHeadroom(opts = {}) {
+  const contentWidth = Number(opts.contentWidth) || 0;
+  const contentHeight = Number(opts.contentHeight) || 0;
+  const targetWidth = Number(opts.targetWidth) || 0;
+  const targetHeight = Number(opts.targetHeight) || 0;
+  const dpr = Math.max(Number(opts.dpr) || 1, 1);
+  if (contentWidth <= 0 || contentHeight <= 0 || targetWidth <= 0 || targetHeight <= 0) return 1;
+
+  const displayScale = Math.min(targetWidth / contentWidth, targetHeight / contentHeight);
+  const displayedWidthDevicePx = contentWidth * displayScale * dpr;
+  return Math.max(1, contentWidth / displayedWidthDevicePx);
+}

@@ -23,7 +23,7 @@
 // Nothing stale can be *served* -- the URLs changed, so the old entries are
 // simply never requested again -- but they are hundreds of MB of dead weight
 // on a phone, and renaming the cache is what reclaims them (see activate).
-const CACHE_NAME = 'pp-archives-v2';
+const CACHE_NAME = 'pp-archives-v3';
 const ARCHIVE_PATH = '/storage/Archives/';
 
 self.addEventListener('install', () => {

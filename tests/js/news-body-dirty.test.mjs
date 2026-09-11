@@ -97,3 +97,73 @@ test('the dirty flag is still cleared after loading, and set by real edits', () 
   assert.match(CODE, /if\s*\(\s*!bodyDirty\s*\)\s*return Promise\.resolve\(true\)/,
     'confirmLeavingDirtyBody must still short-circuit when the body is clean');
 });
+
+// ── Moving between fields of the SAME story must not prompt ──────────────────
+//
+// A second, distinct source of the same dialog, found after the first was
+// fixed. Type a headline, click into the body (or the reverse): "Discard
+// unsaved changes? The headline has unsaved edits that will be lost." Nothing
+// would actually be lost — the text-change handler writes every keystroke into
+// that target's hidden form field, and unmountBodyEditor() writes the editor's
+// HTML back into the region it stood in for — so the prompt guarded against a
+// loss that could not happen, and an editor could not move between a story's
+// own fields without answering it every time.
+//
+// The prompt is still right when leaving for a DIFFERENT story: selectStory()
+// re-seeds every field from the new story, and THAT drops the staged edits.
+// So the same-story branch skips the prompt and carries the dirty flag across
+// the re-mount instead of clearing it, and the story-switch branches keep
+// asking.
+
+/** The body of the `if (regionEl !== mountedBodyRegion) { … }` branch in the
+ *  card click handler — the only place a same-story field switch happens. */
+function sameStoryBranch() {
+  const at = CODE.indexOf('regionEl !== mountedBodyRegion');
+  assert.notEqual(at, -1, 'the same-story field-switch branch should still exist');
+  const open = CODE.indexOf('{', at);
+  let depth = 0;
+  for (let i = open; i < CODE.length; i++) {
+    if (CODE[i] === '{') depth += 1;
+    else if (CODE[i] === '}' && --depth === 0) return CODE.slice(open + 1, i);
+  }
+  assert.fail('unbalanced braces after the same-story branch');
+}
+
+test('switching fields within the active story does not ask to discard', () => {
+  const branch = sameStoryBranch();
+  assert.equal(/confirmLeavingDirtyBody\s*\(/.test(branch), false,
+    'the same-story branch must not call confirmLeavingDirtyBody() — every keystroke is '
+      + 'already staged in the hidden field, so nothing is lost by moving the editor');
+  assert.match(branch, /mountEditor\s*\(\s*activeArt\s*,\s*regionKey\s*,\s*true\s*\)/,
+    'it should re-mount with the carry flag so the dirty state survives the switch');
+});
+
+test('a same-story re-mount carries the dirty flag instead of clearing it', () => {
+  // mountEditor(art, key, carryDirty): the third argument decides whether
+  // bodyDirty is preserved. Without it, "headline typed, then body clicked,
+  // then another story clicked" would lose the headline silently, because the
+  // body mount had reset the flag the story-switch guard relies on.
+  assert.match(CODE, /function mountEditor\s*\(\s*art\s*,\s*targetKey\s*,\s*carryDirty\s*\)/,
+    'mountEditor should take a carryDirty parameter');
+  assert.match(CODE, /bodyDirty\s*=\s*carryDirty\s*\?\s*bodyDirty\s*:\s*false/,
+    'the flag should be preserved when carrying and cleared otherwise');
+});
+
+test('the two story-switch branches still ask before discarding', () => {
+  // The counterweight: those are the only paths that re-seed the fields.
+  const guardCalls = CODE.match(/confirmLeavingDirtyBody\s*\(\)\s*\.then/g) || [];
+  assert.ok(guardCalls.length >= 2,
+    `expected the story-switch branches to keep the guard, found ${guardCalls.length} call(s)`);
+});
+
+test('mounting inside a collapsed body disclosure opens it', () => {
+  // The side and widget cards wrap their body region in a closed <details>.
+  // Mounting there without opening it puts the editor somewhere the editor
+  // cannot see — which is where a brand-new side story lands by default.
+  const at = CODE.indexOf('function mountEditor');
+  const fn = CODE.slice(at, CODE.indexOf('function ', at + 10));
+  assert.match(fn, /closest\(\s*'details'\s*\)/,
+    'mountEditor should look for a <details> ancestor of the target region');
+  assert.match(fn, /\.open\s*=\s*true/,
+    'and open it, so the mounted editor is visible');
+});

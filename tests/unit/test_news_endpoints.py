@@ -428,7 +428,21 @@ class NewsUnassignEndpointTestCase(TestCase):
 
 
 class NewsDestroyDerivativeCleanupTestCase(TestCase):
-    def test_destroy_removes_derivative_files(self):
+    def test_destroy_keeps_the_image_files_because_the_row_is_recoverable(self):
+        """Inverted deliberately: this used to assert that destroy() unlinked
+        the original and both WebP derivatives.
+
+        News soft-deletes now, so destroy() writes a tombstone instead of
+        removing the row. Deleting the files alongside it would make the
+        deletion half-recoverable in the worst way — the story comes back with
+        a broken <img> and its .large/.thumb variants gone for good. Storage
+        is cheap; an unrecoverable photo on a restored story is not.
+
+        The hard purge belongs to a path that does not exist yet (a Trash
+        panel's "Delete permanently", or a sweep over News.only_trashed()),
+        and that path is where _delete_image_files belongs. Until then this
+        test exists to stop someone "restoring" the unlink as a tidy-up.
+        """
         controller = NewsController()
 
         rel_original = "news/__test_derivative_cleanup__.jpg"
@@ -459,9 +473,12 @@ class NewsDestroyDerivativeCleanupTestCase(TestCase):
             ), patch("app.controllers.gears.NewsController.Cache"):
                 controller.destroy(request, response)
 
-            self.assertFalse(os.path.isfile(original_path))
-            self.assertFalse(os.path.isfile(large_path))
-            self.assertFalse(os.path.isfile(thumb_path))
+            # The row is tombstoned...
+            self.assertTrue(record.delete.called)
+            # ...and every file survives, so a restore renders correctly.
+            self.assertTrue(os.path.isfile(original_path))
+            self.assertTrue(os.path.isfile(large_path))
+            self.assertTrue(os.path.isfile(thumb_path))
         finally:
             for path in (original_path, large_path, thumb_path):
                 if os.path.isfile(path):
@@ -484,6 +501,19 @@ def _mock_actor_request(inputs, role=None, user_id=7):
 
 
 class NewsStoreSchedulingTestCase(TestCase):
+    def setUp(self):
+        super().setUp()
+        # store() now requires a category and validates it against a LIVE row.
+        # Patched rather than seeded because these tests never touch the
+        # database — the real find_live swallows the connection error and
+        # returns None, which would fail the request before store() runs.
+        patcher = patch(
+            "app.controllers.gears.NewsController.NewsCategories.find_live",
+            return_value=Mock(id=1, name="Campus News"),
+        )
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
     def _store_inputs(self, published_at, status="published"):
         return {
             "title": "Future Story",
@@ -499,6 +529,7 @@ class NewsStoreSchedulingTestCase(TestCase):
             "priority": "3",
             "image": None,
             "article_id": "",
+            "category_id": "1",
         }
 
     def test_future_published_at_persists_scheduled_status(self):
@@ -583,6 +614,19 @@ class FeaturedImageRemovalTestCase(TestCase):
     (otherwise every text-only edit would wipe the photo), so clearing one
     needs an explicit flag rather than an absent file."""
 
+    def setUp(self):
+        super().setUp()
+        # store() now requires a category and validates it against a LIVE row.
+        # Patched rather than seeded because these tests never touch the
+        # database — the real find_live swallows the connection error and
+        # returns None, which would fail the request before store() runs.
+        patcher = patch(
+            "app.controllers.gears.NewsController.NewsCategories.find_live",
+            return_value=Mock(id=1, name="Campus News"),
+        )
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
     def _existing_record(self):
         record = Mock(
             id=1,
@@ -604,6 +648,7 @@ class FeaturedImageRemovalTestCase(TestCase):
             "article_id": "1",
             "layout_type": "main",
             "status": "published",
+            "category_id": "1",
         }
         base.update(inputs)
         request = _mock_request(inputs=base, ajax=True)

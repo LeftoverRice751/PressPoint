@@ -42,9 +42,22 @@ function loadTourScript(src) {
 }
 
 function setTourMessage(message) {
+  if (!message) return;
   var helper = document.querySelector('.tour-helper');
-  if (helper && message) {
+  if (helper) {
     helper.textContent = message;
+  }
+  // The start gate is what the visitor is looking at when the vendor bundles
+  // fail, and its button never gets a listener in that path (initTour returns
+  // before wiring it). Say so there rather than leaving a button that reads as
+  // pressable and does nothing.
+  var gateMessage = document.querySelector('[data-tour-start-message]');
+  if (gateMessage) {
+    gateMessage.textContent = message;
+  }
+  var gateButton = document.querySelector('[data-tour-start-button]');
+  if (gateButton) {
+    gateButton.setAttribute('hidden', 'hidden');
   }
 }
 
@@ -1002,13 +1015,39 @@ function initTour() {
     document.dispatchEvent(new CustomEvent('tour:ready'));
   }
 
-  // The tour opens straight into the panorama — no Start/Exit splash. Tapping
-  // "Virtual Tour" on the kiosk menu is already the "start" gesture, and the
-  // splash made it two taps to see anything. The way out is the shared kiosk
-  // back bar (templates/partials/kiosk-back.html), which is rendered outside
-  // this script's reach so a failure in here can never strand a visitor on a
-  // dead page with no exit.
-  startTour();
+  /* ── The start gate ───────────────────────────────────────────────────
+   *
+   * The tour used to call startTour() on load. That was fine while tapping
+   * "Virtual Tour" in the kiosk menu was itself the start gesture, but the
+   * shell's carousel loads this page just for sliding past the card — so a
+   * visitor browsing the menu got a live, spinning panorama with nothing
+   * saying it was theirs to drag.
+   *
+   * Nothing renders until the button is pressed: #pano is opacity:0 and
+   * pointer-events:none until body.tour-ready, and switchScene() (which is
+   * what actually pulls tiles) is inside startTour().
+   *
+   * If the overlay is absent — an older cached template, or someone removing
+   * the markup — start immediately. The failure mode of a missing gate is the
+   * old behaviour; the failure mode of waiting for a button that is not there
+   * is a kiosk stuck on a black screen.
+   */
+  var startGateElement = document.querySelector('[data-tour-start]');
+  var startButtonElement = document.querySelector('[data-tour-start-button]');
+
+  function dismissStartGate() {
+    if (startGateElement) {
+      startGateElement.classList.add('tour-start--gone');
+      startGateElement.setAttribute('hidden', 'hidden');
+    }
+    startTour();
+  }
+
+  if (startButtonElement) {
+    startButtonElement.addEventListener('click', dismissStartGate);
+  } else {
+    dismissStartGate();
+  }
 }
 
 ensureTourDependencies()

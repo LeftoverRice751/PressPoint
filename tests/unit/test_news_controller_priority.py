@@ -5,6 +5,19 @@ from tests import TestCase
 
 
 class NewsControllerPriorityTestCase(TestCase):
+    def setUp(self):
+        super().setUp()
+        # store() requires a category and validates it against a LIVE row, so
+        # every store test needs one. Patched rather than seeded because these
+        # tests never touch the database — the real find_live would swallow
+        # the connection error and return None, failing the request.
+        patcher = patch(
+            "app.controllers.gears.NewsController.NewsCategories.find_live",
+            return_value=Mock(id=1, name="Campus News"),
+        )
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
     def test_new_story_without_explicit_priority_appends_after_current_lead(self):
         """A newly created story posts priority='0' from the composer today
         (see resources/js/news-dashboard.js). Under the new ascending sort,
@@ -28,6 +41,7 @@ class NewsControllerPriorityTestCase(TestCase):
             "priority": "0",
             "image": None,
             "article_id": "",
+            "category_id": "1",
         }
         request = Mock()
         request.input.side_effect = lambda key: inputs.get(key)
@@ -76,6 +90,7 @@ class NewsControllerPriorityTestCase(TestCase):
             "priority": "3",
             "image": None,
             "article_id": "",
+            "category_id": "1",
         }
         request = Mock()
         request.input.side_effect = lambda key: inputs.get(key)

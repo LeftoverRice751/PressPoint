@@ -20,9 +20,10 @@
     (908x1296) and the kiosk panel is 768x1024 at DPR 2 -- so the preview was
     visibly soft and the terminal downloaded the whole ~100 MB PDF on open just
     to have pdf.js re-rasterise pages the server had already rendered. Pages are
-    now WebP at zoom 3.0 (1512x2160, and smaller on disk than the old PNGs), so
-    there is nothing left to paper over: the PDF is fetched only if the reader
-    actually pinch-zooms. The EAGER_PDF branch in kiosk-archive-book.js stays,
+    now WebP rendered to a target size (2400 px on the long edge, capped at the
+    scan's own pixels, plus a `@2x` detail tier where the scan has more -- see
+    ArchiveServices.plan_page_zooms), so there is nothing left to paper over:
+    the PDF is fetched only if the reader pinch-zooms past every server tier. The EAGER_PDF branch in kiosk-archive-book.js stays,
     so re-enabling this is a one-attribute change.
   #}
   <div
@@ -91,6 +92,11 @@
               data-page-extension="{{ archive.page_extension }}"
               data-direct-pages="{{ archive.direct_pages if archive.direct_pages else 0 }}"
               data-prewarmed-pages="{{ archive.prewarmed_pages if archive.prewarmed_pages else 0 }}"
+              {# Detail tier for pinch-zoom: `page-N@2x.webp`, written only
+                 when the source scan out-resolves the fit render. 0 means
+                 zooming goes straight from the fit tier to pdf.js. #}
+              data-detail-pages="{{ archive.detail_pages if archive.detail_pages else 0 }}"
+              data-detail-suffix="{{ archive.detail_suffix if archive.detail_suffix else '@2x' }}"
             >
               <span class="archive-card__cover-wrap">
                 {% if archive.cover_url %}

@@ -13,12 +13,15 @@ That is what "later pages take forever to load" was.
 The cap is gone from the code, but that only helps archives uploaded from now
 on. This script is what fixes the ones already on the NAS.
 
-It also moves pages from PNG to WebP at the new PAGE_RENDER_ZOOM. That is not
-cosmetic: measured on a real 180-page issue, page 1 is 1758 KB as PNG at zoom
-1.8 and 185 KB as WebP at zoom 3.0 -- sharper AND ~9x smaller. Legacy PNGs are
-deleted as each archive is re-rendered, because a directory holding both
-extensions is only partially addressable by the reader (see
-ArchiveServices.count_direct_pages).
+It also brings every archive up to the current render plan. Rasters used to
+be a fixed zoom multiplier over the PDF's point size, so a half-size scan came
+out at 1296 px -- softer than both the kiosk panel and the scan inside the
+PDF. The plan is now a target pixel size capped at the scan's native
+resolution, plus a `@2x` detail tier for pinch-zoom when the scan has the
+headroom (see ArchiveServices.plan_page_zooms). An archive whose pages on disk
+do not match that plan -- wrong size, missing detail tier, legacy .png -- has
+its pages directory removed and is swept again. While that runs the reader
+falls back to pdf.js for that one archive, so run it off-hours.
 
 Run with the project's venv Python from the repo root:
 
@@ -46,7 +49,6 @@ from app.services.ArchiveServices import (  # noqa: E402
     ArchiveServices,
     LEGACY_PAGE_EXTENSION,
     PAGE_EXTENSION,
-    PAGE_RENDER_ZOOM,
 )
 
 
@@ -91,28 +93,26 @@ def process(archive, service, dry_run):
         print(f"  {label}: page count unreadable — skipped")
         return
 
-    direct = service.count_direct_pages(file_path, page_count)
-    if direct >= page_count:
-        print(f"  {label}: already {page_count}/{page_count} WebP — nothing to do")
+    if service.is_rendered_to_plan(file_path, page_count):
+        print(f"  {label}: already {page_count}/{page_count} pages to plan — nothing to do")
         return
 
+    direct = service.count_direct_pages(file_path, page_count)
     legacy = _legacy_pages(service, file_path, page_count)
-    missing = page_count - direct
+    reason = "not yet rendered" if direct == 0 and not legacy else "off-plan (re-rendering)"
 
-    print(f"  {label}: {page_count} pages — {missing} to render, {len(legacy)} legacy PNG to drop")
+    print(f"  {label}: {page_count} pages — {reason}, {len(legacy)} legacy PNG to drop")
     if dry_run:
         return
 
-    # Delete the PNGs *first*. prewarm_archive_pages() treats a page present
-    # under either extension as done, so leaving them would pin those pages at
-    # the old soft raster and leave the directory mixed — which caps
-    # count_direct_pages() at the first PNG and sends the reader back through
-    # the Python route for the whole document.
-    for path in legacy:
-        try:
-            os.remove(path)
-        except OSError as error:
-            print(f"    could not remove {path}: {error}")
+    # Start clean. prewarm_archive_pages() treats a page already on disk as
+    # done — under either extension — so anything left behind would pin those
+    # pages at the old raster and leave the directory mixed, which caps
+    # count_direct_pages() at the first mismatch and sends the reader back
+    # through the Python route for the whole document. Removing the directory
+    # also drops the completion markers, so the counts are honest mid-sweep.
+    if direct or legacy:
+        service.cleanup_archive_assets(file_path)
 
     started = time.time()
 
@@ -120,14 +120,15 @@ def process(archive, service, dry_run):
         if done % 25 == 0 or done == total:
             print(f"    {done}/{total} pages ({time.time() - started:.0f}s)", flush=True)
 
-    service.prewarm_archive_pages(file_path, zoom=PAGE_RENDER_ZOOM, progress=progress)
+    service.prewarm_archive_pages(file_path, progress=progress)
 
     rendered = service.count_direct_pages(file_path, page_count)
+    detail = service.count_detail_pages(file_path, page_count)
     directory = service._storage_public_path(service._page_directory_relative(file_path))
     megabytes = _directory_bytes(directory) / 1024 / 1024
-    status = "ok" if rendered >= page_count else "INCOMPLETE"
-    print(f"    {status}: {rendered}/{page_count} pages, {megabytes:.1f} MB, "
-          f"{time.time() - started:.0f}s")
+    status = "ok" if service.is_rendered_to_plan(file_path, page_count) else "INCOMPLETE"
+    print(f"    {status}: {rendered}/{page_count} pages, {detail} with detail tier, "
+          f"{megabytes:.1f} MB, {time.time() - started:.0f}s")
 
 
 def main():
@@ -144,7 +145,7 @@ def main():
         wanted = set(args.id)
         archives = [a for a in archives if getattr(a, "id", None) in wanted]
 
-    print(f"{len(archives)} archive(s); rendering {PAGE_EXTENSION} at zoom {PAGE_RENDER_ZOOM}"
+    print(f"{len(archives)} archive(s); rendering {PAGE_EXTENSION} to the current plan"
           + (" [dry run]" if args.dry_run else ""))
     for archive in archives:
         process(archive, service, args.dry_run)

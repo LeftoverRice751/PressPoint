@@ -171,6 +171,8 @@ class ArchiveCardAttributesTestCase(TestCase):
             "page_extension": ".webp",
             "direct_pages": 44,
             "prewarmed_pages": 44,
+            "detail_pages": 44,
+            "detail_suffix": "@2x",
         }
         archive.update(overrides)
         return View.render(
@@ -183,6 +185,36 @@ class ArchiveCardAttributesTestCase(TestCase):
 
     def test_card_publishes_the_prewarmed_page_count(self):
         self.assertIn('data-prewarmed-pages="44"', self._render())
+
+    def test_card_publishes_the_detail_tier(self):
+        markup = self._render()
+        self.assertIn('data-detail-pages="44"', markup)
+        self.assertIn('data-detail-suffix="@2x"', markup)
+        # ...and zero, not blank, when the sweep wrote no detail tier.
+        self.assertIn('data-detail-pages="0"', self._render(detail_pages=0))
+
+    def test_reader_chrome_carries_the_magnify_control(self):
+        self.assertIn("data-reader-magnify", self._render())
+
+    def test_mobile_card_and_chrome_carry_the_same_contract(self):
+        # templates/mobile/archives.html is a deliberate copy of the overlay
+        # markup, so every reader hook has to be added there by hand too.
+        from masonite.facades import View
+
+        archive = {
+            "id": 3, "name": "Folio 2026", "type": "Magazine", "year": 2026,
+            "cover_url": "", "pdf_url": "/storage/Archives/doc.pdf", "page_count": 44,
+            "is_tabloid": False, "first_page_url": "", "page_url_base": "/kiosk/archives/3/pages",
+            "page_storage_base": "/storage/Archives/pages/doc", "page_extension": ".webp",
+            "direct_pages": 44, "prewarmed_pages": 44, "detail_pages": 44, "detail_suffix": "@2x",
+        }
+        markup = View.render(
+            "mobile/archives",
+            {"archives": [archive], "archives_by_year": {2026: [archive]}, "years": [2026]},
+        ).get_content()
+        self.assertIn('data-detail-pages="44"', markup)
+        self.assertIn('data-detail-suffix="@2x"', markup)
+        self.assertIn("data-reader-magnify", markup)
 
     def test_card_publishes_the_direct_storage_prefix(self):
         markup = self._render()

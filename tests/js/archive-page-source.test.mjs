@@ -17,7 +17,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { hasServerPage, serverPageUrl } from '../../resources/js/archive-page-source.mjs';
+import { hasServerPage, serverDetailUrl, serverPageUrl } from '../../resources/js/archive-page-source.mjs';
 
 // A fully-swept modern archive: every page rendered as WebP on the NAS.
 const swept = {
@@ -89,4 +89,44 @@ test('the extension defaults to .webp when the server did not say', () => {
   const noExtension = { ...swept, pageExtension: '' };
 
   assert.equal(serverPageUrl(noExtension, 5), '/storage/Archives/pages/doc/page-5.webp');
+});
+
+// ── Detail tier ─────────────────────────────────────────────
+// The server writes `page-N@2x.webp` beside the fit tier only when the source
+// scan holds meaningfully more pixels than the fit render (see
+// ArchiveServices.plan_page_zooms). `detailPages` is the contiguous run that
+// exists; the reader must never guess at a file the sweep chose not to write.
+
+test('a page inside the detail run addresses the @2x file at nginx', () => {
+  const withDetail = { ...swept, detailPages: 180, detailSuffix: '@2x' };
+  assert.equal(serverDetailUrl(withDetail, 1), '/storage/Archives/pages/doc/page-1@2x.webp');
+  assert.equal(serverDetailUrl(withDetail, 180), '/storage/Archives/pages/doc/page-180@2x.webp');
+});
+
+test('an archive with no detail tier yields nothing, even though fit pages exist', () => {
+  const fitOnly = { ...swept, detailPages: 0, detailSuffix: '@2x' };
+  assert.equal(serverDetailUrl(fitOnly, 1), '');
+});
+
+test('nothing is claimed past the detail run', () => {
+  const partial = { ...swept, detailPages: 12, detailSuffix: '@2x' };
+  assert.equal(serverDetailUrl(partial, 12), '/storage/Archives/pages/doc/page-12@2x.webp');
+  assert.equal(serverDetailUrl(partial, 13), '');
+});
+
+test('the detail run never extends past the direct run', () => {
+  // The sweep writes the fit tier first and the @2x beside it, so a detail
+  // file can only exist where a canonical fit page does. A count that says
+  // otherwise is stale (a legacy .png archive mid-backfill) and is not trusted.
+  const legacyDetail = { ...legacy, detailPages: 96, detailSuffix: '@2x' };
+  assert.equal(serverDetailUrl(legacyDetail, 1), '');
+
+  const midSweep = { ...swept, directPages: 40, detailPages: 96, detailSuffix: '@2x' };
+  assert.equal(serverDetailUrl(midSweep, 40), '/storage/Archives/pages/doc/page-40@2x.webp');
+  assert.equal(serverDetailUrl(midSweep, 41), '');
+});
+
+test('detail counts arriving as strings from the dataset are coerced', () => {
+  const fromDataset = { ...swept, detailPages: '180', detailSuffix: '@2x' };
+  assert.equal(serverDetailUrl(fromDataset, 99), '/storage/Archives/pages/doc/page-99@2x.webp');
 });

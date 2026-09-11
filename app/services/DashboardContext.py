@@ -20,6 +20,8 @@ from app.models.Posts import Posts
 from app.models.TourScenes import TourScenes
 from app.models.User import User
 from app.models.Video import Video
+from app.models.NewsCategory import NewsCategory
+from app.services import NewsCategories
 from app.services.AboutContent import AboutContent
 from app.services.ArchiveServices import ArchiveServices
 from app.services.OrgBoardTree import build_org_board_organizations, organization_sort_key
@@ -260,6 +262,35 @@ def news_context():
         # Built once here rather than per row: the alternative is an N+1 across
         # a table the composer renders in full.
         "news_authors": author_names(news_items),
+        # news_categories.id -> display name, for the Story Library's Category
+        # column. Same one-query shape as news_authors above, and for the same
+        # reason.
+        "news_category_lookup": NewsCategories.names_by_id(),
+        # The category modal is rendered as part of the news panel on the FULL
+        # page, so its two context keys have to be here too — not only in
+        # news_categories_context(). Without them the full-page render hits an
+        # undefined `news_categories_json` in the partial's JSON block.
+        **news_categories_context(),
+    }
+
+
+def news_categories_context():
+    """Context for the categories fragment.
+
+    This section exists so a category rename propagates to another editor's
+    open composer. A rename touches zero `news` rows, so section_stamp(News)
+    does not move and the news fragment never refreshes for it — the category
+    list needs a stamp of its own.
+
+    Both keys hold the SAME list of dicts. `news_categories` is what the
+    partial iterates (it reads `category.story_count`, which is not a column,
+    so model rows would render an empty count with no error); the JSON block
+    is what news-dashboard.js re-reads after a live refresh.
+    """
+    categories = NewsCategories.describe_all()
+    return {
+        "news_categories": categories,
+        "news_categories_json": categories,
     }
 
 
@@ -462,6 +493,7 @@ FRAGMENT_SECTIONS = {
     "archives": archives_context,
     "videos": videos_context,
     "news": news_context,
+    "news-categories": news_categories_context,
 }
 
 

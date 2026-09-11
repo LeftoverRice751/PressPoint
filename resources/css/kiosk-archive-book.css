@@ -280,6 +280,49 @@
   pointer-events: none;
 }
 
+/* Magnify: opens the current page in the tabloid's zoom viewer. Mirrors the
+   pager's pill on the opposite corner so the two read as one strip. Only
+   the book and scroll readers show it — the tabloid viewer pinches natively
+   and the script hides it there. While magnified the Back pill is the way
+   out, so this one steps aside. */
+.reader-chrome__magnify {
+  position: absolute;
+  top: clamp(16px, 2.6vh, 28px);
+  left: clamp(12px, 2vw, 24px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 2px solid var(--book-soot);
+  border-radius: 999px;
+  background: var(--book-paper);
+  color: var(--book-soot);
+  font-family: var(--book-font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 3px 0 0 var(--book-soot);
+}
+
+.reader-chrome__magnify span[aria-hidden] {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.reader-chrome__magnify:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 0 var(--book-soot);
+}
+
+.reader-chrome__magnify[hidden],
+.archive-book-overlay.is-magnified .reader-chrome__magnify {
+  display: none;
+}
+
 /* Page-turn arrows: large, pinned to the left/right edges, vertically
    centered over the spread. Desktop only — the touch media query below
    keeps them hidden so kiosk/mobile stay swipe-driven. */

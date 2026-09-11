@@ -137,6 +137,37 @@ class AccountChromeTestCase(TestCase):
         html = self._render_dashboard()
         self.assertIn("data-dashboard-shell", html)
 
+    def test_the_news_panel_emits_its_toolbar_controls(self):
+        """The server half of the dead-button bug.
+
+        "Add New News" did nothing when clicked because the JS looked for it
+        inside [data-news-composer] while it renders in .news-toolbar, a
+        SIBLING of that element (see tests/js/news-toolbar-scope.test.mjs for
+        the scoping half). Nothing was wrong with the markup — but if the
+        button ever stops being RENDERED, the symptom an editor reports is
+        identical, so pin the server side too.
+        """
+        html = self._render_dashboard()
+
+        self.assertIn("data-news-add", html)
+        self.assertIn("data-news-prev", html)
+        self.assertIn("data-news-next", html)
+        self.assertIn("data-news-bench", html)
+
+    def test_the_category_modal_renders_with_its_category_list(self):
+        """The modal is included in the full page render, not fetched — so a
+        missing context key here is a 500 on the whole dashboard, not a
+        degraded modal. `news_categories_json` in particular is produced by
+        news_categories_context() and has to reach the partial through
+        news_context()."""
+        html = self._render_dashboard()
+
+        self.assertIn("data-news-category-modal", html)
+        self.assertIn("data-news-categories-json", html)
+        # The confirm action starts disabled: a category is required, and the
+        # button must not be pressable before one is chosen.
+        self.assertIn("data-news-category-confirm", html)
+
     def test_profile_border_shows_the_display_name(self):
         html = self._render_dashboard()
         self.assertIn("Juan Dela Cruz", html)

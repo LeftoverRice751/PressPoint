@@ -7,6 +7,10 @@
   <link rel="icon" href="{{ site_logo() }}">
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}" />
 
+  {# Vendored verbatim by webpack.mix.js, NOT imported from kiosk-news.js:
+     Mix extracts JS-imported CSS to storage/compiled/js/<entry>.css, an
+     unlinked path that silently shadows the real stylesheet. #}
+  <link rel="stylesheet" href="{{ asset_url('css/swiper-bundle.min.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/newsletter-type.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-nav.css') }}" />
@@ -15,6 +19,21 @@
   {% set main_story = main_news if main_news else featured_news %}
   {% set secondary_stories = secondary_news if secondary_news else (news_items[1:5] if news_items|length > 1 else []) %}
   {% set issue_date = main_story.published_label if main_story and main_story.published_label else 'Latest edition' %}
+
+  {# ── Carousel ─────────────────────────────────────────────────────────────
+     Slide 1 is the broadsheet, unchanged: the lead plus the secondary and
+     widget slots the composer arranges. Slides 2..N are every other approved
+     story, one per slide, each labelled with its category — so nothing
+     approved is unreachable just because it did not fit in the seven slots.
+
+     The Swiper wrapper lives HERE rather than inside kiosk/_news_slots.html
+     because that partial has four consumers (this page, the composer canvas,
+     the review preview and the news-canvas fragment). Wrapping it there would
+     put Swiper in a fight with the composer's drag-and-drop over the same
+     DOM. #}
+  <div class="swiper news-swiper" data-news-swiper>
+    <div class="swiper-wrapper">
+      <article class="swiper-slide news-slide news-slide--broadsheet">
 
   <div class="paper-container">
     {# Folio → masthead → double rule → strapline. The double rule is the
@@ -39,6 +58,53 @@
     <main class="paper-grid">
       {% include 'kiosk/_news_slots.html' %}
     </main>
+  </div>
+
+      </article>
+
+      {% for story in carousel_news %}
+      <article class="swiper-slide news-slide news-slide--story">
+        <div class="news-slide__inner">
+          {# Category at the top of every story, which is the whole point of
+             the label existing — it tells a reader what section they are in
+             without a nav. #}
+          <p class="news-slide__category">{{ story.category if story.category else 'Uncategorized' }}</p>
+
+          {# `| safe` for the same reason the broadsheet does it: headlines are
+             Quill HTML, sanitized server-side by _sanitize_headline_html. Any
+             ATTRIBUTE printing a title still needs `| striptags`. #}
+          <h2 class="news-slide__title">{{ story.title | safe }}</h2>
+
+          {% if story.dek %}
+          <p class="news-slide__dek">{{ story.dek }}</p>
+          {% endif %}
+
+          <div class="news-slide__meta">
+            {% if story.published_label %}
+            <time datetime="{{ story.published_iso }}">{{ story.published_label }}</time>
+            {% endif %}
+            {% if story.source %}<span>{{ story.source }}</span>{% endif %}
+          </div>
+
+          {% if story.image %}
+          <img class="news-slide__image" src="/storage/{{ story | news_image('large') }}"
+               alt="{{ story.title | striptags }}" loading="lazy" decoding="async">
+          {% endif %}
+
+          <div class="news-slide__copy">{{ story.description | safe }}</div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+
+    {# Pagination and arrows are the non-touch fallback. Real <button>s, so
+       the page still works with JS dead — Swiper simply never binds them. #}
+    <div class="swiper-pagination news-swiper__pagination" data-news-pagination></div>
+  </div>
+
+  <div class="news-swiper__nav">
+    <button type="button" class="news-swiper__arrow" data-news-prev aria-label="Previous story">&lsaquo;</button>
+    <button type="button" class="news-swiper__arrow" data-news-next aria-label="Next story">&rsaquo;</button>
   </div>
 
   {# Reader overlay — populated from the lead story by kiosk-news.js when the

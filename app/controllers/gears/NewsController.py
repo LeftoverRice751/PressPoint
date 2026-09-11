@@ -16,6 +16,7 @@ from config.database import DB
 
 from app.events.NewNews import NewNews
 from app.models.News import News
+from app.services import NewsCache, NewsCategories
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.DashboardContext import group_news_slots, section_stamp
 from app.services.ImageDerivatives import generate_variants, variant_path, variant_relpath
@@ -321,11 +322,17 @@ def _pusher_configured():
 # reloads every 30s per device — but written rarely (an editor publishing/
 # deleting a story), so it's cached and explicitly invalidated on write
 # rather than re-scanning the whole table on every single request.
-_NEWS_CACHE_KEY = "kiosk:news:index:v4"  # bump on projection changes to drop stale entries
-_NEWS_CACHE_TTL = 300  # seconds — safety net only; writes invalidate explicitly.
+#
+# The key itself moved to app/services/NewsCache.py, because a CATEGORY write
+# also has to invalidate this: renaming a category changes a label the kiosk
+# renders while touching zero `news` rows, so no news-side invalidation would
+# ever fire for it. These aliases stay because the existing tests patch and
+# assert against these names.
+_NEWS_CACHE_KEY = NewsCache.KEY
+_NEWS_CACHE_TTL = NewsCache.TTL
 
 
-def _news_item_to_dict(item, disk=None):
+def _news_item_to_dict(item, disk=None, category_names=None):
     """Plain, JSON-safe projection of a News model instance — the file
     cache driver json.dumps()s dict values, which a masoniteorm Model
     instance is not. Jinja2's `.` operator falls back to item access on
@@ -337,8 +344,16 @@ def _news_item_to_dict(item, disk=None):
     # not per request. variant_path falls back to the original if missing.
     image_large = variant_path(image, "large", disk) if (image and disk) else image
     image_thumb = variant_path(image, "thumb", disk) if (image and disk) else image
+    # Category label, resolved from a {id: name} dict built ONCE per payload
+    # rather than per story — same shape as DashboardContext.author_names().
+    # Deliberately not an ORM relationship: with ~20 stories and well under 20
+    # categories there is no N+1 to avoid, and a relationship would be another
+    # thing to configure and keep in sync.
+    category_id = getattr(item, "category_id", None)
     return {
         "id": getattr(item, "id", None),
+        "category_id": category_id,
+        "category": (category_names or {}).get(category_id),
         "title": getattr(item, "title", None),
         "description": getattr(item, "description", None),
         "image": image,
@@ -396,6 +411,13 @@ class NewsController(Controller):
         except Exception:
             disk = None
 
+        # One query for every live category name, resolved behind this cache
+        # so a rename costs nothing per request. A story whose category was
+        # soft-deleted resolves to None here — but it cannot reach this point
+        # anyway, because deleting a category cascades a soft-delete to its
+        # stories and the global scope has already excluded them above.
+        category_names = NewsCategories.names_by_id()
+
         # Folio issue numbering, derived from the lead story's date (no
         # schema): Vol. counts publication years since founding (2026 → 1),
         # No. is the day-of-year — a plausible daily issue number that
@@ -408,11 +430,28 @@ class NewsController(Controller):
             issue_vol = max(1, lead_at.year - 2025)
             issue_no = lead_at.timetuple().tm_yday
 
+        def project(item):
+            return _news_item_to_dict(item, disk, category_names)
+
+        # Slide 1 of the kiosk carousel is the broadsheet — the lead plus the
+        # secondary and widget slots, exactly as before. `carousel_news` is
+        # every OTHER public story, one per slide after it, so nothing is
+        # shown twice and nothing that is approved is unreachable.
+        #
+        # Identity comparison against the slot objects, not id equality: these
+        # are the same model instances group_news_slots was handed, and an id
+        # set would need the None-lead case special-cased.
+        on_front_page = [slots["main_news"], *slots["secondary_news"], *slots["widget_news"]]
+        carousel_items = [
+            item for item in news_items if not any(item is placed for placed in on_front_page)
+        ]
+
         return {
-            "news_items": [_news_item_to_dict(item, disk) for item in news_items],
-            "main_news": _news_item_to_dict(slots["main_news"], disk) if slots["main_news"] else None,
-            "secondary_news": [_news_item_to_dict(item, disk) for item in slots["secondary_news"]],
-            "widget_news": [_news_item_to_dict(item, disk) for item in slots["widget_news"]],
+            "news_items": [project(item) for item in news_items],
+            "main_news": project(slots["main_news"]) if slots["main_news"] else None,
+            "secondary_news": [project(item) for item in slots["secondary_news"]],
+            "widget_news": [project(item) for item in slots["widget_news"]],
+            "carousel_news": [project(item) for item in carousel_items],
             "issue_vol": issue_vol,
             "issue_no": issue_no,
         }
@@ -431,6 +470,11 @@ class NewsController(Controller):
                 "main_news": payload["main_news"],
                 "secondary_news": payload["secondary_news"],
                 "widget_news": payload["widget_news"],
+                # .get(), not [] — a cache entry written before carousel_news
+                # existed would KeyError here. The version bump on
+                # NewsCache.KEY should make that unreachable; this is the
+                # belt to that braces.
+                "carousel_news": payload.get("carousel_news") or [],
                 "issue_vol": payload.get("issue_vol"),
                 "issue_no": payload.get("issue_no"),
                 "active_nav": "news",
@@ -460,6 +504,7 @@ class NewsController(Controller):
         image_caption = _html_to_text(request.input("image_caption") or "").strip()
         image_credit = _html_to_text(request.input("image_credit") or "").strip()
         layout_type = (request.input("layout_type") or "secondary").strip().lower() or "secondary"
+        category_id = (request.input("category_id") or "").strip()
         actor_id = _current_user_id(request)
         # Fail closed. The old default here was "approved", which is publicly
         # visible — so a request that simply omitted `status` (a stale form, a
@@ -534,6 +579,20 @@ class NewsController(Controller):
         except (TypeError, ValueError):
             return _err(["Priority must be a valid number."])
 
+        # A category is required, and it is enforced HERE rather than only in
+        # the composer's submit modal — for the same reason
+        # _resolve_status_for_actor is enforced server-side. The UI is just a
+        # form; a hand-crafted POST that omits the field has to fail too.
+        #
+        # Validated against a LIVE category: the id has to exist AND not be a
+        # tombstone. Pointing a story at a soft-deleted category would blank
+        # its label on the kiosk, and the FK alone cannot catch that (a
+        # tombstone is still a real row).
+        if not category_id:
+            return _err(["Please choose a category for this story."])
+        if not NewsCategories.find_live(category_id):
+            return _err(["That category no longer exists. Pick another one."])
+
         # Ascending priority now means "lower number = earlier slot" (see
         # DashboardContext.group_news_slots). A brand-new story with no
         # explicit priority — the composer always posts priority=0 today —
@@ -583,7 +642,19 @@ class NewsController(Controller):
             if article_id:
                 existing = News.where("id", article_id).first()
                 if not existing:
+                    # The lookup above is soft-delete scoped, so a story that
+                    # was deleted underneath this editor — most likely by
+                    # someone deleting its whole category — reads as missing.
+                    # Say which it is: falling through to the create branch
+                    # would silently fork a second row, and a bare "not found"
+                    # sends the editor looking for a typo that isn't there.
+                    if News.with_trashed().where("id", article_id).first():
+                        return _err([
+                            "That story was deleted while you were editing it. "
+                            "Restore it from its category before saving again.",
+                        ])
                     return _err(["Article not found."])
+                existing.category_id = category_id
                 existing.title = title
                 existing.description = description
                 existing.source = source or None
@@ -618,6 +689,7 @@ class NewsController(Controller):
                 is_new = False
             else:
                 saved_news = News.create(
+                    category_id=category_id,
                     title=title,
                     description=description,
                     image=image_path,
@@ -893,8 +965,23 @@ class NewsController(Controller):
         if not record:
             return _err(["Article not found."])
 
-        # Remove the uploaded image and its derivatives too.
-        _delete_image_files(getattr(record, "image", None))
+        # NOTE: this deliberately does NOT delete the image files any more.
+        #
+        # `record.delete()` is a SOFT delete now (News mixes in
+        # SoftDeletesMixin), so the row is recoverable — but its image would
+        # not be. A restored story would render a broken <img> with its
+        # .large/.thumb WebP derivatives gone for good, which is a worse
+        # outcome than leaving a few files on disk.
+        #
+        # This also fixes an existing bug in passing: the unlink used to run
+        # BEFORE record.delete() succeeded, so a failing delete already
+        # orphaned the derivatives while keeping the row.
+        #
+        # The hard purge belongs to a path that does not exist yet — a Trash
+        # panel's "Delete permanently", or a maintenance command walking
+        # News.only_trashed() — and would pair force_delete() with
+        # _delete_image_files(). Until then, the cost of this change is that
+        # a deleted story's images stay on disk indefinitely.
 
         try:
             record.delete()

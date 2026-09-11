@@ -72,6 +72,19 @@ class FailClosedStatusTestCase(TestCase):
 
 
 class PrivilegeTestCase(TestCase):
+    def setUp(self):
+        super().setUp()
+        # store() now requires a category and validates it against a LIVE row.
+        # Patched rather than seeded because these tests never touch the
+        # database — the real find_live swallows the connection error and
+        # returns None, which would fail the request before store() runs.
+        patcher = patch(
+            "app.controllers.gears.NewsController.NewsCategories.find_live",
+            return_value=Mock(id=1, name="Campus News"),
+        )
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
     def test_editor_publish_intent_is_downgraded_to_review(self):
         """The gate, stated directly."""
         request = _request(role="editor")
@@ -114,6 +127,7 @@ class PrivilegeTestCase(TestCase):
             "status": "published",
             "priority": "3",
             "article_id": "",
+            "category_id": "1",
             "image": None,
             "published_at": "",
         }
@@ -141,6 +155,7 @@ class PrivilegeTestCase(TestCase):
             "status": "draft",
             "priority": "1",
             "article_id": "",
+            "category_id": "1",
             "image": None,
             "published_at": "",
         }

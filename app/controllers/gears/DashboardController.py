@@ -15,6 +15,7 @@ from masonite.views import View
 from app.models.Archives import Archives
 from app.models.Events import Events
 from app.models.News import News
+from app.models.NewsCategory import NewsCategory
 from app.models.Organization import Organization
 from app.models.Video import Video
 from app.services.AjaxResponses import json_success, json_errors
@@ -34,6 +35,19 @@ FRAGMENTS = {
     # directly, right after a drawer assignment succeeds. See
     # resources/js/news-dashboard.js `refreshCanvasFragment()`.
     "news-canvas": (DashboardContext.news_canvas_context, "kiosk/_news_slots", "news_items"),
+    # The composer's category list. Refreshing it also re-emits the JSON block
+    # the category modal rebuilds its options from, so a category another
+    # editor just added becomes assignable without a reload — same pattern as
+    # org-board-organizations below.
+    #
+    # This needs its OWN section rather than riding on "news": a rename
+    # changes a label the kiosk renders while touching zero news rows, so
+    # section_stamp(News) does not move and the news poll would never fire.
+    "news-categories": (
+        DashboardContext.news_categories_context,
+        "gears/partials/news-categories-list",
+        "news_categories",
+    ),
     # The org board's managed organization list. Refreshing it also re-emits the
     # JSON block the three organization <select>s rebuild themselves from, so
     # adding one shows up in every dropdown without a page reload.
@@ -69,6 +83,10 @@ STAMP_MODELS = {
     "videos": Video,
     "news": News,
     "news-canvas": News,
+    # Its own model, deliberately: a rename bumps news_categories.updated_at
+    # and nothing on `news`, so watching News here would miss exactly the
+    # change this section exists to catch.
+    "news-categories": NewsCategory,
     # `fragment` indexes this dict unguarded, so every FRAGMENTS key needs one.
     "org-board-organizations": Organization,
     # Submissions are News rows, so the news stamp already moves when one

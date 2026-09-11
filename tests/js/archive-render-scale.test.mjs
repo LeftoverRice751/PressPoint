@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import {
   computeRenderScale,
   maxCanvasPixels,
+  rasterHeadroom,
   renderKey,
   MAX_DPR,
   PIXELS_16MP,
@@ -139,4 +140,45 @@ test('renderKey absorbs sub-pixel layout jitter', () => {
 
   // A change large enough to see still busts it.
   assert.notEqual(key, renderKey({ targetWidth: 700, targetHeight: 838, dpr: 2, zoom: 1 }));
+});
+
+// ── rasterHeadroom ──────────────────────────────────────────
+// The tabloid viewer swaps rasters as the reader pinches in: fit tier →
+// detail tier → pdf.js. Each swap should happen when the raster on screen
+// runs out of pixels, not at a fixed magnification — a 2400 px fit tier in a
+// 700 css-px box at DPR 2 is still sharp at 1.7x, and asking pdf.js for that
+// page means downloading the whole PDF for nothing.
+
+test('headroom is the magnification at which the raster is 1:1 on screen', () => {
+  // 2400x3200 raster fitted into 700x1000 css px at DPR 2: 700/2400 < 1000/3200
+  // so width binds — 700 css px = 1400 device px across. 2400/1400.
+  const headroom = rasterHeadroom({
+    contentWidth: 2400, contentHeight: 3200,
+    targetWidth: 700, targetHeight: 1000, dpr: 2,
+  });
+  assert.ok(Math.abs(headroom - 2400 / 1400) < 0.01, `got ${headroom}`);
+});
+
+test('headroom picks the binding axis of a fit-contain layout', () => {
+  // Same raster in a wide, short box: width no longer binds, height does.
+  const headroom = rasterHeadroom({
+    contentWidth: 2400, contentHeight: 3200,
+    targetWidth: 2000, targetHeight: 400, dpr: 1,
+  });
+  // 400 tall → 300 wide on screen; 2400/300.
+  assert.ok(Math.abs(headroom - 8) < 0.01, `got ${headroom}`);
+});
+
+test('headroom never drops below 1', () => {
+  // A raster smaller than the box is already being upscaled at fit.
+  const headroom = rasterHeadroom({
+    contentWidth: 600, contentHeight: 800,
+    targetWidth: 700, targetHeight: 1000, dpr: 3,
+  });
+  assert.equal(headroom, 1);
+});
+
+test('headroom degrades to 1 on missing geometry rather than NaN', () => {
+  assert.equal(rasterHeadroom({}), 1);
+  assert.equal(rasterHeadroom({ contentWidth: 0, contentHeight: 0, targetWidth: 10, targetHeight: 10 }), 1);
 });

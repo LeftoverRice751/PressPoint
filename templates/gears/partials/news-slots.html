@@ -14,6 +14,7 @@
          actually wrote anything. Source now has its own column. #}
       <th scope="col">Author</th>
       <th scope="col">Source</th>
+      <th scope="col">Category</th>
       <th scope="col">Slot</th>
       <th scope="col">Status</th>
       <th scope="col">Date</th>
@@ -23,7 +24,7 @@
     {% for news in news_items %}
     {% set _slot_label = {'main': 'Lead', 'secondary': 'Side', 'widget': 'Widget'}.get(news.layout_type, 'Side') %}
     {% set _story_status = (news.status if news.status else 'approved') %}
-    <tr class="wp-posts-table__row" data-news-library-item data-news-library-id="{{ news.id }}" data-news-library-title="{{ news.title | e }}" data-news-library-description="{{ news.description | default('', true) | e }}" data-news-library-source="{{ news.source | default('', true) | e }}" data-news-library-location="{{ news.location | default('', true) | e }}" data-news-library-layout="{{ news.layout_type | default('secondary', true) | e }}" data-news-library-status="{{ _story_status | e }}" data-news-library-priority="{{ news.priority if news.priority is not none else 0 }}" data-news-library-image="{{ news.image | default('', true) | e }}" data-news-library-dek="{{ news.dek | default('', true) | e }}" data-news-library-excerpt="{{ news.excerpt | default('', true) | e }}" data-news-library-caption="{{ news.image_caption | default('', true) | e }}" data-news-library-credit="{{ news.image_credit | default('', true) | e }}">
+    <tr class="wp-posts-table__row" data-news-library-item data-news-library-id="{{ news.id }}" data-news-library-title="{{ news.title | e }}" data-news-library-description="{{ news.description | default('', true) | e }}" data-news-library-source="{{ news.source | default('', true) | e }}" data-news-library-location="{{ news.location | default('', true) | e }}" data-news-library-layout="{{ news.layout_type | default('secondary', true) | e }}" data-news-library-status="{{ _story_status | e }}" data-news-library-priority="{{ news.priority if news.priority is not none else 0 }}" data-news-library-image="{{ news.image | default('', true) | e }}" data-news-library-dek="{{ news.dek | default('', true) | e }}" data-news-library-excerpt="{{ news.excerpt | default('', true) | e }}" data-news-library-caption="{{ news.image_caption | default('', true) | e }}" data-news-library-credit="{{ news.image_credit | default('', true) | e }}" data-news-library-category-id="{{ news.category_id | default('', true) }}" data-news-library-category="{{ news_category_lookup.get(news.category_id) | default('', true) | e if news_category_lookup else '' }}" data-news-library-rejection="{{ news.rejection_reason | default('', true) | e }}">
       <td class="wp-posts-table__title-cell">
         {# `| striptags` here but NOT on data-news-library-title above: this is
            a display cell in a plain table (formatting spans would render as
@@ -45,13 +46,14 @@
          author account has since been deleted (ON DELETE SET NULL). #}
       <td>{{ news_authors.get(news.author_id) if news.author_id and news_authors else '—' }}</td>
       <td>{{ news.source if news.source else 'Unspecified' }}</td>
+      <td>{{ news_category_lookup.get(news.category_id) if news.category_id and news_category_lookup else '—' }}</td>
       <td><span class="wp-posts-table__slot">{{ _slot_label }}</span></td>
       <td><span class="news-story-card__status news-story-card__status--{{ _story_status | lower }}">{{ _story_status | capitalize }}</span></td>
       <td class="wp-posts-table__date">{{ news.published_label if news.published_label else '—' }}</td>
     </tr>
     {% else %}
     <tr>
-      <td colspan="6"><div class="empty-state empty-state--embedded">No data available.</div></td>
+      <td colspan="7"><div class="empty-state empty-state--embedded">No data available.</div></td>
     </tr>
     {% endfor %}
   </tbody>

@@ -886,6 +886,22 @@
    already declared here and consumed by nothing; this is what it was for. */
 .news-editor {
     --paper-bg: var(--brand-cream-light);
+
+    /* The canvas is a SIZE CONTAINER, and the card reflows below query it
+       rather than the viewport. This is not a stylistic preference — a
+       viewport query here measures the wrong box. The canvas width is
+       whatever is left after the nav rail and the .news-properties aside
+       (see the workspace grid near the top of this file), so a 1366px window
+       leaves a canvas near 548px. The widget reflow used to be guarded by
+       `@media (max-width: 900px)`, which on any ordinary desktop never fired:
+       the cards sat far below the width the rule's own comment said they
+       needed, and nothing reflowed. A bigger monitor made it worse, since the
+       extra pixels went to the window while the breakpoint stayed unreached.
+       Named so an @container rule cannot bind to some other ancestor that
+       happens to be a container. */
+    container-type: inline-size;
+    container-name: news-canvas;
+
     margin-top: 1rem;
     padding: clamp(0.75rem, 2vw, 1.5rem);
     background: var(--paper-bg);
@@ -940,9 +956,38 @@
    first line. Reserve a strip for them instead of letting them overlap the
    text. Both columns get the same reservation, so this can't reintroduce
    the row misalignment fixed below. */
-.news-editor .secondary-story__body,
 .news-editor .info-card {
     padding-top: 1.9rem;
+}
+
+/* NO top strip on the side card — the gutter is horizontal instead.
+   
+   Three versions of this rule have now been wrong in three different ways,
+   so the reasoning is worth keeping. The overlay controls (Move Up/Down +
+   the position badge on a saved card, "Discard draft" on a scratch) sit in
+   the card's top-right corner and have to be kept off the headline.
+     v1 padded `.secondary-story__body` — the SECOND grid column — so the
+   thumb in the first column stayed pinned to the card's top edge while the
+   headline beside it began 1.9rem lower. That was the misaligned image.
+     v2 padded the card, which offsets both tracks together and did align
+   them, but left a dead band across the top of every side card with nothing
+   in it but the floating control.
+     v3 (here) reserves nothing vertically at all. Both columns are flush to
+   the card's top, and the clearance the controls need is taken out of the
+   HEADLINE's line length only — see the gutter rule below. A full-height
+   right gutter on the card was the other candidate and is too expensive:
+   the cluster is ~10rem, and on the ~500px canvas that leaves the text
+   column near 202px, which is the crowding the container queries above
+   exist to undo. Costing the headline ~11rem costs the body editor nothing. */
+
+/* Clearance for the top-right overlay, sized to the widest thing that lands
+   there: the saved card's "Position #N" badge plus two 1.85rem buttons and
+   their gaps (~10rem); the scratch's "Discard draft" pill is ~8rem. Applied
+   to the static heading AND to the Quill host that replaces it while the
+   headline is being written, or the editor box would slide under the
+   buttons the moment you clicked into it. */
+.news-editor .secondary-story .news-body-editor-host[data-news-target="title"] {
+    margin-right: 11rem;
 }
 
 .news-editor .secondary-story .news-card-controls,
@@ -957,6 +1002,7 @@
    the most visible part of the composer's "nothing lines up" problem. */
 .news-editor .secondary-story__title {
     font-size: 1.15rem;
+    padding-right: 11rem;
     min-height: calc(2 * 1.14em);
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -1003,9 +1049,27 @@
     align-items: stretch;
 }
 
-@media (max-width: 900px) {
+/* Both card grids collapse to one column when the CANVAS — not the window —
+   runs out of room, and they do NOT collapse at the same width, because a
+   side card pays for a thumb and a widget card does not.
+     Take ~260px as the narrowest text column worth previewing (a two-line
+   clamped headline plus the body editor beneath it). With a 32px grid gap:
+     widget  — no thumb:            (W - 32) / 2            >= 260  ->  W >= 552
+     side    — 108px thumb + 14px:  (W - 32) / 2 - 122      >= 260  ->  W >= 796
+   So the side grid has to give up on 2-up far sooner. Rounded to 560px and
+   800px below. Stacking is what buys the width back (a side card goes from a
+   ~210px text column to ~426px on the usual ~548px canvas); shrinking the
+   thumb would too, but it would stop the composer previewing the kiosk's real
+   108px crop, which is the whole point of rendering the kiosk partial here. */
+@container news-canvas (max-width: 800px) {
+    .news-editor .secondary-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@container news-canvas (max-width: 560px) {
     .news-editor .widget-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
@@ -1278,8 +1342,14 @@
     line-height: 1.04;
 }
 
+/* 1.15rem, NOT the kiosk's 1.35rem: this must match
+   `.news-editor .secondary-story__title` above, which drops to 1.15rem so a
+   side headline clamps to two lines cleanly. Keeping the kiosk value here
+   inflated a side hed ~17% the moment you clicked into it — inside the
+   narrowest column on the canvas — so the text being typed wrapped
+   differently from the text just displayed. */
 .news-editor .secondary-story .news-body-editor-host[data-news-target="title"] .ql-editor {
-    font-size: 1.35rem;
+    font-size: 1.15rem;
     line-height: 1.14;
 }
 
@@ -1952,4 +2022,159 @@
 .news-featured-image__actions .ghost-button {
     flex: 1;
     justify-content: center;
+}
+
+/* ── Category modal ─────────────────────────────────────────────────────────
+   Raised in front of Save Draft / Submit (news-dashboard.js, askCategoryThen).
+   Rows come from gears/partials/news-categories-list.html, which is also the
+   "news-categories" live fragment — so nothing here may depend on a class
+   the fragment does not render. Solid fills only. */
+.news-category-modal__panel {
+    width: min(560px, 92vw);
+}
+
+.news-category-add {
+    margin: 0 0 1rem;
+}
+
+.news-category-add__label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-family: var(--font-heading);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+}
+
+.news-category-add__row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.news-category-add__input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: 6px;
+    background: var(--ink-paper);
+    color: var(--ink);
+    font: inherit;
+}
+
+.news-category-add__input:focus {
+    outline: 2px solid var(--ink-oxblood);
+    outline-offset: 1px;
+}
+
+/* The "restorable" outcome: the controller's sentence plus an explicit
+   Restore action. It is a notice, not an error — the name is valid, it is
+   just in the trash. */
+.news-category-add__notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin-top: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: 6px;
+    background: rgb(var(--brand-gold-rgb) / 0.12);
+    color: var(--ink);
+    font-size: 0.9rem;
+}
+
+.news-category-modal__list {
+    max-height: min(46vh, 380px);
+    overflow-y: auto;
+    border-top: 1px solid var(--rule-strong);
+    border-bottom: 1px solid var(--rule-strong);
+}
+
+.news-category-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.news-category-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.25rem;
+    border-bottom: 1px solid var(--ink-rule-strong, var(--rule-strong));
+}
+
+.news-category-item:last-child {
+    border-bottom: 0;
+}
+
+.news-category-item__choose {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.news-category-item__radio {
+    flex: 0 0 auto;
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: var(--ink-oxblood);
+}
+
+.news-category-item__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.news-category-item__rename {
+    min-width: 0;
+    padding: 0.25rem 0.45rem;
+    border: 1px solid var(--ink-oxblood);
+    border-radius: 4px;
+    background: var(--ink-paper);
+    color: var(--ink);
+    font: inherit;
+    font-weight: 600;
+}
+
+.news-category-item__count {
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+}
+
+.news-category-item__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+
+.news-category-list__empty {
+    padding: 0.9rem 0.25rem;
+    color: var(--ink-muted);
+    font-size: 0.9rem;
+}
+
+@media (max-width: 480px) {
+    .news-category-item {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .news-category-item__actions {
+        grid-column: 1 / -1;
+        justify-content: flex-end;
+    }
 }

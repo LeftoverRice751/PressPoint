@@ -19,8 +19,8 @@
 
 import { PageFlip } from 'page-flip';
 import OpenSeadragon from 'openseadragon';
-import { computeRenderScale, maxCanvasPixels, renderKey } from './archive-render-scale.mjs';
-import { hasServerPage, serverPageUrl } from './archive-page-source.mjs';
+import { computeRenderScale, maxCanvasPixels, rasterHeadroom, renderKey } from './archive-render-scale.mjs';
+import { hasServerPage, serverDetailUrl, serverPageUrl } from './archive-page-source.mjs';
 
 document.addEventListener('DOMContentLoaded', () => {
   const root = document.querySelector('[data-archive-shell]');
@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const scrollMount = overlay.querySelector('[data-reader-scroll]');
   const chrome = overlay.querySelector('[data-reader-chrome]');
   const backButton = overlay.querySelector('[data-reader-back]');
+  const magnifyButton = overlay.querySelector('[data-reader-magnify]');
   const pager = overlay.querySelector('[data-reader-pager]');
   const navBlock = overlay.querySelector('[data-reader-nav]');
   const navPrev = overlay.querySelector('[data-reader-prev]');
@@ -79,10 +80,11 @@ document.addEventListener('DOMContentLoaded', () => {
    * template used to, because the server's page raster was fixed at zoom 1.8
    * (908x1296) against a 768x1024 DPR-2 panel — visibly soft — so the terminal
    * pulled the whole ~100 MB PDF on open purely to let pdf.js re-rasterise
-   * pages the server had already rendered. Pages are now WebP at zoom 3.0
-   * (1512x2160, and smaller on disk than the old PNGs), so there is no blur
-   * left to race: the document is fetched only if the reader pinch-zooms past
-   * what the raster holds.
+   * pages the server had already rendered. Pages are now WebP rendered to a
+   * target size (2400 px on the long edge, capped at the scan's own pixels —
+   * see ArchiveServices.plan_page_zooms), so there is no blur left to race:
+   * the document is fetched only if the reader pinch-zooms past what the
+   * raster holds, and past the `@2x` detail tier where the sweep wrote one.
    *
    * The branch stays so re-enabling it is a one-attribute template change.
    */
@@ -146,6 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
     pageExtension: '.webp', // extension pageStorageBase URLs are built with
     prewarmedPages: 0,      // contiguous run of server-rendered pages from 1
     directPages: 0,         // ...of those, how many nginx can serve by name
+    detailPages: 0,         // ...and how many also have a `@2x` detail tier
+    detailSuffix: '@2x',
   };
 
   // ── Render generation ─────────────────────────────────
@@ -202,16 +206,25 @@ document.addEventListener('DOMContentLoaded', () => {
     return serverPageUrl(state, pageNumber);
   }
 
+  // The higher-resolution tier the sweep writes when the source scan had the
+  // headroom (ArchiveServices.plan_page_zooms). '' when it did not — which is
+  // the normal answer for a half-size scan, and means pinch-zoom goes
+  // straight from the fit tier to pdf.js as before.
+  function detailUrl(pageNumber) {
+    return serverDetailUrl(state, pageNumber);
+  }
+
   /*
    * True when the server has rendered every page of this document.
    *
    * This is the condition that retires pdf.js from normal reading. When it
    * holds, downloading the (often ~100 MB) PDF cannot improve anything the
-   * reader is looking at: the server raster is 1512x2160 and the book fits a
-   * page into at most half of a 768px-wide kiosk panel, so it is already
-   * oversampled. The one thing it can still buy is pinch-zoom detail on a
-   * tabloid, and ZoomAdapter.resharpen() asks for the document explicitly when
-   * the reader actually zooms past what the raster holds.
+   * reader is looking at: the server raster is ~2400 px on the long edge and
+   * the book fits a page into at most half of a 768px-wide kiosk panel, so it
+   * is already oversampled. The one thing it can still buy is pinch-zoom
+   * detail, and DeepZoomAdapter.resharpen() asks for the document explicitly
+   * when the reader has zoomed past every server raster — the fit tier and,
+   * where the sweep wrote one, the `@2x` detail tier.
    *
    * Before the whole-document sweep this was never true — the server stopped
    * at 20 pages — so the reader always fetched the PDF and always needed to.
@@ -625,10 +638,17 @@ document.addEventListener('DOMContentLoaded', () => {
    * from start to finish (a second finger poisons it — pinch guard),
    * < 10px movement, < 300ms. `centerBand` restricts the accepted zone
    * horizontally so page-edge taps stay page-turns in book mode.
+   *
+   * `onDoubleTap`: two clean taps within 350ms and 30px. The single tap is
+   * NOT held back to wait for a second one — that would put a third of a
+   * second of lag on every chrome toggle. It fires immediately both times,
+   * which for the chrome is a toggle-and-toggle-back, i.e. no visible change,
+   * and then the double fires on top.
    */
-  function makeTapDetector(el, { onTap, centerBand = 1 }) {
+  function makeTapDetector(el, { onTap, onDoubleTap = null, centerBand = 1 }) {
     const live = new Set();
     let start = null;
+    let lastTap = null;
 
     el.addEventListener('pointerdown', (e) => {
       live.add(e.pointerId);
@@ -657,6 +677,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const edge = (1 - centerBand) / 2;
       if (rel < edge || rel > 1 - edge) return;
       onTap(e);
+      if (!onDoubleTap) return;
+      const now = performance.now();
+      if (lastTap && now - lastTap.t < 350
+          && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) {
+        lastTap = null;
+        onDoubleTap(e);
+      } else {
+        lastTap = { x: e.clientX, y: e.clientY, t: now };
+      }
     }, { passive: true });
 
     el.addEventListener('pointercancel', (e) => {
@@ -857,9 +886,37 @@ document.addEventListener('DOMContentLoaded', () => {
       window.addEventListener('resize', this.onResize);
 
       // Attached to the per-session host so the listeners die with it.
-      makeTapDetector(host, { onTap: toggleChrome, centerBand: 0.4 });
+      makeTapDetector(host, {
+        onTap: toggleChrome,
+        onDoubleTap: (e) => magnify.open(this.pageAt(e.clientX)),
+        centerBand: 0.4,
+      });
       schedulePdfWarm();
       this.runQueue(session);
+    },
+
+    /*
+     * Which page a tap landed on. StPageFlip with showCover reports the
+     * spread by its first page index: 0 is the cover alone on the right, and
+     * every later spread is (idx, idx + 1) left-to-right. A one-column book
+     * shows exactly the page at idx.
+     */
+    pageAt(clientX) {
+      if (!this.flip || !this.host) return this.cursor || 1;
+      const idx = this.flip.getCurrentPageIndex();
+      if (this.columns === 1 || idx === 0) return idx + 1;
+      const r = this.host.getBoundingClientRect();
+      const right = r.width > 0 && clientX > r.left + r.width / 2;
+      return Math.min(state.pageCount, idx + (right ? 2 : 1));
+    },
+
+    // Bring the spread holding `n` into view; magnify mode calls this on the
+    // way back so the reader lands where they left the zoomed page.
+    showPage(n) {
+      if (!this.flip) return;
+      const target = Math.max(0, Math.min(n - 1, state.pageCount - 1));
+      if (this.flip.getCurrentPageIndex() === target) return;
+      try { this.flip.turnToPage(target); } catch (_) { /* noop */ }
     },
 
     /*
@@ -909,7 +966,11 @@ document.addEventListener('DOMContentLoaded', () => {
           this.runQueue(session);
         });
         // destroy() took the tap detector's element with it.
-        makeTapDetector(host, { onTap: toggleChrome, centerBand: 0.4 });
+        makeTapDetector(host, {
+          onTap: toggleChrome,
+          onDoubleTap: (e) => magnify.open(this.pageAt(e.clientX)),
+          centerBand: 0.4,
+        });
       } else {
         this.sizeHost(mountRect, aspect);
         try { this.flip.update(); } catch (_) { /* noop */ }
@@ -1045,6 +1106,9 @@ document.addEventListener('DOMContentLoaded', () => {
     onZoom: null,
     zoomTimer: null,
     renderedZoom: 1, // magnification the current raster was rendered for
+    startPage: 1,    // page to open on; magnify mode sets it before mount
+    detailPage: 0,   // page whose server detail tier is the raster on screen
+    onOpen: null,
 
     /*
      * The magnification to render for, as a multiple of fit-to-page.
@@ -1099,15 +1163,19 @@ document.addEventListener('DOMContentLoaded', () => {
       // Open on the server preview when there is one, so a tabloid appears
       // immediately instead of after the whole PDF downloads. onPdfReady()
       // swaps in the high-resolution render for pinch-zoom detail.
-      let url = previewUrl(1);
+      const first = Math.max(1, Math.min(this.startPage || 1, state.pageCount || 1));
+      this.startPage = 1;
+      this.detailPage = 0;
+      let url = previewUrl(first);
       if (!url) {
         const doc = await ensurePdfDoc();
         if (!doc || session !== state.session) return;
-        url = await loadPage(1);
+        url = await loadPage(first);
       }
       if (session !== state.session || !url) return;
 
-      this.page = 1;
+      this.page = first;
+      state.cursor = first;
       this.viewer = OpenSeadragon({
         element: container,
         showNavigationControl: false,
@@ -1155,10 +1223,33 @@ document.addEventListener('DOMContentLoaded', () => {
       this.viewer.addHandler('zoom', this.onZoom);
       this.viewer.addHandler('resize', this.onZoom);
 
+      // Every raster this viewer shows — fit tier, detail tier, pdf.js render
+      // — is good up to some magnification, and that is where the next swap
+      // is due. Measured from the image OSD actually loaded rather than
+      // assumed, so a scan whose fit tier was capped at its native size (see
+      // ArchiveServices.plan_page_zooms) is not re-fetched at 1.25x for a
+      // render that cannot be any sharper.
+      this.onOpen = () => {
+        if (session !== state.session || !this.viewer) return;
+        let size = null;
+        try { size = this.viewer.world.getItemAt(0).getContentSize(); } catch (_) { size = null; }
+        if (!size) return;
+        const headroom = rasterHeadroom({
+          contentWidth: size.x,
+          contentHeight: size.y,
+          ...this.box(),
+          dpr: window.devicePixelRatio || 1,
+        });
+        // A pdf.js render is already sized for the zoom it was asked for;
+        // its own headroom is the honest floor for a server raster too.
+        this.renderedZoom = Math.max(this.renderedZoom, headroom);
+      };
+      this.viewer.addHandler('open', this.onOpen);
+
       this.syncNav();
-      setPager(`PAGES — 1 / ${state.pageCount}`);
+      setPager(`PAGES — ${first} / ${state.pageCount}`);
       schedulePdfWarm();
-      loadPage(2); // warm the next page (no-op until the document is loaded)
+      loadPage(first + 1); // warm the next page (no-op until the document is loaded)
     },
 
     /*
@@ -1176,10 +1267,24 @@ document.addEventListener('DOMContentLoaded', () => {
       if (session !== state.session || !this.viewer || !this.container) return;
       const zoom = this.zoomTarget();
       if (zoom <= this.renderedZoom * ZOOM_RESHARPEN_THRESHOLD) return;
-      // Nothing to re-render from until the document has arrived; onPdfReady
-      // calls back here once it has. Forced: this is the one place the PDF
-      // still earns its download, because the reader has zoomed past what the
-      // server raster holds and only the vector source can go further.
+
+      // Step 1 of 2: the server's detail tier, when the sweep wrote one. A
+      // few hundred KB off nginx instead of a ~50 MB PDF — on a phone over
+      // mobile data that is the difference between sharp and never. The
+      // 'open' handler re-measures headroom from the file that arrives, so
+      // the PDF is only asked for once the reader zooms past *that*.
+      const detail = detailUrl(this.page);
+      if (detail && this.detailPage !== this.page) {
+        this.detailPage = this.page;
+        this.renderedZoom = zoom;
+        this.swapRaster(session, this.page, detail);
+        return;
+      }
+
+      // Step 2: nothing to re-render from until the document has arrived;
+      // onPdfReady calls back here once it has. Forced: this is the one place
+      // the PDF still earns its download, because the reader has zoomed past
+      // what every server raster holds and only the source can go further.
       if (!state.pdfDoc) { schedulePdfWarm(true); return; }
 
       this.renderedZoom = zoom;
@@ -1187,17 +1292,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const changed = setRenderOpts({ ...this.box(), zoom });
       if (!changed) return;
 
-      // Hold the reader's place: viewer.open() resets the viewport to
-      // fit-page, which would throw away exactly the position they zoomed to.
+      loadPage(target).then((url) => this.swapRaster(session, target, url));
+    },
+
+    // Replace the raster under the reader without moving them: viewer.open()
+    // resets the viewport to fit-page, which would throw away exactly the
+    // position they zoomed to, so the bounds are captured and restored.
+    swapRaster(session, target, url) {
+      if (session !== state.session || !this.viewer) return;
+      if (this.page !== target || !url) return;
       const bounds = this.viewer.viewport.getBounds();
-      loadPage(target).then((url) => {
-        if (session !== state.session || !this.viewer) return;
-        if (this.page !== target || !url) return;
-        this.viewer.addOnceHandler('open', () => {
-          try { this.viewer.viewport.fitBounds(bounds, true); } catch (_) { /* noop */ }
-        });
-        this.viewer.open({ type: 'image', url });
+      this.viewer.addOnceHandler('open', () => {
+        try { this.viewer.viewport.fitBounds(bounds, true); } catch (_) { /* noop */ }
       });
+      this.viewer.open({ type: 'image', url });
     },
 
     // Replace the preview this opened with once the sharp render exists —
@@ -1238,6 +1346,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // at the old magnification: many times the pixels the reader can see,
       // straight into the area cap.
       this.renderedZoom = 1;
+      this.detailPage = 0;
       setRenderOpts({ ...this.box(), zoom: 1 });
 
       // Prefer an already-rendered page, else the preview, else wait on the
@@ -1277,8 +1386,11 @@ document.addEventListener('DOMContentLoaded', () => {
         this.viewer = null;
       }
       this.onZoom = null;
+      this.onOpen = null;
       this.container = null;
       this.renderedZoom = 1;
+      this.detailPage = 0;
+      this.startPage = 1;
       this.page = 1;
       if (navBlock) navBlock.hidden = true;
       container.innerHTML = '';
@@ -1454,7 +1566,10 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       window.addEventListener('resize', this.onResize);
 
-      makeTapDetector(scroller, { onTap: toggleChrome });
+      makeTapDetector(scroller, {
+        onTap: toggleChrome,
+        onDoubleTap: (e) => magnify.open(this.pageAt(e.clientX, e.clientY)),
+      });
       setPager(`PAGES — 1 / ${state.pageCount}`);
       this.syncNav();
       schedulePdfWarm();
@@ -1475,6 +1590,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const n = this.currentPage();
       if (navPrev) navPrev.disabled = n <= 1;
       if (navNext) navNext.disabled = n >= state.pageCount;
+    },
+
+    // The page under a tap, falling back to whatever is centred on screen.
+    pageAt(clientX, clientY) {
+      const hit = document.elementFromPoint(clientX, clientY);
+      const holder = hit && hit.closest ? hit.closest('[data-page]') : null;
+      const n = holder ? parseInt(holder.dataset.page || '', 10) : NaN;
+      return Number.isFinite(n) && n >= 1 ? n : this.currentPage();
+    },
+
+    showPage(n) {
+      const holder = this.pages.find((el) => parseInt(el.dataset.page || '', 10) === n);
+      if (holder) holder.scrollIntoView({ block: 'start' });
     },
 
     currentPage() {
@@ -1533,6 +1661,87 @@ document.addEventListener('DOMContentLoaded', () => {
     },
   };
 
+  /*
+   * Magnify: the book and scroll readers over the DeepZoom viewer.
+   *
+   * Only tabloids could zoom. A folio fitted into half of a 768 px panel puts
+   * body copy at ~4 px tall, and no server raster fixes that — the reader
+   * needs a way to magnify. Rather than teach StPageFlip to pinch, this lays
+   * the tabloid viewer over the book: the book's mount is hidden (not
+   * unmounted — its page-flip instance and render queue survive untouched),
+   * the zoom mount is shown with DeepZoomAdapter opened on the tapped page,
+   * and Back returns to the book on whichever page the reader ended up on.
+   * The detail tier and pdf.js resharpen come with the viewer for free.
+   */
+  const magnify = {
+    active: false,
+    from: null,
+    fromMount: null,
+    backLabel: '',
+
+    async open(pageNumber) {
+      if (this.active || isBusy || !zoomMount) return;
+      const from = state.adapter;
+      if (!from || from === DeepZoomAdapter) return; // tabloids zoom natively
+      const session = state.session;
+
+      this.active = true;
+      this.from = from;
+      this.fromMount = state.activeMount;
+      overlay.classList.add('is-magnified');
+      if (backButton) {
+        const label = backButton.querySelector('span:last-child');
+        if (label) { this.backLabel = label.textContent; label.textContent = 'Back to pages'; }
+      }
+
+      if (this.fromMount) this.fromMount.hidden = true;
+      zoomMount.hidden = false;
+      state.adapter = DeepZoomAdapter;
+      state.activeMount = zoomMount;
+      DeepZoomAdapter.startPage = pageNumber || 1;
+      showLoader();
+      try {
+        await DeepZoomAdapter.mount(zoomMount);
+      } catch (err) {
+        console.error('[archive-reader] magnify mount failed', err);
+      }
+      if (session !== state.session) return;
+      hideLoader();
+      if (navBlock) navBlock.hidden = isTouchUi;
+      showChrome({ autoFade: true });
+    },
+
+    // `silent` skips the hand-back to the book: closeReader() is about to
+    // unmount everything anyway and only needs state.adapter pointing at the
+    // adapter that actually owns the visible mount.
+    close({ silent = false } = {}) {
+      if (!this.active) return;
+      const page = DeepZoomAdapter.page;
+      try { DeepZoomAdapter.unmount(zoomMount); } catch (_) { /* noop */ }
+      zoomMount.hidden = true;
+
+      state.adapter = this.from;
+      state.activeMount = this.fromMount;
+      if (this.fromMount) this.fromMount.hidden = false;
+      overlay.classList.remove('is-magnified');
+      if (backButton && this.backLabel) {
+        const label = backButton.querySelector('span:last-child');
+        if (label) label.textContent = this.backLabel;
+      }
+      const from = this.from;
+      this.active = false;
+      this.from = null;
+      this.fromMount = null;
+
+      if (silent || !from) return;
+      if (typeof from.showPage === 'function') from.showPage(page);
+      if (typeof from.syncNav === 'function') from.syncNav();
+      if (navBlock) navBlock.hidden = isTouchUi;
+      setPager(`PAGES — ${page} / ${state.pageCount}`);
+      showChrome({ autoFade: true });
+    },
+  };
+
   function pickAdapter(dataset) {
     if (dataset.isTabloid === '1') {
       return { adapter: DeepZoomAdapter, mount: zoomMount };
@@ -1582,12 +1791,17 @@ document.addEventListener('DOMContentLoaded', () => {
     state.pageExtension = state.dataset.pageExtension || '.webp';
     state.directPages = parseInt(state.dataset.directPages || '0', 10) || 0;
     state.prewarmedPages = parseInt(state.dataset.prewarmedPages || '0', 10) || 0;
+    state.detailPages = parseInt(state.dataset.detailPages || '0', 10) || 0;
+    state.detailSuffix = state.dataset.detailSuffix || '@2x';
     state.originRect = detail.originRect || null;
     clearAllPages();
 
     const { adapter, mount } = pickAdapter(state.dataset);
     state.adapter = adapter;
     state.activeMount = mount;
+    // The magnifier is for readers that cannot zoom on their own; the
+    // tabloid viewer already pinches.
+    if (magnifyButton) magnifyButton.hidden = adapter === DeepZoomAdapter;
 
     [bookMount, zoomMount, scrollMount].forEach((el) => { if (el) el.hidden = true; });
     setPager('—');
@@ -1638,6 +1852,9 @@ document.addEventListener('DOMContentLoaded', () => {
     overlay.classList.remove('is-chrome-visible');
     hideLoader();
 
+    // Hand the mounts back to the book first so the unmount below reaches the
+    // adapter that actually owns them; the viewer is torn down in the process.
+    magnify.close({ silent: true });
     if (state.adapter && state.activeMount) {
       try { state.adapter.unmount(state.activeMount); } catch (_) { /* noop */ }
     }
@@ -1669,7 +1886,20 @@ document.addEventListener('DOMContentLoaded', () => {
     backButton.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      closeReader();
+      if (magnify.active) magnify.close();
+      else closeReader();
+    });
+  }
+
+  if (magnifyButton) {
+    magnifyButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const adapter = state.adapter;
+      const page = adapter && typeof adapter.currentPage === 'function'
+        ? adapter.currentPage()
+        : (adapter && adapter.cursor) || state.cursor || 1;
+      magnify.open(page);
     });
   }
 
@@ -1694,7 +1924,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', (event) => {
     if (!overlay.classList.contains('is-active')) return;
     if (event.key === 'Escape') {
-      closeReader();
+      if (magnify.active) magnify.close();
+      else closeReader();
     } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
       if (state.adapter) state.adapter.next();
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
@@ -1716,6 +1947,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // from outside — which is exactly the path that needs checking on a real
   // terminal, and the one that hid a render at 39x28 pixels.
   if (DEBUG) {
-    window.__archiveReader = { state, adapters: { BookAdapter, DeepZoomAdapter, ScrollAdapter } };
+    window.__archiveReader = { state, magnify, adapters: { BookAdapter, DeepZoomAdapter, ScrollAdapter } };
   }
 });

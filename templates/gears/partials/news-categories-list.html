@@ -1,0 +1,50 @@
+{#
+  The composer's category list, inside the category modal. Rendered both by
+  the full dashboard page and by DashboardController's fragment endpoint, so
+  a create/rename/delete can never produce markup that differs from a fresh
+  page load.
+
+  This has its own live section ("news-categories") rather than riding on
+  "news", because a RENAME touches zero news rows: section_stamp(News) would
+  not move and the news poll would never fire for exactly the change that most
+  needs to propagate.
+
+  The JSON block at the bottom is how the story's category <select> stays in
+  sync without a reload — news-dashboard.js reads it on `live:refreshed` and
+  rebuilds the options, the same handoff organizations-list.html uses.
+#}
+<ul class="news-category-list" data-news-category-list>
+  {# `news_categories` is a list of DICTS (NewsCategories.describe_all), not
+     model rows — story_count is a computed figure, not a column. #}
+  {% for category in news_categories %}
+  {% set count = category.story_count or 0 %}
+  <li class="news-category-item" data-news-category-item data-news-category-id="{{ category.id }}"
+      data-news-category-name="{{ category.name | e }}">
+    <label class="news-category-item__choose">
+      {# The radio is the selection control; the name doubles as the rename
+         input once "Rename" is pressed, so there is only ever one place a
+         category's name is written. #}
+      <input type="radio" name="news_category_choice" value="{{ category.id }}"
+             class="news-category-item__radio" data-news-category-radio>
+      <span class="news-category-item__name" data-news-category-label>{{ category.name }}</span>
+    </label>
+
+    <span class="news-category-item__count">{{ count }} stor{{ 'y' if count == 1 else 'ies' }}</span>
+
+    <div class="news-category-item__actions">
+      <button type="button" class="wp-row-action" data-news-category-rename>Rename</button>
+      <span class="wp-row-action__sep" aria-hidden="true">|</span>
+      {# No data-confirm here: the confirmation copy has to state the story
+         count, and deleting a category also deletes those stories — so the
+         dialog is raised from JS via ConfirmModal.ask() with the number
+         interpolated, rather than from a static attribute. #}
+      <button type="button" class="wp-row-action wp-row-action--trash"
+              data-news-category-delete>Delete</button>
+    </div>
+  </li>
+  {% else %}
+  <li class="news-category-list__empty">No categories yet — type a name above to make the first one.</li>
+  {% endfor %}
+</ul>
+
+<script type="application/json" data-news-categories-json>{{ news_categories_json | tojson }}</script>

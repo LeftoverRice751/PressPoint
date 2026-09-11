@@ -39,3 +39,21 @@ export function serverPageUrl(config, pageNumber) {
 
   return config.pageUrlBase ? `${config.pageUrlBase}/${pageNumber}` : '';
 }
+
+/*
+ * The detail tier: `page-N@2x.webp`, written by the sweep only when the source
+ * scan holds meaningfully more than the fit render (ArchiveServices.
+ * plan_page_zooms). It is what pinch-zoom swaps in before the reader has to
+ * pay for the PDF. Direct-only: the on-demand route renders the fit tier, so a
+ * detail file either exists at nginx or does not exist at all — and
+ * `detailPages` is the server's word on which, not something to probe for.
+ * The sweep writes each @2x beside its canonical fit page, so the run is also
+ * bounded by `directPages`; a larger count is stale and not trusted.
+ */
+export function serverDetailUrl(config, pageNumber) {
+  const detail = Math.min(Number(config.detailPages) || 0, Number(config.directPages) || 0);
+  if (!config.pageStorageBase || pageNumber < 1 || pageNumber > detail) return '';
+  const suffix = config.detailSuffix || '@2x';
+  const extension = config.pageExtension || '.webp';
+  return `${config.pageStorageBase}/page-${pageNumber}${suffix}${extension}`;
+}

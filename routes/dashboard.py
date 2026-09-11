@@ -38,6 +38,21 @@ ROUTES = [
     Route.post("/news/dashboard/@id/body", "gears.NewsController@body").name("news.body").middleware("auth"),
     Route.post("/news/dashboard/@id/unassign", "gears.NewsController@unassign").name("news.unassign").middleware("auth"),
     Route.delete("/news/dashboard/@id", "gears.NewsController@destroy").name("news.destroy").middleware("auth"),
+    # News categories. "auth" only, DELIBERATELY: unlike the /gears/review/*
+    # routes above, any signed-in editor may create, rename and delete a
+    # category — and a delete cascades a soft-delete to every story in it,
+    # published ones included, pulling them off the campus kiosk. That was a
+    # product decision, not an oversight. The guard is the confirmation
+    # dialog's story count, not a role, and both halves are recoverable
+    # through news.categories.restore. Check before adding "admin" here.
+    Route.get("/gears/news/categories", "gears.NewsCategoryController@index").name("news.categories.index").middleware("auth"),
+    Route.post("/gears/news/categories", "gears.NewsCategoryController@store").name("news.categories.store").middleware("auth"),
+    # Declared before the bare @id route below, so the literal "restore"
+    # segment is matched before the wildcard would swallow it — same reason
+    # the notifications block above orders "read-all" first.
+    Route.post("/gears/news/categories/@id/restore", "gears.NewsCategoryController@restore").name("news.categories.restore").middleware("auth"),
+    Route.post("/gears/news/categories/@id", "gears.NewsCategoryController@update").name("news.categories.update").middleware("auth"),
+    Route.delete("/gears/news/categories/@id", "gears.NewsCategoryController@destroy").name("news.categories.destroy").middleware("auth"),
     Route.get("/org-board/dashboard", "gears.OrgBoardController@show").name("org-board.show").middleware("auth"),
     Route.post("/org-board/dashboard", "gears.OrgBoardController@store").name("org-board.store").middleware("auth"),
     Route.get("/org-board/dashboard/data", "gears.OrgBoardController@data").name("org-board.data").middleware("auth"),

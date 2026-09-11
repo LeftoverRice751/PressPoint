@@ -51,6 +51,13 @@
              visible status is how a half-finished story reaches the kiosk. The
              Publish / Submit-for-review buttons set it explicitly. #}
           <input type="hidden" name="status"       value="draft" data-news-field="status">
+          {# Required by NewsController.store ("Please choose a category for
+             this story."). It is never typed into: the category modal writes
+             it on Confirm, and selectStory() seeds it from the library row so
+             an existing story's category is pre-selected there. Without this
+             field every Save Draft / Submit returned that 422 with no way to
+             satisfy it. #}
+          <input type="hidden" name="category_id"  value="" data-news-field="category_id">
           <input type="hidden" name="priority"     value="0" data-news-field="priority">
           <input type="hidden" name="published_at" data-news-field="published_at">
           <input type="hidden" name="article_id"   data-news-field="article_id">
@@ -325,6 +332,65 @@
             <div class="news-story-library__grid news-library-drawer__grid" data-section-content data-live-target>
 {% include "gears/partials/news-slots.html" %}
             </div>
+          </div>
+        </div>
+      </dialog>
+
+      {# ── Category modal ─────────────────────────────────────────────────
+         Raised by news-dashboard.js in front of Save Draft and Submit for
+         review: NewsController.store requires a category, so the choice is
+         made at the moment of saving rather than as a field the editor could
+         miss. Confirm starts disabled and stays so until a radio is chosen;
+         an existing story arrives with its own category already selected.
+
+         Create / Rename / Delete live here too, against NewsCategoryController.
+         "Add" switches on the payload's `outcome` string (created / exists /
+         restorable) — see that controller's docstring for why an existing name
+         is a success and why a deleted one is only ever OFFERED for restore.
+
+         The list is its own live section ("news-categories", see
+         DashboardController.FRAGMENTS): a rename touches no news row, so the
+         "news" stamp never moves for it. dashboard-live.js finds any
+         [data-live-section] under the dashboard root, so nesting one inside
+         the news panel is fine. #}
+      <dialog class="article-modal article-modal--compact news-category-modal" data-news-category-modal
+              data-news-category-url="{{ route('news.categories.store', {}, False) }}"
+              aria-labelledby="news-category-modal-title">
+        <div class="article-modal__panel news-category-modal__panel">
+          <div class="article-modal__header">
+            <div>
+              <h3 class="article-modal__title" id="news-category-modal-title">Choose a category</h3>
+              <p class="article-modal__subtitle">Every story needs one. Pick from the list or add a new name.</p>
+            </div>
+            <button type="button" class="article-modal__close" data-news-category-cancel>Cancel</button>
+          </div>
+
+          <form class="news-category-add" data-news-category-add-form>
+            <label class="news-category-add__label" for="news-category-new-name">New category</label>
+            <div class="news-category-add__row">
+              <input type="text" id="news-category-new-name" class="news-category-add__input"
+                     maxlength="60" autocomplete="off" placeholder="e.g. Sports"
+                     data-news-category-new-name>
+              <button type="submit" class="ghost-button" data-news-category-add>Add</button>
+            </div>
+            {# The "restorable" outcome renders here: the controller's message
+               plus an explicit Restore button. Auto-restoring would put every
+               story cascade-deleted with the category straight back on the
+               kiosk on what may have been a typo. #}
+            <div class="news-category-add__notice" data-news-category-notice hidden>
+              <span data-news-category-notice-text></span>
+              <button type="button" class="wp-row-action" data-news-category-restore>Restore it</button>
+            </div>
+          </form>
+
+          <div class="news-category-modal__list" data-live-section="news-categories">
+            <div data-live-target>
+{% include "gears/partials/news-categories-list.html" %}
+            </div>
+          </div>
+
+          <div class="article-modal__footer">
+            <button type="button" class="primary-button" data-news-category-confirm disabled>Confirm and continue</button>
           </div>
         </div>
       </dialog>

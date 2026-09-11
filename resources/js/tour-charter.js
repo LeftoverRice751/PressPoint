@@ -180,6 +180,8 @@
       pageExtension: d.charterPageExtension || '.webp',
       directPages: d.charterDirectPages || '0',
       prewarmedPages: d.charterPrewarmedPages || '0',
+      detailPages: d.charterDetailPages || '0',
+      detailSuffix: d.charterDetailSuffix || '@2x',
     };
   }
 

@@ -81,6 +81,11 @@
               data-page-extension="{{ archive.page_extension }}"
               data-direct-pages="{{ archive.direct_pages if archive.direct_pages else 0 }}"
               data-prewarmed-pages="{{ archive.prewarmed_pages if archive.prewarmed_pages else 0 }}"
+              {# Detail tier for pinch-zoom: `page-N@2x.webp`, written only
+                 when the source scan out-resolves the fit render. 0 means
+                 zooming goes straight from the fit tier to pdf.js. #}
+              data-detail-pages="{{ archive.detail_pages if archive.detail_pages else 0 }}"
+              data-detail-suffix="{{ archive.detail_suffix if archive.detail_suffix else '@2x' }}"
             >
               <span class="m-archive__cover-wrap">
                 {% if archive.cover_url %}
@@ -160,6 +165,10 @@
           <span>Back</span>
         </button>
         <div class="reader-chrome__pager" data-reader-pager>&mdash;</div>
+        <button type="button" class="reader-chrome__magnify" data-reader-magnify hidden>
+          <span aria-hidden="true">&#8853;</span>
+          <span>Magnify</span>
+        </button>
         <div class="reader-chrome__nav" data-reader-nav hidden>
           <button type="button" class="reader-chrome__nav-btn reader-chrome__nav-btn--prev" data-reader-prev aria-label="Previous page">
             <span aria-hidden="true">&#8249;</span>

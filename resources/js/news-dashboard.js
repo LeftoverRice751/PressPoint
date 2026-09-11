@@ -99,6 +99,7 @@ import Sortable from 'sortablejs';
     image:       field('image'),
     removeImage: field('remove_image'),
     status:      field('status'),
+    categoryId:  field('category_id'),
     headlineFont: field('headline_font'),
     layout:      form.querySelector('[data-news-layout-field]')
   };
@@ -530,7 +531,7 @@ import Sortable from 'sortablejs';
    * the layout, which is also why the host must stay content-sized (see the
    * `height: auto` rules in news-dashboard.css).
    */
-  function mountEditor(art, targetKey) {
+  function mountEditor(art, targetKey, carryDirty) {
     if (!bodyToolbarEl) return;
     var key = TARGETS[targetKey] ? targetKey : 'body';
     var target = region(art, key);
@@ -548,6 +549,14 @@ import Sortable from 'sortablejs';
     unmountBodyEditor();
     activeTarget = key;
     mountedBodyRegion = target;
+    // The side and widget cards keep their body in a collapsed <details> so a
+    // filled card is not an article tall at rest. An editor mounted inside a
+    // closed one is invisible: the toolbar switches to "Body", the Save
+    // button appears, and there is nothing on the canvas to type into. A new
+    // side story landed exactly there, since a story switch mounts on the
+    // body by default. Open the disclosure whenever the editor goes in.
+    var disclosure = target.closest('details');
+    if (disclosure) disclosure.open = true;
     target.hidden = true;
     target.insertAdjacentElement('beforebegin', bodyEditorHost);
     // Read by CSS for the per-target typography (a headline is written at
@@ -573,7 +582,15 @@ import Sortable from 'sortablejs';
     // formats this target does not allow.
     normaliseForTarget();
     bodySnapshot = staged;
-    bodyDirty = false;
+    // Cleared on a story switch, CARRIED on a same-story field switch. The
+    // flag means "this story has staged edits the server has not seen", and
+    // moving the one editor from the headline to the body does not change
+    // that — the headline's text is still sitting in its hidden field. If
+    // the flag were reset here, "typed a headline, clicked the body, clicked
+    // another story" would drop the headline without the story-switch guard
+    // ever firing, because the body mount had just told it there was nothing
+    // to lose.
+    bodyDirty = carryDirty ? bodyDirty : false;
 
     if (bodyToolbarBar) {
       bodyToolbarBar.hidden = false;
@@ -588,15 +605,19 @@ import Sortable from 'sortablejs';
   }
 
   // Asks before abandoning unsaved editor text. Resolves true when it is safe
-  // to proceed. Called from the card click handler when the click would switch
-  // to a DIFFERENT story, and when it would move the editor to a different
-  // region of the SAME story — both discard what is in the editor.
+  // to proceed. Called from the card click handler only when the click would
+  // switch to a DIFFERENT story — selectStory()/selectScratch() re-seed the
+  // fields, which is what discards the staged edits. Moving the editor to
+  // another region of the SAME story used to ask too, and must not: see the
+  // same-story branch of the click handler.
   function confirmLeavingDirtyBody() {
     if (!bodyDirty) return Promise.resolve(true);
-    var what = targetSpec(activeTarget).label.toLowerCase();
+    // "This story", not "the body"/"the headline": the flag is carried across
+    // same-story field switches now, so by the time it asks, the staged edits
+    // may sit in more than one field.
     return confirmAction({
       title: 'Discard unsaved changes?',
-      body: 'The ' + what + ' has unsaved edits that will be lost.',
+      body: 'This story has unsaved edits that will be lost.',
       confirmLabel: 'Discard changes',
       cancelLabel: 'Keep editing',
       danger: true
@@ -955,6 +976,11 @@ import Sortable from 'sortablejs';
       // attribute is a stale render, and treating that as "publish it"
       // meant selecting such a story and hitting Save re-published it.
       status:      card.getAttribute('data-news-library-status') || 'draft',
+      // Seeds the hidden category_id so the category modal opens with this
+      // story's category already selected. Empty for a story saved before
+      // categories existed — the modal then requires a choice, as for a new
+      // story.
+      categoryId:  card.getAttribute('data-news-library-category-id') || '',
       image:       card.getAttribute('data-news-library-image') || ''
     };
   }
@@ -981,7 +1007,7 @@ import Sortable from 'sortablejs';
   function selectStory(id, slotType, artEl) {
     var data;
     if (!id) {
-      data = { id: '', title: '', description: '', source: '', location: '', dek: '', excerpt: '', caption: '', credit: '', layout: slotType || 'secondary', priority: '0', image: '' };
+      data = { id: '', title: '', description: '', source: '', location: '', dek: '', excerpt: '', caption: '', credit: '', layout: slotType || 'secondary', priority: '0', image: '', categoryId: '' };
     } else {
       var card = libraryCardById(id);
       if (!card) { toast('Could not load that story’s details.', true); return false; }
@@ -1023,6 +1049,7 @@ import Sortable from 'sortablejs';
     }
 
     if (f.title)       f.title.value = data.title || '';
+    if (f.categoryId)  f.categoryId.value = data.categoryId || '';
     if (f.description) f.description.value = data.description || '';
     if (f.source)      f.source.value = data.source || '';
     if (f.location)    f.location.value = data.location || '';
@@ -1246,6 +1273,253 @@ import Sortable from 'sortablejs';
     setTimeout(function () { button.disabled = false; button.textContent = label; }, 4000);
   }
 
+  // ── Category modal ──────────────────────────────────────────────────
+  // NewsController.store refuses a story without a category_id ("Please
+  // choose a category for this story."), so the choice is put in front of
+  // BOTH exits of the Publish box rather than left as a field an editor could
+  // miss: Save Draft and Submit/Publish first raise this modal, and only its
+  // Confirm runs submitWithStatus(). An existing story arrives with its own
+  // category checked (selectStory seeds f.categoryId from the library row), so
+  // Confirm is one click; a new story cannot Confirm until a radio is chosen.
+  //
+  // The modal is outside [data-news-composer] (a sibling <dialog>, like the
+  // Story Library drawer), so everything in it is looked up from `root` — the
+  // same trap libraryCardById() documents.
+  var categoryModal   = root.querySelector('[data-news-category-modal]');
+  var categoryUrl     = categoryModal ? categoryModal.getAttribute('data-news-category-url') : '';
+  var categoryList    = categoryModal ? categoryModal.querySelector('[data-news-category-list]') : null;
+  var categoryConfirm = categoryModal ? categoryModal.querySelector('[data-news-category-confirm]') : null;
+  var categoryCancel  = categoryModal ? categoryModal.querySelector('[data-news-category-cancel]') : null;
+  var categoryAddForm = categoryModal ? categoryModal.querySelector('[data-news-category-add-form]') : null;
+  var categoryNewName = categoryModal ? categoryModal.querySelector('[data-news-category-new-name]') : null;
+  var categoryNotice  = categoryModal ? categoryModal.querySelector('[data-news-category-notice]') : null;
+  var categoryNoticeText = categoryModal ? categoryModal.querySelector('[data-news-category-notice-text]') : null;
+  var categoryRestore = categoryModal ? categoryModal.querySelector('[data-news-category-restore]') : null;
+  var categoryProceed = null;      // the submit to run once a category is confirmed
+  var categoryRestoreUrl = '';     // from a "restorable" outcome, consumed by Restore
+
+  function categoryRadios() {
+    return categoryModal
+      ? Array.prototype.slice.call(categoryModal.querySelectorAll('[data-news-category-radio]'))
+      : [];
+  }
+
+  function checkedCategoryId() {
+    var on = categoryRadios().filter(function (r) { return r.checked; })[0];
+    return on ? on.value : '';
+  }
+
+  // Re-checks the radio for the id in the hidden field. Runs on open and after
+  // every live refresh of the list, because a refresh replaces the <li>s and
+  // a checked radio does not survive innerHTML.
+  function syncCategorySelection(preferId) {
+    var want = preferId || (f.categoryId && f.categoryId.value) || '';
+    var found = false;
+    categoryRadios().forEach(function (r) {
+      r.checked = !!want && r.value === want;
+      if (r.checked) found = true;
+    });
+    if (categoryConfirm) categoryConfirm.disabled = !found;
+    return found;
+  }
+
+  function hideCategoryNotice() {
+    if (categoryNotice) categoryNotice.hidden = true;
+    categoryRestoreUrl = '';
+  }
+
+  function askCategoryThen(proceed) {
+    // No modal in the DOM (or no <dialog> support): let the server say no,
+    // exactly as it did before this existed, rather than block the save.
+    if (!categoryModal || typeof categoryModal.showModal !== 'function') { proceed(); return; }
+    categoryProceed = proceed;
+    hideCategoryNotice();
+    if (categoryNewName) categoryNewName.value = '';
+    syncCategorySelection();
+    if (!categoryModal.open) categoryModal.showModal();
+  }
+
+  function closeCategoryModal() {
+    categoryProceed = null;
+    if (categoryModal && categoryModal.open) categoryModal.close();
+  }
+
+  function categoryRequest(url, method, body) {
+    var opts = {
+      method: method,
+      headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+      credentials: 'same-origin'
+    };
+    if (body) opts.body = body;
+    return fetch(url, opts).then(readJsonEnvelope).then(function (json) {
+      if (json && json.__sessionExpired) {
+        toast('Your session has expired — reload the page and sign in again.', true);
+        return null;
+      }
+      return json;
+    }).catch(function () {
+      toast('Request failed — please try again.', true);
+      return null;
+    });
+  }
+
+  // Re-render the list from the server (the same partial the page loaded
+  // with), then select `selectId`. DashboardLive.refresh resolves after the
+  // innerHTML swap, so the radio exists by the time this looks for it.
+  function reloadCategories(selectId) {
+    var done = (window.DashboardLive && window.DashboardLive.refresh)
+      ? window.DashboardLive.refresh('news-categories')
+      : Promise.resolve(false);
+    return done.then(function () { syncCategorySelection(selectId); });
+  }
+
+  if (categoryModal) {
+    categoryModal.addEventListener('change', function (event) {
+      if (event.target.closest('[data-news-category-radio]')) {
+        if (categoryConfirm) categoryConfirm.disabled = !checkedCategoryId();
+      }
+    });
+
+    if (categoryConfirm) {
+      categoryConfirm.addEventListener('click', function () {
+        var id = checkedCategoryId();
+        if (!id) return;
+        if (f.categoryId) f.categoryId.value = id;
+        var proceed = categoryProceed;
+        closeCategoryModal();
+        if (proceed) proceed();
+      });
+    }
+    if (categoryCancel) categoryCancel.addEventListener('click', closeCategoryModal);
+    // Esc closes a <dialog> natively; make sure the queued submit dies with it.
+    categoryModal.addEventListener('close', function () { categoryProceed = null; });
+
+    // "Add": create, or adopt what already holds the name. The controller
+    // reports this through `outcome`, not the HTTP status — an existing name
+    // is a success (it satisfies "give me an id"), and a soft-deleted one is
+    // 409 + ok:true with a restore_url, which is only ever OFFERED.
+    if (categoryAddForm) {
+      categoryAddForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var name = categoryNewName ? categoryNewName.value.trim() : '';
+        if (!name) { if (categoryNewName) categoryNewName.focus(); return; }
+        hideCategoryNotice();
+        var fd = new FormData();
+        fd.append('name', name);
+        categoryRequest(categoryUrl, 'POST', fd).then(function (json) {
+          if (!json) return;
+          if (!json.ok) { toast((json.errors && json.errors[0]) || 'Could not add that category.', true); return; }
+          var category = json.category || {};
+          if (json.outcome === 'restorable') {
+            if (categoryNoticeText) categoryNoticeText.textContent = (json.messages && json.messages[0]) || '';
+            categoryRestoreUrl = json.restore_url || '';
+            if (categoryNotice) categoryNotice.hidden = false;
+            return;
+          }
+          if (categoryNewName) categoryNewName.value = '';
+          if (json.messages && json.messages[0]) toast(json.messages[0], false);
+          reloadCategories(String(category.id || ''));
+        });
+      });
+    }
+
+    if (categoryRestore) {
+      categoryRestore.addEventListener('click', function () {
+        if (!categoryRestoreUrl) return;
+        var url = categoryRestoreUrl;
+        categoryRequest(url, 'POST', new FormData()).then(function (json) {
+          if (!json) return;
+          if (!json.ok) { toast((json.errors && json.errors[0]) || 'Could not restore that category.', true); return; }
+          hideCategoryNotice();
+          if (categoryNewName) categoryNewName.value = '';
+          if (json.messages && json.messages[0]) toast(json.messages[0], false);
+          reloadCategories(String((json.category && json.category.id) || ''));
+        });
+      });
+    }
+
+    // Rename / Delete are delegated: the rows are replaced by every live
+    // refresh, so listeners on the <li>s would not survive.
+    categoryModal.addEventListener('click', function (event) {
+      var item = event.target.closest('[data-news-category-item]');
+      if (!item) return;
+      var id = item.getAttribute('data-news-category-id');
+      var name = item.getAttribute('data-news-category-name') || '';
+      var itemUrl = categoryUrl.replace(/\/?$/, '/') + encodeURIComponent(id);
+
+      if (event.target.closest('[data-news-category-rename]')) {
+        var label = item.querySelector('[data-news-category-label]');
+        if (!label || item.querySelector('[data-news-category-rename-input]')) return;
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.value = name;
+        input.maxLength = 60;
+        input.className = 'news-category-item__rename';
+        input.setAttribute('data-news-category-rename-input', '');
+        label.hidden = true;
+        label.insertAdjacentElement('afterend', input);
+        input.focus();
+        input.select();
+        var finished = false;
+        function finish(commit) {
+          if (finished) return;
+          finished = true;
+          var next = input.value.trim();
+          input.remove();
+          label.hidden = false;
+          if (!commit || !next || next === name) return;
+          var fd = new FormData();
+          fd.append('name', next);
+          categoryRequest(itemUrl, 'POST', fd).then(function (json) {
+            if (!json) return;
+            if (!json.ok) { toast((json.errors && json.errors[0]) || 'Could not rename that category.', true); return; }
+            if (json.messages && json.messages[0]) toast(json.messages[0], false);
+            reloadCategories(checkedCategoryId());
+          });
+        }
+        input.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+          else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+        });
+        input.addEventListener('blur', function () { finish(true); });
+        return;
+      }
+
+      if (event.target.closest('[data-news-category-delete]')) {
+        // The confirmation has to state the count, which is why the partial
+        // carries no data-confirm attribute for this button.
+        var countEl = item.querySelector('.news-category-item__count');
+        var countText = countEl ? countEl.textContent.trim() : 'its stories';
+        confirmAction({
+          title: 'Delete "' + name + '"?',
+          body: 'This also removes ' + countText + ' from the kiosk. Both can be restored later by adding the same name again.',
+          confirmLabel: 'Delete category',
+          cancelLabel: 'Keep it',
+          danger: true
+        }).then(function (ok) {
+          if (!ok) return;
+          categoryRequest(itemUrl, 'DELETE').then(function (json) {
+            if (!json) return;
+            if (!json.ok) { toast((json.errors && json.errors[0]) || 'Could not delete that category.', true); return; }
+            if (f.categoryId && f.categoryId.value === id) f.categoryId.value = '';
+            if (json.messages && json.messages[0]) toast(json.messages[0], false);
+            reloadCategories(checkedCategoryId() === id ? '' : checkedCategoryId());
+            // Stories in that category are gone from the library too.
+            if (window.DashboardLive) window.DashboardLive.refresh('news');
+          });
+        });
+      }
+    });
+
+    // Another editor renamed or added a category: the poll re-rendered the
+    // list under us, so put the selection back.
+    categoryModal.addEventListener('live:refreshed', function (event) {
+      if (event.detail && event.detail.section === 'news-categories') {
+        syncCategorySelection(checkedCategoryId() || undefined);
+      }
+    });
+  }
+
   // Only an admin can put a story on the kiosk. For everyone else this button
   // submits it for review instead — the server enforces that regardless (see
   // NewsController._resolve_status_for_actor), so this is about the button not
@@ -1256,23 +1530,27 @@ import Sortable from 'sortablejs';
   if (saveBtn) {
     if (!canPublish) saveBtn.textContent = 'Submit for review';
     saveBtn.addEventListener('click', function () {
-      if (canPublish) {
-        submitWithStatus(saveBtn, 'published', 'Publishing…', 'Story published.');
-      } else {
-        submitWithStatus(
-          saveBtn,
-          'review',
-          'Submitting…',
-          'Sent to an admin for review. It stays off the kiosk until approved.'
-        );
-      }
+      askCategoryThen(function () {
+        if (canPublish) {
+          submitWithStatus(saveBtn, 'published', 'Publishing…', 'Story published.');
+        } else {
+          submitWithStatus(
+            saveBtn,
+            'review',
+            'Submitting…',
+            'Sent to an admin for review. It stays off the kiosk until approved.'
+          );
+        }
+      });
     });
   }
 
   var draftBtn = composer.querySelector('[data-news-save-draft]');
   if (draftBtn) {
     draftBtn.addEventListener('click', function () {
-      submitWithStatus(draftBtn, 'draft', 'Saving…', 'Draft saved.');
+      askCategoryThen(function () {
+        submitWithStatus(draftBtn, 'draft', 'Saving…', 'Draft saved.');
+      });
     });
   }
 
@@ -1594,12 +1872,19 @@ import Sortable from 'sortablejs';
       }
       if (TARGETS[regionKey] && activeArt && activeArt.contains(regionEl)) {
         if (regionEl !== mountedBodyRegion) {
-          // Same story, different field: the staged value for the field being
-          // left is already written (every keystroke syncs it), so this only
-          // guards against silently dropping text the user has not saved.
-          confirmLeavingDirtyBody().then(function (ok) {
-            if (ok) mountEditor(activeArt, regionKey);
-          });
+          // Same story, different field: NO prompt. Every keystroke is already
+          // written into the field being left (the text-change handler syncs
+          // it), and unmountBodyEditor() puts the editor's HTML back into the
+          // region it stood in for — so nothing is lost by moving the editor,
+          // and the "Discard unsaved changes?" this used to raise guarded
+          // against a loss that could not happen. Editors hit it on every
+          // headline→body→headline hop, which made a story's own fields feel
+          // like they needed saving one at a time before the next could be
+          // touched. The prompt stays on the story-SWITCH branches below,
+          // which are the only paths that re-seed the fields. `true` carries
+          // bodyDirty across the re-mount so that guard still knows there is
+          // something staged (see mountEditor).
+          mountEditor(activeArt, regionKey, true);
         }
         return;
       }
@@ -1639,8 +1924,8 @@ import Sortable from 'sortablejs';
   // secondary grid (never the lead) so it can no longer clobber whatever
   // the front page's actual lead story currently shows — that DOM-overwrite
   // was the confusing behavior Task 5 exists to remove. Mirrors the real
-  // secondary-story markup in kiosk/_news_slots.html exactly (title +
-  // excerpt + image), minus the server-rendered id.
+  // secondary-story markup in kiosk/_news_slots.html exactly (image, title,
+  // excerpt and the collapsed body <details>), minus the server-rendered id.
   //
   // Both scratch shapes carry a "Discard draft" control (final review,
   // Important 4). It is deliberately ON the card rather than in the
@@ -1649,6 +1934,24 @@ import Sortable from 'sortablejs';
   var SCRATCH_DISCARD_HTML =
     '<button type="button" class="news-scratch-discard" data-news-discard-scratch>Discard draft</button>';
 
+  // The <details> body region is NOT optional, and leaving it out was a silent
+  // data-loss bug, not just a missing input: syncFormFromSurface() writes a
+  // field into the hidden form only when that field's region exists on the
+  // active <article> (see its `if (f.x && region(activeArt, 'x'))` guards), so
+  // a side scratch without a `data-news-edit="body"` region never had its
+  // `description` read off the surface at all. A new side story could not be
+  // given a body, and any body it did carry was dropped on Publish. The widget
+  // scratch below already spells out this exact reasoning — the side scratch
+  // simply never got it, while the comment above claimed it mirrored the real
+  // card "exactly". It does now: `kiosk/_news_slots.html` wraps the side
+  // card's body in the same collapsed <details>, which is what stops four
+  // filled side cards from becoming four articles tall.
+  //
+  // It goes INSIDE .secondary-story__body deliberately. The card is a
+  // two-column grid and the real card puts exactly two things in it (thumb +
+  // body); a third in-flow child here would take the thumbnail's cell and push
+  // the headline into the 108px column. tests/js/news-scratch-card.test.mjs
+  // pins that count.
   var SCRATCH_SECONDARY_HTML =
     '<article class="secondary-story is-scratch" data-news-id="">' +
       SCRATCH_DISCARD_HTML +
@@ -1656,6 +1959,10 @@ import Sortable from 'sortablejs';
       '<div class="secondary-story__body">' +
         '<h3 class="secondary-story__title" data-news-edit="title"></h3>' +
         '<p class="secondary-story__copy secondary-story__copy--excerpt" data-news-edit="excerpt"></p>' +
+        '<details class="news-inline-body" data-news-body-disclosure>' +
+          '<summary class="news-inline-body__summary">Full article body</summary>' +
+          '<div class="secondary-story__copy secondary-story__copy--body" data-news-edit="body"></div>' +
+        '</details>' +
       '</div>' +
     '</article>';
 

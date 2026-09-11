@@ -21,9 +21,41 @@
 </head>
 <body class="multiple-scenes tour-page">
 
-  {#- No Start/Exit splash: tapping "Virtual Tour" on the kiosk menu is already
-      the start gesture, so kiosk-tour.js calls startTour() on load. The way
-      out is the shared back bar at the foot of this file. #}
+  {#- Start gate. The tour used to open straight into the panorama on load,
+      on the reasoning that tapping "Virtual Tour" in the kiosk menu was
+      already the start gesture. On the shell's carousel that stopped being
+      true: sliding past the card loads this page, so a visitor merely
+      browsing the menu got a panorama spinning at them with no idea it was
+      interactive.
+
+      So the pano stays dark (#pano is opacity:0 / pointer-events:none until
+      body.tour-ready) and nothing is rendered until this button is pressed —
+      that press is what calls startTour(), which switches to the first scene,
+      raises the ground indicator, wires the find-a-building dock and fires
+      'tour:ready' for tour-charter.js.
+
+      Markup lives here rather than being built by kiosk-tour.js so it paints
+      on first frame, before the ~360MB tile pipeline and Marzipano have
+      loaded. kiosk-tour.js starts the tour immediately if this element is
+      missing, so removing it degrades back to the old behaviour instead of
+      leaving a kiosk with no way in. #}
+  <div class="tour-start" data-tour-start>
+    <div class="tour-start__panel">
+      <span class="tour-start__eyebrow">LSPU Santa Cruz Campus</span>
+      <h2 class="tour-start__title">360&deg; Virtual Tour</h2>
+      <p class="tour-start__blurb" data-tour-start-message>
+        Walk the campus from where you stand. Drag to look around, pinch to
+        zoom, and tap a marker to move to the next spot.
+      </p>
+      <button type="button" class="tour-start__button" data-tour-start-button>
+        <span class="tour-start__button-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5.5 17.5 12 7 18.5V5.5Z"></path></svg>
+        </span>
+        <span class="tour-start__button-label">Start the tour</span>
+      </button>
+    </div>
+  </div>
+
   <div class="tour-viewport" aria-hidden="true">
     <div class="tour-frame">
       <div id="pano" aria-hidden="true"></div>
@@ -175,6 +207,8 @@
     data-charter-page-extension="{{ charter.page_extension }}"
     data-charter-direct-pages="{{ charter.direct_pages if charter.direct_pages else 0 }}"
     data-charter-prewarmed-pages="{{ charter.prewarmed_pages if charter.prewarmed_pages else 0 }}"
+    data-charter-detail-pages="{{ charter.detail_pages if charter.detail_pages else 0 }}"
+    data-charter-detail-suffix="{{ charter.detail_suffix if charter.detail_suffix else '@2x' }}"
   >
     {% with reader_back_label='Back to tour' %}{% include 'kiosk/partials/_archive-reader.html' %}{% endwith %}
 
