@@ -265,11 +265,35 @@
     }
   });
 
+  /*
+   * Re-fetch the frame in place, for a live update (welcome-screen.js via
+   * kiosk-live.js). Only when `id` is the section on screen: any other
+   * section is served fresh on its next visit anyway, because the shell
+   * evicted it from the service worker cache before asking for this.
+   *
+   * location.reload(), like the replace() in loadFrame(), adds no history
+   * entry -- writing src would.
+   */
+  function reload(id) {
+    if (id !== currentId) return false;
+    try {
+      if (frame.contentWindow && frame.contentWindow.location) {
+        frame.contentWindow.location.reload();
+        return true;
+      }
+    } catch (_) {
+      // Same-origin throughout; a frame in a strange state must not take
+      // the kiosk down.
+    }
+    return false;
+  }
+
   window.__kioskContent = {
     show: show,
     sections: function () { return sections.slice(); },
     current: function () { return currentId; },
     defaultId: function () { return defaultId; },
+    reload: reload,
     indexOf: indexOf,
   };
 })();

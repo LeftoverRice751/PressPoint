@@ -81,7 +81,12 @@ function boot({ activeId = 'latest-news', withHost = true } = {}) {
   };
   frame.contentWindow = {
     id: 'content-frame',
-    location: { replace(url) { srcLog.push(String(url)); } },
+    location: {
+      replace(url) { srcLog.push(String(url)); },
+      // A live-update reload; logged distinctly so a test can tell it from
+      // a section change.
+      reload() { srcLog.push('<reload>'); },
+    },
   };
 
   const host = {
@@ -340,4 +345,22 @@ test('every section is reachable, one frame navigation each', () => {
     '/kiosk/embed/gears-archive',
     '/kiosk/embed/virtual-tour',
   ], 'exactly one navigation per section, and no history entries from any of them');
+});
+
+test('reload(id) reloads the frame only when that section is showing', () => {
+  const k = boot({ activeId: 'latest-news' });
+
+  assert.equal(k.api().reload('about-lspu'), false, 'not the current section: nothing to do');
+  assert.deepEqual(k.srcLog, []);
+
+  assert.equal(k.api().reload('latest-news'), true);
+  assert.deepEqual(k.srcLog, ['<reload>']);
+});
+
+test('reload(id) never pushes history', () => {
+  const k = boot({ activeId: 'latest-news' });
+  const before = k.historyLog.length; // boot stamps the initial state with replaceState
+  k.api().reload('latest-news');
+  assert.equal(k.historyLog.length, before, 'a reload is not a navigation the visitor can Back out of');
+  assert.ok(k.historyLog.every((h) => h.op !== 'push'));
 });
