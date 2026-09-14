@@ -26,7 +26,7 @@ class NewsSoftDeleteScopeTestCase(TestCase):
         self.assertIn(DELETED_PREDICATE, News.all(query=True).to_sql())
 
     def test_where_is_scoped(self):
-        sql = News.where("layout_type", "main").to_sql()
+        sql = News.where("layout_type", "lead").to_sql()
         self.assertIn(DELETED_PREDICATE, sql)
 
     def test_select_raw_group_by_is_scoped(self):

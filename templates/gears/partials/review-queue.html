@@ -1,67 +1,93 @@
-{# Admin review queue — stories editors have submitted, oldest first.
+{# Admin review queue — the ISSUE an editor submitted, as one thing.
 
-   Rendered both by the full dashboard page and by
+   Rendered both by the full admin console and by
    /gears/dashboard/fragment/review, from this same partial, so a queue
    refreshed live can never differ from a freshly-rendered one.
 
-   The preview is fetched on demand rather than rendered inline for every row:
-   it goes through the real kiosk partial, and rendering N of those into a
-   queue that mostly gets scanned would be wasteful. #}
+   This used to be one card per story. An editor composes an issue as a unit
+   and submits it in one click; handing the admin twelve separate cards for a
+   full issue meant twelve Approve clicks, and each card's preview forced its
+   story into the lead slot regardless of what it was — a quote previewed as a
+   headline story. Now there is one card, one preview of the whole issue as
+   the kiosk will print it, one Approve and one Send back. All or nothing, by
+   decision: a single bad block sends the issue back to the editor with one
+   reason.
+
+   The preview is fetched on demand rather than rendered inline: it goes
+   through the real kiosk partial and there is no point paying for that until
+   the admin asks to see it. #}
 <div class="review-queue" data-review-queue>
-  {% for story in review_stories %}
-  <article class="review-card" data-review-item data-review-id="{{ story.id }}">
+  {% if review_issue %}
+  {% set issue = review_issue %}
+  <article class="review-card review-card--issue" data-review-issue>
     <div class="review-card__head">
       <div class="review-card__meta">
         <p class="review-card__byline">
           Submitted by
-          <strong>{{ review_authors.get(story.author_id) if story.author_id and review_authors else 'an unknown account' }}</strong>
+          <strong>{{ issue.authors | join(', ') if issue.authors else 'an unknown account' }}</strong>
         </p>
-        <h3 class="review-card__title">{{ story.title }}</h3>
-        {% if story.dek %}<p class="review-card__dek">{{ story.dek }}</p>{% endif %}
+        <h3 class="review-card__title">
+          Issue for review
+          <span class="review-card__count">{{ issue.block_count }} block{{ '' if issue.block_count == 1 else 's' }}</span>
+        </h3>
       </div>
-      <span class="review-card__slot">{{ {'main': 'Lead', 'secondary': 'Side', 'widget': 'Widget'}.get(story.layout_type, 'Unplaced') }}</span>
     </div>
 
-    <p class="review-card__excerpt">
-      {{ story.excerpt if story.excerpt else (story.description | striptags | truncate(220) if story.description else 'No summary available.') }}
-    </p>
+    {# What is in it, block by block. Reads as a manifest rather than a
+       preview: the admin can see at a glance that the lead is there and the
+       notice is not before opening the full page. Only blocks with content
+       are listed — an empty block is not part of the issue. #}
+    <ul class="review-manifest">
+      {% for block, label in [('lead', 'Lead story'), ('brief', 'Side stories'),
+                              ('photo_essay', 'Photo essay'), ('editorial', 'Editorial'),
+                              ('quote', 'Quotes'), ('notice', 'Notice')] %}
+      {% set n = issue.blocks.get(block, 0) %}
+      {% if n %}
+      <li class="review-manifest__row">
+        <span class="review-manifest__label">{{ label }}</span>
+        <span class="review-manifest__count">{{ n }}</span>
+      </li>
+      {% endif %}
+      {% endfor %}
+    </ul>
 
     <div class="review-card__actions">
       <button type="button" class="review-btn review-btn--preview" data-review-preview>
-        Preview as it will appear
+        Preview the issue as it will appear
       </button>
-      {# Approving pushes the story straight to the campus kiosk, so it is
-         outward-facing and gets a prompt. "Send back" below needs none: it
-         already reveals a required-reason box with its own confirm step. #}
+      {# Approving pushes every block to the campus kiosk at once, so it is
+         outward-facing and gets a prompt. "Send back" needs none: it reveals
+         a required-reason box with its own confirm step. #}
       <button type="button" class="review-btn review-btn--approve" data-review-approve
-              data-confirm="This publishes the story to the campus kiosk right away, where anyone can read it."
-              data-confirm-title="Approve and publish?"
-              data-confirm-label="Publish"
+              data-confirm="This publishes all {{ issue.block_count }} blocks to the campus kiosk right away, where anyone can read them."
+              data-confirm-title="Approve and publish the issue?"
+              data-confirm-label="Publish issue"
               data-confirm-cancel="Not yet">
-        Approve &amp; publish
+        Approve &amp; publish issue
       </button>
       <button type="button" class="review-btn review-btn--reject" data-review-reject>
-        Send back
+        Send issue back
       </button>
     </div>
 
-    {# Filled by review-queue.js from /gears/review/@id/preview — the kiosk's
-       own _news_slots partial, scaled down. Empty until asked for. #}
+    {# Filled by review-queue.js from /gears/review/issue/preview — the
+       kiosk's own _issue partial with every pending block in its real place,
+       scaled down. Empty until asked for. #}
     <div class="review-card__preview" data-review-preview-frame hidden>
       <div class="review-preview__scale" data-review-preview-target></div>
     </div>
 
-    {# Reject reason. Required: an editor who is only told "rejected" has no
-       idea what to fix. #}
+    {# One reason for the whole issue. Required: an editor told only
+       "sent back" has no idea what to fix. #}
     <div class="review-card__reject" data-review-reject-form hidden>
-      <label class="review-reject__label" for="reject-reason-{{ story.id }}">
+      <label class="review-reject__label" for="reject-reason-issue">
         What needs to change?
       </label>
       <textarea class="review-reject__input"
-                id="reject-reason-{{ story.id }}"
+                id="reject-reason-issue"
                 data-review-reason
                 rows="3"
-                placeholder="Explain what the editor should fix before resubmitting."></textarea>
+                placeholder="Explain what the editor should fix before resubmitting. Every block goes back together."></textarea>
       <div class="review-reject__actions">
         <button type="button" class="review-btn review-btn--reject" data-review-reject-confirm>
           Send back with this note
@@ -76,5 +102,5 @@
   <div class="empty-state empty-state--embedded">
     Nothing is waiting for review right now.
   </div>
-  {% endfor %}
+  {% endif %}
 </div>

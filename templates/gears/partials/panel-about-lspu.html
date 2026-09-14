@@ -9,23 +9,23 @@
     Fields marked `data-meta-key` are collected by about-lspu-editor.js into the
     form's hidden `meta` input and whitelisted server-side against
     AboutContent.DEFAULT_META. They cover the short strings the kiosk draws
-    around the authored bodies — the hub hero, the index hints, the prev/next
-    labels, the seal callouts — which used to be literals in the kiosk template
+    around the authored bodies — the rail header, the rail labels, the crumb
+    hints, the seal callouts — which used to be literals in the kiosk template
     and a constant in AboutController, i.e. uneditable without a deploy.
 #}
 {% macro kiosk_labels(slug) %}
       <div class="about-meta-grid">
         <label class="field">
-          <span class="field__label">Kiosk index hint</span>
+          <span class="field__label">Kiosk hint</span>
           <input type="text" class="field__input" data-meta-key="hint"
                  value="{{ about_meta[slug].hint }}" maxlength="90">
-          <span class="field__hint">The small line under this section on the About hub.</span>
+          <span class="field__hint">The small line beside this section’s title at the top of its kiosk pane.</span>
         </label>
         <label class="field">
           <span class="field__label">Short label</span>
           <input type="text" class="field__input" data-meta-key="short"
                  value="{{ about_meta[slug].short }}" maxlength="20">
-          <span class="field__hint">Shown on the kiosk’s previous / next buttons.</span>
+          <span class="field__hint">The button for this section on the kiosk’s side rail — keep it to one word.</span>
         </label>
       </div>
 {% endmacro %}
@@ -101,7 +101,7 @@
                   data-about-tab="page" aria-selected="true"
                   aria-controls="about-panel-page" id="about-tab-page">
             <span class="about-section-tab__icon" aria-hidden="true">⌂</span>
-            <span>Hub</span>
+            <span>Rail</span>
           </button>
           <button type="button" class="about-section-tab" role="tab"
                   data-about-tab="mission" aria-selected="false"
@@ -141,44 +141,38 @@
           </button>
         </nav>
 
-        <!-- ── Panel: Hub (the landing screen of kiosk/about-lspu) ── -->
+        <!-- ── Panel: Rail header (the side rail on kiosk/about-lspu) ── -->
         <section id="about-panel-page" class="about-section-panel"
                  data-about-panel="page" role="tabpanel"
                  aria-labelledby="about-tab-page">
           <article class="page-card about-card">
             <div class="panel-header panel-header--compact">
               <div>
-                <p class="panel-header__eyebrow">Hub</p>
-                <h3 class="panel-header__title">About hub header</h3>
+                <p class="panel-header__eyebrow">Rail</p>
+                <h3 class="panel-header__title">Kiosk rail header</h3>
               </div>
             </div>
             <p class="about-card__note">
-              The masthead on the first screen of About LSPU, above the list of the
-              six sections. Each section’s own hint and short label live on its tab.
+              The label at the top of the side rail on the kiosk’s About LSPU page.
+              Each section’s own hint and rail label live on its tab.
             </p>
+            {# The kiosk used to open on a hub with a kicker and a lead paragraph
+               under this heading. Those two meta keys stay in DEFAULT_META so a
+               row saved before the hub went away still passes sanitize_meta,
+               but they render nowhere now, so they get no input here. #}
             <form class="about-section-form form-stack" method="POST"
                   action="/gears/about-lspu/sections/page"
                   data-section-form="page">
               {{ csrf_field | safe }}
               <label class="field">
-                <span class="field__label">Kicker</span>
-                <input type="text" class="field__input" data-meta-key="kicker"
-                       value="{{ about_page.kicker }}" maxlength="80">
-                <span class="field__hint">The small amber line above the title.</span>
-              </label>
-              <label class="field">
                 <span class="field__label">Heading</span>
                 <input type="text" class="field__input" data-meta-key="title"
                        value="{{ about_page.title }}" maxlength="80">
-              </label>
-              <label class="field">
-                <span class="field__label">Lead paragraph</span>
-                <textarea class="field__input" data-meta-key="lead" rows="3"
-                          maxlength="240">{{ about_page.lead }}</textarea>
+                <span class="field__hint">Two short words fit; the rail is 72px wide.</span>
               </label>
               <input type="hidden" name="meta" class="js-meta-payload">
               <div class="about-section-form__actions">
-                <button type="submit" class="primary-button">Save hub header</button>
+                <button type="submit" class="primary-button">Save rail header</button>
               </div>
             </form>
           </article>

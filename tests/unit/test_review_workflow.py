@@ -123,7 +123,7 @@ class PrivilegeTestCase(TestCase):
         inputs = {
             "title": "Sneaky",
             "description": "<p>Body</p>",
-            "layout_type": "secondary",
+            "layout_type": "brief",
             "status": "published",
             "priority": "3",
             "article_id": "",
@@ -151,7 +151,7 @@ class PrivilegeTestCase(TestCase):
         inputs = {
             "title": "Attributed",
             "description": "<p>Body</p>",
-            "layout_type": "secondary",
+            "layout_type": "brief",
             "status": "draft",
             "priority": "1",
             "article_id": "",
@@ -284,3 +284,167 @@ class ApproveRejectTestCase(TestCase):
         request = _request(role="admin", params={"id": "999"})
         response, _, _ = self._run("approve", None, request)
         self.assertEqual(_status(response), 404)
+
+
+class IssueLevelReviewTestCase(TestCase):
+    """The admin reviews an ISSUE, not twelve stories.
+
+    An editor composes an issue as one unit and submits it in one click. It
+    used to arrive at the admin as N unrelated submissions -- one queue row and
+    one Approve per block, with each preview shoving the story into the lead
+    slot regardless of what it was. A fully-filled issue is twelve blocks, so
+    that was twelve clicks and twelve misleading previews.
+
+    All-or-nothing by decision: one Approve publishes every pending block, one
+    Reject sends every pending block back with one reason.
+    """
+
+    def _pending(self, n=3):
+        rows = []
+        for i in range(n):
+            r = Mock(id=100 + i, status="review", title=f"Block {i}", author_id=5,
+                     layout_type=["lead", "brief", "quote"][i % 3])
+            r.rejection_reason = "old"
+            r.save = Mock()
+            rows.append(r)
+        return rows
+
+    def _run(self, method, rows, request):
+        response = _response()
+        with patch(
+            "app.controllers.gears.ReviewController.pending_stories", return_value=rows
+        ), patch(
+            "app.controllers.gears.ReviewController.Cache"
+        ) as cache_mock, patch(
+            "app.controllers.gears.ReviewController.Notifications"
+        ) as notify_mock:
+            getattr(ReviewController(), method)(request, response)
+        return response, cache_mock, notify_mock
+
+    def test_approve_issue_publishes_every_pending_block(self):
+        rows = self._pending(3)
+        request = _request(role="admin")
+        response, cache_mock, _ = self._run("approve_issue", rows, request)
+
+        for r in rows:
+            self.assertEqual(r.status, "published")
+            self.assertIsNone(r.rejection_reason)
+            r.save.assert_called_once()
+        self.assertTrue(_body(response)["ok"])
+        # Once, not once per block: the kiosk cache is one thing.
+        cache_mock.forget.assert_called_once()
+
+    def test_approve_issue_notifies_each_author_once(self):
+        """Three blocks by the same editor is one issue and one notification,
+        not three bell entries saying the same thing."""
+        rows = self._pending(3)
+        request = _request(role="admin")
+        _, _, notify_mock = self._run("approve_issue", rows, request)
+
+        self.assertEqual(notify_mock.notify.call_count, 1)
+        self.assertEqual(notify_mock.notify.call_args[0][0], 5)
+        self.assertEqual(notify_mock.notify.call_args[0][1], "news.approved")
+
+    def test_reject_issue_requires_a_reason(self):
+        rows = self._pending(2)
+        request = _request(role="admin", inputs={"reason": "  "})
+        response, cache_mock, _ = self._run("reject_issue", rows, request)
+
+        for r in rows:
+            r.save.assert_not_called()
+        cache_mock.forget.assert_not_called()
+        self.assertFalse(_body(response)["ok"])
+
+    def test_reject_issue_sends_every_block_back_with_the_one_reason(self):
+        rows = self._pending(2)
+        request = _request(role="admin", inputs={"reason": "Headlines need work."})
+        response, _, notify_mock = self._run("reject_issue", rows, request)
+
+        for r in rows:
+            self.assertEqual(r.status, "draft")
+            self.assertEqual(r.rejection_reason, "Headlines need work.")
+        self.assertTrue(_body(response)["ok"])
+        self.assertEqual(notify_mock.notify.call_args[0][3], "Headlines need work.")
+
+    def test_editor_cannot_approve_an_issue(self):
+        rows = self._pending(1)
+        request = _request(role="editor")
+        response, cache_mock, _ = self._run("approve_issue", rows, request)
+
+        rows[0].save.assert_not_called()
+        cache_mock.forget.assert_not_called()
+        self.assertFalse(_body(response)["ok"])
+
+    def test_nothing_pending_is_refused_not_a_silent_success(self):
+        request = _request(role="admin")
+        response, cache_mock, _ = self._run("approve_issue", [], request)
+
+        self.assertFalse(_body(response)["ok"])
+        cache_mock.forget.assert_not_called()
+
+
+class IssuePreviewTestCase(TestCase):
+    """The preview shows the issue as the kiosk will print it, every block in
+    its own place -- not one story forced into the lead slot."""
+
+    def test_preview_puts_each_pending_block_where_it_belongs(self):
+        from app.services.ReviewQueue import issue_preview_context
+
+        lead = Mock(id=1, layout_type="lead", status="review", priority=0)
+        brief = Mock(id=2, layout_type="brief", status="review", priority=1)
+        quote = Mock(id=3, layout_type="quote", status="review", priority=2)
+
+        ctx = issue_preview_context([lead, brief, quote])
+
+        self.assertIs(ctx["blocks"]["lead"][0], lead)
+        self.assertIs(ctx["blocks"]["brief"][0], brief)
+        self.assertIs(ctx["blocks"]["quote"][0], quote)
+        self.assertFalse(ctx["news_editor"])
+
+    def test_queue_context_describes_the_issue_not_the_rows(self):
+        from app.services.ReviewQueue import review_context
+
+        rows = [
+            Mock(id=1, status="review", layout_type="lead", author_id=5),
+            Mock(id=2, status="review", layout_type="brief", author_id=5),
+            Mock(id=3, status="review", layout_type="brief", author_id=5),
+        ]
+        with patch("app.services.ReviewQueue.News") as news_mock, patch(
+            "app.services.ReviewQueue.author_names", return_value={5: "John"}
+        ):
+            news_mock.all.return_value = rows
+            ctx = review_context()
+
+        issue = ctx["review_issue"]
+        self.assertEqual(issue["block_count"], 3)
+        self.assertEqual(issue["blocks"]["brief"], 2)
+        self.assertEqual(issue["blocks"]["lead"], 1)
+        self.assertEqual(issue["authors"], ["John"])
+
+
+from tests import TestCase as _AppTestCase  # noqa: E402  (needs the container; the rest of this file does not)
+
+
+class IssueRoutesResolveTestCase(_AppTestCase):
+    """`@id` matches any segment, so the issue routes have to be declared
+    BEFORE the per-story ones or "/gears/review/issue/approve" resolves to
+    approve(id="issue"). This resolves through the real router, which is the
+    only place that ordering is visible -- calling the controller directly, as
+    the tests above do, can never catch it."""
+
+    def test_issue_urls_reach_the_issue_actions_not_the_story_ones(self):
+        router = self.application.make("router")
+        for url, method, expected in (
+            ("/gears/review/issue/preview", "GET", "preview_issue"),
+            ("/gears/review/issue/approve", "POST", "approve_issue"),
+            ("/gears/review/issue/reject", "POST", "reject_issue"),
+        ):
+            route = router.find(url, method)
+            self.assertIsNotNone(route, url)
+            self.assertIn(expected, str(route.controller), f"{url} resolved to {route.controller}")
+
+    def test_story_urls_still_reach_the_story_actions(self):
+        router = self.application.make("router")
+        route = router.find("/gears/review/42/approve", "POST")
+        self.assertIn("ReviewController@approve", str(route.controller))
+        self.assertNotIn("approve_issue", str(route.controller))

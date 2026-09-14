@@ -17,7 +17,7 @@
     <p class="admin-lead__value">{{ awaiting_review }}</p>
     <p class="admin-lead__age">
       {% if oldest_pending_days is none %}
-      {{ 'Story' if awaiting_review == 1 else 'Stories' }} submitted by your editors
+      {{ 'Block' if awaiting_review == 1 else 'Blocks' }} in the issue your editors submitted
       {% elif oldest_pending_days == 0 %}
       Oldest submitted today
       {% elif oldest_pending_days == 1 %}
@@ -29,7 +29,7 @@
     {# A data-page-link button, so the shell's own delegated tab handler
        (gears-dashboard.js) switches panels. No JavaScript of this page's own. #}
     <button type="button" class="primary-button admin-lead__action" data-page-link="review">
-      Review them
+      Review the issue
     </button>
     {% else %}
     <p class="admin-lead__clear-title">Nothing waiting</p>

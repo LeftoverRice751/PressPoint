@@ -5,7 +5,7 @@
 // 1. THE FLOAT-IN-A-GRID BUG.
 //
 // `.secondary-story` is a two-column grid (108px thumb | text), and the real
-// server-rendered card in kiosk/_news_slots.html puts exactly two elements in
+// server-rendered card in kiosk/_issue.html puts exactly two elements in
 // it: the thumb and `.secondary-story__body`. The scratch card built by
 // "+ Add a story" added a THIRD — the "Discard draft" button — styled
 // `float: right`.
@@ -49,7 +49,7 @@ const read = (rel) => readFileSync(join(here, '../../', rel), 'utf8');
 
 const SOURCE = read('resources/js/news-dashboard.js');
 const PANEL = read('templates/gears/partials/panel-news.html');
-const SLOTS = read('templates/kiosk/_news_slots.html');
+const SLOTS = read('templates/kiosk/_issue.html');
 const CSS = read('resources/css/kiosk-news.css') + '\n' + read('resources/css/news-dashboard.css');
 
 // Strip comments so the prose above (and in the source) cannot satisfy or trip
@@ -286,22 +286,38 @@ test('the one-draft-at-a-time rule sees a widget scratch too', () => {
   });
 });
 
-test('the add-widget button switches off once both widget slots are taken', () => {
-  // Same contract as "+ Add main headline" (addMainBtn.disabled, just above
-  // in syncPlaceholders): a slot at capacity must not offer to add to itself.
+test('every add-a-block chip is derived from its block capacity', () => {
+  // A block at capacity must not offer to add to itself. This used to be three
+  // hand-written lines (addMainBtn / addBtn / addWidgetBtn), one per bucket;
+  // it is now derived for every block type, so a block added later is covered
+  // without anyone remembering to add a fourth line.
   const fn = blockAfter('function syncPlaceholders()');
   assert.ok(fn, 'syncPlaceholders() should still be declared');
-  assert.match(fn, /addWidgetBtn\s*\.\s*disabled\s*=/,
+
+  assert.match(fn, /BLOCK_TYPES\s*\.\s*forEach/,
+    'syncPlaceholders() should walk every block type rather than naming a few');
+  assert.match(fn, /BLOCK_CAPACITY\s*\[/,
+    'the disabled state has to come from the block capacity, not a literal');
+  assert.match(fn, /chip\s*\.\s*disabled\s*=/,
     'syncPlaceholders() is the one place every mutation, refresh and init '
-    + 'funnels through, so the add-widget button has to be derived there too');
+    + 'funnels through, so the chips have to be derived there');
 });
 
-test('a widget scratch is excluded from the canvas list selector', () => {
+test('every block excludes the scratch from the canvas list selector', () => {
   const selectors = statementAfter('var CANVAS_LIST_SELECTOR =');
   assert.ok(selectors, 'CANVAS_LIST_SELECTOR should still be declared');
-  const widget = /widget\s*:\s*'([^']*)'/.exec(selectors);
-  assert.ok(widget, 'CANVAS_LIST_SELECTOR should still name the widget bucket');
-  assert.match(widget[1], /:not\(\.is-scratch\)/,
-    'main and secondary both exclude the scratch; without it Sortable indexes an '
-    + 'unsaved widget draft as a real, draggable card');
+
+  // Derived, not a hardcoded list: a block type added later is covered without
+  // editing this test, and one that forgets the guard fails it. An unsaved
+  // draft that Sortable indexes as a real card is draggable into a slot it has
+  // not earned, and counts against a capacity it should not.
+  const entries = [...selectors.matchAll(/(\w+)\s*:\s*'([^']*)'/g)];
+  assert.ok(entries.length >= 6,
+    `expected a selector per block, found ${entries.length}`);
+
+  for (const [, block, selector] of entries) {
+    assert.match(selector, /:not\(\.is-scratch\)/,
+      `${block} must exclude the scratch; without it Sortable indexes an unsaved `
+      + 'draft as a real, draggable card');
+  }
 });

@@ -14,11 +14,19 @@ from masonite.views import View
 from config.database import DB
 
 from app.events.NewNews import NewNews
+from app.models.Events import Events
 from app.models.News import News
 from app.services import NewsCache, NewsCategories
-from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.KioskBroadcast import pusher_configured as _pusher_configured  # noqa: F401
-from app.services.DashboardContext import group_news_slots, section_stamp
+from app.services.AjaxResponses import wants_json, json_success, json_errors
+from app.services.DashboardContext import (
+    BLOCK_CAPACITY,
+    BLOCK_TYPES,
+    group_news_slots,
+    issue_identity,
+    section_stamp,
+    upcoming_events,
+)
 from app.services.ImageDerivatives import generate_variants, variant_path, variant_relpath
 from app.services.StorageRouter import absolute_path, is_safe_path
 
@@ -157,6 +165,27 @@ def _html_to_text(html):
     return bleach.clean(html or "", tags=[], strip=True).strip()
 
 
+#: What each block has to carry before it can be saved -- which is exactly
+#: what the kiosk prints for it and nothing more. This used to be one rule,
+#: "title and description", for every block. The composer presents a side
+#: story as a headline and a summary with "Full article body" behind a
+#: collapsed disclosure the editor never opens, so every side story arrived
+#: with an empty body and was refused. The kiosk never prints a side story's
+#: body; demanding one was friction with no purpose. A block not listed here
+#: keeps the old rule.
+_BLOCK_REQUIRES = {
+    "lead": ("title", "description"),
+    "editorial": ("title", "description"),
+    "quote": ("description",),  # the body IS the quote; a quote has no headline
+    "brief": ("title",),  # kiosk prints headline + summary
+    "notice": ("title",),  # kiosk prints headline + summary
+    "photo_essay": ("image",),  # a photograph, not prose
+}
+
+#: How much of a quote's text stands in for its title in the Story Library.
+_DERIVED_TITLE_CHARS = 60
+
+
 _NEWS_STATUS_ALIASES = {
     "pending": "review",
     "reviewing": "review",
@@ -204,13 +233,19 @@ def _apply_scheduling(status, published_at):
     return status
 
 
-_NEWS_LAYOUT_TYPES = {"main", "secondary", "widget", "unassigned"}
+#: Everything layout() will accept. The blocks, plus `unassigned` -- which is a
+#: real destination (the story library) that "Remove from front page" writes,
+#: but not a place on the page, so it carries no capacity.
+_NEWS_LAYOUT_TYPES = set(BLOCK_TYPES) | {"unassigned"}
 
 #: How many rows each front-page bucket can hold. These are the same numbers
-#: group_news_slots() truncates to with [:4]/[:2]; enforcing them here means a
+#: group_news_slots() truncates at capacity; enforcing it here means a
 #: story can no longer read as "placed" in the composer while being silently
 #: sliced off the kiosk render.
-_NEWS_SLOT_CAPACITY = {"main": 1, "secondary": 4, "widget": 2}
+#: Mirrors DashboardContext.BLOCK_CAPACITY, which is the source. Imported
+#: rather than restated: layout() enforces this inside its transaction, and a
+#: second copy here would be a second answer to "how many briefs fit".
+_NEWS_SLOT_CAPACITY = dict(BLOCK_CAPACITY)
 
 
 class _LayoutConflict(Exception):
@@ -409,42 +444,33 @@ class NewsController(Controller):
         category_names = NewsCategories.names_by_id()
 
         # Folio issue numbering, derived from the lead story's date (no
-        # schema): Vol. counts publication years since founding (2026 → 1),
-        # No. is the day-of-year — a plausible daily issue number that
-        # changes with each edition date.
-        issue_vol = None
-        issue_no = None
-        lead = slots["main_news"]
-        lead_at = getattr(lead, "published_at", None) or getattr(lead, "created_at", None)
-        if hasattr(lead_at, "timetuple"):
-            issue_vol = max(1, lead_at.year - 2025)
-            issue_no = lead_at.timetuple().tm_yday
+        # schema). Shared with the composer via DashboardContext so the
+        # editor's masthead cannot print a different issue line from the one
+        # the kiosk shows.
+        identity = issue_identity(slots["lead"][0] if slots["lead"] else None)
 
         def project(item):
             return _news_item_to_dict(item, disk, category_names)
 
-        # Slide 1 of the kiosk carousel is the broadsheet — the lead plus the
-        # secondary and widget slots, exactly as before. `carousel_news` is
-        # every OTHER public story, one per slide after it, so nothing is
-        # shown twice and nothing that is approved is unreachable.
-        #
-        # Identity comparison against the slot objects, not id equality: these
-        # are the same model instances group_news_slots was handed, and an id
-        # set would need the None-lead case special-cased.
-        on_front_page = [slots["main_news"], *slots["secondary_news"], *slots["widget_news"]]
-        carousel_items = [
-            item for item in news_items if not any(item is placed for placed in on_front_page)
-        ]
-
         return {
             "news_items": [project(item) for item in news_items],
-            "main_news": project(slots["main_news"]) if slots["main_news"] else None,
-            "secondary_news": [project(item) for item in slots["secondary_news"]],
-            "widget_news": [project(item) for item in slots["widget_news"]],
-            "carousel_news": [project(item) for item in carousel_items],
-            "issue_vol": issue_vol,
-            "issue_no": issue_no,
+            # Block-keyed, matching what the composer hands the same partial.
+            "blocks": {
+                block: [project(item) for item in slots[block]] for block in BLOCK_TYPES
+            },
+            "issue_vol": identity["issue_vol"],
+            "issue_no": identity["issue_no"],
         }
+
+    def _upcoming_events(self):
+        """The issue's calendar rows.
+
+        Delegates to DashboardContext so the kiosk and the Gears composer run
+        the SAME query -- the composer renders kiosk/_issue.html too, and two
+        copies of this would be two calendars to keep in step. Kept as a method
+        because the existing tests reach it through the controller.
+        """
+        return upcoming_events()
 
     def show(self, view: View):
         payload = Cache.remember(_NEWS_CACHE_KEY, lambda cache: cache.put(
@@ -455,18 +481,11 @@ class NewsController(Controller):
             "kiosk/news",
             {
                 "news_items": payload["news_items"],
-                "featured_news": payload["main_news"],
-                "recent_news": payload["secondary_news"],
-                "main_news": payload["main_news"],
-                "secondary_news": payload["secondary_news"],
-                "widget_news": payload["widget_news"],
-                # .get(), not [] — a cache entry written before carousel_news
-                # existed would KeyError here. The version bump on
-                # NewsCache.KEY should make that unreachable; this is the
-                # belt to that braces.
-                "carousel_news": payload.get("carousel_news") or [],
+                "blocks": payload["blocks"],
                 "issue_vol": payload.get("issue_vol"),
                 "issue_no": payload.get("issue_no"),
+                # Outside the cached payload on purpose -- see _upcoming_events.
+                "events": self._upcoming_events(),
                 "active_nav": "news",
             },
         )
@@ -485,7 +504,7 @@ class NewsController(Controller):
         # Front-page excerpt (Task 1 column, wired into the composer in Task
         # 5): plain text like dek/caption/credit — strips markup that leaks
         # in from the contenteditable region. Optional; the front page falls
-        # back to a truncated body when it's blank (kiosk/_news_slots.html).
+        # back to a truncated body when it's blank (kiosk/_issue.html).
         excerpt = _html_to_text(request.input("excerpt") or "").strip()
         # Unrecognised slugs normalise to None (the brand face) rather than
         # erroring — the dropdown is the only legitimate source, so a bad value
@@ -493,7 +512,7 @@ class NewsController(Controller):
         headline_font = normalize_headline_font(request.input("headline_font"))
         image_caption = _html_to_text(request.input("image_caption") or "").strip()
         image_credit = _html_to_text(request.input("image_credit") or "").strip()
-        layout_type = (request.input("layout_type") or "secondary").strip().lower() or "secondary"
+        layout_type = (request.input("layout_type") or "brief").strip().lower() or "brief"
         category_id = (request.input("category_id") or "").strip()
         actor_id = _current_user_id(request)
         # Fail closed. The old default here was "approved", which is publicly
@@ -561,8 +580,30 @@ class NewsController(Controller):
         # empty Quill editor still serialises to markup — `<p><br></p>`, or a
         # bare formatting span with nothing in it. A truthiness check on the raw
         # string would wave those through and publish a blank headline.
-        if not _html_to_text(title) or not _html_to_text(description):
-            return _err(["Title and description are required."])
+        #
+        # Which fields are required depends on the block (_BLOCK_REQUIRES): the
+        # kiosk prints a side story's headline and summary and never its body,
+        # so a side story is not refused for lacking one.
+        required = _BLOCK_REQUIRES.get(layout_type, ("title", "description"))
+        present = {
+            "title": bool(_html_to_text(title)),
+            "description": bool(_html_to_text(description)),
+            # The image is validated properly further down; here it only has
+            # to exist. `image_file` is resolved a few lines below, so read the
+            # raw input.
+            "image": bool(request.input("image")),
+        }
+        missing = [name for name in required if not present[name]]
+        if missing:
+            labels = {"title": "a headline", "description": "the text", "image": "a photograph"}
+            return _err(["This block needs " + " and ".join(labels[m] for m in missing) + "."])
+
+        # `title` is NOT NULL and the Story Library lists by it, so a quote --
+        # which has no headline of its own -- would show as nothing. Stand in
+        # the opening of the quote itself: derived from what the editor wrote,
+        # not invented.
+        if not _html_to_text(title) and _html_to_text(description):
+            title = _html_to_text(description)[:_DERIVED_TITLE_CHARS].strip()
 
         try:
             priority = int(priority_value or 0)
@@ -911,6 +952,83 @@ class NewsController(Controller):
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return _err(["Could not save the body. Please try again."])
+
+    def autosave(self, request: Request, response: Response):
+        """Persist an in-progress draft's text. Never publishes anything.
+
+        The composer debounces this while an editor types, so it is the one
+        write on this controller that fires without anybody pressing a button.
+        That shapes every decision below.
+
+        WHY IT REFUSES TO TOUCH A PUBLIC STORY. `body()` re-runs
+        _resolve_status_for_actor on every save precisely because rewriting
+        `description` is a content change: without that gate an editor could get
+        a story approved and then swap its text for anything, and it would reach
+        the campus terminal on the next cache miss. An autosave cannot use that
+        same gate, because silently pulling a live story back to `review` in the
+        background -- taking it off the kiosk mid-sentence -- is worse than the
+        problem it solves. So it takes the third option and declines: a story
+        that is publicly visible is not autosaved at all, and the editor is told
+        to use Publish, which runs the full reviewed path. A draft or a story
+        awaiting review has nothing public to protect and saves freely.
+
+        It therefore never reads or writes `status`, never fires NewNews, never
+        writes a notification, and never invalidates the kiosk cache -- because
+        nothing it can write is on the kiosk.
+        """
+        is_ajax = wants_json(request)
+
+        def _err(messages, status=422):
+            if is_ajax:
+                return json_errors(response, messages, status=status)
+            return response.back().with_errors(messages)
+
+        record = News.where("id", request.param("id")).first()
+        if not record:
+            return _err(["Article not found."], status=404)
+
+        if _normalize_news_status(getattr(record, "status", None)) in _NEWS_VISIBLE_STATUSES:
+            # 409, not 422: the request was well-formed, the story's state is
+            # what makes it inapplicable. The composer shows this as
+            # "Published - use Publish to update" rather than a failure.
+            return _err(["This story is live. Use Publish to change what the kiosk shows."], status=409)
+
+        # Same sanitizers store() uses, on the same fields. A separate, laxer
+        # path here would be a way around the allowlist.
+        fields = {
+            "title": _sanitize_headline_html((request.input("title") or "").strip()).strip(),
+            "description": _sanitize_news_html((request.input("description") or "").strip()),
+            "source": (request.input("source") or "").strip(),
+            "location": (request.input("location") or "").strip(),
+            "dek": _html_to_text(request.input("dek") or "").strip(),
+            "excerpt": _html_to_text(request.input("excerpt") or "").strip(),
+            "image_caption": _html_to_text(request.input("image_caption") or "").strip(),
+            "image_credit": _html_to_text(request.input("image_credit") or "").strip(),
+        }
+
+        try:
+            # Assigned one at a time rather than mass-assigned: News.__fillable__
+            # includes `status` and `layout_type`, and a dict update built from
+            # request input is how an autosave silently becomes a publish.
+            for column, value in fields.items():
+                setattr(record, column, value)
+
+            actor_id = _current_user_id(request)
+            if actor_id is not None:
+                record.updated_by_id = actor_id
+            record.save()
+
+            saved_at = datetime.now().strftime("%H:%M")
+            if is_ajax:
+                return json_success(
+                    response,
+                    payload={"id": record.id, "saved_at": saved_at},
+                    messages=["Draft saved."],
+                )
+            return response.back().with_success(["Draft saved."])
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return _err(["Could not save the draft."])
 
     def unassign(self, request: Request, response: Response):
         """Sets layout_type = "unassigned". Does not delete the story and

@@ -1,12 +1,19 @@
-// Admin review queue.
+// Admin review queue — the ISSUE an editor submitted, as one thing.
 //
-// The preview is deliberately fetched rather than rendered inline for every
-// row: it goes through the kiosk's own _news_slots partial, and rendering one
-// of those per submission into a queue that mostly gets scanned would be waste.
+// The queue used to be one card per story, each POSTing /gears/review/<id>/…
+// An editor composes an issue as a unit and submits it in one click; this is
+// the admin's matching single action. There is now one card and it addresses
+// the issue endpoints (/gears/review/issue/…), which act on every pending
+// block together. All or nothing, by decision.
 //
-// Handlers are delegated from the queue host, not bound per card, because the
-// list is re-rendered wholesale by the 20s live poll (data-live-section="review")
-// — anything bound to a card would be lost on the first refresh.
+// The preview is deliberately fetched rather than rendered inline: it goes
+// through the kiosk's own _issue partial with every pending block in its real
+// place, and there is no point paying for that until the admin asks.
+//
+// Handlers are delegated from the queue host, not bound to the card, because
+// the queue is re-rendered wholesale by the 20s live poll
+// (data-live-section="review") — anything bound to the card would be lost on
+// the first refresh.
 (function () {
   var root = document.querySelector('[data-dashboard-shell]');
   if (!root) return;
@@ -23,8 +30,7 @@
     }
   }
 
-  function cardOf(el) { return el.closest('[data-review-item]'); }
-  function idOf(card) { return card && card.getAttribute('data-review-id'); }
+  function cardOf(el) { return el.closest('[data-review-issue]'); }
 
   function refreshQueue() {
     if (window.DashboardLive && window.DashboardLive.refresh) {
@@ -41,19 +47,18 @@
   function syncBadge() {
     var badge = root.querySelector('[data-review-count]');
     if (!badge) return;
-    var remaining = host.querySelectorAll('[data-review-item]').length;
+    // Depth is counted in blocks (review_count), and once the issue is
+    // decided there is nothing pending at all.
+    var remaining = host.querySelector('[data-review-issue]') ? parseInt(badge.textContent, 10) || 0 : 0;
     badge.textContent = String(remaining);
     badge.hidden = remaining === 0;
   }
 
   function decide(card, approve, reason) {
-    var id = idOf(card);
-    if (!id) return;
-
     var buttons = card.querySelectorAll('button');
     buttons.forEach(function (b) { b.disabled = true; });
 
-    fetch('/gears/review/' + id + '/' + (approve ? 'approve' : 'reject'), {
+    fetch('/gears/review/issue/' + (approve ? 'approve' : 'reject'), {
       method: 'POST',
       headers: {
         'X-CSRF-TOKEN': csrf,
@@ -68,7 +73,7 @@
         if (json && json.ok) {
           toast((json.messages && json.messages[0]) || 'Decision recorded.', false);
           // Drop the card immediately so a second admin looking at the same
-          // queue does not act on a story that is already decided; the live
+          // queue does not act on an issue that is already decided; the live
           // refresh behind it reconciles with the server.
           card.remove();
           syncBadge();
@@ -89,17 +94,16 @@
   }
 
   function loadPreview(card) {
-    var id = idOf(card);
     var frame = card.querySelector('[data-review-preview-frame]');
     var target = card.querySelector('[data-review-preview-target]');
-    if (!id || !frame || !target) return;
+    if (!frame || !target) return;
 
     if (!frame.hidden) { frame.hidden = true; return; }
 
     frame.hidden = false;
     target.innerHTML = '<p class="review-preview__loading">Loading preview…</p>';
 
-    fetch('/gears/review/' + id + '/preview', {
+    fetch('/gears/review/issue/preview', {
       headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
       credentials: 'same-origin'
     })

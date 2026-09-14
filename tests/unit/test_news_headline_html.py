@@ -99,13 +99,29 @@ class HeadlineTemplateTestCase(TestCase):
     """A sanitized HTML column is only safe if the templates agree with it."""
 
     def _slots(self):
-        return (_REPO_ROOT / "templates" / "kiosk" / "_news_slots.html").read_text()
+        return (_REPO_ROOT / "templates" / "kiosk" / "_issue.html").read_text()
 
     def test_every_headline_heading_renders_the_markup(self):
-        markup = self._slots()
-        headings = re.findall(r'data-news-edit="title">\{\{ [^}]+ \}\}', markup)
+        """`news.title` is a sanitized HTML column, so every place that prints
+        one has to render it with `| safe` -- autoescaping instead would show
+        Quill's formatting spans as literal &lt;span…&gt; on the kiosk.
 
-        self.assertEqual(len(headings), 3, "expected the lead, secondary and widget headings")
+        The editor hook is wrapped in `{% if news_editor %}` on the real
+        headings and bare on the two screen-reader-only ones, so the pattern
+        allows both. Counted rather than hardcoded: a block added later is
+        covered without touching this test, and one that forgets `| safe`
+        fails it."""
+        markup = self._slots()
+        headings = re.findall(
+            r'data-news-edit="title"[^>]*>\{\{\s*([^}]+?)\s*\}\}',
+            markup,
+        )
+
+        # One per block that carries a title: lead, brief, photo essay,
+        # editorial, quote, notice.
+        self.assertGreaterEqual(
+            len(headings), 6, f"expected a title region per block, found {len(headings)}"
+        )
         for heading in headings:
             self.assertIn("| safe", heading, heading)
 

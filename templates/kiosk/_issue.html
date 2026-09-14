@@ -1,0 +1,497 @@
+{# ── The newsletter issue — ONE markup, TWO surfaces ──────────────────────────
+
+   Included by:
+     - templates/kiosk/news.html            the public kiosk page (viewer)
+     - templates/gears/partials/panel-news.html   the composer canvas (editor)
+     - DashboardController.FRAGMENTS["news-canvas"]  live canvas refresh
+     - ReviewController.preview             the admin's approval preview
+
+   This file exists so the editor cannot lay out a page that differs from the
+   one the kiosk prints. That drift is exactly what happened before: the kiosk
+   moved to this sectioned issue while the composer kept rendering the old
+   broadsheet partial, so an editor arranged a layout nobody ever saw.
+
+   `news_editor` gates the two surfaces apart:
+     - editor-only: slot lists, drag handles, Move Up/Down, position badges,
+                    assign-slot placeholders, contenteditable regions, the
+                    empty-lead <template> clone source
+     - kiosk-only:  the "Read the full story" reader trigger
+
+   ── The editor hook contract (resources/js/news-dashboard.js) ──────────────
+   These are not decoration. Break one and the canvas renders but goes inert,
+   with no console error:
+
+     [data-news-slot="main|secondary|widget"]   the section; click-selection
+                                                reads the bucket type off the
+                                                nearest one (js:1897)
+     [data-news-slot-list="..."]                the drop container
+                                                (slotListContainers, js:2282)
+     .feature-story / .secondary-story / .info-card
+                                                Sortable's `draggable`
+                                                selectors (CANVAS_LIST_SELECTOR,
+                                                js:2246-2251) AND the
+                                                click-selection matcher
+                                                (js:1893). A widget card MUST
+                                                carry `.info-card`.
+     [data-news-id]                             a non-empty value is what makes
+                                                a node a REAL card
+                                                (realCardNodes, js:2258)
+
+   ── Slot vocabulary ────────────────────────────────────────────────────────
+   The editor's six blocks map onto the three existing `layout_type` values —
+   deliberately no new ones, because `layout_type` drives which slot a story
+   lands in on the kiosk and is keyed off by 8 test files:
+
+     Masthead      template chrome, no row
+     Lead story    layout_type = main        capacity 1
+     Side stories  layout_type = secondary   capacity 4
+     Editorial     layout_type = widget  #1  capacity 1
+     Calendar      events table, READ-ONLY   (managed in the Events panel)
+     Notice        layout_type = widget  #2  capacity 1
+
+   `widget` already had capacity 2, which is exactly what Editorial + Notice
+   need. #}
+
+{# One context key, indexed by block name. group_news_slots() guarantees every
+   key is present and already truncated to capacity, so nothing here has to
+   guard for a missing bucket or re-check a limit. #}
+{% set blocks = blocks if blocks is defined and blocks else {} %}
+{% set lead_rows = blocks.get('lead', []) %}
+{% set brief_rows = blocks.get('brief', []) %}
+{% set essay_rows = blocks.get('photo_essay', []) %}
+{% set editorial_rows = blocks.get('editorial', []) %}
+{% set quote_rows = blocks.get('quote', []) %}
+{% set notice_rows = blocks.get('notice', []) %}
+
+{% set main_story = lead_rows[0] if lead_rows else None %}
+{% set editorial = editorial_rows[0] if editorial_rows else None %}
+{% set notice = notice_rows[0] if notice_rows else None %}
+
+{% set issue_date = main_story.published_label if main_story and main_story.published_label else 'Latest edition' %}
+
+{# ── Issue identity ───────────────────────────────────────────────────────────
+   Derived in ONE place so an `issues` table can replace it with a single edit.
+   issue_vol / issue_no come off the lead story's date in
+   NewsController._build_news_payload (Vol. counts years since founding, No. is
+   the day-of-year). The colophon reuses issue_label rather than restating it. #}
+{% set issue_label = 'Issue %02d' % issue_no if issue_no else 'Issue 01' %}
+{% set vol_label = 'Vol. %d' % issue_vol if issue_vol else 'Vol. 1' %}
+
+{# ── Section numbering ────────────────────────────────────────────────────────
+   One counter, incremented INSIDE the band macro, so the numbers describe what
+   actually rendered. A section that skips itself leaves no gap — the next one
+   takes its number. Verified: a Jinja macro CAN mutate a namespace declared in
+   the enclosing template, which is why this works at all. #}
+{% set ns = namespace(section=0) %}
+{% macro band(label, slot_label=None) %}
+{%- set ns.section = ns.section + 1 -%}
+<div class="issue-band">
+  <span class="issue-band__label">{{ '%02d' % ns.section }} &mdash; {{ label }}</span>
+  <span class="issue-band__rule" aria-hidden="true"></span>
+  {%- if news_editor and slot_label %}
+  {# Inline at the RIGHT END of the eyebrow row, never floating above the
+     block — floated, it collided with the format toolbar that parks 40px
+     above the selected block. #}
+  <span class="issue-band__slot">{{ slot_label }}</span>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{% if news_editor %}
+{# One polite live region announces the result of a Move Up/Down press
+   (announceCardPosition in news-dashboard.js). Screen-reader only. #}
+<div class="news-sr-only" aria-live="polite" data-news-move-announcer></div>
+{% endif %}
+
+<div class="paper-container issue{% if news_editor %} issue--composer{% endif %}">
+
+  {# ── Masthead — fixed chrome, not a story ───────────────────────────────── #}
+  <header class="issue-masthead">
+    <div class="issue-masthead__brand">
+      {# site_logo(), not a hardcoded /gears.png — Branding.set_logo owns this
+         and AppProvider shares the helper into every template. #}
+      <img class="issue-masthead__mark" src="{{ site_logo() }}" alt="" aria-hidden="true">
+      <span class="issue-masthead__names">
+        <span class="issue-masthead__eyebrow">The Gears Publication Works</span>
+        <span class="issue-masthead__wordmark">Press Point</span>
+      </span>
+    </div>
+    <div class="issue-masthead__issue">
+      <span>{{ issue_label }} &middot; {{ vol_label }}</span>
+      <span>{{ issue_date }}</span>
+    </div>
+  </header>
+
+  {# ── Lead story ───────────────────────────────────────────────────────────
+     The class names inside are load-bearing on BOTH surfaces:
+       kiosk   — kiosk-news.js measures `.feature-story__copy`, clamps it, and
+                 copies it plus `.feature-story__meta` and
+                 `.feature-story__title` into the reader overlay, reaching all
+                 of it from `.feature-story`.
+       editor  — `.feature-story` is Sortable's draggable selector for the main
+                 bucket and half the click-selection matcher.
+     Renaming any of them breaks one surface silently. #}
+  <section class="issue-lead-section paper-slot paper-slot--main" aria-label="Lead story"{% if news_editor %} data-news-slot="lead"{% endif %}>
+    {% if news_editor %}<div class="paper-slot__label">Lead story</div>{% endif %}
+    {{ band(main_story.location | default('Campus', true), 'Lead story · Slot 01') if main_story or news_editor }}
+    <div class="issue-lead"{% if news_editor %} data-news-slot-list="lead"{% endif %}>
+      {# An unfilled block renders the SAME card, empty. There is no "assign a
+         story" step any more: the empty card IS the input, so an editor opens a
+         new issue and types into it. `.is-scratch` marks a card with no row
+         behind it yet -- store() creates one on the first save, which is the
+         path a brand-new story already took. #}
+      {% if main_story or news_editor %}
+      <article class="feature-story{% if not main_story %} is-scratch{% endif %}{% if main_story.headline_font %} story-font-{{ main_story.headline_font }}{% endif %}" data-news-id="{{ main_story.id }}"{% if news_editor %} data-news-context-menu="lead"{% endif %}>
+        {% if news_editor and main_story %}
+        {# `| striptags` on every ATTRIBUTE that prints a title. The headline is
+           a Quill target and carries ql-font-*/ql-size-* spans; autoescaping an
+           attribute turns those into visible &lt;span…&gt; noise that a screen
+           reader reads aloud. The heading itself renders them (`| safe`). #}
+        <div class="news-card-controls" role="group" aria-label="Reorder {{ main_story.title | striptags }}">
+          <span class="news-card-position" data-news-position-badge>Position #1</span>
+          <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ main_story.title | striptags }} up">&uarr;</button>
+          <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ main_story.title | striptags }} down">&darr;</button>
+        </div>
+        {% endif %}
+        <div class="issue-lead__text">
+          {# `feature-story__title` is kept alongside the issue's own class for
+             one reason: openReader() in kiosk-news.js finds the overlay's
+             heading through it. Dropped it once and the reader opened with a
+             blank title and no error anywhere. `.issue-lead__headline` beats it
+             on every property it sets, so it costs nothing visually. #}
+          <h2 class="issue-lead__headline feature-story__title"{% if news_editor %} data-news-edit="title" data-placeholder="Enter the lead headline…"{% endif %}>{{ main_story.title | safe }}</h2>
+
+          {# Read time from the body itself: words / 200, rounded up, floor of 1.
+             No column and no controller support — Jinja's own wordcount over the
+             stripped body. The parentheses matter; `|` binds tighter than `/`. #}
+          <p class="feature-story__meta">By <span{% if news_editor %} data-news-edit="source"{% endif %}>{{ main_story.source | default('Editorial Desk', true) }}</span> &middot;
+            {{- ' ' }}{{ [1, ((main_story.description | striptags | wordcount) / 200) | round(0, 'ceil') | int] | max }} min read</p>
+
+          {# Editor-only: the front-page excerpt and the section kicker. Neither
+             renders on the kiosk here — `location` is shown as the band label
+             above, and `excerpt` only feeds the side/notice summary fallback —
+             but both must be writable while looking at the story they belong
+             to. #}
+          {% if news_editor %}
+          <p class="feature-story__dek" data-news-edit="dek" data-placeholder="Standfirst (optional)">{{ main_story.dek | default('', true) }}</p>
+          <p class="feature-story__excerpt" data-news-edit="excerpt" data-placeholder="Front-page summary">{{ main_story.excerpt | default('', true) }}</p>
+          <p class="news-sr-only" data-news-edit="location">{{ main_story.location | default('Campus', true) }}</p>
+          {% endif %}
+
+          {# Rendered as-is, NOT split on blank lines: `description` is already
+             sanitized Quill HTML made of real <p> elements, so splitting it
+             would corrupt the markup. The paragraphs are already there.
+             In editor mode this is where Quill mounts — news-dashboard.js swaps
+             the div for its editor host, so the body is written in the slot it
+             will render in. #}
+          <div class="feature-story__copy"{% if news_editor %} data-news-edit="body" data-placeholder="Write the lead story…"{% endif %}>{{ main_story.description | safe }}</div>
+
+          {% if not news_editor %}
+          {# A real control, not a dead span — it opens the full text in the
+             reader overlay. kiosk-news.js keeps it `display: none` until it has
+             measured that the body actually overflows, so it appears exactly
+             when there IS more story to read and never promises the reader
+             something untrue. #}
+          <button type="button" class="feature-story__more" data-news-more>
+            <span>Read the full story</span>
+            <span aria-hidden="true">&rarr;</span>
+          </button>
+          {% endif %}
+        </div>
+
+        {% if main_story.image %}
+        <figure class="issue-lead__figure">
+          <img class="issue-lead__image"{% if news_editor %} data-news-edit="image"{% endif %} src="/storage/{{ main_story | news_image('large') }}"
+               alt="{{ main_story.title | striptags }}" decoding="async" fetchpriority="high">
+          {% if news_editor or main_story.image_caption or main_story.image_credit %}
+          <figcaption class="issue-lead__cutline">
+            <span{% if news_editor %} data-news-edit="caption"{% endif %}>{{ main_story.image_caption | default('', true) }}</span>
+            {%- if news_editor or main_story.image_credit %}
+            <span class="issue-lead__credit">Photo: <span{% if news_editor %} data-news-edit="credit"{% endif %}>{{ main_story.image_credit | default('', true) }}</span></span>
+            {%- endif %}
+          </figcaption>
+          {% endif %}
+        </figure>
+        {% elif news_editor %}
+        {# Empty photo zone. Click-to-upload is wireImage() binding
+           data-news-edit="image" — there is no separate drop-zone hook. #}
+        <figure class="issue-lead__figure">
+          <div class="issue-lead__image issue-photo-zone" data-news-edit="image" role="button" tabindex="0" aria-label="Add lead photo">
+            <span class="issue-photo-zone__label">+ Add lead photo</span>
+          </div>
+        </figure>
+        {% endif %}
+      </article>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ── Side stories ─────────────────────────────────────────────────────────
+     The bucket holds four and the kiosk prints all four. It used to print the
+     first two, which meant stories three and four were written, saved,
+     approved and never seen -- the composer showed them, the terminal did not,
+     and nothing said why. The composer additionally pads to four so every
+     unfilled position is a card an editor can type into. #}
+  {# Padded to capacity in the editor so every unfilled position is a typeable
+   card, not a prompt to go and find a story. The kiosk prints only the two it
+   has room for. #}
+{% set brief_slots = (brief_rows + [None] * (4 - brief_rows|length)) if news_editor else brief_rows %}
+  {% if news_editor or brief_rows %}
+  <section class="paper-slot paper-slot--secondary" aria-label="Side stories"{% if news_editor %} data-news-slot="brief"{% endif %}>
+    {% if news_editor %}<div class="paper-slot__label">Side stories</div>{% endif %}
+    {{ band('Also reported', 'Side stories') if news_editor or brief_rows }}
+    <div class="issue-also"{% if news_editor %} data-news-slot-list="brief"{% endif %}>
+      {% for news in brief_slots %}
+      <article class="secondary-story issue-also__item{% if not news %} is-scratch{% endif %}{% if news.headline_font %} story-font-{{ news.headline_font }}{% endif %}" data-news-id="{{ news.id }}"{% if news_editor %} data-news-context-menu="brief"{% endif %}>
+        {% if news_editor and news %}
+        <div class="news-card-controls" role="group" aria-label="Reorder {{ news.title | striptags }}">
+          <span class="news-card-position" data-news-position-badge>Position #{{ loop.index + 1 }}</span>
+          <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ news.title | striptags }} up">&uarr;</button>
+          <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ news.title | striptags }} down">&darr;</button>
+        </div>
+        {% endif %}
+        {% if news.image %}
+        <img class="issue-also__image"{% if news_editor %} data-news-edit="image"{% endif %} src="/storage/{{ news | news_image('large') }}"
+             alt="{{ news.title | striptags }}" loading="lazy" decoding="async">
+        {% elif news_editor %}
+        <div class="issue-also__image issue-photo-zone" data-news-edit="image" role="button" tabindex="0" aria-label="Add photo">
+          <span class="issue-photo-zone__label">+ Add photo</span>
+        </div>
+        {% endif %}
+        <h3 class="issue-also__headline"{% if news_editor %} data-news-edit="title" data-placeholder="Enter a headline…"{% endif %}>{{ news.title | safe }}</h3>
+        {# Prefers the editorial excerpt and falls back to a truncated body, the
+           same order the old broadsheet partial used, so both surfaces agree on
+           what a summary is. In editor mode the excerpt IS the field, so it is
+           edited directly rather than previewed. #}
+        {% if news_editor %}
+        <p class="issue-also__summary" data-news-edit="excerpt" data-placeholder="Write a short summary…">{{ news.excerpt | default('', true) }}</p>
+        {# The kiosk never prints a side story's full body, but it still has to
+           be writable somewhere, and the card is that somewhere. Collapsed so
+           four side cards do not become four articles tall. #}
+        <details class="news-inline-body" data-news-body-disclosure>
+          <summary class="news-inline-body__summary">Full article body</summary>
+          <div class="issue-also__body" data-news-edit="body" data-placeholder="Write the full story…">{{ news.description | safe }}</div>
+        </details>
+        {% else %}
+        <p class="issue-also__summary">
+          {%- if news.excerpt %}{{ news.excerpt }}
+          {%- elif news.description %}{{ news.description | striptags | truncate(150) }}{% endif -%}
+        </p>
+        {% endif %}
+      </article>
+      {% endfor %}
+      {# Editor-only placeholders for each unfilled position, up to the cap.
+         Buttons, not the kiosk's static div, carrying the data-news-* hooks the
+         library drawer opens pre-scoped from. Shape must match the strings
+         syncPlaceholders() hand-builds (news-dashboard.js:2391-2393). #}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ── Photo essay ───────────────────────────────────────────────────────────
+     Three placed rows, one photograph each, in priority order. A news row
+     carries exactly one image, so an essay is three rows rather than one row
+     holding three pictures -- which also means it is composed exactly the way
+     every other block is, and needs no column of its own.
+
+     The kiosk prints whatever is placed -- one photograph, two or three -- and
+     the grid adapts to the count so a single photograph runs full width rather
+     than leaving two empty cells. It used to demand all three, on the reasoning
+     that two photographs is not an essay. That held when an editor could only
+     ASSIGN pre-existing stories and a half-filled block was the normal case;
+     now they type into three slots directly, so every one they fill is
+     deliberate and hiding it is discarded work. The composer always shows the
+     block, so an editor can see what they have placed and what they still owe. #}
+  {% set essay_ready = essay_rows | selectattr('image') | list %}
+  {% if news_editor or essay_ready %}
+  <section class="paper-slot paper-slot--essay" aria-label="Photo essay"{% if news_editor %} data-news-slot="photo_essay"{% endif %}>
+    {% if news_editor %}<div class="paper-slot__label">Photo essay</div>{% endif %}
+    {{ band('Photo essay', 'Photo essay') }}
+    <div class="issue-essay">
+      <div class="issue-essay__grid issue-essay__grid--{{ essay_ready | length if not news_editor else 3 }}"{% if news_editor %} data-news-slot-list="photo_essay"{% endif %}>
+        {% set essay_slots = (essay_rows + [None] * (3 - essay_rows|length)) if news_editor else essay_rows[:3] %}
+        {% for photo in essay_slots %}
+        <article class="info-card issue-essay__item{% if not photo %} is-scratch{% endif %}" data-news-id="{{ photo.id }}"{% if news_editor %} data-news-context-menu="photo_essay"{% endif %}>
+          {% if news_editor and photo %}
+          <div class="news-card-controls" role="group" aria-label="Reorder {{ photo.title | striptags }}">
+            <span class="news-card-position" data-news-position-badge>Position #{{ loop.index }}</span>
+            <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ photo.title | striptags }} up">&uarr;</button>
+            <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ photo.title | striptags }} down">&darr;</button>
+          </div>
+          {% endif %}
+          {% if photo.image %}
+          <img class="issue-essay__cell"{% if news_editor %} data-news-edit="image"{% endif %}
+               src="/storage/{{ photo | news_image('large' if loop.first else 'thumb') }}"
+               alt="{{ photo.title | striptags }}" loading="lazy" decoding="async">
+          {% elif news_editor %}
+          <div class="issue-essay__cell issue-photo-zone" data-news-edit="image" role="button" tabindex="0" aria-label="Add photograph">
+            <span class="issue-photo-zone__label">+ Add photo</span>
+          </div>
+          {% endif %}
+          {% if news_editor %}
+          {# The title is how the outline and the story library name this row;
+             it is not printed in the grid, but it still has to be editable. #}
+          <span class="news-sr-only" data-news-edit="title" data-placeholder="Photograph caption title">{{ photo.title | safe }}</span>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+      {# The first photograph's OWN caption and credit. No invented copy: with
+         both blank the line is simply omitted. #}
+      {% if essay_rows and (essay_rows[0].image_caption or essay_rows[0].image_credit) %}
+      <p class="issue-essay__caption">
+        {{- essay_rows[0].image_caption | default('', true) }}
+        {%- if essay_rows[0].image_credit %} &mdash; photographs by {{ essay_rows[0].image_credit }}{% endif -%}
+      </p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ── Editorial ────────────────────────────────────────────────────────
+     Its own block type and its own band, unlike the Notice, which sits beside
+     the calendar. The two were one `widget` bucket told apart by cell position
+     until the vocabulary changed; now each is simply itself. #}
+  {% if news_editor or editorial %}
+  <section class="paper-slot paper-slot--editorial" aria-label="Editorial"{% if news_editor %} data-news-slot="editorial"{% endif %}>
+    {% if news_editor %}<div class="paper-slot__label">Editorial</div>{% endif %}
+    {{ band('From the editor', 'Editorial') }}
+    <div class="issue-editorial"{% if news_editor %} data-news-slot-list="editorial"{% endif %}>
+      {% if editorial or news_editor %}
+      <article class="info-card issue-editorial__card{% if not editorial %} is-scratch{% endif %}{% if editorial.headline_font %} story-font-{{ editorial.headline_font }}{% endif %}" data-news-id="{{ editorial.id }}"{% if news_editor %} data-news-context-menu="editorial"{% endif %}>
+        {% if news_editor and editorial %}
+        <div class="news-card-controls" role="group" aria-label="Reorder {{ editorial.title | striptags }}">
+          <span class="news-card-position" data-news-position-badge>Position</span>
+          <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ editorial.title | striptags }} up">&uarr;</button>
+          <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ editorial.title | striptags }} down">&darr;</button>
+        </div>
+        {% endif %}
+        <h3 class="issue-editorial__title"{% if news_editor %} data-news-edit="title" data-placeholder="Editorial headline…"{% endif %}>{{ editorial.title | safe }}</h3>
+        {% if news_editor %}
+        <p class="issue-editorial__copy" data-news-edit="excerpt" data-placeholder="Write the editorial…">{{ editorial.excerpt | default('', true) }}</p>
+        <details class="news-inline-body" data-news-body-disclosure>
+          <summary class="news-inline-body__summary">Full article body</summary>
+          <div class="issue-editorial__body" data-news-edit="body" data-placeholder="Full editorial text…">{{ editorial.description | safe }}</div>
+        </details>
+        {% else %}
+        <p class="issue-editorial__copy">
+          {%- if editorial.excerpt %}{{ editorial.excerpt }}
+          {%- elif editorial.description %}{{ editorial.description | striptags | truncate(320) }}{% endif -%}
+        </p>
+        {% endif %}
+      </article>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ── Pull quote ────────────────────────────────────────────────────────────
+     `description` carries the quote and `source` the attribution -- the same
+     two columns every other block already uses, so a quote needs no schema of
+     its own. Display type, no photograph, no body. #}
+  {% if news_editor or quote_rows %}
+  <section class="paper-slot paper-slot--quote" aria-label="Pull quote"{% if news_editor %} data-news-slot="quote"{% endif %}>
+    {% if news_editor %}<div class="paper-slot__label">Quote</div>{% endif %}
+    {{ band('In their words', 'Quote') }}
+    <div class="issue-quotes"{% if news_editor %} data-news-slot-list="quote"{% endif %}>
+      {% set quote_slots = (quote_rows + [None] * (2 - quote_rows|length)) if news_editor else quote_rows %}
+      {% for quote in quote_slots %}
+      <figure class="info-card issue-quote{% if not quote %} is-scratch{% endif %}" data-news-id="{{ quote.id }}"{% if news_editor %} data-news-context-menu="quote"{% endif %}>
+        {% if news_editor and quote %}
+        <div class="news-card-controls" role="group" aria-label="Reorder quote">
+          <span class="news-card-position" data-news-position-badge>Position #{{ loop.index }}</span>
+          <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move quote up">&uarr;</button>
+          <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move quote down">&darr;</button>
+        </div>
+        {% endif %}
+        <blockquote class="issue-quote__text"{% if news_editor %} data-news-edit="body" data-placeholder="Enter the quote…"{% endif %}>{{ quote.description | safe }}</blockquote>
+        <figcaption class="issue-quote__attribution">&mdash; <span{% if news_editor %} data-news-edit="source" data-placeholder="Who said it?"{% endif %}>{{ quote.source if quote else '' }}</span></figcaption>
+        {% if news_editor %}
+        {# Names the row in the outline and the story library; never printed. #}
+        <span class="news-sr-only" data-news-edit="title" data-placeholder="Quote label">{{ quote.title | safe }}</span>
+        {% endif %}
+      </figure>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ── Calendar + Notice ────────────────────────────────────────────────────
+     Two different owners in one band. The calendar is READ-ONLY here: its rows
+     come from the `events` table, which the Events panel owns — duplicating
+     event CRUD into the News composer would put a second write path on someone
+     else's pipeline. The Notice is its own block and is fully editable.
+     Either half can stand alone. #}
+  {% if news_editor or events or notice %}
+  {{ band('Calendar', 'Calendar · Notice') }}
+  <section class="issue-calendar{% if not (news_editor or notice) %} issue-calendar--wide{% endif %}" aria-label="Calendar">
+    <div class="issue-calendar__dates">
+      {% if events %}
+      <ul class="issue-dates">
+        {% for event in events %}
+        <li class="issue-dates__row">
+          <time class="issue-dates__chip" datetime="{{ event.iso }}">{{ event.chip }}</time>
+          <span class="issue-dates__title">{{ event.title }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% elif news_editor %}
+      <p class="issue-calendar__empty">No upcoming events. Add them in the Events panel.</p>
+      {% endif %}
+      {% if news_editor %}
+      {# Read-only by design; the jump is the affordance instead of an editor. #}
+      <button type="button" class="issue-calendar__manage" data-page-link="events">Manage in Events &rarr;</button>
+      {% endif %}
+    </div>
+
+    {% if news_editor or notice %}
+    <div class="issue-notice-slot paper-slot--notice"{% if news_editor %} data-news-slot="notice"{% endif %}>
+      {% if news_editor %}<div class="paper-slot__label">Notice</div>{% endif %}
+      <div class="issue-notice-wrap"{% if news_editor %} data-news-slot-list="notice"{% endif %}>
+        {% if notice or news_editor %}
+        <article class="info-card issue-notice{% if not notice %} is-scratch{% endif %}{% if notice.headline_font %} story-font-{{ notice.headline_font }}{% endif %}" data-news-id="{{ notice.id }}"{% if news_editor %} data-news-context-menu="notice"{% endif %}>
+          {% if news_editor and notice %}
+          <div class="news-card-controls" role="group" aria-label="Reorder {{ notice.title | striptags }}">
+            <span class="news-card-position" data-news-position-badge>Position</span>
+            <button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move {{ notice.title | striptags }} up">&uarr;</button>
+            <button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move {{ notice.title | striptags }} down">&darr;</button>
+          </div>
+          {% endif %}
+          <span class="issue-notice__eyebrow">Announcement</span>
+          <h3 class="issue-notice__title"{% if news_editor %} data-news-edit="title" data-placeholder="Notice title…"{% endif %}>{{ notice.title | safe }}</h3>
+          {% if news_editor %}
+          <p class="issue-notice__copy" data-news-edit="excerpt" data-placeholder="What is the notice?">{{ notice.excerpt | default('', true) }}</p>
+          <details class="news-inline-body" data-news-body-disclosure>
+            <summary class="news-inline-body__summary">Full article body</summary>
+            <div class="issue-notice__body" data-news-edit="body" data-placeholder="Full notice text…">{{ notice.description | safe }}</div>
+          </details>
+          {% else %}
+          <p class="issue-notice__copy">
+            {%- if notice.excerpt %}{{ notice.excerpt }}
+            {%- elif notice.description %}{{ notice.description | striptags | truncate(200) }}{% endif -%}
+          </p>
+          {% endif %}
+        </article>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {# Nothing published at all. Reader-facing wording only — "slot is waiting for
+     content" is CMS vocabulary and never belongs on the kiosk. Suppressed in
+     the editor, where every slot already shows its own assign button. #}
+  {% if not news_editor and not main_story and not brief_rows and not essay_rows
+     and not quote_rows and not events and not editorial and not notice %}
+  <div class="paper-empty">No stories have been published yet.</div>
+  {% endif %}
+
+  {# ── Colophon ───────────────────────────────────────────────────────────── #}
+  <footer class="issue-colophon">
+    <span>Press Point &middot; The Gears Publication Works</span>
+    <span>{{ issue_label }}</span>
+    <span>LSPU Santa Cruz</span>
+  </footer>
+
+</div>

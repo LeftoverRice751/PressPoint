@@ -282,3 +282,53 @@
   .profile-editor { gap: 18px; }
   .review-card__head { flex-direction: column; }
 }
+
+/* ── The issue card ──────────────────────────────────────────────────────────
+ *
+ * One card for the whole submitted issue, in place of one per story. The
+ * manifest lists what is in it, block by block, so the admin can see that the
+ * lead is there and the notice is not before opening the full preview. Same
+ * card chrome as before; only the contents changed. */
+
+.review-card__count {
+  display: inline-block;
+  margin-left: 0.6rem;
+  vertical-align: middle;
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.review-manifest {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.35rem 1rem;
+}
+
+.review-manifest__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+
+.review-manifest__count {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--ink-strong);
+}

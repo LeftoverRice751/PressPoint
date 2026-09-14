@@ -1,22 +1,38 @@
 /*
  * About LSPU kiosk client.
  *
- * One URL, seven views: the hub plus six panes, switched by data-view on
- * .about-app. Each pane owns a small widget — the milestone pager, the hymn
- * player, the seal's callouts — wired up once here.
+ * One URL, six views, switched by data-view on .about-app. The page opens on
+ * the mission and the rail down the right edge is the only navigation. Each
+ * pane owns a small widget — the milestone pager, the hymn player, the seal's
+ * callouts — wired up once here.
  *
- * Idle: 60s with no input anywhere but the hub returns to the hub, so the
+ * Idle: 60s with no input anywhere but the home pane returns to it, so the
  * terminal is never left sitting on one person's reading.
  */
 (function () {
   var app = document.querySelector('.about-app');
   if (!app) return;
 
+  // The landing view and where idle returns to. There used to be a hub view
+  // in this role; the mission is the first thing a visitor should read.
+  var HOME = 'mission';
   var IDLE_MS = 60 * 1000;
   var idleTimer = null;
 
+  var railButtons = app.querySelectorAll('.about-rail__btn[data-target]');
+
   function showPane(slug) {
     app.dataset.view = slug;
+
+    // The rail's highlight is bound to aria-current, so the visible "you are
+    // here" and the announced one can never disagree.
+    railButtons.forEach(function (btn) {
+      if (btn.getAttribute('data-target') === slug) {
+        btn.setAttribute('aria-current', 'true');
+      } else {
+        btn.removeAttribute('aria-current');
+      }
+    });
 
     // Leaving the hymn must stop it, or it keeps playing under a screen that
     // shows no player and offers no way to stop it. The selector covers the
@@ -28,19 +44,19 @@
       });
     }
 
-    if (slug === 'hub') {
+    if (slug === HOME) {
       stopIdle();
     } else {
       restartIdle();
-      var body = app.querySelector('.about-detail[data-pane="' + slug + '"] .about-body');
-      if (body) body.scrollTop = 0;
     }
+    var body = app.querySelector('.about-detail[data-pane="' + slug + '"] .about-body');
+    if (body) body.scrollTop = 0;
     window.scrollTo(0, 0);
   }
 
   function restartIdle() {
     stopIdle();
-    idleTimer = window.setTimeout(function () { showPane('hub'); }, IDLE_MS);
+    idleTimer = window.setTimeout(function () { showPane(HOME); }, IDLE_MS);
   }
 
   function stopIdle() {
@@ -48,7 +64,9 @@
     idleTimer = null;
   }
 
-  // Hub rows and prev/next buttons both navigate by data-target.
+  // Anything carrying data-target navigates — today that is the rail alone,
+  // but the contract is deliberately wider than the rail so a pane can link
+  // to another (the seal from the quality footer, say) without new wiring.
   app.querySelectorAll('[data-target]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var target = btn.getAttribute('data-target');
@@ -56,17 +74,13 @@
     });
   });
 
-  app.querySelectorAll('[data-back]').forEach(function (btn) {
-    btn.addEventListener('click', function () { showPane('hub'); });
-  });
-
   ['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(function (evt) {
     document.addEventListener(evt, function () {
-      if (app.dataset.view !== 'hub') restartIdle();
+      if (app.dataset.view !== HOME) restartIdle();
     }, { passive: true });
   });
 
-  showPane('hub');
+  showPane(HOME);
 
   // ── History: one milestone at a time ─────────────────────────────
   app.querySelectorAll('[data-history]').forEach(function (pager) {

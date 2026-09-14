@@ -5,7 +5,7 @@ the campus terminal: any publish-intent status from a non-admin becomes
 `review`. `store()` applies it. `body()` did not.
 
 `body()` writes `description` -- the same column `store()` writes and the same
-one the kiosk renders (`templates/kiosk/_news_slots.html`) -- looks the row up
+one the kiosk renders (`templates/kiosk/_issue.html`) -- looks the row up
 by id with no ownership check, invalidates the kiosk cache, and never touches
 `status`. So an editor could get an innocuous story approved, then POST
 `/news/dashboard/<id>/body` and swap the text of a live story for anything they

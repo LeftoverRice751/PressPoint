@@ -72,18 +72,21 @@ class AboutPanelRenderTestCase(TestCase):
         # A Jinja error here 500s the whole editor dashboard, not just this panel.
         self.assertIn('data-page-panel="about-lspu"', self._render())
 
-    def test_the_hub_header_is_editable(self):
+    def test_the_rail_header_is_editable_and_the_dead_hub_fields_are_gone(self):
         html = self._render()
 
         self.assertIn('action="/gears/about-lspu/sections/page"', html)
-        for key in ("kicker", "title", "lead"):
-            self.assertIn('data-meta-key="%s"' % key, html)
+        self.assertIn('data-meta-key="title"', html)
+        # The kiosk lost its hub, and with it the only surface the kicker and
+        # lead ever had. An input that saves to nowhere is a trap for editors.
+        for key in ("kicker", "lead"):
+            self.assertNotIn('data-meta-key="%s"' % key, html)
 
     def test_every_section_can_set_its_hub_hint_and_short_label(self):
         html = self._render()
 
-        # One pair per section, plus nothing extra: these drive the hub index
-        # rows and the prev/next pager on the kiosk.
+        # One pair per section, plus nothing extra: the short label is the
+        # kiosk's rail button and the hint sits beside the title in the crumb.
         self.assertEqual(html.count('data-meta-key="hint"'), len(SECTION_SLUGS))
         self.assertEqual(html.count('data-meta-key="short"'), len(SECTION_SLUGS))
 
@@ -155,14 +158,25 @@ class AboutKioskRenderTestCase(TestCase):
             },
         ).rendered_template
 
-    def test_edited_hub_header_reaches_the_kiosk(self):
-        html = self._render(_meta({"page": {
-            "kicker": "Kicker copy", "title": "Our University", "lead": "Lead copy.",
-        }}))
+    def test_edited_rail_header_reaches_the_kiosk(self):
+        html = self._render(_meta({"page": {"title": "Our University"}}))
 
-        self.assertIn("Kicker copy", html)
         self.assertIn("Our University", html)
-        self.assertIn("Lead copy.", html)
+
+    def test_kiosk_opens_on_mission_with_a_rail_and_no_hub_chrome(self):
+        html = self._render()
+
+        # Mission is the landing view; the hub, the prev/next row and the back
+        # bar are gone, and the rail is the only navigation left.
+        self.assertIn('data-view="mission"', html)
+        for slug in SECTION_SLUGS:
+            self.assertIn(
+                'class="about-rail__btn" data-target="%s"' % slug, html
+            )
+        self.assertEqual(html.count('class="about-rail__btn"'), len(SECTION_SLUGS))
+        self.assertEqual(html.count('aria-current="true"'), 1)
+        for gone in ("about-index", "about-hero", "about-prevnext", "data-back="):
+            self.assertNotIn(gone, html)
 
     def test_edited_hints_and_short_labels_reach_the_kiosk(self):
         html = self._render(_meta({

@@ -690,8 +690,613 @@ body.newspaper-bg .feature-story__copy {
     }
 }
 
+/* ── The sectioned issue ────────────────────────────────────────────────────
+ *
+ * The kiosk front page reads as one dated issue of a newsletter rather than a
+ * feed: a dark masthead bar, numbered section bands, a lead that outweighs
+ * everything under it, a calendar, and a colophon.
+ *
+ * These rules sit BESIDE the broadsheet rules above rather than replacing
+ * them. The `.paper-*` / `.feature-story__*` / `.secondary-story__*` rules
+ * above still dress the review preview, so editing them to suit the issue
+ * would silently redesign that surface.
+ *
+ * ── Why these are scoped `.issue` and not `body.newspaper-bg` ──────────────
+ * They started out under `body.newspaper-bg`, which is an element-qualified
+ * selector: only a BODY carrying that class can match it. The Gears composer
+ * renders this same sheet inside a <div>, so every one of these rules was
+ * dead there and the canvas fell back to unstyled markup. `.issue` is the
+ * sheet's own root class and is present on both surfaces, so one rule set now
+ * dresses the kiosk page and the editor canvas — which is the whole point:
+ * an editor cannot lay out a page that differs from the one the kiosk prints
+ * if there is only one stylesheet describing it.
+ *
+ * templates/gears/dashboard.html already loads this file (line 9), so sharing
+ * it needed no new stylesheet and no webpack.mix.js entry.
+ *
+ * `.feature-story`, `.feature-story__copy`, `.feature-story__meta` and
+ * `.feature-story__more` survive into the issue markup on purpose:
+ * resources/js/kiosk-news.js reaches the lead's body through them to measure
+ * the clamp and fill the reader overlay. The issue restyles them at a higher
+ * specificity instead of renaming them.
+ *
+ * Type: Playfair Display for headlines and the wordmark, the brand body face
+ * for running copy, mono for every label, date, chip and the colophon.
+ * Colour comes from layer 4 of kiosk-tokens.css (--surface-raised, --ink,
+ * --ink-strong, --accent, --rule) rather than the legacy --kiosk-* aliases,
+ * which that file marks as re-branding shims that must take no new uses. The
+ * dark bars use --brand-maroon-deep, the espresso-maroon already derived
+ * there — no new hex. Flat editorial throughout: square images, hairline
+ * rules, no shadows, no gradients.
+ */
+
+.issue {
+    /* Narrower than .paper-container's 1180px: the issue's lead is a two-
+       column measure, and past ~1100px the body copy runs longer than the
+       ~80ch a reader can track.
+
+       One custom property rather than a literal, because the composer renders
+       this same sheet inside a ~700px column and needs to override the width
+       WITHOUT re-declaring the layout. */
+    --issue-width: min(100%, clamp(720px, 90vw, 1100px));
+    width: var(--issue-width);
+    /* --nl-playfair lives in newsletter-type.css; the Georgia fallback covers
+       any surface that loads this sheet without it. */
+    --issue-display: var(--nl-playfair, Georgia, serif);
+    --issue-bar: var(--brand-maroon-deep);
+    /* Named once because the masthead has to negate exactly this to bleed to
+       the sheet's edges. Hardcoding the value in two places is how the bar
+       ends up wider than the paper it sits on. */
+    --issue-gutter: clamp(18px, 2.6vw, 34px);
+    padding: 0 var(--issue-gutter) clamp(20px, 2.6vw, 36px);
+    /* The sheet is its own containment context, so the breakpoints below can
+       ask how wide THE PAGE is rather than how wide the window is. That
+       distinction is the whole reason this works on both surfaces: on the
+       kiosk the sheet is most of the viewport, but in the composer it sits in
+       a ~500px column of a 1400px window, where every viewport breakpoint
+       stays unfired and the lead's two-column grid collapsed the text to a
+       single character per line. */
+    container-type: inline-size;
+    container-name: issue;
+}
+
+/* ── Masthead ───────────────────────────────────────────────────── */
+
+/* Full-bleed inside the sheet: negative side insets cancel exactly the
+   issue's own gutter so the bar meets the paper's edges, which is what makes
+   it read as a nameplate rather than a card. No top inset — `.issue` zeroes
+   .paper-container's top padding, so a negative one here would hang the bar
+   off the top of the sheet. */
+.issue-masthead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--kiosk-s-3);
+    margin: 0 calc(-1 * var(--issue-gutter));
+    padding: 18px clamp(18px, 3vw, 34px);
+    background: var(--issue-bar);
+}
+
+.issue-masthead__brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.issue-masthead__mark {
+    flex: none;
+    width: 46px;
+    height: 46px;
+    object-fit: contain;
+}
+
+.issue-masthead__names {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.issue-masthead__eyebrow {
+    color: var(--accent);
+    font-family: var(--kiosk-font-mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+}
+
+/* Gold as TYPE is only legible because the ground here is the espresso bar —
+   on the cream page it measures ~1.6:1 and would have to be a fill instead.
+   See the --accent-text note in kiosk-tokens.css. */
+.issue-masthead__wordmark {
+    color: var(--surface-raised);
+    font-family: var(--issue-display);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+}
+
+.issue-masthead__issue {
+    display: grid;
+    gap: 3px;
+    flex: none;
+    text-align: right;
+    color: rgb(var(--brand-cream-rgb) / 0.7);
+    font-family: var(--kiosk-font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+/* ── Section band ───────────────────────────────────────────────── */
+
+/* The one repeating structural element. Every section is introduced by it, so
+   the page has a rhythm a reader can navigate without a nav. */
+.issue-band {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 36px 0 18px;
+}
+
+.issue-band__label {
+    flex: none;
+    color: var(--ink-strong);
+    font-family: var(--kiosk-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+}
+
+.issue-band__rule {
+    flex: 1;
+    height: 1px;
+    background: var(--ink-strong);
+}
+
+/* ── Lead story ─────────────────────────────────────────────────── */
+
+.issue-lead .feature-story {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 30px;
+    align-items: start;
+    /* The broadsheet .feature-story is a grid with its own rows; reset the
+       parts of it that do not apply here. */
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.issue-lead__text {
+    min-width: 0;
+}
+
+.issue-lead__headline {
+    margin: 0;
+    color: var(--ink-strong);
+    font-family: var(--issue-display);
+    font-size: clamp(28px, 3.4vw, 38px);
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+    /* Quill headlines can carry a long unbroken token; nothing else stops it
+       running out of the sheet. */
+    overflow-wrap: anywhere;
+}
+
+/* Higher specificity than the broadsheet's `.feature-story__meta`, which is
+   why the issue can restyle it without renaming the hook kiosk-news.js copies
+   into the reader overlay. */
+.issue-lead .feature-story__meta {
+    margin: 12px 0 0;
+    /* The broadsheet's byline closes with a hairline rule. The issue's does
+       not — the section band above already carries that structural mark, and
+       a second rule 12px under it read as a stray underline. Both have to be
+       cancelled explicitly; this class is shared with the composer. */
+    padding-bottom: 0;
+    border-bottom: 0;
+    color: var(--ink);
+    font-family: var(--kiosk-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.issue-lead .feature-story__copy {
+    margin: 18px 0 0;
+    max-width: 68ch;
+    color: var(--ink-strong);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.7;
+    text-align: left;
+    text-wrap: pretty;
+}
+
+.issue-lead .feature-story__copy > *:first-child {
+    margin-top: 0;
+}
+
+/* The clamp's max-height is written in `em` against the broadsheet's 1.25rem
+   body; at the issue's 16px it has to be restated or the cut lands in the
+   wrong place. kiosk-news.js overrides this inline with a measured
+   whole-line cut — this is the no-JS fallback, and CLAMP_LINES in that file
+   is the other half of the pair. */
+.issue-lead .feature-story__copy.is-clamped {
+    max-height: calc(1.7em * 9);
+    overflow: hidden;
+}
+
+/* Restyled from the broadsheet's bordered button into the issue's underlined
+   link, but the display toggle is left alone: kiosk-news.js keeps it hidden
+   until it has measured that the body really overflows, and flips it with
+   `.is-visible`. Hence no `display` here — overriding it would either show a
+   link that leads nowhere or hide one that leads somewhere.
+
+   The tall min-height stays: this is the page's main tap target on a 768x1024
+   touchscreen, and an 11px text link is not a thumb-sized one. The box is
+   invisible; only the underlined text shows. */
+.issue-lead .feature-story__more {
+    /* Centred in the touch box, not bottom-aligned: with flex-end the label
+       sat at the foot of a ~61px box and read as a 60px hole under the copy.
+       Centring splits that padding above and below, and the margin drops to
+       match. */
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 6px;
+    padding: 0;
+    min-height: var(--kiosk-touch-min);
+    background: transparent;
+    border: 0;
+    color: var(--ink);
+    font-family: var(--kiosk-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.issue-lead .feature-story__more > span {
+    border-bottom: 1px solid currentColor;
+    padding-bottom: 2px;
+}
+
+.issue-lead .feature-story__more:active {
+    background: transparent;
+    color: var(--ink-strong);
+}
+
+.issue-lead__figure {
+    margin: 0;
+}
+
+/* Square corners, hairline rule, no radius and no shadow — a photograph on
+   newsprint has an edge, not a card. `object-fit: cover` does the 4:5 framing
+   the brief asks for by cropping; an `aspect-ratio: 4/5` alongside the fixed
+   250px height would be a dead rule (height wins once width is 100%), and
+   honouring it literally would make the photo 400px tall in a 320px column —
+   taller than the headline block it sits beside on a 1024px-high kiosk. */
+.issue-lead__image {
+    display: block;
+    width: 100%;
+    height: 250px;
+    max-width: 100%;
+    object-fit: cover;
+    border: 1px solid var(--rule);
+    border-radius: 0;
+}
+
+.issue-lead__cutline {
+    margin: 8px 0 0;
+    color: var(--ink-muted);
+    font-family: var(--kiosk-font-mono);
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+.issue-lead__credit {
+    display: block;
+    color: var(--ink-faint);
+}
+
+/* ── Also reported ──────────────────────────────────────────────── */
+
+.issue-also {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 26px;
+}
+
+/* The markup keeps `.secondary-story` for continuity with the composer's
+   vocabulary, so the issue's own layout has to win over the broadsheet's
+   side-thumb brief. */
+.issue-also .issue-also__item,
+.issue-also__item {
+    display: block;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+.issue-also__image {
+    display: block;
+    width: 100%;
+    height: 130px;
+    max-width: 100%;
+    object-fit: cover;
+    border: 1px solid var(--rule);
+    border-radius: 0;
+}
+
+.issue-also__headline {
+    margin: 12px 0 0;
+    color: var(--ink-strong);
+    font-family: var(--issue-display);
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+}
+
+/* Two lines, then ellipsis: the summaries are editor-written and vary in
+   length, and an uneven pair of columns is what makes a two-up read as a
+   feed instead of a page. */
+.issue-also__summary {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 8px 0 0;
+    color: rgb(var(--brand-maroon-rgb) / 0.78);
+    font-family: var(--font-body);
+    font-size: 14.5px;
+    line-height: 1.62;
+    overflow-wrap: anywhere;
+}
+
+/* ── Photo essay ────────────────────────────────────────────────── */
+
+/* The band height is on the ROW, not the container. `height: 180px` here with
+   `height: 100%` on the cells resolved to `auto` instead — a percentage
+   height against a row the grid had not yet sized falls back to the image's
+   intrinsic height, so the photos overflowed to ~225px and the caption, laid
+   out after a 180px box, printed on top of them. An explicit track sizes the
+   row up front and there is nothing left to resolve. */
+.issue-essay__grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-rows: 180px;
+    gap: 8px;
+}
+
+.issue-essay__cell {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 0;
+    object-fit: cover;
+    border: 1px solid var(--rule);
+    border-radius: 0;
+}
+
+.issue-essay__caption {
+    margin: 10px 0 0;
+    color: rgb(var(--brand-maroon-rgb) / 0.62);
+    font-family: var(--kiosk-font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* ── Calendar + announcement ────────────────────────────────────── */
+
+.issue-calendar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 30px;
+    align-items: start;
+}
+
+/* No announcement to sit beside, so the dates take the whole measure rather
+   than leaving a 300px hole where a card used to be. */
+.issue-calendar--wide {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.issue-dates {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.issue-dates__row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgb(var(--brand-maroon-rgb) / 0.12);
+}
+
+.issue-dates__row:last-child {
+    padding-bottom: 0;
+    margin-bottom: 0;
+    border-bottom: 0;
+}
+
+.issue-dates__chip {
+    flex: none;
+    width: 56px;
+    color: var(--ink);
+    font-family: var(--kiosk-font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.issue-dates__title {
+    min-width: 0;
+    color: var(--ink-strong);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.issue-notice {
+    display: grid;
+    gap: 8px;
+    padding: 22px;
+    background: var(--issue-bar);
+    text-align: center;
+}
+
+.issue-notice__eyebrow {
+    color: var(--accent);
+    font-family: var(--kiosk-font-mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+}
+
+.issue-notice__title {
+    margin: 0;
+    color: var(--surface-raised);
+    font-family: var(--issue-display);
+    font-size: 21px;
+    font-weight: 600;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+
+.issue-notice__copy {
+    margin: 0;
+    color: rgb(var(--brand-cream-rgb) / 0.78);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+/* ── Colophon ───────────────────────────────────────────────────── */
+
+/* The foot that closes the issue. The 2px rule above it is the page's last
+   structural mark, mirroring the masthead bar at the top. */
+.issue-colophon {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--kiosk-s-3);
+    flex-wrap: wrap;
+    margin-top: 36px;
+    padding-top: 12px;
+    border-top: 2px solid var(--ink-strong);
+    color: rgb(var(--brand-maroon-rgb) / 0.55);
+    font-family: var(--kiosk-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+/* ── Quality floor ──────────────────────────────────────────────── */
+
+.issue-lead .feature-story__more:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 3px;
+}
+
+/* ── Narrow: phones and the mobile route fallback ───────────────── */
+
+/* 560px, not the 760px the viewport-based rule used. A container query measures
+   the SHEET, which is always narrower than the window: at the kiosk's 768px the
+   content box is ~680px, so a 760px threshold fired where the old viewport rule
+   did not and stacked a page that had been fine two-up. 560px is where the
+   lead's 320px photo column genuinely starts crushing the text beside it --
+   ~210px of measure -- which is the thing the breakpoint exists to prevent.
+   Checked at both ends: the kiosk at 768px stays two-column, the composer's
+   ~450px sheet stacks. */
+@container issue (max-width: 560px) {
+    /* Every multi-column grid becomes one column, and the masthead stacks
+       left-aligned rather than keeping a right-aligned issue line that would
+       collide with the wordmark. */
+    .issue-masthead {
+        display: block;
+    }
+
+    .issue-masthead__issue {
+        margin-top: 12px;
+        text-align: left;
+    }
+
+    .issue-lead .feature-story,
+    .issue-also,
+    .issue-calendar {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 20px;
+    }
+
+    /* The lead photo runs before the copy at this width; a 250px portrait
+       floated beside a one-column measure is what made it look squeezed. */
+    .issue-lead__figure {
+        grid-row: 1;
+    }
+
+    .issue-lead__image {
+        height: auto;
+        aspect-ratio: 16 / 10;
+    }
+
+    /* `grid-template-rows`, not `height` — the band's height is set on the row
+       up at base, so releasing it means releasing the track. Overriding
+       `height` here left the first row pinned at 180px while the wrapped rows
+       sized to the 140px cells, which is where the uneven gaps came from. */
+    .issue-essay__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: auto;
+    }
+
+    .issue-essay__cell {
+        height: 140px;
+    }
+
+    .issue-colophon {
+        justify-content: flex-start;
+        gap: 6px 18px;
+    }
+}
+
+@container issue (max-width: 400px) {
+    /* Below ~400px of sheet a 2-up essay cell is under 170px wide — small enough that
+       the photograph stops being readable, so it goes 1-up. */
+    .issue-essay__grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .issue-masthead__wordmark {
+        font-size: 24px;
+    }
+
+    .issue-band {
+        margin: 28px 0 14px;
+    }
+}
+
 /* ── Story carousel ─────────────────────────────────────────────────────────
-   Slide 1 is the broadsheet; slides 2..N are one story each. Scoped under
+   Slide 1 is the issue; slides 2..N are one story each. Scoped under
    body.newspaper-bg like the rest of the kiosk-only rules in this file, so
    the dashboard composer — which shares this stylesheet — never picks them
    up. Solid fills only; no gradients, and no Swiper slide shadows. */
@@ -835,4 +1440,173 @@ body.newspaper-bg .news-swiper__pagination .swiper-pagination-bullet {
 body.newspaper-bg .news-swiper__pagination .swiper-pagination-bullet-active {
     background: var(--paper-orange);
     opacity: 1;
+}
+
+/* A pasted URL or an unbroken run of characters has nowhere to break, so
+   without this it renders as one long line that leaves the card sideways and
+   paints over whatever sits beside it. The summary line above already carried
+   this rule; the bodies did not, which is exactly the difference the composer
+   showed. Kiosk-side too: a story with a pasted link has the same problem on
+   the terminal. */
+.issue-also__body {
+    overflow-wrap: anywhere;
+}
+
+/* A pasted URL or an unbroken run of characters has nowhere to break, so
+   without this it renders as one long line that leaves the card sideways and
+   paints over whatever sits beside it. The summary line above already carried
+   this rule; the bodies did not, which is exactly the difference the composer
+   showed. Kiosk-side too: a story with a pasted link has the same problem on
+   the terminal. */
+.issue-editorial__body {
+    overflow-wrap: anywhere;
+}
+
+/* A pasted URL or an unbroken run of characters has nowhere to break, so
+   without this it renders as one long line that leaves the card sideways and
+   paints over whatever sits beside it. The summary line above already carried
+   this rule; the bodies did not, which is exactly the difference the composer
+   showed. Kiosk-side too: a story with a pasted link has the same problem on
+   the terminal. */
+.issue-notice__body {
+    overflow-wrap: anywhere;
+}
+
+/* The photo essay adapts to how many photographs were actually placed.
+ *
+ * The base grid is 2fr/1fr/1fr, drawn for three. The kiosk used to refuse to
+ * print the section at all below three, so the other two cases never arose;
+ * now that one or two photographs print, the empty cells they would leave have
+ * to go. The count comes from the template as a modifier rather than being
+ * inferred with :has(), so the rule is legible from the markup. */
+.issue-essay__grid--1 {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.issue-essay__grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* A lone photograph carries the section on its own, so it gets more height
+   than it would as one of three across. */
+.issue-essay__grid--1 {
+    grid-template-rows: clamp(200px, 34vh, 320px);
+}
+
+/* ── Editorial, pull quote, and the wrappers the newer blocks needed ──────────
+ *
+ * These blocks were added with the block vocabulary and never got styling, so
+ * they rendered as browser defaults: an indented <blockquote> and an unstyled
+ * heading. They print on the kiosk, which means they have to look like the rest
+ * of the page rather than like the start of a stylesheet.
+ *
+ * Same language as every other section here: flat fills, square corners,
+ * hairline rules, display serif for headlines, mono for the furniture.
+ */
+
+/* The lead's section wrapper. Its own grid lives on .issue-lead. */
+.issue-lead-section {
+    display: block;
+}
+
+/* ── From the editor ────────────────────────────────────────── */
+
+/* Marked as opinion by a rule down its left edge rather than a tint or a box —
+   the page has one dark card already (the notice) and a second filled block
+   would compete with it for the reader's eye. */
+.issue-editorial__card {
+    display: block;
+    padding-left: clamp(14px, 2vw, 22px);
+    border-left: 3px solid var(--ink);
+}
+
+.issue-editorial__title {
+    margin: 0;
+    color: var(--ink-strong);
+    font-family: var(--issue-display);
+    font-size: clamp(20px, 2.4vw, 26px);
+    font-weight: 600;
+    line-height: 1.14;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+}
+
+.issue-editorial__copy {
+    margin: 10px 0 0;
+    max-width: 68ch;
+    color: var(--ink-strong);
+    font-family: var(--font-body);
+    font-size: 15.5px;
+    line-height: 1.65;
+    text-wrap: pretty;
+    overflow-wrap: anywhere;
+}
+
+/* ── In their words ─────────────────────────────────────────── */
+
+.issue-quotes {
+    display: grid;
+    gap: clamp(18px, 2.6vw, 30px);
+}
+
+/* A pull quote earns its place by scale, not by ornament: no oversized glyph,
+   no tint, no border box. It is simply the largest type on the page after the
+   lead's headline, which is what makes a reader stop at it. */
+.issue-quote {
+    margin: 0;
+    max-width: 42ch;
+}
+
+.issue-quote__text {
+    margin: 0;
+    color: var(--ink-strong);
+    font-family: var(--issue-display);
+    font-size: clamp(19px, 2.6vw, 27px);
+    font-weight: 500;
+    font-style: italic;
+    line-height: 1.28;
+    letter-spacing: -0.01em;
+    text-wrap: pretty;
+    overflow-wrap: anywhere;
+}
+
+.issue-quote__text > *:first-child { margin-top: 0; }
+.issue-quote__text > *:last-child { margin-bottom: 0; }
+
+/* Mono and small, so the voice is unmistakably furniture and never reads as a
+   continuation of the quote itself. */
+.issue-quote__attribution {
+    margin: 10px 0 0;
+    color: var(--ink);
+    font-family: var(--kiosk-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+/* ── Wrappers the newer blocks introduced ───────────────────── */
+
+/* Each essay photograph is an <article> now (it carries the editor hooks), so
+   it has to fill its grid cell or the image inside collapses to nothing. */
+.issue-essay__item {
+    display: block;
+    min-width: 0;
+    min-height: 0;
+}
+
+.issue-essay__item .issue-essay__cell {
+    height: 100%;
+}
+
+/* The calendar's left column, beside the notice. */
+.issue-calendar__dates {
+    min-width: 0;
+}
+
+.issue-notice-slot,
+.issue-notice-wrap {
+    min-width: 0;
 }

@@ -1350,4 +1350,110 @@
       });
     }
   }
+
+  /* ── Off-canvas rail ──────────────────────────────────────────────────────
+   *
+   * The sidebar collapses fully off-screen. Loaded by gears/shell.html, so this
+   * runs on all three staff consoles -- the editors' dashboard, the admin
+   * console at /users, and the super admin console -- without any of them
+   * knowing about it.
+   *
+   * State lives on <html> as `data-sidebar`, and is stamped there by an inline
+   * script in the shell's head BEFORE first paint. This file is deferred: if it
+   * owned the initial read, the rail would paint at its full 280px and snap
+   * shut on every page load. Everything here is about transitions after that
+   * first paint.
+   */
+  (function railToggle() {
+    var toggle = document.querySelector('[data-sidebar-toggle]');
+    var rail = document.getElementById('gears-sidebar');
+    if (!toggle || !rail) return;
+
+    var scrim = document.querySelector('[data-sidebar-scrim]');
+    var label = toggle.querySelector('[data-sidebar-toggle-label]');
+    var root = document.documentElement;
+    // Matches the breakpoint in gears-dashboard.css. Below it the rail overlays
+    // the page instead of displacing it, which changes what "closed" has to do.
+    var overlay = window.matchMedia('(max-width: 1180px)');
+
+    function isOpen() {
+      // Two different defaults on purpose. Wide: open unless the editor chose
+      // otherwise. Narrow: always closed on arrival, whichever way the stored
+      // preference points -- a drawer that opens itself over the content of a
+      // small screen is never what someone wants when they land.
+      return overlay.matches
+        ? root.getAttribute('data-sidebar') === 'open'
+        : root.getAttribute('data-sidebar') !== 'closed';
+    }
+
+    function paint() {
+      var open = isOpen();
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (label) label.textContent = open ? 'Hide navigation' : 'Show navigation';
+      if (scrim) scrim.hidden = !(open && overlay.matches);
+      // Only in overlay mode: the drawer covers the page, so scrolling it
+      // behind the rail is disorienting. Displacing the grid does not.
+      document.body.style.overflow = (open && overlay.matches) ? 'hidden' : '';
+    }
+
+    function setOpen(open) {
+      root.setAttribute('data-sidebar', open ? 'open' : 'closed');
+      // Only the wide-screen choice is worth keeping. Remembering a narrow
+      // drawer as "open" would reopen it over the content on the next load,
+      // which is the one state nobody asked for.
+      if (!overlay.matches) {
+        try {
+          localStorage.setItem('gears:sidebar', open ? 'open' : 'closed');
+        } catch (e) { /* private window or blocked site data; the toggle still works */ }
+      }
+      paint();
+    }
+
+    toggle.addEventListener('click', function () {
+      var opening = !isOpen();
+      setOpen(opening);
+      // Overlay only. Moving focus into a rail that merely displaced the page
+      // would yank the editor out of whatever they were doing for no reason.
+      if (opening && overlay.matches) {
+        var first = rail.querySelector('a, button');
+        if (first && first.focus) first.focus();
+      }
+    });
+
+    if (scrim) {
+      scrim.addEventListener('click', function () {
+        setOpen(false);
+        if (toggle.focus) toggle.focus();
+      });
+    }
+
+    document.addEventListener('keydown', function (event) {
+      if ((event.key || '').toLowerCase() !== 'escape') return;
+      // Esc has other owners on these pages (the context menu, the modals), so
+      // only claim it when the drawer is actually covering something.
+      if (!overlay.matches || !isOpen()) return;
+      setOpen(false);
+      if (toggle.focus) toggle.focus();
+    });
+
+    // Crossing the breakpoint changes what the same attribute means. A drawer
+    // left open at phone width would otherwise come back as a pinned overlay
+    // when the window is widened, with the scrim still over the page.
+    function onBreakpoint() {
+      if (overlay.matches) {
+        root.setAttribute('data-sidebar', 'closed');
+      } else {
+        var stored = null;
+        try { stored = localStorage.getItem('gears:sidebar'); } catch (e) { /* no storage */ }
+        root.setAttribute('data-sidebar', stored === 'closed' ? 'closed' : 'open');
+      }
+      paint();
+    }
+
+    if (overlay.addEventListener) overlay.addEventListener('change', onBreakpoint);
+    else if (overlay.addListener) overlay.addListener(onBreakpoint);
+
+    onBreakpoint();
+  })();
+
 })();

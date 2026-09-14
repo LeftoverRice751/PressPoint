@@ -83,8 +83,19 @@ body {
 .gears-dashboard {
     min-height: 100vh;
     display: grid;
-    grid-template-columns: 280px minmax(0, 1fr);
+    /* One value, not two grid declarations. Collapsing the rail sets
+       --rail-w: 0 and the main column takes the space back on its own -- which
+       is the entire point of the control: the News composer is three columns
+       inside that space and was rendering its newsletter at the narrowest tier
+       with 280px sitting unused beside it. */
+    --rail-w: 280px;
+    grid-template-columns: var(--rail-w) minmax(0, 1fr);
     background: var(--ink-cream);
+    transition: grid-template-columns var(--kiosk-dur-med, 280ms) var(--kiosk-ease, ease);
+}
+
+:root[data-sidebar="closed"] .gears-dashboard {
+    --rail-w: 0px;
 }
 
 /* SIDEBAR */
@@ -92,6 +103,9 @@ body {
     position: sticky;
     top: 0;
     height: 100vh;
+    z-index: 40;
+    transition: transform var(--kiosk-dur-med, 280ms) var(--kiosk-ease, ease),
+                visibility var(--kiosk-dur-med, 280ms) var(--kiosk-ease, ease);
     padding: 1.5rem 1rem 1.25rem;
     display: flex;
     flex-direction: column;
@@ -2442,15 +2456,13 @@ body {
 
 /* RESPONSIVE */
 @media (max-width: 1180px) {
-    .gears-dashboard {
-        grid-template-columns: 1fr;
-    }
-
-    .gears-sidebar {
-        position: relative;
-        height: auto;
-        overflow: visible;
-    }
+    /* The sidebar's own behaviour at this width is in the "Off-canvas rail"
+       section at the end of this file: below 1180px it leaves the flow and
+       becomes an overlay drawer. It used to un-stick itself here and stack the
+       entire nav list ABOVE the page, which put eleven links between the
+       visitor and the thing they came to read. Those rules are gone rather
+       than overridden -- two contradictory declarations for one element is how
+       the next person loses an afternoon. */
 
     .gears-sidebar__footer {
         margin-top: 0.4rem;
@@ -3128,4 +3140,152 @@ body {
     font-size: 0.78rem;
     font-weight: 600;
     color: var(--ink-oxblood);
+}
+
+/* ── Off-canvas rail ─────────────────────────────────────────────────────────
+ *
+ * The sidebar collapses fully off-screen on all three staff consoles (editors'
+ * dashboard, admin console, super admin) -- they share gears/shell.html, so
+ * this is one implementation rather than three.
+ *
+ * Two modes, one attribute:
+ *
+ *   >= 1180px  the rail is a grid column. Collapsing slides it out and
+ *              --rail-w goes to 0, so the main column REFLOWS into the space.
+ *              That is the reason the control exists: the News composer is
+ *              three columns and was losing 280px of the canvas to a nav.
+ *
+ *   <  1180px  there is no space to reflow into, so the rail becomes an
+ *              overlay drawer above the content with a scrim behind it. This
+ *              replaces the old behaviour, where the rail un-stuck itself and
+ *              stacked the whole nav list ABOVE the page.
+ *
+ * State lives on <html> (`data-sidebar`), stamped by an inline script in the
+ * shell's head before first paint -- see the comment there for why it cannot
+ * wait for the deferred bundle.
+ */
+
+:root[data-sidebar="closed"] .gears-sidebar {
+    transform: translateX(-100%);
+    /* Not decoration, and the easy half to forget: a rail that is only
+       translated off-screen keeps every nav link in the tab order, so a
+       keyboard user tabs into a menu they cannot see and loses track of focus
+       entirely. `visibility` takes it out of the tree; it animates because it
+       is a discrete property, so the slide still plays. */
+    visibility: hidden;
+}
+
+/* ── The toggle ─────────────────────────────────────────────── */
+
+/* The hero gained a third child, so the title block has to claim the middle
+   rather than letting space-between push it against the toggle. */
+.gears-hero > div:not(.gears-hero__aside) {
+    flex: 1;
+    min-width: 0;
+}
+
+.gears-rail-toggle {
+    flex: none;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    margin-right: 0.9rem;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--ink-rule);
+    color: var(--ink-oxblood);
+    cursor: pointer;
+    transition: background var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, ease),
+                border-color var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, ease);
+}
+
+.gears-rail-toggle:hover {
+    background: var(--ink-cream);
+    border-color: var(--ink-rule-strong);
+}
+
+.gears-rail-toggle:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+/* Expanded: a quiet chevron pointing at where the rail sits. Collapsed: the
+   publication's own mark, because the sidebar carries the only masthead on this
+   surface and sliding it away would take the brand off screen entirely. The
+   mark is then also the obvious thing to press to get the menu back. */
+.gears-rail-toggle__chevron {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.gears-rail-toggle__mark {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    opacity: 0;
+}
+
+:root[data-sidebar="closed"] .gears-rail-toggle__chevron { display: none; }
+:root[data-sidebar="closed"] .gears-rail-toggle__mark { opacity: 1; }
+
+/* ── Scrim ──────────────────────────────────────────────────── */
+
+/* Only ever shown in overlay mode. Above 1180px the rail displaces content
+   instead of covering it, so there is nothing to dim and nothing to dismiss. */
+.gears-scrim {
+    display: none;
+}
+
+/* ── Overlay mode ───────────────────────────────────────────── */
+
+@media (max-width: 1180px) {
+    .gears-dashboard {
+        /* The rail leaves the flow entirely below this width, so the grid is a
+           single column and `--rail-w` stops applying. */
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .gears-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: min(280px, 84vw);
+        height: 100vh;
+        /* Above the panel-level slide-overs, which sit at 60 -- the composer's
+           inspector is one. Shell chrome outranks anything a panel puts on
+           screen: with all three level, the inspector rendered on top of the
+           scrim, undimmed, beside a drawer that had covered everything else. */
+        z-index: 100;
+        box-shadow: 12px 0 32px rgb(var(--brand-maroon-rgb) / 0.22);
+    }
+
+    /* Closed is the DEFAULT at this width, whichever way the stored preference
+       points: a drawer that opens itself over the content on a narrow screen is
+       never what someone wants on arrival. */
+    .gears-sidebar {
+        transform: translateX(-100%);
+        visibility: hidden;
+    }
+
+    :root[data-sidebar="open"] .gears-sidebar {
+        transform: translateX(0);
+        visibility: visible;
+    }
+
+    .gears-scrim {
+        display: block;
+        position: fixed;
+        inset: 0;
+        /* Under the rail, over every panel slide-over. */
+        z-index: 90;
+        background: rgb(var(--n-900-rgb) / 0.45);
+    }
+
+    .gears-scrim[hidden] {
+        display: none;
+    }
 }

@@ -1,6 +1,6 @@
 {#
     Newsroom composer: the slot canvas, the story library drawer and the
-    story editor. The canvas itself renders kiosk/_news_slots.html, the
+    story editor. The canvas itself renders kiosk/_issue.html, the
     kiosk's own partial, so the editor preview cannot drift from the screen.
 
     Extracted from gears/dashboard.html, which had grown to 1,628 lines with
@@ -19,10 +19,20 @@
       </div>
       {% endif %}
 
-      <div class="news-toolbar" data-news-toolbar>
-        <button type="button" class="ghost-button" data-news-library-open>Story Library</button>
-      </div>
+      {# ── Full-issue composer ────────────────────────────────────────────
+         Three columns: the page outline (what the issue contains), the desk
+         (the real kiosk page, edited in place), and a contextual inspector
+         (fields for the ONE selected block).
 
+         It replaced a two-column preview+form split. The form half showed
+         every field for every block at once, which is what made the panel feel
+         cramped, and the preview half rendered a layout the kiosk had already
+         retired.
+
+         The canvas renders kiosk/_issue.html -- the kiosk's OWN partial, in
+         editor mode. That is the whole point: an editor cannot arrange a page
+         that differs from the one the terminal prints, because there is only
+         one of them. #}
       <div class="news-layout-editor news-layout-editor--composer" data-news-composer>
 
         <!-- ── Hidden sync form (submits the actual data) ─────── -->
@@ -66,37 +76,95 @@
                  class="news-canvas__file-input" aria-hidden="true" tabindex="-1">
         </form>
 
-        <!-- ── Real kiosk front page = the editing surface ──── -->
-        <div class="news-canvas page-card" data-news-canvas>
-
-          <!-- Masthead (editorial context; matches kiosk chrome) -->
-          <div class="news-canvas__masthead">
-            <div class="news-canvas__masthead-top">
-              <span>ESTABLISHED 2026</span>
-              <span class="news-canvas__brand">THE GEARS PUBLICATION</span>
-              <span>LAGUNA, PHILIPPINES</span>
+        {# ── Issue header ─────────────────────────────────────────────────
+           Spans all three columns. The two buttons on the right are the
+           EXISTING publish controls, moved -- not new ones. Their handlers
+           (askCategoryThen -> submitWithStatus) are untouched, so the category
+           modal still gates every publish and the server still downgrades an
+           editor's publish intent to "review". #}
+        <header class="issue-topbar">
+          <div class="issue-topbar__identity">
+            <div class="issue-topbar__titlerow">
+              <h2 class="issue-topbar__title">{{ 'Issue %02d'|format(issue_no) if issue_no else 'Issue 01' }} &mdash; Campus edition</h2>
+              {# Reuses the story-status vocabulary the library cards already
+                 use (.news-story-card__status--<status>); there is no separate
+                 status-badge component in this stylesheet. #}
+              <span class="news-story-card__status news-story-card__status--draft issue-topbar__pill" data-news-issue-status>Draft</span>
             </div>
-            <div class="news-canvas__pub-title">LATEST NEWS</div>
-            <div class="news-canvas__rule"></div>
+            <p class="issue-topbar__meta">
+              <span data-news-issue-date>{{ 'Vol. %d'|format(issue_vol) if issue_vol else 'Vol. 1' }}</span>
+              <span class="issue-topbar__dot" aria-hidden="true">&middot;</span>
+              {# Written by the autosave debounce in news-dashboard.js. Starts
+                 as the resting state, not a lie about having saved. #}
+              <span data-news-autosave-state>Not saved yet</span>
+              <span class="issue-topbar__dot" aria-hidden="true">&middot;</span>
+              <span data-news-slot-tally>0 of 6 slots filled</span>
+            </p>
+          </div>
+          <div class="issue-topbar__actions">
+            <button type="button" class="ghost-button" data-news-library-open>Story Library</button>
+            <a class="ghost-button" href="/kiosk/embed/latest-news" target="_blank" rel="noopener" data-news-preview>Preview</a>
+            <button type="button" class="ghost-button" data-news-save-draft>Save Draft</button>
+            <button type="button" class="primary-button" data-news-canvas-save>Publish issue</button>
+          </div>
+        </header>
+
+        {# ── Left: outline, block chips, preflight ────────────────────────
+           Every row is rebuilt by renderOutline() in news-dashboard.js from
+           the canvas itself, so it can never disagree with what is on the
+           page. Section ORDER is the template's and is not draggable -- the
+           page has a fixed shape and only the stories inside it move. #}
+        <aside class="issue-outline" data-news-outline>
+          <div class="issue-outline__group">
+            <div class="issue-outline__label">Page outline</div>
+            <ul class="issue-outline__list" data-news-outline-list>
+              {# Populated by JS; this static row is the Masthead, which has no
+                 story behind it and never moves. #}
+              <li class="issue-outline__row is-fixed" data-news-outline-row="masthead">
+                <span class="issue-outline__name">Masthead</span>
+                <span class="issue-outline__state">Fixed</span>
+              </li>
+            </ul>
           </div>
 
-          <!-- ── Article body toolbar ────────────────────────
-               Quill's snow toolbar, hoisted out of the story card and
-               pinned here. It has to live outside the canvas markup for two
-               reasons: a formatting bar rendered inside a newspaper card
-               would be furniture in the middle of the page the editor is
-               judging, and the canvas DOM is periodically replaced wholesale
-               (refreshCanvasFragment's `editor.innerHTML = …`), which would
-               tear a toolbar bound to it out from under Quill.
+          <div class="issue-outline__group">
+            <div class="issue-outline__label">Add a block</div>
+            {# Chips are the guardrail: an editor picks a NAMED block type and
+               can never drop an arbitrary element on the page. Each one maps to
+               an existing slot -- there are no new layout_type values here. #}
+            <div class="issue-chips">
+              <button type="button" class="issue-chip" data-news-add-main>Lead</button>
+              <button type="button" class="issue-chip" data-news-add-secondary>Brief</button>
+              <button type="button" class="issue-chip" data-news-block-chip="photo_essay">Photo essay</button>
+              <button type="button" class="issue-chip" data-news-block-chip="quote">Quote</button>
+              <button type="button" class="issue-chip" data-news-block-chip="editorial">Editorial</button>
+              <button type="button" class="issue-chip" data-news-add-widget>Notice</button>
+            </div>
+          </div>
 
-               Quill binds a toolbar once, at construction, so there is
-               exactly ONE editor instance and it moves between cards — see
-               mountBodyEditor() in news-dashboard.js. The buttons are
-               authored here rather than passed as a JS array because Quill
-               only accepts an existing element for an external toolbar.
-               `ql-font`/`ql-size` option values MUST stay in step with
-               FONTS/SIZES there, which in turn track NEWSLETTER_FONTS in
-               NewsController. -->
+          {# Pinned to the bottom. Filled by runPreflight() from the canvas --
+             empty required slots, missing bylines, missing images, overlong
+             bodies. Hidden entirely when the issue is clean, rather than
+             showing an empty panel. #}
+          <div class="issue-preflight" data-news-preflight hidden>
+            <div class="issue-preflight__label">Before publishing</div>
+            <ul class="issue-preflight__list" data-news-preflight-list></ul>
+          </div>
+        </aside>
+
+        {# ── Middle: the desk ─────────────────────────────────────────────
+           The sheet is NOT transform-scaled. Scaling a contenteditable subtree
+           misplaces the caret and the click-to-select hit areas, which is the
+           one thing this surface cannot afford. It renders at its real width
+           and the desk scrolls. #}
+        <div class="issue-desk">
+          <div class="issue-desk__strip">
+            <span>Live page &mdash; click any text to edit</span>
+            <span data-news-zoom-state>Fit width</span>
+          </div>
+
+          <div class="news-canvas" data-news-canvas>
+
           {# `data-news-target` is set by news-dashboard.js to the region the
              editor is currently on (title / excerpt / body). CSS hides the
              format groups marked data-news-format="rich" while the target is
@@ -157,136 +225,153 @@
             </div>
           </div>
 
-          <!-- The exact kiosk slots. news-dashboard.js makes each slot
-               editable in place (Quill body, inline title/source/location,
-               drop-to-attach image) and reorderable. -->
-          {% set main_story = main_news %}
-          {% set secondary_stories = secondary_news %}
-          {% set news_editor = true %}
-          <div class="paper-grid news-editor" data-news-editor>
-            {% include 'kiosk/_news_slots.html' %}
+            {# data-news-editor wraps ONLY the include. refreshCanvasFragment()
+               does `editor.innerHTML = json.html`, so anything else inside this
+               element -- the Quill toolbar above especially -- would be torn
+               out from under Quill on the first live refresh and never come
+               back. #}
+            {% set main_story = main_news %}
+            {% set secondary_stories = secondary_news %}
+            {% set news_editor = true %}
+            <div class="news-editor" data-news-editor>
+              {% include 'kiosk/_issue.html' %}
+            </div>
           </div>
+        </div><!-- /.issue-desk -->
 
-          <div class="news-editor__add">
-            {# The lead holds exactly one story — news-dashboard.js disables
-               this button (syncPlaceholders()) the moment a SAVED story
-               occupies the lead. An unsaved scratch card deliberately leaves
-               it enabled: re-clicking re-selects that draft (content intact,
-               selectScratch()), which is the in-app route back to a card that
-               has no id to click-select and no article_id for Remove/Delete
-               (fix round 1, Minor 3). #}
-            <button type="button" class="ghost-button" data-news-add-main>+ Add main headline</button>
-            <button type="button" class="ghost-button" data-news-add-secondary>+ Add a story</button>
-            {# The front page has three slot types but shipped only two add
-               buttons, so a widget could be filled ONLY by assigning a story
-               that already existed, through the "+ Assign story to Widget
-               slot" placeholder's Story Library. With nothing spare in the
-               library the slot was simply unreachable — which read to editors
-               as "the widget is not editable", though `.info-card` has had
-               working title/excerpt/body regions all along.
-
-               Both widget positions hold one story each, so unlike "+ Add a
-               story" this disables at capacity — syncPlaceholders() derives
-               that, the same way it does for the lead. #}
-            <button type="button" class="ghost-button" data-news-add-widget>+ Add widget</button>
-          </div>
-        </div><!-- /.news-canvas -->
-
-        <!-- ── Properties (apply to the story you're editing) ── -->
-        <aside class="news-properties page-card" data-news-properties>
-          <div class="news-prop-section">
-            <div class="news-prop-section__label">Editing</div>
-            <p class="news-prop-active" data-news-active-label>New story</p>
-          </div>
-
-          <div class="news-prop-section">
-            <div class="news-prop-section__label">Slot</div>
-            {# "Story Library" (layout_type="unassigned") is a real
-               destination this composer already writes — "Remove from Front
-               Page" sets it, and so does the colliding-scratch retarget in
-               reconcileMainScratchCollision(). Without a button for it the
-               panel showed NO slot selected after either of those ran, while
-               the card's own badge said otherwise. "Lead" is disabled by
-               news-dashboard.js (syncSlotPaletteState()) whenever a real
-               story other than the one being edited holds the lead: clicking
-               it there re-staged layout_type="main" behind the canvas's back
-               and Publish wrote a second main row that renders nowhere. #}
-            <div class="news-composer-palette" role="group" aria-label="Layout slots">
-              <button type="button" class="news-slot-choice is-active"
-                      data-news-slot-choice="main" aria-pressed="true">Lead</button>
-              <button type="button" class="news-slot-choice"
-                      data-news-slot-choice="secondary" aria-pressed="false">Side</button>
-              <button type="button" class="news-slot-choice"
-                      data-news-slot-choice="widget" aria-pressed="false">Widget</button>
-              <button type="button" class="news-slot-choice"
-                      data-news-slot-choice="unassigned" aria-pressed="false">Story Library</button>
+        {# ── Right: contextual inspector ──────────────────────────────────
+           Fields for the ONE selected block. With nothing selected it shows
+           issue-level fields instead, so the column is never empty. #}
+        <aside class="news-properties issue-inspector" data-news-properties>
+          <div class="issue-inspector__head">
+            <div class="issue-inspector__eyebrow">Selected block</div>
+            <div class="issue-inspector__titlerow">
+              <h3 class="issue-inspector__title" data-news-active-label>Issue</h3>
+              <span class="issue-inspector__tag" data-news-active-slot hidden>Slot 01</span>
             </div>
           </div>
 
-          {# The "Headline font" dropdown that used to sit here is gone: the
-             headline is edited in Quill now, so its font is chosen with the
-             same control as every other run of text instead of a second,
-             separate mechanism in this panel.
+          <div class="issue-inspector__body">
 
-             The `headline_font` COLUMN and the `story-font-<slug>` class it
-             renders both survive — stories published before this change keep
-             the face they were given. news-dashboard.js now derives the hidden
-             headline_font field from whatever font Quill applied, so that
-             render path keeps working without an editor-side control. #}
+            {# ── Block-level fields. Hidden wholesale when nothing is
+                 selected; data-news-block-fields is the toggle. #}
+            <div class="issue-inspector__pane" data-news-block-fields hidden>
 
-          <!-- WordPress-style Publish box: status on the left, the two ways
-               out of the screen on the right. -->
-          <div class="news-prop-section">
-            <div class="news-prop-section__label">Publish</div>
-            <div class="news-prop-status">
-              <span>Status</span>
-              <span class="news-prop-status__value" data-news-status-label>Published</span>
-            </div>
-            <div class="news-publish-actions">
-              <button type="button" class="ghost-button" data-news-save-draft>Save Draft</button>
-              <button type="button" class="primary-button" data-news-canvas-save>Publish</button>
-            </div>
-          </div>
+              <div class="issue-field">
+                <label class="issue-field__label" for="np-section-label">Section label</label>
+                {# Writes `location`, the kicker the issue prints as its band
+                   label -- not a new column. #}
+                <select class="issue-field__input" id="np-section-label" data-news-prop="location">
+                  <option value="Campus">Campus</option>
+                  <option value="Editorial">Editorial</option>
+                  <option value="Sports">Sports</option>
+                  <option value="Photo essay">Photo essay</option>
+                  <option value="Notice">Notice</option>
+                </select>
+              </div>
 
-          <!-- Featured Image box. The canvas already accepts a drag-and-drop
-               cover image, but that affordance is invisible until you try it;
-               this reuses the same hidden file input rather than adding a
-               second upload path. -->
-          <div class="news-prop-section">
-            <div class="news-prop-section__label">Featured Image</div>
-            <div class="news-featured-image">
-              <img class="news-featured-image__preview" data-news-featured-preview alt="Featured image preview" hidden>
-              <div class="news-featured-image__empty" data-news-featured-empty>No featured image set</div>
-              <div class="news-featured-image__actions">
-                <button type="button" class="ghost-button" data-news-featured-set>Set featured image</button>
-                <button type="button" class="ghost-button" data-news-featured-remove hidden>Remove</button>
+              <div class="issue-field">
+                <label class="issue-field__label" for="np-byline">Byline</label>
+                <input type="text" class="issue-field__input" id="np-byline"
+                       placeholder="Editorial Desk" data-news-prop="source">
+              </div>
+
+              <div class="issue-field">
+                <span class="issue-field__label">Layout</span>
+                {# Three of the block types as diagrams -- the ones a story
+                   most often moves between. The rest are reachable from the Add
+                   a block chips and by dragging on the canvas. These REUSE the
+                   [data-news-slot-choice] handlers, so the
+                   [data-news-layout-field] write path is unchanged.
+                   "Story Library" (unassigned) stays as a fourth, textual
+                   choice: it is a real destination this composer writes, and
+                   without it the panel showed no slot selected after a
+                   "Remove from Front Page". #}
+                <div class="news-composer-palette issue-layouts" role="group" aria-label="Layout">
+                  <button type="button" class="issue-layout news-slot-choice is-active"
+                          data-news-slot-choice="lead" aria-pressed="true">
+                    <span class="issue-layout__fig issue-layout__fig--photo-top" aria-hidden="true"></span>
+                    <span class="issue-layout__name">Lead</span>
+                  </button>
+                  <button type="button" class="issue-layout news-slot-choice"
+                          data-news-slot-choice="brief" aria-pressed="false">
+                    <span class="issue-layout__fig issue-layout__fig--side" aria-hidden="true"></span>
+                    <span class="issue-layout__name">Brief</span>
+                  </button>
+                  <button type="button" class="issue-layout news-slot-choice"
+                          data-news-slot-choice="notice" aria-pressed="false">
+                    <span class="issue-layout__fig issue-layout__fig--text-led" aria-hidden="true"></span>
+                    <span class="issue-layout__name">Notice</span>
+                  </button>
+                </div>
+                <button type="button" class="issue-inspector__unplace news-slot-choice"
+                        data-news-slot-choice="unassigned" aria-pressed="false">Move to Story Library</button>
+              </div>
+
+              <div class="issue-field">
+                <span class="issue-field__label">Photo</span>
+                {# Same hidden file input as the canvas drop zone -- one upload
+                   path, not two. The check reads the image's natural pixels
+                   once it has loaded. #}
+                <div class="issue-photo">
+                  <img class="issue-photo__thumb" data-news-featured-preview alt="" hidden>
+                  <div class="issue-photo__thumb issue-photo__thumb--empty" data-news-featured-empty>None</div>
+                  <div class="issue-photo__meta">
+                    <span class="issue-photo__name" data-news-photo-name>No photo set</span>
+                    <span class="issue-photo__fit" data-news-photo-fit></span>
+                  </div>
+                  <div class="issue-photo__actions">
+                    <button type="button" class="ghost-button ghost-button--tiny" data-news-featured-set>Replace</button>
+                    <button type="button" class="ghost-button ghost-button--tiny" data-news-featured-remove hidden>Remove</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="issue-field">
+                <span class="issue-field__label">Length guide</span>
+                <div class="issue-gauge" data-news-gauge>
+                  <div class="issue-gauge__track">
+                    <div class="issue-gauge__fill" data-news-gauge-fill></div>
+                    <span class="issue-gauge__limit" aria-hidden="true"></span>
+                  </div>
+                  <p class="issue-gauge__caption" data-news-gauge-caption>No body yet</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="news-prop-section">
-            <details class="news-disclosure" data-news-schedule-disclosure>
-              <summary class="news-disclosure__summary ghost-button ghost-button--full">Schedule for Later</summary>
-              <div class="news-disclosure__panel">
-                <label class="news-prop-section__label" for="np-published-at">Publish date</label>
+            {# ── Issue-level fields. Shown when nothing is selected. #}
+            <div class="issue-inspector__pane" data-news-issue-fields>
+              <div class="issue-field">
+                <label class="issue-field__label" for="np-published-at">Publish date</label>
                 <input type="datetime-local" id="np-published-at"
-                       class="field__input news-prop-field" data-news-prop="published_at">
+                       class="issue-field__input" data-news-prop="published_at">
               </div>
-            </details>
+
+              <div class="issue-field">
+                <span class="issue-field__label">Story order</span>
+                {# Deliberately a reorderable list and NOT a numeric priority
+                   input. `priority` is written by the canvas through
+                   news.layout; a second numeric writer here would race it.
+                   These buttons drive the SAME moveCard() path the canvas
+                   uses. #}
+                <ul class="issue-order" data-news-order-list></ul>
+                <p class="issue-field__hint">Lower positions print first. Drag a card on the page, or use the arrows here.</p>
+              </div>
+
+              <div class="issue-field">
+                <span class="issue-field__label">Calendar</span>
+                <p class="issue-field__hint">Dates come from the Events panel. The issue prints the next three.</p>
+                <button type="button" class="ghost-button ghost-button--full" data-page-link="events">Manage in Events</button>
+              </div>
+            </div>
           </div>
 
-          <div class="news-prop-section">
-            <button type="button" class="ghost-button ghost-button--full" data-news-unassign>Remove from Front Page</button>
-          </div>
-
-          <div class="news-prop-section news-prop-section--danger">
-            <details class="news-disclosure news-disclosure--danger" data-news-danger-menu>
-              <summary class="news-disclosure__summary ghost-button ghost-button--danger ghost-button--full">Danger zone</summary>
-              <div class="news-disclosure__panel">
-                <p class="news-disclosure__copy">Permanently deletes this story and its image. This cannot be undone.</p>
-                <button type="button" class="danger-button ghost-button--full" data-news-delete-active>Delete Story</button>
-              </div>
-            </details>
+          {# Pinned footer. Remove is the existing unassign endpoint; Done is a
+             selection-clearing affordance, not a save -- edits are already in
+             the form and autosaved. #}
+          <div class="issue-inspector__foot" data-news-block-actions hidden>
+            <button type="button" class="ghost-button" data-news-unassign>Remove</button>
+            <button type="button" class="primary-button" data-news-inspector-done>Done</button>
           </div>
         </aside>
 
@@ -300,6 +385,19 @@
           <button type="button" class="news-context-menu__item" role="menuitem" data-news-context-action="unassign">Remove from front page</button>
           <div class="news-context-menu__sep" role="separator"></div>
           <button type="button" class="news-context-menu__item news-context-menu__item--danger" role="menuitem" data-news-context-action="delete">Delete permanently</button>
+        </div>
+
+        {# The danger zone keeps its own disclosure rather than sitting in the
+           inspector footer beside Done: a delete is not a sibling of a
+           selection action. #}
+        <div class="issue-danger" data-news-danger-menu>
+          <details class="news-disclosure news-disclosure--danger">
+            <summary class="news-disclosure__summary ghost-button ghost-button--danger">Danger zone</summary>
+            <div class="news-disclosure__panel">
+              <p class="news-disclosure__copy">Permanently deletes this story and its image. This cannot be undone.</p>
+              <button type="button" class="danger-button ghost-button--full" data-news-delete-active>Delete Story</button>
+            </div>
+          </details>
         </div>
 
       </div><!-- /.news-layout-editor -->

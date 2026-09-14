@@ -65,7 +65,7 @@ def news_image(story, variant):
     """Jinja filter: `{{ story | news_image('large') }}` -> the relative path
     of the best available image for a story, ready to prefix with /storage/.
 
-    Works for both surfaces that share kiosk/_news_slots.html:
+    Works for both surfaces that share kiosk/_issue.html:
       - the kiosk dict already carries precomputed image_large/image_thumb
         (resolved behind the news cache) -> used directly, no filesystem hit;
       - the dashboard renders the News model -> resolve against the disk now.

@@ -22,7 +22,14 @@ from app.controllers.gears.NewsController import _NEWS_CACHE_KEY
 from app.models.News import News
 from app.services import Notifications
 from app.services.AjaxResponses import wants_json, json_success, json_errors
-from app.services.ReviewQueue import REVIEW_STATUS, preview_context
+from config.database import DB
+
+from app.services.ReviewQueue import (
+    REVIEW_STATUS,
+    issue_preview_context,
+    pending_stories,
+    preview_context,
+)
 
 
 #: Where an editor lands from the notification — the composer, with their story
@@ -132,6 +139,125 @@ class ReviewController(Controller):
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return _err(["Could not record that decision. Please try again."])
 
+    def _decide_issue(self, request, response, approve):
+        """Approve or reject the whole pending issue in one decision.
+
+        An editor composes an issue as one thing and submits it in one click;
+        this is the admin's matching single action. All-or-nothing by decision:
+        one Approve publishes every pending block, one Reject sends every
+        pending block back with one reason.
+
+        The per-story _decide() above stays as the building block and for the
+        API it already exposes; this is what the queue's buttons call.
+        """
+        is_ajax = wants_json(request)
+
+        def _err(messages, status=422):
+            if is_ajax:
+                return json_errors(response, messages, status=status)
+            return response.back().with_errors(messages)
+
+        actor = self._actor(request)
+        if not _is_admin(actor):
+            return _err(["Only an admin can review stories."], status=403)
+
+        # Re-read at decision time, not from whatever the page rendered: two
+        # admins with the queue open would otherwise both act on a stale list.
+        stories = list(pending_stories() or [])
+        if not stories:
+            # Refuse, do not report success on nothing -- a double-click after
+            # a colleague already approved would otherwise say "published" to
+            # an admin who published nothing.
+            return _err(["Nothing is awaiting review."], status=409)
+
+        reason = (request.input("reason") or "").strip()
+        if not approve and not reason:
+            return _err(["Please say why you are sending this issue back."])
+
+        try:
+            # One transaction: an issue is published whole or not at all. A
+            # failure halfway would otherwise leave the kiosk printing half an
+            # issue with the other half still in the queue.
+            with DB.transaction():
+                for record in stories:
+                    if approve:
+                        record.status = "published"
+                        record.rejection_reason = None
+                    else:
+                        record.status = "draft"
+                        record.rejection_reason = reason
+                    record.save()
+
+            # Once, after the batch: the cache is one thing, not one per block.
+            Cache.forget(_NEWS_CACHE_KEY)
+
+            # One notification per author, not one per block. Three blocks by
+            # the same editor is one issue and one bell entry, not three saying
+            # the same thing.
+            notified = set()
+            for record in stories:
+                author_id = getattr(record, "author_id", None)
+                if not author_id or author_id in notified:
+                    continue
+                notified.add(author_id)
+                Notifications.notify(
+                    author_id,
+                    "news.approved" if approve else "news.rejected",
+                    (
+                        "Your issue was published"
+                        if approve
+                        else "Your issue was sent back for changes"
+                    ),
+                    None if approve else reason,
+                    _EDITOR_LINK,
+                )
+
+            count = len(stories)
+            message = (
+                f"Issue approved and published ({count} blocks)."
+                if approve
+                else f"Issue sent back to the editor ({count} blocks)."
+            )
+
+            if is_ajax:
+                return json_success(
+                    response,
+                    payload={
+                        "ids": [getattr(r, "id", None) for r in stories],
+                        "status": "published" if approve else "draft",
+                        "count": count,
+                    },
+                    messages=[message],
+                )
+            return response.redirect(
+                name="users.view", query_params={"page": "review"}
+            ).with_success([message])
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return _err(["Could not record that decision. Please try again."])
+
+    def approve_issue(self, request: Request, response: Response):
+        return self._decide_issue(request, response, approve=True)
+
+    def reject_issue(self, request: Request, response: Response):
+        return self._decide_issue(request, response, approve=False)
+
+    def preview_issue(self, request: Request, response: Response, view: View):
+        """The whole pending issue, as the kiosk will print it."""
+        actor = self._actor(request)
+        if not _is_admin(actor):
+            return json_errors(response, ["Only an admin can review stories."], status=403)
+
+        stories = list(pending_stories() or [])
+        if not stories:
+            return json_errors(response, ["Nothing is awaiting review."], status=404)
+
+        html = view.render("kiosk/_issue", issue_preview_context(stories)).rendered_template
+        return json_success(
+            response,
+            payload={"count": len(stories), "html": html},
+        )
+
     def approve(self, request: Request, response: Response):
         return self._decide(request, response, request.param("id"), approve=True)
 
@@ -149,5 +275,5 @@ class ReviewController(Controller):
         if not record:
             return json_errors(response, ["Story not found."], status=404)
 
-        html = view.render("kiosk/_news_slots", preview_context(record)).rendered_template
+        html = view.render("kiosk/_issue", preview_context(record)).rendered_template
         return json_success(response, payload={"id": getattr(record, "id", None), "html": html})

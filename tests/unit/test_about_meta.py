@@ -1,7 +1,7 @@
 """Guards for the About LSPU `meta` bag.
 
-`meta` is what made the kiosk's short strings editable: the hub hero, the index
-hint and prev/next label per section, the quality footer, the values band, the
+`meta` is what made the kiosk's short strings editable: the rail header, the crumb
+hint and rail label per section, the quality footer, the values band, the
 seal cue, and the seal's numbered callouts (which were a Python constant in
 AboutController). Two properties have to hold or the kiosk breaks in ways an
 editor cannot undo from the dashboard:
@@ -97,8 +97,8 @@ class AboutHotspotSanitiseTestCase(TestCase):
 
 class AboutMetaFallbackTestCase(TestCase):
     def test_every_section_has_a_short_label_and_hint(self):
-        # The kiosk renders both unconditionally on the hub index and the
-        # prev/next pager, so a missing default is a blank line on the terminal.
+        # The kiosk renders the short label unconditionally on the rail, so a
+        # missing default is a blank button on the terminal.
         for slug in SECTION_SLUGS:
             meta = AboutContent.meta_for(slug)
             self.assertTrue(meta.get("short"), slug)

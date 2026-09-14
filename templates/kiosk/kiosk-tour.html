@@ -29,10 +29,13 @@
       interactive.
 
       So the pano stays dark (#pano is opacity:0 / pointer-events:none until
-      body.tour-ready) and nothing is rendered until this button is pressed —
-      that press is what calls startTour(), which switches to the first scene,
-      raises the ground indicator, wires the find-a-building dock and fires
-      'tour:ready' for tour-charter.js.
+      body.tour-ready) and nothing is built until this button is pressed —
+      that press is what calls initTour(), which creates the Marzipano viewer
+      and its 205 scenes (the step that starts pulling previews and tiles),
+      mounts the charter, then switches to the first scene, raises the ground
+      indicator, wires the find-a-building dock and fires 'tour:ready'. Only
+      the small vendor bundles load ahead of the press, so a load failure can
+      be written onto this panel before anyone taps.
 
       Markup lives here rather than being built by kiosk-tour.js so it paints
       on first frame, before the ~360MB tile pipeline and Marzipano have

@@ -8,6 +8,7 @@ always received.
 """
 
 import random
+from datetime import datetime
 
 from app.models.Archives import Archives
 from app.models.Categories import Categories
@@ -137,14 +138,73 @@ def _event_sort_key(item):
     return 0
 
 
-def group_news_slots(news_items):
-    """Split stories into the main / secondary / widget slots the composer shows.
+#: The blocks an issue is made of, in the order they print. This is the
+#: editor's own vocabulary -- a lead, a brief, an editorial, a notice -- and it
+#: is what `news.layout_type` stores. It replaced `main`/`secondary`/`widget`,
+#: which were words no newsroom uses and which forced a translation into every
+#: surface between the column and the screen.
+#:
+#: `unassigned` is deliberately NOT here: it is a destination (the story
+#: library), not a place on the page, so it has no capacity and no section.
+BLOCK_TYPES = ("lead", "brief", "photo_essay", "editorial", "quote", "notice")
 
-    Sort is ascending on `(priority, id)` — lower priority renders first, so
-    the "Position #1" label editors see is literally true. Stories explicitly
-    marked `layout_type == "unassigned"` sit in the library only: they are
-    excluded from every bucket below, including the `main_news` fallback, so
-    an unplaced story can never accidentally become the lead.
+#: How many rows each block holds. Mirrored by NewsController._NEWS_SLOT_CAPACITY,
+#: which is what layout() enforces inside its transaction, and derived again from
+#: the rendered containers by news-dashboard.js -- so all three can only drift if
+#: the markup drifts first.
+#:
+#: Truncating here is not cosmetic. A bucket over capacity leaves a story that
+#: reads as placed in the composer and renders nowhere on the kiosk, which is
+#: the worst kind of bug: silent, and invisible to the person who caused it.
+BLOCK_CAPACITY = {
+    "lead": 1,
+    "brief": 4,
+    "photo_essay": 3,
+    "editorial": 1,
+    "quote": 2,
+    "notice": 1,
+}
+
+#: What a row lands in when its `layout_type` is blank. A model built in memory
+#: can still carry None even though the column is NOT NULL with a default. A
+#: brief is the safe landing -- the ordinary body of the page, never the lead.
+DEFAULT_BLOCK = "brief"
+
+
+def normalize_block(raw_type):
+    """Resolve a stored `layout_type` to a block, or None if it is not one.
+
+    Case- and padding-insensitive for the same reason `status` is: these values
+    arrive from forms, fixtures and migrations, and a stray space should not
+    decide whether a story prints.
+
+    Returns None for `unassigned` AND for anything unrecognised -- a stale row,
+    a hand-posted form, a half-run migration. Failing closed means such a story
+    stays reachable in the library and simply does not print; guessing it into a
+    block would put unreviewed placement on a public screen.
+    """
+    block = (raw_type or "").strip().lower()
+    if not block:
+        return DEFAULT_BLOCK
+    return block if block in BLOCK_CAPACITY else None
+
+
+def group_news_slots(news_items):
+    """Split stories into the blocks the issue renders.
+
+    Returns a dict keyed by block type, every key present (templates index
+    these directly, so a missing one is a 500 rather than a blank section) and
+    every list already truncated to capacity.
+
+    Sort is ascending on `(priority, id)`: lower renders first, so the
+    "Position #1" badge an editor reads is literally the render order. `id`
+    breaks the tie because `priority` defaults to 0, so a run of new stories all
+    carry it and the order would otherwise be whatever the driver returned.
+
+    The lead falls back to the first assignable story when nothing is marked
+    `lead`, or section 01 would be missing from a page that has stories. The
+    fallback looks only at ASSIGNABLE rows -- sending a story to the library
+    must remove it from the page, not promote it to the front of it.
     """
     sorted_items = sorted(
         list(news_items or []),
@@ -154,38 +214,26 @@ def group_news_slots(news_items):
         ),
     )
 
-    assignable_items = [
-        item for item in sorted_items
-        if (getattr(item, "layout_type", "") or "").lower() != "unassigned"
+    placed = [
+        (normalize_block(getattr(item, "layout_type", None)), item)
+        for item in sorted_items
     ]
+    assignable = [(block, item) for block, item in placed if block]
 
-    main_news = next(
-        (
-            item
-            for item in assignable_items
-            if (getattr(item, "layout_type", "") or "").lower() == "main"
-        ),
-        assignable_items[0] if assignable_items else None,
-    )
+    slots = {block: [] for block in BLOCK_TYPES}
+    for block, item in assignable:
+        slots[block].append(item)
 
-    secondary_news = [
-        item
-        for item in assignable_items
-        if item is not main_news
-        and (getattr(item, "layout_type", "secondary") or "secondary").lower() == "secondary"
-    ][:4]
+    # No explicit lead: borrow the first assignable story from wherever it sits,
+    # and take it out of that bucket so it cannot render twice.
+    if not slots["lead"] and assignable:
+        fallback_block, fallback = assignable[0]
+        slots["lead"] = [fallback]
+        slots[fallback_block] = [
+            item for item in slots[fallback_block] if item is not fallback
+        ]
 
-    widget_news = [
-        item
-        for item in assignable_items
-        if item is not main_news and (getattr(item, "layout_type", "") or "").lower() == "widget"
-    ][:2]
-
-    return {
-        "main_news": main_news,
-        "secondary_news": secondary_news,
-        "widget_news": widget_news,
-    }
+    return {block: slots[block][: BLOCK_CAPACITY[block]] for block in BLOCK_TYPES}
 
 
 # ===== per-section builders =====
@@ -248,9 +296,18 @@ def news_context():
 
     return {
         "news_items": news_items,
-        "main_news": slots["main_news"],
-        "secondary_news": slots["secondary_news"],
-        "widget_news": slots["widget_news"],
+        # ONE key, not one per block. The issue partial indexes it by block
+        # name, so adding a block type later costs nothing here -- which is the
+        # point of the vocabulary living in BLOCK_TYPES rather than in the
+        # shape of this dict.
+        "blocks": slots,
+        # The issue's non-slot sections. They live here rather than only in
+        # news_canvas_context() so the FULL page render and the canvas fragment
+        # hand kiosk/_issue.html the same context -- otherwise the calendar
+        # would be missing on load and appear on the first live refresh, which
+        # reads as a bug.
+        "events": upcoming_events(),
+        **issue_identity(slots["lead"][0] if slots["lead"] else None),
         "news_status_counts": news_status_counts,
         "news_count": len(news_items),
         # Seeds the composer's optimistic-concurrency token so the FIRST
@@ -295,7 +352,7 @@ def news_categories_context():
 
 
 def news_canvas_context():
-    """Context for re-rendering `kiosk/_news_slots.html` from the dashboard
+    """Context for re-rendering `kiosk/_issue.html` from the dashboard
     fragment endpoint (Task 4's stale-canvas fix).
 
     `news_context()` returns the slot buckets under the `main_news` /
@@ -312,13 +369,84 @@ def news_canvas_context():
     """
     news = news_context()
     return {
-        "main_story": news["main_news"],
-        "secondary_stories": news["secondary_news"],
-        "widget_news": news["widget_news"],
+        "blocks": news["blocks"],
         "news_editor": True,
+        # The issue's non-slot sections, already built by news_context(). The
+        # composer renders the whole page, not just the slots, so without these
+        # the editor would lay out an issue with its photo essay and calendar
+        # missing -- the drift kiosk/_issue.html was extracted to end.
+        "events": news["events"],
+        "issue_vol": news["issue_vol"],
+        "issue_no": news["issue_no"],
         # Kept so DashboardController.fragment() can still report a row
         # count for this section the same way every other fragment does.
         "news_items": news["news_items"],
+    }
+
+
+#: How many upcoming events the issue's calendar block shows.
+CALENDAR_LIMIT = 3
+
+
+def upcoming_events(limit=CALENDAR_LIMIT):
+    """The next few events, for the issue's calendar block.
+
+    Lives here rather than in NewsController because BOTH surfaces need it and
+    the import can only run one way: NewsController already imports from this
+    module, so the reverse would be a cycle.
+
+    Deliberately never cached alongside the news payload. EventController has
+    no reason to call NewsCache.forget() -- it writes no `news` rows -- so a
+    calendar living inside that cache would keep showing yesterday's list for
+    up to NewsCache.TTL after an editor added an event, and nobody would
+    connect the two.
+
+    `events.event_date` is a naive local `datetime NOT NULL`, so comparing it
+    against a naive datetime.now() is right. (WelcomeController's flash ticker
+    needs a +/-2 day margin for the opposite reason: it also measures against
+    `created_at`, which comes back UTC-aware from pendulum.)
+    """
+    try:
+        rows = (
+            Events.where("is_archive", 0)
+            .where("event_date", ">=", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            .order_by("event_date", "asc")
+            .limit(limit)
+            .get()
+        )
+    except Exception:
+        # The calendar is one block on a public screen. A DB hiccup here must
+        # not take the whole issue down with it -- the partial already skips
+        # the section when this is empty.
+        return []
+
+    events = []
+    for row in rows:
+        at = getattr(row, "event_date", None)
+        events.append({
+            "title": getattr(row, "title", None),
+            # Pre-formatted for the same reason published_label is: Jinja
+            # cannot strftime, and the date chip wants "SEP 15".
+            "chip": at.strftime("%b %d").upper() if hasattr(at, "strftime") else "",
+            "iso": at.strftime("%Y-%m-%d") if hasattr(at, "strftime") else "",
+        })
+    return events
+
+
+def issue_identity(lead):
+    """Folio numbering, derived from the lead story's date -- no schema.
+
+    Vol. counts publication years since founding (2026 -> 1); No. is the
+    day-of-year, a plausible edition number that changes with each date. Shared
+    so the composer's masthead cannot print a different issue line from the
+    kiosk's.
+    """
+    lead_at = getattr(lead, "published_at", None) or getattr(lead, "created_at", None)
+    if not hasattr(lead_at, "timetuple"):
+        return {"issue_vol": None, "issue_no": None}
+    return {
+        "issue_vol": max(1, lead_at.year - 2025),
+        "issue_no": lead_at.timetuple().tm_yday,
     }
 
 

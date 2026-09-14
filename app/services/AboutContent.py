@@ -33,13 +33,14 @@ ALLOWED_ATTRS = {
 ALLOWED_PROTOCOLS = ["http", "https", "mailto"]
 
 
-# Display order for the kiosk hub and the editor accordion.
+# Display order for the kiosk rail and the editor accordion.
 SECTION_SLUGS = ["mission", "values", "history", "quality", "hymn", "seal"]
 
-#: The hub itself (hero kicker/title/lead) is authored as a row too, but it is
-#: deliberately *not* in SECTION_SLUGS: `ordered_slugs` drives the index list and
-#: the prev/next pager on the kiosk, so a seventh entry there would render an
-#: empty seventh pane. load_all() still returns it in `sections`, keyed "page".
+#: The page row (the rail header's title; historically also a hub hero's
+#: kicker and lead) is authored as a row too, but it is deliberately *not* in
+#: SECTION_SLUGS: `ordered_slugs` drives the rail and the panes on the kiosk,
+#: so a seventh entry there would render an empty seventh pane. load_all()
+#: still returns it in `sections`, keyed "page".
 PAGE_SLUG = "page"
 EDITABLE_SLUGS = SECTION_SLUGS + [PAGE_SLUG]
 
@@ -69,11 +70,13 @@ DEFAULT_SEAL_HOTSPOTS = [
 #: Short display strings the kiosk renders around the authored bodies. These
 #: used to be a `tile_meta` literal in templates/kiosk/about-lspu.html plus a
 #: SEAL_HOTSPOTS constant in AboutController, i.e. a developer had to ship a
-#: commit to fix a typo in the hub. They are defaults now: `meta` on the row
+#: commit to fix a typo on the kiosk. They are defaults now: `meta` on the row
 #: overrides a key, an absent or empty key falls back to what is written here,
 #: and any key not listed for a slug is dropped on save.
 DEFAULT_META = {
     PAGE_SLUG: {
+        # `kicker` and `lead` have no kiosk surface since the hub view was
+        # removed. Kept so a row saved with them still passes sanitize_meta.
         "kicker": "Six sections · tap to read",
         "title": "About LSPU",
         "lead": "The university’s charter, its values, and the seventy years "

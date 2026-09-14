@@ -80,22 +80,30 @@ test('no raw quill.root.innerHTML assignment survives outside the helper', () =>
     'the surviving assignment must be the one inside setEditorHtml()');
 });
 
-test('the three programmatic load sites all go through the helper', () => {
-  // mountEditor (opening a story), the discard path, and the post-save
-  // refresh. Each is followed by `bodyDirty = false`, so each reintroduced the
-  // prompt independently.
+test('every programmatic load site goes through the helper', () => {
+  // mountEditor (opening a story) and the post-save refresh. Each is followed
+  // by `bodyDirty = false`, so each reintroduced the prompt independently.
+  //
+  // There used to be a third: the discard path, which restored bodySnapshot
+  // when an editor confirmed "Discard unsaved changes?". That path is gone --
+  // switching cards no longer discards anything (see news-multi-block-save),
+  // so there is nothing there to load.
   const calls = [...CODE.matchAll(/setEditorHtml\(/g)];
-  // One declaration + three call sites.
-  assert.ok(calls.length >= 4,
-    `expected the helper to be called from all three load sites, saw ${calls.length - 1}`);
+  // One declaration + two call sites.
+  assert.ok(calls.length >= 3,
+    `expected the helper to be called from both load sites, saw ${calls.length - 1}`);
 });
 
 test('the dirty flag is still cleared after loading, and set by real edits', () => {
   // The fix must not have removed the flag handling it exists to make correct.
   assert.match(CODE, /bodyDirty\s*=\s*false/, 'loads must still clear the flag');
   assert.match(CODE, /bodyDirty\s*=\s*true/, 'real edits must still set it');
-  assert.match(CODE, /if\s*\(\s*!bodyDirty\s*\)\s*return Promise\.resolve\(true\)/,
-    'confirmLeavingDirtyBody must still short-circuit when the body is clean');
+  // The guard no longer prompts at all -- a clean body and a dirty one both
+  // simply proceed, because a card switch keeps what was typed. What this
+  // test protects is that the flag itself is still maintained above.
+  const guard = CODE.slice(CODE.indexOf('function confirmLeavingDirtyBody('));
+  assert.match(guard.slice(0, 1400), /return Promise\.resolve\(true\)/,
+    'confirmLeavingDirtyBody must let a card switch proceed');
 });
 
 // ── Moving between fields of the SAME story must not prompt ──────────────────

@@ -13,12 +13,22 @@
 </head>
 <body class="kiosk-body">
   {#
-    `tile_meta` (short label + index hint per section) and `page` (the hub hero)
+    One URL, six views. The page opens on the mission and every other section
+    is one tap away on the rail down the right edge; about-lspu-kiosk.js
+    switches `data-view` and nothing else moves.
+
+    It used to open on a hub — a hero plus an index of the six sections — and
+    each pane then carried a prev/next row and a back bar to return there.
+    That was three navigation controls under one heading before the visitor
+    had read a word. The rail replaced all three: it is the index, it says
+    where you are, and it is how you leave.
+
+    `tile_meta` (short label + hint per section) and `page` (the rail header)
     are passed in by AboutController from each row's `meta`, defaulting to
     AboutContent.DEFAULT_META. They were literals here until the dashboard grew
     fields for them — fixing a typo on the kiosk used to need a deploy.
   #}
-  <div class="kiosk-shell about-app" data-view="hub">
+  <div class="kiosk-shell about-app" data-view="mission">
     <header class="kiosk-status">
       <span class="kiosk-status__org">Laguna State Polytechnic University</span>
       <time class="kiosk-status__stamp" data-kiosk-clock>
@@ -27,46 +37,27 @@
       </time>
     </header>
 
-    {# ===== HUB ===== #}
-    <div class="kiosk-content about-hub-view" data-pane="hub">
-      <header class="about-hero">
-        <div class="about-hero__type">
-          {% if page.kicker %}<span class="about-hero__kicker">{{ page.kicker }}</span>{% endif %}
-          <h1 class="about-hero__title">{{ page.title }}</h1>
-          {% if page.lead %}<p class="about-hero__lead">{{ page.lead }}</p>{% endif %}
-        </div>
-        {% set seal_section = sections.get('seal') %}
-        {% if seal_section and seal_section.image_path %}
-          <img class="about-hero__seal" src="/storage/{{ seal_section.image_path }}" alt="" aria-hidden="true">
-        {% endif %}
-      </header>
+    {# The seal artwork doubles as the quality pane's watermark. #}
+    {% set seal_section = sections.get('seal') %}
 
-      <nav class="about-index" aria-label="About LSPU sections">
-        {% for slug in ordered_slugs %}
-          {% set section = sections.get(slug) %}
-          <button class="about-index__row" type="button" data-target="{{ slug }}">
-            <span class="about-index__num">{{ '%03d' % loop.index }}</span>
-            <span class="about-index__text">
-              <span class="about-index__title">{{ section.title if section else tile_meta[slug].short }}</span>
-              <span class="about-index__hint">{{ tile_meta[slug].hint }}</span>
-            </span>
-            <span class="about-index__arrow" aria-hidden="true">&rarr;</span>
-          </button>
-        {% endfor %}
-      </nav>
-    </div>
-
+    {# Panes and rail share one row so the rail costs the panes width, never
+       height: the mission is a no-scroll three-way split and height is the
+       axis it cannot give up inside the shell's frame. #}
+    <div class="about-frame">
     {# ===== DETAIL PANES ===== #}
     {% for slug in ordered_slugs %}
       {% set section = sections.get(slug) %}
-      {% set prev_slug = ordered_slugs[loop.index0 - 1] if loop.index0 > 0 else ordered_slugs[-1] %}
-      {% set next_slug = ordered_slugs[loop.index0 + 1] if not loop.last else ordered_slugs[0] %}
 
       <div class="kiosk-content about-detail" data-pane="{{ slug }}">
+        {# The hint used to be the small line under this section's row on the
+           hub index. With the hub gone it rides beside the title here, so the
+           editor's field still lands somewhere a visitor can read it. #}
         <header class="about-crumb">
-          <span class="about-crumb__num">{{ '%03d' % loop.index }}</span>
-          <span class="about-crumb__sep" aria-hidden="true">&middot;</span>
           <span class="about-crumb__title">{{ section.title if section else tile_meta[slug].short }}</span>
+          {% if tile_meta[slug].hint %}
+            <span class="about-crumb__sep" aria-hidden="true">&middot;</span>
+            <span class="about-crumb__hint">{{ tile_meta[slug].hint }}</span>
+          {% endif %}
         </header>
 
         <div class="about-body about-body--{{ slug }}">
@@ -327,29 +318,21 @@
         </section>
         {% endif %}
 
-        <nav class="about-prevnext" aria-label="Nearby sections">
-          <button type="button" class="about-prevnext__btn" data-target="{{ prev_slug }}">
-            <span aria-hidden="true">&larr;</span> {{ tile_meta[prev_slug].short }}
-          </button>
-          <button type="button" class="about-prevnext__btn about-prevnext__btn--next" data-target="{{ next_slug }}">
-            {{ tile_meta[next_slug].short }} <span aria-hidden="true">&rarr;</span>
-          </button>
-        </nav>
       </div>
     {% endfor %}
 
-    {# One back control, and only on a detail pane: it returns to this
-       section's own hub, which is a view of this same URL and so has no
-       address to link to.
-
-       The hub used to carry a second one labelled "Kiosk menu" that left the
-       section entirely. That is gone with every other kiosk-navigation back
-       control — the carousel is permanently on screen below this frame and is
-       how a visitor leaves. A pane-level control is a different thing: it
-       moves between views *inside* About LSPU, which the carousel knows
-       nothing about. #}
-    <div class="about-back about-back--detail">
-      {% with back_label='About LSPU', back_action='hub' %}{% include 'partials/kiosk-back.html' %}{% endwith %}
+      {# The rail: the index, the "you are here", and the way between panes,
+         all in one column. Short labels only — the editor's `short` field —
+         because a 72px strip has no room for anything else and a numbered or
+         iconed list is more to decode on a terminal, not less. `aria-current`
+         marks the open pane; about-lspu-kiosk.js moves it on every switch. #}
+      <nav class="about-rail" aria-label="About LSPU sections">
+        <span class="about-rail__title">{{ page.title }}</span>
+        {% for slug in ordered_slugs %}
+          <button type="button" class="about-rail__btn" data-target="{{ slug }}"
+                  {% if slug == 'mission' %}aria-current="true"{% endif %}>{{ tile_meta[slug].short }}</button>
+        {% endfor %}
+      </nav>
     </div>
   </div>
 

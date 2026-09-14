@@ -36,6 +36,29 @@
 {# review-queue.css is misnamed: it also owns .dashboard-nav__badge (the
    sidebar count) and .gears-panel--narrow, both shell-level. #}
 <link rel="stylesheet" href="{{ asset_url('css/review-queue.css') }}" />
+
+{# Sidebar state, applied BEFORE first paint.
+
+   This cannot wait for gears-dashboard.js, which is deferred: the rail would
+   paint open at its full 280px and snap shut on every single page load, on all
+   three consoles. Stamping the attribute here means the grid is already the
+   right shape the first time the browser lays the page out. Same reason a
+   theme toggle inlines its read.
+
+   On <html> rather than the shell element because the shell is in <body> and
+   does not exist yet at this point. The try/catch is not defensive padding:
+   localStorage THROWS on access in a private window and wherever site data is
+   blocked, and an exception here would take the whole page down before any of
+   it rendered. #}
+<script>
+  (function () {
+    try {
+      if (localStorage.getItem('gears:sidebar') === 'closed') {
+        document.documentElement.setAttribute('data-sidebar', 'closed');
+      }
+    } catch (e) { /* no storage: the rail just starts open, which is the default */ }
+  })();
+</script>
 {% endblock %}
 
 {% block content %}
@@ -49,7 +72,10 @@
   data-tab-slot="{{ tab_slot() }}"
 {% block shell_data %}{% endblock %}
 >
-  <aside class="gears-sidebar">
+  {# `id` so the hero's toggle can own this region via aria-controls. The nav
+     inside is untouched -- this rail collapses as a whole, it does not become
+     an icon strip, so no item needs to know about it. #}
+  <aside class="gears-sidebar" id="gears-sidebar">
     <div class="gears-sidebar__brand">
       <div class="gears-sidebar__mark" aria-hidden="true"><img src="{{ site_logo() }}" alt="Gears logo"></div>
       <div>
@@ -66,8 +92,36 @@
        the hero (top right) so every account control sits in one place. #}
   </aside>
 
+  {# Closes the drawer when it is overlaying the page (below 1180px). Inert
+     above that width, where collapsing reflows the grid instead of covering
+     anything. Not a <button>: it is a backdrop, and the real keyboard route out
+     is Esc plus the toggle, which are both real controls. #}
+  <div class="gears-scrim" data-sidebar-scrim hidden></div>
+
   <main class="gears-main">
     <header class="gears-hero" data-hero>
+      {# The rail's toggle, and the ONE control that is always reachable whether
+         it is open or shut -- which is why it lives out here in the hero rather
+         than inside the thing it hides.
+
+         Collapsed it shows the publication's gear mark. That is deliberate: the
+         sidebar carries the only masthead on the staff surface, so sliding it
+         away would take the brand off screen entirely, and the mark doubles as
+         the obvious thing to click to get the menu back. Expanded it is a quiet
+         chevron pointing at where the rail goes. #}
+      <button type="button"
+              class="gears-rail-toggle"
+              data-sidebar-toggle
+              aria-controls="gears-sidebar"
+              aria-expanded="true">
+        <img class="gears-rail-toggle__mark" src="{{ site_logo() }}" alt="" aria-hidden="true">
+        <span class="gears-rail-toggle__chevron" aria-hidden="true">&#10094;</span>
+        {# .u-visually-hidden, not .news-sr-only: this shell also renders the
+           admin console and the super admin console, neither of which loads
+           news-dashboard.css. #}
+        <span class="u-visually-hidden" data-sidebar-toggle-label>Hide navigation</span>
+      </button>
+
       <div>
         <p class="gears-hero__eyebrow" data-hero-eyebrow>Dashboard</p>
         <h1 class="gears-hero__title" data-hero-title>Real-time overview of your kiosk content</h1>

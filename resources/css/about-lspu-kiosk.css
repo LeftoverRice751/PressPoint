@@ -1,22 +1,25 @@
 /*
- * About LSPU — hub and six detail panes.
+ * About LSPU — six panes and a rail.
  *
- * One URL, seven views. The hub is an index of rows; each pane is a distinct
- * composition chosen to suit its content rather than a shared card template:
- * the mission is three declarative blocks, the quality policy is a pull quote,
- * the history is a pager, the seal is an annotated diagram. The view is
- * selected by data-view on .about-app (about-lspu-kiosk.js).
+ * One URL, six views, each a distinct composition chosen to suit its content
+ * rather than a shared card template: the mission is three declarative
+ * blocks, the quality policy is a pull quote, the history is a pager, the seal
+ * is an annotated diagram. The view is selected by data-view on .about-app
+ * (about-lspu-kiosk.js); the page opens on the mission.
  *
- * Every pane shares the same chrome: a breadcrumb strip, then the body, then a
- * prev/next row — and the shell's back bar underneath. Only the body scrolls.
+ * Navigation is the rail down the right edge and nothing else. This page used
+ * to open on a hub (a hero plus an index of the six sections) and every pane
+ * then carried a prev/next row and a back bar to return there — three
+ * controls on a 768px screen before the visitor read a word. The rail is the
+ * index, the "you are here", and the way between panes, in one strip.
+ *
+ * Every pane shares the same chrome: a breadcrumb strip, then the body, then
+ * optionally the sources list. Only the body scrolls.
  */
 
 /* ── View switching ────────────────────────────────────────────────── */
 
-.about-hub-view,
 .about-detail { display: none; }
-
-.about-app[data-view="hub"] .about-hub-view { display: flex; }
 
 .about-app[data-view="mission"] .about-detail[data-pane="mission"],
 .about-app[data-view="values"]  .about-detail[data-pane="values"],
@@ -25,137 +28,97 @@
 .about-app[data-view="hymn"]    .about-detail[data-pane="hymn"],
 .about-app[data-view="seal"]    .about-detail[data-pane="seal"] { display: flex; }
 
-/* Exactly one back control is in the DOM flow at a time. */
-.about-back--detail { display: none; }
-.about-app:not([data-view="hub"]) .about-back--hub { display: none; }
-.about-app:not([data-view="hub"]) .about-back--detail { display: block; }
+/* ── Frame: pane + rail in one row ─────────────────────────────────── */
 
-/* ── Hub: header + six rows ────────────────────────────────────────── */
-
-.about-hero {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: clamp(12px, 3vw, 26px);
-  min-height: clamp(132px, 19vh, 196px);
-  padding: clamp(16px, 3vw, 30px);
-  background: var(--kiosk-maroon);
-  color: var(--kiosk-on-dark);
+/* The rail takes width, never height. Inside the shell's content frame this
+   page gets roughly 768x640, and the mission pane is a no-scroll three-way
+   split that has no height to give. 72px is the narrowest strip that still
+   clears the 64px touch floor with a one-word label inside it. */
+:root {
+  --about-rail-w: 72px;
 }
 
-.about-hero__type {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: clamp(4px, 0.8vh, 9px);
-}
-
-.about-hero__kicker {
-  font-family: var(--kiosk-font-mono);
-  font-size: clamp(0.55rem, 1.5vw, 0.6875rem);
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--kiosk-amber);
-}
-
-.about-hero__title {
-  margin: 0;
-  font-family: var(--kiosk-font-display);
-  font-size: clamp(1.9rem, 7vw, 3.375rem);
-  line-height: 1;
-  letter-spacing: 0.01em;
-}
-
-.about-hero__lead {
-  margin: 0;
-  max-width: 46ch;
-  font-size: clamp(0.8rem, 2.1vw, 1rem);
-  line-height: 1.45;
-  color: var(--kiosk-on-dark-soft);
-}
-
-.about-hero__seal {
-  flex: 0 0 auto;
-  width: clamp(64px, 17vw, 132px);
-  height: auto;
-  aspect-ratio: 1;
-  object-fit: contain;
-}
-
-.about-index {
+.about-frame {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
-  flex-direction: column;
-  background: var(--kiosk-cream);
+  flex-direction: row;
 }
 
-.about-index__row {
+.about-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.about-rail {
+  flex: 0 0 var(--about-rail-w);
+  display: flex;
+  flex-direction: column;
+  background: var(--kiosk-maroon);
+  border-left: 1px solid rgb(var(--kiosk-paper-rgb) / 0.12);
+}
+
+.about-rail__title {
+  flex: 0 0 auto;
+  padding: clamp(8px, 1.4vh, 12px) 4px;
+  font-family: var(--kiosk-font-mono);
+  font-size: clamp(0.5rem, 1.3vw, 0.6rem);
+  letter-spacing: 0.16em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--kiosk-amber);
+  overflow-wrap: anywhere;
+}
+
+/* Six buttons split the strip evenly — about 100px each at kiosk size, and
+   never below the touch floor. */
+.about-rail__btn {
   appearance: none;
   flex: 1 1 0;
-  min-height: clamp(58px, 10.5vh, 108px);
-  display: flex;
-  align-items: center;
-  gap: clamp(10px, 2.6vw, 22px);
-  width: 100%;
-  padding: 0 clamp(14px, 3vw, 28px);
+  min-height: var(--kiosk-touch-min);
+  min-width: 0;
+  padding: 0 4px;
   border: 0;
-  border-bottom: 1px solid var(--kiosk-hairline);
+  border-top: 1px solid rgb(var(--kiosk-paper-rgb) / 0.12);
+  border-left: 4px solid transparent;
   background: transparent;
-  color: var(--kiosk-ink);
-  text-align: left;
+  color: var(--kiosk-on-dark-soft);
+  font-family: var(--kiosk-font-ui);
+  font-weight: 600;
+  font-size: clamp(0.66rem, 1.7vw, 0.8rem);
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
   cursor: pointer;
-  transition: background-color var(--kiosk-dur) var(--kiosk-ease);
+  transition: background-color var(--kiosk-dur) var(--kiosk-ease),
+              color var(--kiosk-dur) var(--kiosk-ease);
 }
-
-.about-index__row:last-child { border-bottom: 0; }
 
 /* Hover gated on a real pointer: a touchscreen latches :hover after a tap, so
    an un-gated hover fill stays stuck on whatever was last touched. Focus-visible
    stays ungated — keyboard users need it on every device. */
 @media (hover: hover) {
-  .about-index__row:hover { background: var(--kiosk-paper); }
+  .about-rail__btn:hover { color: var(--kiosk-on-dark); }
 }
-.about-index__row:focus-visible {
+.about-rail__btn:focus-visible {
+  color: var(--kiosk-on-dark);
+  outline: 2px solid var(--kiosk-amber);
+  outline-offset: -2px;
+}
+
+/* The open pane reads as a tab pulled out of the strip: paper fill and the
+   amber rule on the pane side. Set by aria-current rather than a class so the
+   state is the same thing a screen reader announces. */
+.about-rail__btn[aria-current="true"] {
   background: var(--kiosk-paper);
-  outline: none;
+  color: var(--kiosk-ink);
+  border-left-color: var(--kiosk-amber);
+  cursor: default;
 }
 
-.about-index__num {
-  flex: 0 0 auto;
-  font-family: var(--kiosk-font-mono);
-  font-size: clamp(0.55rem, 1.5vw, 0.6875rem);
-  letter-spacing: 0.14em;
-  color: var(--kiosk-terracotta);
-}
-
-.about-index__text {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.about-index__title {
-  font-family: var(--kiosk-font-display);
-  font-size: clamp(1.05rem, 3.6vw, 1.875rem);
-  line-height: 1.1;
-}
-
-.about-index__hint {
-  font-size: clamp(0.7rem, 1.9vw, 0.875rem);
-  color: var(--kiosk-ink-soft);
-}
-
-.about-index__arrow {
-  flex: 0 0 auto;
-  font-size: clamp(0.95rem, 2.6vw, 1.25rem);
-  color: var(--kiosk-terracotta);
-}
-
-/* ── Pane chrome: breadcrumb + prev/next ───────────────────────────── */
+/* ── Pane chrome: breadcrumb ───────────────────────────────────────── */
 
 .about-crumb {
   flex: 0 0 auto;
@@ -175,8 +138,19 @@
 }
 
 .about-crumb__title {
+  flex: 0 0 auto;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The section's hint, formerly the small line under its row on the hub index.
+   Muted so the title still leads; clipped, since the strip never wraps. */
+.about-crumb__hint {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgb(var(--kiosk-paper-rgb) / 0.6);
 }
 
 .about-body {
@@ -197,11 +171,11 @@
 .about-longform { font-size: clamp(0.8rem, 2vw, 0.95rem); line-height: 1.6; }
 
 /* ── Sources ───────────────────────────────────────────────────────
-   Sits between .about-body (flex: 1 1 auto) and the prev/next bar, so it must
-   not flex: it takes its own height and the authored body absorbs the rest.
+   Sits under .about-body (flex: 1 1 auto) as the last row of the pane, so it
+   must not flex: it takes its own height and the authored body absorbs the rest.
    The list scrolls inside its own cap rather than growing the pane -- the
    terminal is a fixed 768x1024 with no page scroll, so an eight-row citation
-   list would otherwise push the pager off the glass.
+   list would otherwise swallow the body it is citing.
 
    Flat colours only, no gradients: this is the kiosk's paper surface. */
 .about-sources {
@@ -261,44 +235,6 @@
   text-underline-offset: 2px;
 }
 
-.about-prevnext {
-  flex: 0 0 auto;
-  display: flex;
-  height: clamp(58px, 7.6vh, 74px);
-  border-top: 1px solid var(--kiosk-hairline);
-}
-
-.about-prevnext__btn {
-  appearance: none;
-  flex: 1 1 0;
-  min-width: 0;
-  border: 0;
-  background: var(--kiosk-paper);
-  color: var(--kiosk-ink);
-  font-family: var(--kiosk-font-ui);
-  font-weight: 600;
-  font-size: clamp(0.8rem, 2.2vw, 1.25rem);
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  padding: 0 clamp(14px, 3vw, 26px);
-  cursor: pointer;
-  transition: background-color var(--kiosk-dur) var(--kiosk-ease);
-}
-
-.about-prevnext__btn--next {
-  justify-content: flex-end;
-  border-left: 1px solid var(--kiosk-hairline);
-}
-
-@media (hover: hover) {
-  .about-prevnext__btn:hover { background: var(--kiosk-cream); }
-}
-.about-prevnext__btn:focus-visible {
-  background: var(--kiosk-cream);
-  outline: none;
-}
-
 /* ── Mission: three declarative blocks, no scroll ───────────────────── */
 
 .mission {
@@ -306,6 +242,13 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* The safety valve. The blocks below never shrink under their own text, so
+     copy that outgrows the pane scrolls this column instead of being clipped.
+     Inside the shell's frame the pane is ~510px tall and the rail takes 72px
+     of width; the three-way split used to be `flex: N 1 0`, which let a block
+     shrink below its text and bury the next label under it with no scroll. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .mission__block {
@@ -314,14 +257,16 @@
   justify-content: center;
   gap: clamp(5px, 1vh, 12px);
   padding: clamp(14px, 3vw, 30px);
-  min-height: 0;
 }
 
-/* Ratios from the design: the mandate is the longest text and gets the most
-   room, the vision the least — it is one line and wants the air. */
-.mission__block--vision  { flex: 1 1 0;    background: var(--kiosk-crimson); color: var(--kiosk-paper); }
-.mission__block--mission { flex: 1.15 1 0; background: var(--kiosk-paper);   color: var(--kiosk-ink); border-top: 5px solid var(--kiosk-amber); }
-.mission__block--mandate { flex: 1.45 1 0; background: var(--kiosk-espresso); color: var(--kiosk-on-dark-soft); }
+/* Ratios from the design, applied to the spare height once every block has
+   its text: the mandate is the longest and gets the most room, the vision the
+   least — it is one line and wants the air. Basis `auto` and no shrink is
+   what makes the spare-height reading true; a zero basis would split the
+   whole pane by ratio and clip whichever block's text did not fit its share. */
+.mission__block--vision  { flex: 1 0 auto;    background: var(--kiosk-crimson); color: var(--kiosk-paper); }
+.mission__block--mission { flex: 1.15 0 auto; background: var(--kiosk-paper);   color: var(--kiosk-ink); border-top: 5px solid var(--kiosk-amber); }
+.mission__block--mandate { flex: 1.45 0 auto; background: var(--kiosk-espresso); color: var(--kiosk-on-dark-soft); }
 
 .mission__label {
   display: flex;
@@ -1062,16 +1007,33 @@
 /* ── Phone ─────────────────────────────────────────────────────────── */
 
 @media (max-width: 480px) {
-  /* Mission stops being a fixed three-way split and simply scrolls. */
-  .mission {
-    overflow-y: auto;
-    overscroll-behavior: contain;
+  /* The rail moves under the content as one scrollable strip: a 72px column
+     out of a 400px phone would squeeze every pane below its layout floor. */
+  .about-frame { flex-direction: column; }
+  .about-rail {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: stretch;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    border-left: 0;
+    border-top: 1px solid rgb(var(--kiosk-paper-rgb) / 0.12);
   }
-  .mission__block { flex: 0 0 auto; }
-  /* When the three blocks are shorter than the pane, the last one absorbs the
-     remainder. Otherwise the stack ends on a band of bare cream that reads as
-     a rendering fault rather than the end of the text. */
-  .mission__block--mandate { flex: 1 0 auto; }
+  .about-rail__title { display: none; }
+  .about-rail__btn {
+    flex: 1 0 auto;
+    padding: 0 12px;
+    border-top: 0;
+    border-left: 0;
+    border-bottom: 4px solid transparent;
+  }
+  .about-rail__btn[aria-current="true"] { border-bottom-color: var(--kiosk-amber); }
+
+  /* On a phone the mission simply stacks; only the mandate absorbs spare
+     height. Otherwise the stack ends on a band of bare cream that reads as a
+     rendering fault rather than the end of the text. */
+  .mission__block--vision,
+  .mission__block--mission { flex: 0 0 auto; }
 
   .values__strip { grid-template-columns: 1fr; }
   .values__col { border-right: 0; border-bottom: 1px solid var(--kiosk-hairline); }
@@ -1090,14 +1052,4 @@
 
   .seal__stage { width: min(400px, 82vw); }
   .seal__legend { grid-template-columns: 1fr; }
-}
-
-/* Short viewports: .about-hero and .about-index__row already scale down via
-   vh-based clamp()s, but give the index a scroll fallback in case its rows
-   still can't compress far enough, matching the pattern in kiosk-shell.css. */
-@media (max-height: 620px) {
-  .about-index {
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
 }

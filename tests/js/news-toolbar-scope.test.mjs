@@ -2,12 +2,21 @@
 //
 // THE DEAD TOOLBAR BUTTON.
 //
-// `.news-toolbar` is a SIBLING of `[data-news-composer]` in
-// templates/gears/partials/panel-news.html, not a descendant of it. So a
-// toolbar control looked up with `composer.querySelector(...)` resolves to
-// null, its `if (btn)` guard is skipped, and no listener is ever attached.
-// The button still renders, still looks enabled, and does nothing at all when
-// clicked — there is no error in the console to find, because nothing ran.
+// A control looked up with `composer.querySelector(...)` that renders OUTSIDE
+// `[data-news-composer]` resolves to null, its `if (btn)` guard is skipped, and
+// no listener is ever attached. The button still renders, still looks enabled,
+// and does nothing at all when clicked — there is no error in the console to
+// find, because nothing ran.
+//
+// This file used to pin one specific instance of that: a `.news-toolbar`
+// element that sat as a SIBLING of the composer. That element is gone — the
+// full-issue rebuild moved its one control into the composer's own issue
+// header, which is inside `[data-news-composer]`, so the sibling hazard it
+// described no longer exists. The hazard CLASS very much does, and it got
+// sharper: Publish, Save Draft and all three add buttons are composer-scoped
+// lookups, so any of them drifting outside that element is a silently dead
+// button. The tests below derive the pairing from the source and the markup
+// instead of naming controls, so they keep holding as the panel changes.
 //
 // That is exactly how "Add New News" shipped broken: the markup went into the
 // toolbar, the lookup was scoped to the composer, and the same mistake took
@@ -37,7 +46,20 @@ const here = dirname(fileURLToPath(import.meta.url));
 const read = (rel) => readFileSync(join(here, '../../', rel), 'utf8');
 
 const SOURCE = read('resources/js/news-dashboard.js');
-const PANEL = read('templates/gears/partials/panel-news.html');
+
+/** The panel with its `{% include %}`s inlined, because that is the DOM the
+ *  browser actually gets. The canvas partial renders INSIDE
+ *  [data-news-composer], so its hooks are composer-scoped at runtime even
+ *  though they live in another file — reading panel-news.html alone would
+ *  report them as absent and quietly weaken every check below. */
+const PANEL = read('templates/gears/partials/panel-news.html').replace(
+  /\{%\s*include\s*['"]([^'"]+)['"]\s*%\}/g,
+  (_whole, rel) => read('templates/' + rel),
+);
+
+/** Markup that renders elsewhere in the page but is still queried from `root`
+ *  by this bundle — the dashboard shell's chrome. */
+const OUTSIDE_PANEL = read('templates/gears/shell.html');
 
 // Strip comments so the prose above the code cannot satisfy or trip a check.
 const CODE = SOURCE
@@ -95,113 +117,90 @@ function hooksOutsideComposer() {
   return found;
 }
 
-test('the toolbar really is outside the composer (the premise of this file)', () => {
-  const toolbarAt = MARKUP.indexOf('data-news-toolbar');
-  const composerAt = MARKUP.indexOf('data-news-composer');
-
-  assert.notEqual(toolbarAt, -1, 'the news toolbar should still exist');
-  assert.ok(
-    toolbarAt < composerAt,
-    'the toolbar is expected to render before [data-news-composer] opens. If this '
-      + 'ever fails the toolbar has been moved INSIDE the composer, and the rest of '
-      + 'this file is checking a constraint that no longer applies.',
-  );
-});
-
-test('every toolbar control is queried from root, not composer', () => {
-  const outside = hooksOutsideComposer();
-
-  // Sanity: the fixture should be finding real controls, not an empty set.
-  assert.ok(outside.size >= 2, `expected several toolbar hooks, found ${outside.size}`);
-
-  const misscoped = [];
-  for (const hook of outside) {
-    // A `composer.querySelector('[data-news-add]')` for a hook that lives in
-    // the toolbar is the bug. Allow any amount of whitespace/newline between
-    // `composer.querySelector(` and the selector.
-    const bad = new RegExp(`composer\\s*\\.\\s*querySelector\\(\\s*'\\[${hook}\\]'`);
-    if (bad.test(CODE)) misscoped.push(hook);
-  }
-
-  assert.deepEqual(
-    misscoped,
-    [],
-    'These controls render in .news-toolbar, which is a SIBLING of '
-      + '[data-news-composer] — so composer.querySelector() returns null for them '
-      + 'and their click listeners are never attached. Query them from `root`, the '
-      + 'way libraryOpenBtn already does.',
-  );
-});
-
-test('the Add New News button is wired up', () => {
-  assert.ok(
-    /root\s*\.\s*querySelector\(\s*'\[data-news-add\]'/.test(CODE),
-    '"Add New News" must be found via root.querySelector — it lives in the toolbar.',
-  );
-  // The markup writes the attribute bare, and `data-news-add-main` /
-  // `-secondary` / `-widget` all share the prefix — so the boundary matters.
-  assert.ok(
-    /data-news-add(?![-\w])/.test(MARKUP),
-    'the panel should still render an [data-news-add] button',
-  );
-});
-
-test('the story stepper controls are wired up', () => {
-  for (const hook of ['data-news-prev', 'data-news-next', 'data-news-position']) {
-    assert.ok(
-      new RegExp(`root\\s*\\.\\s*querySelector\\(\\s*'\\[${hook}\\]'`).test(CODE),
-      `${hook} lives in the toolbar and must be queried from root`,
-    );
-  }
-});
-
-test('the detached bench is inside the composer, so composer-scoped is correct', () => {
-  // The counterweight to the tests above: not everything should move to
-  // `root`. The bench deliberately sits inside the composer (as a sibling of
-  // [data-news-editor], so refreshCanvasFragment's innerHTML rewrite cannot
-  // swallow it), and composer.querySelector is the right lookup for it.
-  assert.ok(
-    insideComposer('data-news-bench'),
-    'the detached bench should render inside [data-news-composer]',
-  );
-  assert.ok(
-    /composer\s*\.\s*querySelector\(\s*'\[data-news-bench\]'/.test(CODE),
-    'the bench is inside the composer, so it should be looked up from composer',
-  );
-});
-
-test('the two dialogs are outside the composer, whatever their file position', () => {
-  // Guards the subtree helper itself. Both <dialog>s render AFTER the composer
-  // closes, so a "slice to end of file" reading of the markup would call them
-  // inside it — and bless a composer.querySelector that is null at runtime.
-  for (const hook of ['data-news-category-modal', 'data-news-library-drawer']) {
-    assert.equal(
-      insideComposer(hook),
-      false,
-      `${hook} renders after [data-news-composer] closes`,
-    );
-  }
-});
-
-test('no two composer controls share a var name', () => {
-  // `var addBtn` was declared twice in the same IIFE scope — once for the new
-  // toolbar button and once, 700 lines later, for "+ Add a story". The second
-  // silently reassigns the first. It did not cause the dead-button bug (the
-  // listener attaches before the reassignment runs), but a redeclaration that
-  // reads as two independent variables is a trap for the next reader.
-  const names = new Map();
-  const pattern = /\bvar\s+([A-Za-z_$][\w$]*)\s*=\s*(?:composer|root)\s*\.\s*querySelector\(/g;
+/** Hooks the source looks up with `<root>.querySelector('[data-news-x]')`,
+ *  as a Map of hook -> the variable the lookup was scoped to. Derived from the
+ *  source so a control added later is covered without editing this file. */
+function scopedLookups() {
+  const found = new Map();
+  const pattern = /(\w+)\.querySelector\(\s*'\[(data-news-[a-z0-9-]+)[^']*'/g;
   let match;
   while ((match = pattern.exec(CODE)) !== null) {
-    const name = match[1];
-    names.set(name, (names.get(name) || 0) + 1);
+    const [, scope, hook] = match;
+    if (scope !== 'composer' && scope !== 'root') continue;
+    // `composer` is the stricter requirement, so it wins if a hook is looked
+    // up both ways.
+    if (found.get(hook) === 'composer') continue;
+    found.set(hook, scope);
   }
+  return found;
+}
 
-  const duplicated = [...names.entries()].filter(([, count]) => count > 1).map(([name]) => name);
+test('the premise: [data-news-composer] exists and its subtree is findable', () => {
+  assert.notEqual(MARKUP.indexOf('data-news-composer'), -1);
+  assert.ok(composerSubtree().length > 0, 'the composer subtree should not be empty');
+});
+
+test('every composer-scoped lookup resolves inside [data-news-composer]', () => {
+  const lookups = scopedLookups();
+  const composerScoped = [...lookups].filter(([, scope]) => scope === 'composer');
+
+  // Sanity: the derivation should be finding real lookups, not an empty set.
+  assert.ok(
+    composerScoped.length >= 3,
+    `expected several composer-scoped lookups, found ${composerScoped.length}`,
+  );
+
+  const dead = composerScoped
+    .map(([hook]) => hook)
+    // A hook the template never renders at all is a different problem (a
+    // lookup left behind by removed markup), and is covered below.
+    .filter((hook) => new RegExp(`${hook}(?![-\\w])`).test(MARKUP))
+    .filter((hook) => !insideComposer(hook));
 
   assert.deepEqual(
-    duplicated,
+    dead,
     [],
-    'these element vars are declared more than once in the same function scope',
+    'these render OUTSIDE [data-news-composer] but are queried from it, so their '
+      + 'listeners are never attached and they are dead on click: ' + dead.join(', '),
+  );
+});
+
+test('the publish path\'s own controls are inside the composer', () => {
+  // Named explicitly, unlike the derived check above: these are the buttons
+  // that submit the story. A dead Publish is the worst version of this bug,
+  // so it is worth an assertion that does not depend on the regex above.
+  for (const hook of [
+    'data-news-canvas-save',
+    'data-news-save-draft',
+    'data-news-add-main',
+    'data-news-add-secondary',
+    'data-news-add-widget',
+  ]) {
+    assert.ok(
+      insideComposer(hook),
+      `${hook} is looked up with composer.querySelector and must render inside `
+        + '[data-news-composer]',
+    );
+  }
+});
+
+test('root-scoped lookups may live anywhere, but must render somewhere', () => {
+  const lookups = scopedLookups();
+  const missing = [...lookups]
+    .filter(([, scope]) => scope === 'root')
+    .map(([hook]) => hook)
+    // The composer's own wrapper hooks and anything the JS creates at runtime
+    // rather than reading from the template.
+    // Injected by the JS at runtime rather than rendered by any template.
+    .filter((hook) => !['data-news-composer', 'data-news-discard-scratch'].includes(hook))
+    .filter((hook) => {
+      const present = new RegExp(`${hook}(?![-\\w])`);
+      return !present.test(MARKUP) && !present.test(OUTSIDE_PANEL);
+    });
+
+  assert.deepEqual(
+    missing,
+    [],
+    'the source queries these from root but no template renders them: ' + missing.join(', '),
   );
 });

@@ -11,7 +11,7 @@ Two independent protections are covered here:
 * an optimistic-concurrency token, so a batch built against a stale canvas is
   refused instead of applied;
 * a slot-capacity check, so a race cannot commit two mains or six secondaries —
-  which group_news_slots would then silently truncate with [:4]/[:2], leaving a
+  which group_news_slots would then silently truncate at capacity, leaving a
   story that reads as "placed" in the composer but renders nowhere on the kiosk.
 """
 
@@ -61,7 +61,7 @@ def _where_side_effect(records):
     return _side_effect
 
 
-def _record(record_id, layout_type="secondary", priority=0):
+def _record(record_id, layout_type="brief", priority=0):
     record = Mock(id=record_id, layout_type=layout_type, priority=priority, updated_by_id=None)
     record.save = Mock()
     return record
@@ -82,7 +82,7 @@ class LayoutConflictTestCase(TestCase):
         records = {1: record}
 
         request = _mock_request({
-            "items": [{"id": 1, "layout_type": "main", "priority": 1}],
+            "items": [{"id": 1, "layout_type": "lead", "priority": 1}],
             "base_stamp": "3:2026-08-23 09:00:00",
         })
         response = _mock_response()
@@ -97,7 +97,7 @@ class LayoutConflictTestCase(TestCase):
             controller.layout(request, response)
 
         record.save.assert_not_called()
-        self.assertEqual(record.layout_type, "secondary")
+        self.assertEqual(record.layout_type, "brief")
         # The kiosk cache must not be dropped either: nothing changed, so
         # invalidating it would just cost a rebuild.
         cache_mock.forget.assert_not_called()
@@ -114,7 +114,7 @@ class LayoutConflictTestCase(TestCase):
         records = {1: _record(1)}
 
         request = _mock_request({
-            "items": [{"id": 1, "layout_type": "main", "priority": 1}],
+            "items": [{"id": 1, "layout_type": "lead", "priority": 1}],
             "base_stamp": "stale",
         })
         response = _mock_response()
@@ -136,7 +136,7 @@ class LayoutConflictTestCase(TestCase):
         records = {1: record}
 
         request = _mock_request({
-            "items": [{"id": 1, "layout_type": "main", "priority": 1}],
+            "items": [{"id": 1, "layout_type": "lead", "priority": 1}],
             "base_stamp": "4:2026-08-23 10:15:00",
         })
         response = _mock_response()
@@ -151,7 +151,7 @@ class LayoutConflictTestCase(TestCase):
             controller.layout(request, response)
 
         record.save.assert_called_once()
-        self.assertEqual(record.layout_type, "main")
+        self.assertEqual(record.layout_type, "lead")
         cache_mock.forget.assert_called_once()
         self.assertTrue(_body(response)["ok"])
 
@@ -163,7 +163,7 @@ class LayoutConflictTestCase(TestCase):
         record = _record(1)
         records = {1: record}
 
-        request = _mock_request({"items": [{"id": 1, "layout_type": "main", "priority": 1}]})
+        request = _mock_request({"items": [{"id": 1, "layout_type": "lead", "priority": 1}]})
         response = _mock_response()
 
         with patch(
@@ -183,7 +183,7 @@ class LayoutConflictTestCase(TestCase):
         records = {1: _record(1)}
 
         request = _mock_request({
-            "items": [{"id": 1, "layout_type": "main", "priority": 1}],
+            "items": [{"id": 1, "layout_type": "lead", "priority": 1}],
             "base_stamp": "same",
         })
         response = _mock_response()
@@ -206,12 +206,12 @@ class LayoutSlotCapacityTestCase(TestCase):
         at the write instead of discovering it on the kiosk."""
         controller = NewsController()
         # Another editor already has a main; this batch promotes a second one.
-        existing_main = _record(2, layout_type="main")
+        existing_main = _record(2, layout_type="lead")
         record = _record(1)
         records = {1: record, 2: existing_main}
 
         request = _mock_request({
-            "items": [{"id": 1, "layout_type": "main", "priority": 1}],
+            "items": [{"id": 1, "layout_type": "lead", "priority": 1}],
         })
         response = _mock_response()
 
@@ -225,20 +225,20 @@ class LayoutSlotCapacityTestCase(TestCase):
 
         body = _body(response)
         self.assertFalse(body["ok"])
-        self.assertIn("main", body["errors"][0])
+        self.assertIn("lead", body["errors"][0])
         # Rolled back, so the cache still matches the database.
         cache_mock.forget.assert_not_called()
 
     def test_fifth_secondary_is_refused(self):
         controller = NewsController()
         records = {
-            index: _record(index, layout_type="secondary") for index in range(2, 6)
+            index: _record(index, layout_type="brief") for index in range(2, 6)
         }
         record = _record(1)
         records[1] = record
 
         request = _mock_request({
-            "items": [{"id": 1, "layout_type": "secondary", "priority": 1}],
+            "items": [{"id": 1, "layout_type": "brief", "priority": 1}],
         })
         response = _mock_response()
 
@@ -252,7 +252,7 @@ class LayoutSlotCapacityTestCase(TestCase):
 
         body = _body(response)
         self.assertFalse(body["ok"])
-        self.assertIn("secondary", body["errors"][0])
+        self.assertIn("brief", body["errors"][0])
 
     def test_batch_within_capacity_is_allowed(self):
         controller = NewsController()
@@ -260,7 +260,7 @@ class LayoutSlotCapacityTestCase(TestCase):
         records = {1: record}
 
         request = _mock_request({
-            "items": [{"id": 1, "layout_type": "widget", "priority": 1}],
+            "items": [{"id": 1, "layout_type": "notice", "priority": 1}],
         })
         response = _mock_response()
 
@@ -285,7 +285,7 @@ class LayoutAttributionTestCase(TestCase):
         records = {1: record}
 
         request = _mock_request(
-            {"items": [{"id": 1, "layout_type": "main", "priority": 1}]},
+            {"items": [{"id": 1, "layout_type": "lead", "priority": 1}]},
             user_id=42,
         )
         response = _mock_response()

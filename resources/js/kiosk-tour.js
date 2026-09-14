@@ -1015,32 +1015,67 @@ function initTour() {
     document.dispatchEvent(new CustomEvent('tour:ready'));
   }
 
-  /* ── The start gate ───────────────────────────────────────────────────
-   *
-   * The tour used to call startTour() on load. That was fine while tapping
-   * "Virtual Tour" in the kiosk menu was itself the start gesture, but the
-   * shell's carousel loads this page just for sliding past the card — so a
-   * visitor browsing the menu got a live, spinning panorama with nothing
-   * saying it was theirs to drag.
-   *
-   * Nothing renders until the button is pressed: #pano is opacity:0 and
-   * pointer-events:none until body.tour-ready, and switchScene() (which is
-   * what actually pulls tiles) is inside startTour().
-   *
-   * If the overlay is absent — an older cached template, or someone removing
-   * the markup — start immediately. The failure mode of a missing gate is the
-   * old behaviour; the failure mode of waiting for a button that is not there
-   * is a kiosk stuck on a black screen.
-   */
+  // Everything above is built; the gate that decides *when* it is built sits
+  // outside this function (see "The start gate" below), so by the time
+  // initTour() runs the visitor has already asked for the tour.
+  startTour();
+}
+
+/* ── The start gate ─────────────────────────────────────────────────────
+ *
+ * The tour used to call startTour() on load. That was fine while tapping
+ * "Virtual Tour" in the kiosk menu was itself the start gesture, but the
+ * shell's carousel loads this page just for sliding past the card — so a
+ * visitor browsing the menu got a live, spinning panorama with nothing
+ * saying it was theirs to drag.
+ *
+ * The gate then sat *inside* initTour(), in front of switchScene() only, on
+ * the reading that switchScene is what pulls tiles. It is not the only
+ * thing that does. createScene() runs for all 205 scenes at load with
+ * pinFirstLevel, and pinning a level IS a load: Marzipano's TextureStore
+ * fetches a pinned tile the moment it is pinned, shown or not. The pinned
+ * level is the export's fallbackOnly level, served from preview.jpg — so
+ * every page load pulled 205 previews (~20 MB), and the charter, which
+ * mounts on 'tour:scene-created', pulled its GLB on top. On a terminal
+ * whose menu loads this page each time the carousel slides past the card,
+ * that is a lot of tour for nobody.
+ *
+ * So the gate is in front of initTour() itself: no viewer, no scenes, no
+ * hotspots, no charter until the button is pressed. Only the vendor bundles
+ * still load at page open — they are small and cached, the tap stays
+ * instant, and a failure to load them can be written onto the gate
+ * (setTourMessage) *before* the visitor presses a button that would do
+ * nothing. If the press lands before that load settles, it simply waits
+ * for it.
+ *
+ * If the overlay is absent — an older cached template, or someone removing
+ * the markup — start immediately. The failure mode of a missing gate is the
+ * old behaviour; the failure mode of waiting for a button that is not there
+ * is a kiosk stuck on a black screen.
+ */
+(function() {
   var startGateElement = document.querySelector('[data-tour-start]');
   var startButtonElement = document.querySelector('[data-tour-start-button]');
+  var started = false;
+
+  var dependenciesReady = ensureTourDependencies().catch(function() {
+    setTourMessage('Virtual tour assets failed to load. Please reload or check the pano vendor files.');
+    // Swallowed on purpose: the message is the outcome. A press after this
+    // still reaches initTour(), which sees no Marzipano and says so again.
+  });
 
   function dismissStartGate() {
+    if (started) {
+      return;
+    }
+    started = true;
     if (startGateElement) {
       startGateElement.classList.add('tour-start--gone');
       startGateElement.setAttribute('hidden', 'hidden');
     }
-    startTour();
+    dependenciesReady.then(function() {
+      initTour();
+    });
   }
 
   if (startButtonElement) {
@@ -1048,15 +1083,7 @@ function initTour() {
   } else {
     dismissStartGate();
   }
-}
-
-ensureTourDependencies()
-  .then(function() {
-    initTour();
-  })
-  .catch(function() {
-    setTourMessage('Virtual tour assets failed to load. Please reload or check the pano vendor files.');
-  });
+})();
 
 /* ──────────────────────────────────────────────────────────────────
  * Find-a-building search + route overlay (Phase 3).

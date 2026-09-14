@@ -15,7 +15,7 @@ Rendering goes through the View facade so the real Jinja environment is in play,
 including the display_name/avatar_url/user_initials globals AppProvider shares.
 """
 
-from unittest.mock import Mock
+from unittest.mock import patch, Mock
 
 from masonite.facades import View
 
@@ -43,7 +43,7 @@ def _story(story_id=1, title="Campus story", author_id=5, **overrides):
         "id": story_id,
         "title": title,
         "author_id": author_id,
-        "layout_type": "secondary",
+        "layout_type": "brief",
         "status": "review",
         "description": "<p>The body of the story.</p>",
         "excerpt": "",
@@ -54,24 +54,41 @@ def _story(story_id=1, title="Campus story", author_id=5, **overrides):
 
 
 class ReviewQueueTemplateTestCase(TestCase):
+    """The queue shows the ISSUE an editor submitted, as one card.
+
+    It used to render one card per story. An editor composes an issue as a
+    unit and submits it in one click; twelve cards for a full issue meant
+    twelve Approve clicks, each previewing its story as if it were the lead.
+    Now: one card, one preview of the whole issue, one Approve, one Send back.
+    """
+
     def _render(self, stories=(), authors=None):
+        from app.services.ReviewQueue import pending_issue
+
+        stories = list(stories)
+        names = authors if authors is not None else {}
+        with patch("app.services.ReviewQueue.author_names", return_value=names):
+            issue = pending_issue(stories)
         return View.render(
             "gears/partials/review-queue",
             {
-                "review_stories": list(stories),
-                "review_authors": authors if authors is not None else {},
-                "review_count": len(list(stories)),
+                "review_stories": stories,
+                "review_authors": names,
+                "review_count": len(stories),
+                "review_issue": issue,
             },
         ).rendered_template
 
-    def test_renders_a_card_per_submission(self):
+    def test_renders_one_card_for_the_whole_issue(self):
+        """Two submitted stories are two blocks of ONE issue, not two cards."""
         html = self._render([_story(1), _story(2)])
-        self.assertEqual(html.count("data-review-item"), 2)
+        self.assertEqual(html.count("data-review-issue"), 1)
+        self.assertNotIn("data-review-item", html)
 
     def test_card_carries_the_hooks_the_queue_js_reads(self):
         html = self._render([_story(7)])
         for hook in (
-            'data-review-id="7"',
+            "data-review-issue",
             "data-review-preview",
             "data-review-approve",
             "data-review-reject",
@@ -79,11 +96,35 @@ class ReviewQueueTemplateTestCase(TestCase):
         ):
             self.assertIn(hook, html)
 
-    def test_shows_who_submitted_the_story(self):
+    def test_card_says_how_many_blocks_the_issue_holds(self):
+        html = self._render([_story(1), _story(2), _story(3)])
+        self.assertIn("3 blocks", html)
+
+    def test_manifest_lists_each_filled_block_by_name(self):
+        """An admin should see that the lead is there and the notice is not
+        before opening the full preview."""
+        html = self._render([
+            _story(1, layout_type="lead"),
+            _story(2, layout_type="brief"),
+            _story(3, layout_type="brief"),
+        ])
+        self.assertIn("Lead story", html)
+        self.assertIn("Side stories", html)
+        self.assertNotIn("Notice</span>", html)
+
+    def test_shows_who_submitted_the_issue(self):
         """The byline is the whole point of the attribution work — an admin
-        approving a story has to know whose it is."""
+        approving an issue has to know whose it is."""
         html = self._render([_story(1, author_id=5)], authors={5: "Maria Santos"})
         self.assertIn("Maria Santos", html)
+
+    def test_names_each_author_once_when_several_wrote_the_issue(self):
+        html = self._render(
+            [_story(1, author_id=5), _story(2, author_id=5), _story(3, author_id=6)],
+            authors={5: "Maria Santos", 6: "Jose Cruz"},
+        )
+        self.assertEqual(html.count("Maria Santos"), 1)
+        self.assertIn("Jose Cruz", html)
 
     def test_survives_an_author_whose_account_was_deleted(self):
         """author_id is ON DELETE SET NULL, so this row genuinely occurs."""
@@ -93,9 +134,9 @@ class ReviewQueueTemplateTestCase(TestCase):
     def test_empty_queue_says_so(self):
         html = self._render([])
         self.assertIn("Nothing is waiting for review", html)
-        self.assertNotIn("data-review-item", html)
+        self.assertNotIn("data-review-issue", html)
 
-    def test_reject_reason_box_exists_for_every_card(self):
+    def test_reject_reason_box_exists(self):
         """A reason is required server-side; the UI has to be able to collect
         one or the reject path is unusable."""
         html = self._render([_story(1)])
@@ -137,22 +178,55 @@ class AccountChromeTestCase(TestCase):
         html = self._render_dashboard()
         self.assertIn("data-dashboard-shell", html)
 
-    def test_the_news_panel_emits_its_toolbar_controls(self):
+    def test_the_news_panel_emits_its_composer_controls(self):
         """The server half of the dead-button bug.
 
-        "Add New News" did nothing when clicked because the JS looked for it
-        inside [data-news-composer] while it renders in .news-toolbar, a
-        SIBLING of that element (see tests/js/news-toolbar-scope.test.mjs for
-        the scoping half). Nothing was wrong with the markup — but if the
-        button ever stops being RENDERED, the symptom an editor reports is
-        identical, so pin the server side too.
+        A composer control that stops being RENDERED produces exactly the same
+        report from an editor as one whose listener never attached: "the button
+        does nothing". tests/js/news-toolbar-scope.test.mjs pins the scoping
+        half (every composer-scoped lookup resolves inside the composer); this
+        pins that the markup is there to find at all.
+
+        It used to assert `data-news-prev` / `data-news-next` / `data-news-bench`
+        as well. Those are kiosk carousel hooks and a bench that this panel has
+        never rendered, so the assertions could only ever fail -- and did. They
+        are replaced here by the controls the composer genuinely depends on.
         """
         html = self._render_dashboard()
 
-        self.assertIn("data-news-add", html)
-        self.assertIn("data-news-prev", html)
-        self.assertIn("data-news-next", html)
-        self.assertIn("data-news-bench", html)
+        for hook in (
+            # The publish path. A missing one of these is an editor who cannot
+            # file a story at all.
+            "data-news-canvas-save",
+            "data-news-save-draft",
+            "data-news-form",
+            # The editing surface the JS hard-returns without.
+            "data-news-composer",
+            "data-news-editor",
+            # Adding and placing stories.
+            "data-news-add-main",
+            "data-news-add-secondary",
+            "data-news-add-widget",
+            "data-news-library-open",
+        ):
+            self.assertIn(hook, html, f"the news panel must render {hook}")
+
+    def test_the_composer_canvas_renders_the_real_kiosk_issue(self):
+        """The composer edits kiosk/_issue.html -- the SAME partial the kiosk
+        page renders -- so an editor cannot arrange a layout the terminal does
+        not print. That drift is what this rebuild existed to end, and a
+        fallback to some other markup here would reintroduce it silently."""
+        html = self._render_dashboard()
+
+        # Chrome unique to the issue partial.
+        self.assertIn("issue-masthead", html)
+        self.assertIn("issue-colophon", html)
+        # Editor hooks the canvas is inert without.
+        for block in ("lead", "brief", "photo_essay", "editorial", "quote", "notice"):
+            self.assertIn(f'data-news-slot-list="{block}"', html)
+        # Every block renders its unfilled positions as typeable cards, so an
+        # editor can write a newsletter with no stories in the library at all.
+        self.assertNotIn("data-news-assign-slot", html)
 
     def test_the_category_modal_renders_with_its_category_list(self):
         """The modal is included in the full page render, not fetched — so a

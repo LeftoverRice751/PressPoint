@@ -18,7 +18,6 @@ from app.services.CharterArchive import (
     CHARTER_YAW,
     latest_charter_entry,
 )
-from app.services.DashboardContext import group_news_slots
 from app.services.TourScenesCatalog import TourScenesCatalog
 
 

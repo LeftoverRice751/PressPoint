@@ -22,9 +22,11 @@
 
    What remains is the case §8 of the spec explicitly protects — a control
    that belongs to the *content* rather than to kiosk navigation. About LSPU
-   is the only user: its detail panes are client-rendered views of a single
-   URL, so they have no address to link back to and no way out except a button
-   its own JS listens for (`about-lspu-kiosk.js`, on `[data-back]`).
+   was the last user: its detail panes are client-rendered views of a single
+   URL and this returned them to their hub. That hub is gone too — the page
+   now opens on the mission and a side rail moves between panes — so nothing
+   includes this partial today. It stays as the pattern for the next page
+   whose sub-views need a way back that is not a URL.
 
    Renders a <button>, never an <a>, precisely because there is no URL
    involved. If you find yourself wanting `back_href` again, you are probably

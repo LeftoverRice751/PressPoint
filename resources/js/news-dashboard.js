@@ -29,7 +29,7 @@ import Sortable from 'sortablejs';
   // occupancy (canvasMainId/canvasBucketIds below). NOT the editing target —
   // that used to be hardcoded here (`featureSlot`), which is exactly why
   // editing any story forced it into the lead surface. See selectStory().
-  var mainSlotSection = editor ? editor.querySelector('[data-news-slot="main"]') : null;
+  var mainSlotSection = editor ? editor.querySelector('[data-news-slot="lead"]') : null;
   var form        = composer.querySelector('[data-news-form]');
   var props       = composer.querySelector('[data-news-properties]');
   var activeLabel = composer.querySelector('[data-news-active-label]');
@@ -146,7 +146,7 @@ import Sortable from 'sortablejs';
   // target. `activeArt` is that story's own DOM node (wherever it lives in
   // the canvas); `activeSlotType` is which bucket it currently occupies.
   var activeId = '';
-  var activeSlotType = 'main';
+  var activeSlotType = 'lead';
   var activeArt = null;
 
   function region(art, key) { return art ? art.querySelector('[data-news-edit="' + key + '"]') : null; }
@@ -497,6 +497,8 @@ import Sortable from 'sortablejs';
     mountedBodyRegion = null;
     if (bodyEditorPark) bodyEditorPark.appendChild(bodyEditorHost);
     if (bodyToolbarBar) bodyToolbarBar.hidden = true;
+    // The region it was watching is about to stop being the anchor.
+    watchToolbarAnchor(null);
   }
 
   // Puts the editor ON `art`'s body region. Contents come from
@@ -531,6 +533,77 @@ import Sortable from 'sortablejs';
    * the layout, which is also why the host must stay content-sized (see the
    * `height: auto` rules in news-dashboard.css).
    */
+  /* ── Where the format toolbar goes ────────────────────────────────────────
+   *
+   * It used to be pinned to the top of the canvas, which meant it overlapped
+   * the masthead and, on a long page, floated nowhere near the field being
+   * edited. It now tracks the mounted region: same left edge, same width,
+   * just above it.
+   *
+   * Positioned against `.news-canvas` rather than the sheet, because the sheet
+   * carries `overflow-x: clip` to stop blocks painting onto the desk and would
+   * clip this too.
+   */
+
+  //: Below this, a field cannot hold the full control set, so the bar drops to
+  //: bold / italic / link. Measured against the authored toolbar: the selects
+  //: alone need ~300px before any button is drawn.
+  var TOOLBAR_MIN_FULL = 380;
+  var TOOLBAR_GAP = 8;
+  var toolbarResizeObserver = null;
+
+  function positionToolbar() {
+    if (!bodyToolbarBar || bodyToolbarBar.hidden) return;
+    var canvas = composer.querySelector('[data-news-canvas]');
+    if (!canvas) return;
+
+    // The EDITOR HOST, not the region. mountEditor() sets `region.hidden = true`
+    // and inserts the host in its place, so the region measures 0x0 while
+    // mounted -- anchoring to it gave the bar no width at all. The host is the
+    // thing actually occupying the field's slot on screen.
+    var anchor = (bodyEditorHost && bodyEditorHost.isConnected && !bodyEditorHost.hidden)
+      ? bodyEditorHost
+      : mountedBodyRegion;
+    if (!anchor || !anchor.isConnected) return;
+
+    var r = anchor.getBoundingClientRect();
+    var c = canvas.getBoundingClientRect();
+    if (!r.width) return;
+
+    // Match the field exactly -- that is the whole point of the change.
+    bodyToolbarBar.style.width = r.width + 'px';
+    bodyToolbarBar.style.left = (r.left - c.left) + 'px';
+
+    // Narrow fields lose the controls they have no room for. Set before the
+    // height is read, since hiding controls changes it.
+    if (r.width < TOOLBAR_MIN_FULL) bodyToolbarBar.setAttribute('data-news-width', 'narrow');
+    else bodyToolbarBar.removeAttribute('data-news-width');
+
+    var h = bodyToolbarBar.offsetHeight || 34;
+    var above = r.top - c.top - h - TOOLBAR_GAP;
+
+    // Flip below when there is no room above -- either past the top of the
+    // canvas, or scrolled up out of the viewport. Otherwise the bar for a block
+    // near the top of the page would sit off-screen with no way to reach it.
+    var offScreen = (r.top - h - TOOLBAR_GAP) < 0;
+    bodyToolbarBar.style.top = (above < 0 || offScreen)
+      ? (r.bottom - c.top + TOOLBAR_GAP) + 'px'
+      : above + 'px';
+  }
+
+  // The body grows as an editor types, so the bar has to keep up. A
+  // ResizeObserver rather than a keystroke hook: it fires for pasted content and
+  // reflowed images too, which a keydown listener would miss.
+  function watchToolbarAnchor(region) {
+    if (toolbarResizeObserver) { toolbarResizeObserver.disconnect(); toolbarResizeObserver = null; }
+    if (!region || typeof window.ResizeObserver !== 'function') return;
+    toolbarResizeObserver = new window.ResizeObserver(function () { positionToolbar(); });
+    toolbarResizeObserver.observe(region);
+  }
+
+  window.addEventListener('scroll', positionToolbar, { passive: true });
+  window.addEventListener('resize', positionToolbar);
+
   function mountEditor(art, targetKey, carryDirty) {
     if (!bodyToolbarEl) return;
     var key = TARGETS[targetKey] ? targetKey : 'body';
@@ -569,8 +642,14 @@ import Sortable from 'sortablejs';
     // "Write the story…".
     quill.root.setAttribute('data-placeholder', targetSpec(key).placeholder || '');
 
+    // From the REGION, not the hidden field. Reading the field let the editor
+    // open on text that differed from what the region showed -- after a flush
+    // the field holds the last-posted card's body, after a re-selection it
+    // held the library row's -- and unmount then wrote that over the region.
+    // The region is what the editor is looking at; that is what they get.
+    var staged = key === 'excerpt' ? target.textContent : target.innerHTML;
     var input = targetField(key);
-    var staged = (input && input.value) || '';
+    if (input) input.value = key === 'title' ? unwrapBlocks(staged) : staged;
 
     // Direct DOM assignment rather than the Quill API, so the server's exact
     // sanitized HTML survives instead of round-tripping through a Delta.
@@ -595,6 +674,9 @@ import Sortable from 'sortablejs';
     if (bodyToolbarBar) {
       bodyToolbarBar.hidden = false;
       bodyToolbarBar.setAttribute('data-news-target', key);
+      // Height reads 0 while hidden, so place it only once it is shown.
+      positionToolbar();
+      watchToolbarAnchor(bodyEditorHost || mountedBodyRegion);
     }
     if (bodySaveBtn) bodySaveBtn.hidden = key !== 'body';
     if (bodyLabelEl) {
@@ -611,29 +693,22 @@ import Sortable from 'sortablejs';
   // another region of the SAME story used to ask too, and must not: see the
   // same-story branch of the click handler.
   function confirmLeavingDirtyBody() {
-    if (!bodyDirty) return Promise.resolve(true);
-    // "This story", not "the body"/"the headline": the flag is carried across
-    // same-story field switches now, so by the time it asks, the staged edits
-    // may sit in more than one field.
-    return confirmAction({
-      title: 'Discard unsaved changes?',
-      body: 'This story has unsaved edits that will be lost.',
-      confirmLabel: 'Discard changes',
-      cancelLabel: 'Keep editing',
-      danger: true
-    }).then(function (ok) {
-      if (!ok) return false;
-      // Restore what was actually staged before the editor mounted — the
-      // keystroke-by-keystroke sync into the hidden field otherwise leaves the
-      // discarded text there for the next Publish to write (I1). Restores the
-      // ACTIVE target's field, not always f.description: discarding a headline
-      // edit must not roll the body back.
-      var input = targetField(activeTarget);
-      if (input) input.value = bodySnapshot;
-      setEditorHtml(bodySnapshot);
-      bodyDirty = false;
-      return true;
-    });
+    // Switching cards no longer asks "Discard unsaved changes?", and no longer
+    // discards anything. Kept as a function so the two switch branches that
+    // await it are unchanged.
+    //
+    // The prompt made sense when one story was edited at a time and Publish
+    // read the hidden form: switching cards re-seeded f.description from the
+    // new card, so an unsaved body really was about to be lost. Two things
+    // changed. mountEditor() now writes the outgoing card's text back into its
+    // own region before the next card takes the editor, and the flush reads
+    // every card from its region -- so nothing is lost on a switch.
+    //
+    // In the multi-block composer the prompt was actively harmful: an editor
+    // filling six blocks was asked to "Discard changes" or "Keep editing" on
+    // every card they left, and Discard was the only thing in the flow that
+    // actually destroyed content. It is a large part of why "it does not save".
+    return Promise.resolve(true);
   }
 
   if (bodySaveBtn) {
@@ -925,7 +1000,7 @@ import Sortable from 'sortablejs';
   // one place that names a story's destination disagreed with the card's own
   // badge (final review, Important 3).
   function setSlot(slot) {
-    var value = slot || 'main';
+    var value = slot || 'lead';
     if (f.layout) f.layout.value = value;
     if (!props) return;
     Array.prototype.slice.call(props.querySelectorAll('[data-news-slot-choice]')).forEach(function (btn) {
@@ -936,18 +1011,18 @@ import Sortable from 'sortablejs';
     syncSlotPaletteState();
   }
 
-  // "Lead" was a live path back to layout_type="main" (final review,
+  // "Lead" was a live path back to layout_type="lead" (final review,
   // Important 3): three plain enabled buttons, so clicking it on an active
   // card — including a scratch already badged for the Story Library —
   // re-staged main even though a real story owned the lead, and Publish then
-  // wrote a SECOND layout_type="main" row that group_news_slots() drops from
+  // wrote a SECOND layout_type="lead" row that group_news_slots() drops from
   // every bucket. Disabled whenever a real story other than the one being
   // edited holds the lead; the way to take the lead from it is to drag/place
   // over it (which carries a replace confirm), not to relabel a second story
   // as the lead behind the canvas's back.
   function syncSlotPaletteState() {
     if (!props) return;
-    var leadBtn = props.querySelector('[data-news-slot-choice="main"]');
+    var leadBtn = props.querySelector('[data-news-slot-choice="lead"]');
     if (!leadBtn) return;
     var occupantId = leadRealStoryId();
     var takenByOther = !!occupantId && occupantId !== String(activeId || '');
@@ -970,7 +1045,7 @@ import Sortable from 'sortablejs';
       excerpt:     card.getAttribute('data-news-library-excerpt') || '',
       caption:     card.getAttribute('data-news-library-caption') || '',
       credit:      card.getAttribute('data-news-library-credit') || '',
-      layout:      card.getAttribute('data-news-library-layout') || 'secondary',
+      layout:      card.getAttribute('data-news-library-layout') || 'brief',
       priority:    card.getAttribute('data-news-library-priority') || '0',
       // Fall back to 'draft', not 'published': a card missing its status
       // attribute is a stale render, and treating that as "publish it"
@@ -1007,7 +1082,7 @@ import Sortable from 'sortablejs';
   function selectStory(id, slotType, artEl) {
     var data;
     if (!id) {
-      data = { id: '', title: '', description: '', source: '', location: '', dek: '', excerpt: '', caption: '', credit: '', layout: slotType || 'secondary', priority: '0', image: '', categoryId: '' };
+      data = { id: '', title: '', description: '', source: '', location: '', dek: '', excerpt: '', caption: '', credit: '', layout: slotType || 'brief', priority: '0', image: '', categoryId: '' };
     } else {
       var card = libraryCardById(id);
       if (!card) { toast('Could not load that story’s details.', true); return false; }
@@ -1016,24 +1091,21 @@ import Sortable from 'sortablejs';
 
     activeArt = artEl || null;
     activeId = data.id || '';
-    activeSlotType = slotType || data.layout || 'main';
+    activeSlotType = slotType || data.layout || 'lead';
 
     if (activeArt) {
       wireInline(activeArt);
       wireImage(activeArt);
-      // setHtml, not setText: the headline is a Quill target now and carries
-      // inline formatting spans. Every OTHER inline region below is still
-      // plain text and must stay on setText — textContent is what keeps them
-      // out of the kiosk's escaped columns.
-      setHtml(activeArt, 'title', data.title || '');
-      setText(activeArt, 'source', data.source || 'Editorial Desk');
-      setText(activeArt, 'location', data.location || 'Campus');
-      setText(activeArt, 'dek', data.dek || '');
-      setText(activeArt, 'excerpt', data.excerpt || '');
-      setText(activeArt, 'caption', data.caption || '');
-      setText(activeArt, 'credit', data.credit || '');
-      var bodyRegion = region(activeArt, 'body');
-      if (bodyRegion) bodyRegion.innerHTML = data.description || '';
+      // The card's text regions are NOT rewritten here. They used to be --
+      // headline, byline, dek, summary, caption, credit and body were all
+      // overwritten from the Story Library's data attributes, i.e. the
+      // server's last-saved state, on every selection. That was right when
+      // "select" meant "load this story fresh". In a composer where an editor
+      // types into six cards and comes back to any of them, it reverted the
+      // card to its last save every time it was clicked: an unsaved body
+      // vanished, the saved one "came back". The region on screen is the
+      // truth -- the flush reads it, unmount writes it, the editor sees it --
+      // and nothing but the editor may write it.
       var zone = region(activeArt, 'image');
       if (zone) {
         zone.style.backgroundImage = '';
@@ -1048,15 +1120,14 @@ import Sortable from 'sortablejs';
       if (data.image) previewImage('/storage/' + String(data.image).replace(/\\/g, '/'));
     }
 
-    if (f.title)       f.title.value = data.title || '';
+    // The hidden form takes its text from the card's own regions, for the
+    // reason above. Cleared first so a field this card has no region for
+    // (a quote has no headline) is empty rather than the previous card's.
+    // Only what has no region -- the id, category, priority, headline face --
+    // still comes from the library row.
+    resetFormFields();
+    syncFormFromSurface();
     if (f.categoryId)  f.categoryId.value = data.categoryId || '';
-    if (f.description) f.description.value = data.description || '';
-    if (f.source)      f.source.value = data.source || '';
-    if (f.location)    f.location.value = data.location || '';
-    if (f.dek)         f.dek.value = data.dek || '';
-    if (f.excerpt)     f.excerpt.value = data.excerpt || '';
-    if (f.caption)     f.caption.value = data.caption || '';
-    if (f.credit)      f.credit.value = data.credit || '';
     if (f.articleId)   f.articleId.value = data.id || '';
     if (f.priority)    f.priority.value = data.priority || '0';
     if (propPriority)  propPriority.value = data.priority || '0';
@@ -1095,13 +1166,13 @@ import Sortable from 'sortablejs';
   // come back too, from scratchDrafts — see the comment there for why those
   // two cannot be read off the card.
   function scratchSlotType(art) {
-    if (!art) return 'secondary';
+    if (!art) return 'brief';
     // A scratch already retargeted by reconcileMainScratchCollision() files
     // to the Story Library, whatever container it is physically sitting in —
     // the badge on the card is the honest answer here, not its position.
     if (art.classList.contains('is-pending-unassigned')) return 'unassigned';
     var section = art.closest('[data-news-slot]');
-    return (section && section.getAttribute('data-news-slot')) || 'secondary';
+    return (section && section.getAttribute('data-news-slot')) || 'brief';
   }
 
   function selectScratch(art) {
@@ -1201,10 +1272,20 @@ import Sortable from 'sortablejs';
         input.value = getText(activeArt, key);
       } else if (key === 'title') {
         input.value = unwrapBlocks(el.innerHTML);
+      } else if (key === 'body') {
+        // Read from the region. It holds exactly what unmountBodyEditor()
+        // wrote back into it -- or the server-rendered body for a card that
+        // was never opened, or nothing for a new one. All three are right.
+        //
+        // This used to be skipped on the reasoning that f.description was
+        // already current from the keystroke sync. True with ONE active card.
+        // flushPendingCards() unmounts the editor first, so during a flush no
+        // card has a mounted body, the branch never ran for any of them, and
+        // every card posted whatever f.description last held: the lead's text
+        // on one run (a brief saved carrying the lead story's body, word for
+        // word), empty on the next (every card refused). Nothing said which.
+        input.value = el.innerHTML;
       }
-      // 'body' when unmounted is left alone: the region holds exactly what
-      // unmountBodyEditor() wrote back into it, and f.description already has
-      // the same value from the keystroke sync.
     });
     if (f.source  && region(activeArt, 'source'))    f.source.value = getText(activeArt, 'source');
     if (f.location && region(activeArt, 'location')) f.location.value = getText(activeArt, 'location');
@@ -1215,7 +1296,7 @@ import Sortable from 'sortablejs';
     if (f.publishedAt && propDate) f.publishedAt.value = propDate.value;
   }
 
-  function postForm(onOk) {
+  function postForm(onOk, onFail) {
     var fd = new FormData(form);
     fetch(form.getAttribute('action'), {
       method: 'POST',
@@ -1226,12 +1307,21 @@ import Sortable from 'sortablejs';
     .then(function (json) {
       if (json && json.__sessionExpired) {
         toast('Your session has expired — reload the page and sign in again.', true);
+        // Must still report: a multi-card save chains these, and returning
+        // without calling back leaves the remaining blocks unsaved and unsaid.
+        if (onFail) onFail(json);
         return;
       }
       if (json && json.ok) { onOk(json); }
-      else { toast((json && json.errors && json.errors[0]) || 'Could not save — check the fields.', true); }
+      else {
+        toast((json && json.errors && json.errors[0]) || 'Could not save — check the fields.', true);
+        if (onFail) onFail(json);
+      }
     })
-    .catch(function () { toast('Request failed — please try again.', true); });
+    .catch(function () {
+      toast('Request failed — please try again.', true);
+      if (onFail) onFail(null);
+    });
   }
 
   // ── Publish box (WordPress-style status + two exits) ──
@@ -1255,22 +1345,187 @@ import Sortable from 'sortablejs';
     if (statusLabel) statusLabel.textContent = STATUS_LABELS[status] || status;
   }
 
+
+  /* ── Saving the whole newsletter ──────────────────────────────────────────
+   *
+   * Every block of the issue is a card an editor types into, so a save has to
+   * collect all of them. It did not: syncFormFromSurface() reads only
+   * `activeArt` and submitWithStatus() did one postForm(), so a submit wrote
+   * whichever single card happened to be selected. The canvas refresh that
+   * follows then did `editor.innerHTML = json.html` and replaced the rest with
+   * freshly-rendered empty ones.
+   *
+   * There was no error and nothing in the console. An editor filled in a whole
+   * newsletter, submitted it, an admin approved it, and the kiosk showed the
+   * lead story on its own.
+   */
+
+  // The block a card belongs to, read from the section that contains it. Each
+  // card must carry its OWN layout_type: posting them all with the active
+  // card's would file the entire newsletter into one slot.
+  function cardBlockType(card) {
+    var section = card.closest('[data-news-slot]');
+    return (section && section.getAttribute('data-news-slot')) || 'brief';
+  }
+
+  function cardText(card, key) {
+    var el = card.querySelector('[data-news-edit="' + key + '"]');
+    return el ? el.textContent.trim() : '';
+  }
+
+  // Every card the editor actually put something in. Unfilled slots render a
+  // card too, and posting those would hand store() a blank title and
+  // description -- one "Title and description are required." per empty slot, on
+  // a newsletter the editor filled in correctly.
+  function collectPendingCards() {
+    var cards = Array.prototype.slice.call(editor.querySelectorAll(
+      '.feature-story[data-news-id], .secondary-story[data-news-id], .info-card[data-news-id]'
+    ));
+    return cards.filter(function (card) {
+      if (cardText(card, 'title') || cardText(card, 'body') || cardText(card, 'excerpt')) return true;
+      // A photo-essay entry can be a photograph and nothing else. Judged on
+      // text alone it read as empty, was never posted, and the photograph was
+      // dropped without a word.
+      var draft = scratchDraftFor(card);
+      if (draft && draft.file) return true;
+      return !!card.querySelector('img[data-news-edit="image"]');
+    });
+  }
+
+  // One hidden file input serves every card, so it has to be re-pointed per
+  // card. Left alone, the photo chosen for the lead would ride along with every
+  // later post in the chain and be attached to all of them.
+  function stageCardImage(card) {
+    if (!f.image) return;
+    var draft = scratchDraftFor(card);
+    var file = draft && draft.file;
+    try {
+      var dt = new DataTransfer();
+      if (file) dt.items.add(file);
+      f.image.files = dt.files;
+    } catch (e) {
+      // DataTransfer is unavailable: clear rather than risk the wrong photo.
+      if (!file) f.image.value = '';
+    }
+  }
+
+  // Posts the collected cards ONE AFTER ANOTHER. They share a single hidden
+  // form, so overlapping the requests would have each one read whatever the
+  // last card wrote into those inputs and save several stories with identical
+  // content.
+  // syncFormFromSurface() writes a field only when the card HAS that region.
+  // A quote has no headline; a notice has no byline. Without this, those
+  // fields keep the PREVIOUS card's values and post them -- the same
+  // contamination as the body, in other columns.
+  function resetFormFields() {
+    ['title', 'description', 'excerpt', 'dek', 'source', 'location', 'caption', 'credit']
+      .forEach(function (key) { if (f[key]) f[key].value = ''; });
+  }
+
+  function flushPendingCards(status, onDone) {
+    // Write the live editor's content back into its region first, so every card
+    // is then read the same way -- from its own regions.
+    unmountBodyEditor();
+
+    lastSaveFailures = [];
+    var cards = collectPendingCards();
+    var restore = activeArt;
+    if (!cards.length) { onDone(0, 0); return; }
+
+    var saved = 0;
+    var failed = 0;
+    var index = 0;
+
+    function step() {
+      if (index >= cards.length) {
+        activeArt = restore;
+        onDone(saved, failed);
+        return;
+      }
+      var card = cards[index++];
+
+      // Point the shared form at THIS card.
+      activeArt = card;
+      activeId = card.getAttribute('data-news-id') || '';
+      activeSlotType = cardBlockType(card);
+      resetFormFields();
+      syncFormFromSurface();
+      if (f.layout) f.layout.value = activeSlotType;
+      if (f.articleId) f.articleId.value = activeId;
+      stageCardImage(card);
+      setStatus(status);
+
+      postForm(function (json) {
+        saved += 1;
+        // Adopt the id the server just minted, so a second save updates this
+        // story instead of creating a duplicate of it.
+        if (json && json.article && json.article.id) {
+          card.setAttribute('data-news-id', String(json.article.id));
+          forgetScratchDraft(card);
+        }
+        step();
+      }, function (json) {
+        failed += 1;
+        lastSaveFailures.push({
+          title: cardTitle(card) || (activeSlotType + ' block'),
+          reason: (json && json.errors && json.errors[0]) || 'the server refused it.'
+        });
+        // A dead session fails every remaining card identically, so stop rather
+        // than firing the rest at a login page. Everything still unsaved is
+        // still on screen, which is what makes reloading and signing back in
+        // recoverable instead of a rewrite.
+        if (json && json.__sessionExpired) {
+          activeArt = restore;
+          onDone(saved, failed + (cards.length - index));
+          return;
+        }
+        // Otherwise keep going: one rejected card must not cost the editor the
+        // rest of the newsletter, which is the failure this exists to end.
+        step();
+      });
+    }
+
+    step();
+  }
+
   function submitWithStatus(button, status, busyLabel, okMessage) {
     if (!button) return;
-    syncFormFromSurface();
-    setStatus(status);
     button.disabled = true;
     var label = button.textContent;
     button.textContent = busyLabel;
-    postForm(function (json) {
-      toast((json.messages && json.messages[0]) || okMessage, false);
+
+    function done() {
+      button.disabled = false;
+      button.textContent = label;
+    }
+
+    // Every filled-in block, not just the selected one. The canvas refresh
+    // below replaces the whole editor subtree, so anything left unsaved here is
+    // gone without a word.
+    flushPendingCards(status, function (saved, failed) {
+      if (!saved && !failed) {
+        toast('Nothing to save yet — write something first.', true);
+        done();
+        return;
+      }
+      if (failed) {
+        toast(failed + ' of ' + (saved + failed) + ' blocks could not be saved — see Before publishing.', true);
+        runPreflight();
+      } else {
+        toast(okMessage, false);
+      }
+
       setLayoutDirty(false);
       // A saved story no longer has a pending image removal staged.
       if (f.removeImage) f.removeImage.value = '';
-      if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
-      refreshCanvasFragment(okMessage);
+      // Positions are written by news.layout, which needs the ids the posts
+      // above just minted -- so it runs after them, not before.
+      persistCanvasOrder(function () {
+        if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
+        refreshCanvasFragment(okMessage);
+        done();
+      });
     });
-    setTimeout(function () { button.disabled = false; button.textContent = label; }, 4000);
   }
 
   // ── Category modal ──────────────────────────────────────────────────
@@ -1665,7 +1920,7 @@ import Sortable from 'sortablejs';
     contextTargetArt = art;
     art.classList.add('is-context-target');
 
-    var slotType = art.getAttribute('data-news-context-menu') || 'secondary';
+    var slotType = art.getAttribute('data-news-context-menu') || 'brief';
     var titleRegion = region(art, 'title');
     var storyTitle = titleRegion ? (titleRegion.textContent || '').trim() : '';
     if (contextTitle) {
@@ -1698,7 +1953,7 @@ import Sortable from 'sortablejs';
       if (!id) return;
 
       event.preventDefault();
-      var slotType = art.getAttribute('data-news-context-menu') || 'secondary';
+      var slotType = art.getAttribute('data-news-context-menu') || 'brief';
       if (!selectStory(id, slotType, art)) return;
 
       // The context-menu KEY fires this event too, with no useful pointer
@@ -1786,21 +2041,6 @@ import Sortable from 'sortablejs';
       return;
     }
 
-    var slotBtn = event.target.closest('[data-news-assign-slot]');
-    if (slotBtn && root.contains(slotBtn)) {
-      var slotType = slotBtn.getAttribute('data-news-slot-type');
-      var slotPosition = parseInt(slotBtn.getAttribute('data-news-slot-position'), 10) || 1;
-      openLibraryDrawer(slotBtn, { type: slotType, priority: slotPosition });
-      return;
-    }
-
-    var placeBtn = event.target.closest('[data-news-place-story]');
-    if (placeBtn && libraryDrawer && libraryDrawer.contains(placeBtn)) {
-      var card = placeBtn.closest('[data-news-library-item]');
-      if (card) handlePlaceStory(placeBtn, card);
-      return;
-    }
-
     // All Posts table "Trash" row action. Selects the row's story so the
     // shared delete handler (which reads the hidden form's article_id, and
     // owns the confirm + refresh) acts on the right one.
@@ -1811,7 +2051,7 @@ import Sortable from 'sortablejs';
       if (trashId && deleteBtn) {
         // Not tied to a canvas slot — an unassigned story has no article
         // element — so select by id alone and let the inspector do the rest.
-        if (selectStory(trashId, trashRow.getAttribute('data-news-library-layout') || 'secondary', null)) {
+        if (selectStory(trashId, trashRow.getAttribute('data-news-library-layout') || 'brief', null)) {
           deleteBtn.click();
         }
       }
@@ -1895,7 +2135,7 @@ import Sortable from 'sortablejs';
       var storyId = selectableArt.getAttribute('data-news-id');
       if (storyId && storyId !== activeId) {
         var section = selectableArt.closest('[data-news-slot]');
-        var storySlotType = section ? section.getAttribute('data-news-slot') : 'secondary';
+        var storySlotType = section ? section.getAttribute('data-news-slot') : 'brief';
         // Switching stories re-seeds f.description from the new story, so
         // an unsaved body on the old one would vanish without a word. This
         // is the only path that can lose it — clicking inside the active
@@ -2038,7 +2278,7 @@ import Sortable from 'sortablejs';
       '</details>' +
     '</article>';
 
-  // Each `data-news-slot-list="widget"` cell is capacity 1 — the two-widget
+  // Each `data-news-slot-list="editorial"` cell is capacity 1 — the two-widget
   // cap IS there being exactly two such cells — so this picks the first one
   // with no real card in it rather than simply the first one. Dropping a
   // scratch into an occupied cell would put an unsaved draft on top of a
@@ -2053,12 +2293,12 @@ import Sortable from 'sortablejs';
   }
 
   var SCRATCH_SHAPE = {
-    main:      { list: function () { return editor.querySelector('[data-news-slot-list="main"]'); }, selector: '.feature-story[data-news-id=""]', html: SCRATCH_MAIN_HTML },
+    main:      { list: function () { return editor.querySelector('[data-news-slot-list="lead"]'); }, selector: '.feature-story[data-news-id=""]', html: SCRATCH_MAIN_HTML },
     secondary: { list: function () { return editor.querySelector('.secondary-grid'); }, selector: '.secondary-story[data-news-id=""]', html: SCRATCH_SECONDARY_HTML },
     widget:    { list: firstOpenWidgetList, selector: '.info-card[data-news-id=""]', html: SCRATCH_WIDGET_HTML }
   };
 
-  // Slot-aware: targets the lead's own list for 'main', the secondary grid
+  // Slot-aware: targets the lead's own list for 'lead', the secondary grid
   // otherwise. Keeps the existing "is there already a scratch card?" guard
   // per list, so re-clicking either add button re-uses/re-selects the same
   // in-progress scratch rather than stacking a second one.
@@ -2081,44 +2321,23 @@ import Sortable from 'sortablejs';
   // that cannot be saved, a second click re-selects the draft they already
   // have — content intact, via selectScratch(), never selectStory('', …) —
   // and says why when it isn't the slot they asked for.
-  function startOrResumeScratch(slotType) {
-    var existing = existingScratch();
-    if (existing) {
-      selectScratch(existing);
-      syncPlaceholders();
-      if (scratchSlotType(existing) !== slotType) {
-        toast('You already have one unsaved draft — publish it or discard it before starting another.', true);
-      }
-      if (existing.scrollIntoView) existing.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  function startOrResumeScratch(type) {
+    // Every block already has its empty cards on the page, so "adding" one is
+    // really "take me to the next free position and put the cursor in it".
+    // Nothing is created here and nothing is written -- store() creates the row
+    // on the first save, exactly as it always has for a new story.
+    var card = firstEmptyCard(type);
+    if (!card) {
+      toast('Every ' + (SLOT_LABELS[type] || type) + ' position is filled.');
       return;
     }
-    var art = ensureNewStoryScratch(slotType);
-    if (!art) return;
-    selectStory('', slotType, art);
-    // Re-derive placeholders/the add-button's disabled state immediately —
-    // this is the exact scenario the mainSlotOccupied() helper exists for:
-    // without it, the just-inserted scratch wouldn't count as occupancy,
-    // so the "+ Assign story to Main Headline" button would reappear
-    // under the blank lead card.
-    syncPlaceholders();
-    markDirty(art);
-    if (art.scrollIntoView) art.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    selectScratch(card);
+    if (card.scrollIntoView) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    var firstRegion = card.querySelector('[data-news-edit="title"]');
+    if (firstRegion && firstRegion.focus) firstRegion.focus();
+    syncComposerUI();
   }
 
-  // Removes an unsaved scratch and re-derives the page state around it (final
-  // review, Important 4). Creating a scratch calls markDirty(), and
-  // setLayoutDirty(false) only ever runs in submitWithStatus()'s success
-  // callback — so before this existed, an editor who clicked "+ Add main
-  // headline" and changed their mind was stuck with layoutDirty=true for the
-  // rest of the session. That permanently gates refreshCanvasFragment(), so
-  // every later placement/drag/unassign/delete left the canvas visually stale
-  // behind the "canvas view is behind" toast and the lead could no longer
-  // self-reconcile. The only two exits were publishing a story nobody wanted
-  // or reloading and throwing the work away.
-  //
-  // layoutDirty is RE-DERIVED here (forgetDirtySource), never forced false:
-  // an unrelated unpublished edit on another story keeps the badge lit and
-  // keeps the refresh gate closed, which is exactly what protects it.
   function discardScratch(node) {
     if (!node) return;
     var wasActive = node === activeArt;
@@ -2152,14 +2371,14 @@ import Sortable from 'sortablejs';
       // maintains: a stale click event already queued before the last
       // disable takes effect must not still insert a second scratch.
       if (addMainBtn.disabled) return;
-      startOrResumeScratch('main');
+      startOrResumeScratch('lead');
     });
   }
 
   var addBtn = composer.querySelector('[data-news-add-secondary]');
   if (addBtn) {
     addBtn.addEventListener('click', function () {
-      startOrResumeScratch('secondary');
+      startOrResumeScratch('brief');
     });
   }
 
@@ -2171,7 +2390,7 @@ import Sortable from 'sortablejs';
   if (addWidgetBtn) {
     addWidgetBtn.addEventListener('click', function () {
       if (addWidgetBtn.disabled) return;
-      startOrResumeScratch('widget');
+      startOrResumeScratch('editorial');
     });
   }
 
@@ -2195,7 +2414,7 @@ import Sortable from 'sortablejs';
   // share one drag group: the main list (cap 1), the secondary grid (cap 4,
   // reused as-is from before), and one list PER widget position (cap 1
   // each, so the 2-widget cap falls out of there being exactly two such
-  // lists — see `_news_slots.html`'s `data-news-slot-list="widget"`
+  // lists — see `_news_slots.html`'s `data-news-slot-list="editorial"`
   // wrappers).
   //
   // Fix round 1, C1: membership/counting is now ALWAYS by the generic
@@ -2228,26 +2447,18 @@ import Sortable from 'sortablejs';
   // numbering at 0, colliding with the 1-7 range live rows already
   // occupy): there is now exactly one numbering scheme for every write
   // path that owns the whole canvas.
+  // `:not(.is-scratch)` throughout: a scratch is an unsaved draft card, and
+  // Sortable must not index it as a real, draggable item at (re)init time.
+  // The capacity check that keeps a dragged card from landing beside one is
+  // fixOverflow(), which counts via realCardNodes() and never sees a scratch
+  // (its data-news-id="" is excluded by design).
   var CANVAS_LIST_SELECTOR = {
-    // :not(.is-scratch), matching the secondary entry below, now that main
-    // can carry an unsaved "+ Add main headline" scratch (Task 2) too. Fix
-    // round 1, Minor 6: this only keeps the scratch out of Sortable's own
-    // item indexing at (re)init time (`draggable` — see the comment on
-    // `initCanvasSortable()`) — it does NOT stop a dragged-in real card from
-    // landing alongside the scratch instead of being swapped for it. That
-    // capacity check is `fixOverflow()`, which counts via `realCardNodes()`
-    // and never sees the scratch at all (its `data-news-id=""` is excluded
-    // by design), so a real card dropped onto a scratch-occupied main can
-    // still leave two `<article>`s in the container until the next
-    // uncontested server refresh reconciles it — a known, narrow gap the
-    // fix-round-1 review scoped OUT of `realCardNodes()` itself (Important
-    // 2 fixed the separate, in-scope occupancy bug in canvasMainId()).
-    main: '.feature-story:not(.is-scratch)',
-    secondary: '.secondary-story:not(.is-scratch)',
-    // `:not(.is-scratch)` here for the same reason as the two above, now that
-    // "+ Add widget" can put an unsaved draft in a widget cell: without it
-    // Sortable indexes that draft as a real, draggable card.
-    widget: '.info-card:not(.is-scratch)'
+    lead: '.feature-story:not(.is-scratch)',
+    brief: '.secondary-story:not(.is-scratch)',
+    photo_essay: '.info-card:not(.is-scratch)',
+    editorial: '.info-card:not(.is-scratch)',
+    quote: '.info-card:not(.is-scratch)',
+    notice: '.info-card:not(.is-scratch)'
   };
   var canvasSortables = [];
 
@@ -2268,7 +2479,7 @@ import Sortable from 'sortablejs';
   // itself, whose "real card" meaning (empty data-news-id excluded) other
   // call sites (drag capacity via containerHasRoom/fixOverflow, position
   // badges via flatCanvasCards) still depend on. Without this separate
-  // helper, `realCardNodes(lists.main).length === 0` stays true right after
+  // helper, `realCardNodes(lists.lead).length === 0` stays true right after
   // "+ Add main headline" inserts its scratch (data-news-id=""), so
   // syncPlaceholders() would re-add the "+ Assign story to Main Headline"
   // button underneath the blank lead card, and the add button would stay
@@ -2279,20 +2490,33 @@ import Sortable from 'sortablejs';
     return !!container.querySelector('.feature-story[data-news-id=""]');
   }
 
+  // The blocks an issue is made of, in page order. Mirrors BLOCK_TYPES in
+  // app/services/DashboardContext.py; the template renders one
+  // [data-news-slot-list] per entry.
+  var BLOCK_TYPES = ['lead', 'brief', 'photo_essay', 'editorial', 'quote', 'notice'];
+
+  // How many cards each block holds. Mirrors BLOCK_CAPACITY on the server,
+  // which is what layout() enforces in its transaction -- this copy only
+  // decides what the canvas lets you drop, and the server still rejects an
+  // overflow that gets past it.
+  var BLOCK_CAPACITY = {
+    lead: 1, brief: 4, photo_essay: 3, editorial: 1, quote: 2, notice: 1
+  };
+
   function slotListContainers() {
-    return {
-      main: editor.querySelector('[data-news-slot-list="main"]'),
-      secondary: editor.querySelector('[data-news-slot-list="secondary"]'),
-      widget: Array.prototype.slice.call(editor.querySelectorAll('[data-news-slot-list="widget"]'))
-    };
+    var out = {};
+    BLOCK_TYPES.forEach(function (type) {
+      out[type] = editor.querySelector('[data-news-slot-list="' + type + '"]');
+    });
+    return out;
   }
 
   function allContainersInOrder() {
     var lists = slotListContainers();
     var out = [];
-    if (lists.main) out.push(lists.main);
-    if (lists.secondary) out.push(lists.secondary);
-    lists.widget.forEach(function (w) { out.push(w); });
+    BLOCK_TYPES.forEach(function (type) {
+      if (lists[type]) out.push(lists[type]);
+    });
     return out;
   }
 
@@ -2300,15 +2524,12 @@ import Sortable from 'sortablejs';
     return container ? container.getAttribute('data-news-slot-list') : null;
   }
 
-  // Every widget CONTAINER is individually capacity 1 — the 2-widget total
-  // is two such containers, not one container capped at 2 (H1: this keeps
-  // a promoted-main's displacement, or any overflow, a same-shape swap
-  // regardless of which bucket it lands in, so there's no separate
-  // "re-insert into secondary" special case to get wrong).
+  // One container per block, capped by the block's own capacity. This used to
+  // be "secondary holds 4, everything else holds 1", because the two widgets
+  // were two separate single-capacity containers sharing one type. Each block
+  // owning its type made that special case unnecessary.
   function containerCapacity(container) {
-    var type = bucketTypeOfContainer(container);
-    if (type === 'secondary') return 4;
-    return 1; // main and each widget position
+    return BLOCK_CAPACITY[bucketTypeOfContainer(container)] || 1;
   }
 
   function containerHasRoom(container) {
@@ -2333,7 +2554,6 @@ import Sortable from 'sortablejs';
   // page itself renders (see `_news_slots.html`), instead of being
   // hardcoded here (fix round 1, minor 11) — so it can't drift from what
   // the server actually renders for an empty front page.
-  var mainEmptyTemplate = root.querySelector('[data-news-main-empty-template]');
 
   // Fix round 1, I7: a polite live region announces the RESULT of a
   // Move Up/Down press — right now a non-sighted user gets no confirmation
@@ -2358,77 +2578,48 @@ import Sortable from 'sortablejs';
   // best-effort OPTIMISTIC bridge — the follow-up server refresh in
   // `afterCanvasMutation` is what's authoritative.
   function syncPlaceholders() {
+    // The server renders EVERY position of every block -- filled ones as real
+    // cards, unfilled ones as empty cards an editor types straight into. There
+    // is no "assign a story" placeholder left to inject or remove, which is
+    // what this function used to spend most of its body doing.
+    //
+    // A drag can still leave a block short (a card moved out), and the empty
+    // card that should replace it comes back with the next canvas refresh --
+    // afterCanvasMutation() funnels into persistCanvasOrder(), which refreshes
+    // from the same template. That is the authoritative path; hand-building a
+    // replacement here would be a second copy of markup to keep in step.
     var lists = slotListContainers();
-    if (lists.main) {
-      var mainOccupiedNow = mainSlotOccupied(lists.main);
-      var mainEmpty = lists.main.querySelector('.paper-empty');
-      if (!mainOccupiedNow && !mainEmpty && mainEmptyTemplate && mainEmptyTemplate.content) {
-        lists.main.appendChild(mainEmptyTemplate.content.cloneNode(true));
-      } else if (mainOccupiedNow && mainEmpty) {
-        mainEmpty.remove();
-      }
-      // Fix round 1, Minor 3: only a SAVED story disables "+ Add main
-      // headline" — a scratch-only lead leaves it enabled, on purpose. Once
-      // the scratch exists the assign-story placeholder is gone (it's not
-      // an empty slot) and "Remove from Front Page"/Delete both need a real
-      // article_id a scratch doesn't have yet, so if this button also
-      // disabled on the scratch there would be no in-app way back to it
-      // short of a reload that throws the dirty edits away — exactly the
-      // dead end this task exists to remove. Re-clicking routes through
-      // startOrResumeScratch(), which re-selects the existing draft with
-      // selectScratch() — its typed content READ BACK into the form, never
-      // blanked. (Until the final review that claim was false: the re-click
-      // path ran selectStory('', …), which rewrote the node with an all-blank
-      // story and erased the draft it was advertised as recovering.)
-      if (addMainBtn) addMainBtn.disabled = realCardNodes(lists.main).length > 0;
-    }
-    if (lists.secondary) {
-      Array.prototype.slice.call(lists.secondary.querySelectorAll('.paper-empty')).forEach(function (el) { el.remove(); });
-      var secReal = realCardNodes(lists.secondary);
-      for (var p = secReal.length + 1; p <= 4; p++) {
-        lists.secondary.insertAdjacentHTML(
-          'beforeend',
-          '<button type="button" class="paper-empty paper-empty--compact paper-empty--action" ' +
-            'data-news-assign-slot data-news-slot-type="secondary" data-news-slot-position="' + p + '">' +
-            '+ Assign story to Secondary slot ' + p + '</button>'
-        );
-      }
-    }
-    var widgetCellsFree = 0;
-    lists.widget.forEach(function (w) {
-      var real = realCardNodes(w);
-      // An unsaved draft occupies its cell too. The cell is capacity 1, so
-      // leaving "+ Assign story to Widget slot N" sitting beside a scratch
-      // would offer a second story a place that is already taken — the lead
-      // resolves this the same way, via mainSlotOccupied().
-      var occupied = real.length > 0 || !!w.querySelector('.info-card[data-news-id=""]');
-      var existingBtn = w.querySelector('.paper-empty--action');
-      if (!occupied && !existingBtn) {
-        var pos = w.getAttribute('data-news-slot-position') || '1';
-        w.insertAdjacentHTML(
-          'beforeend',
-          '<button type="button" class="paper-empty paper-empty--compact paper-empty--action" ' +
-            'data-news-assign-slot data-news-slot-type="widget" data-news-slot-position="' + pos + '">' +
-            '+ Assign story to Widget slot ' + pos + '</button>'
-        );
-      } else if (occupied && existingBtn) {
-        existingBtn.remove();
-      }
-      if (real.length === 0) widgetCellsFree += 1;
+
+    // Any assign-story button left over from a cached fragment.
+    Array.prototype.slice.call(editor.querySelectorAll('.paper-empty--action'))
+      .forEach(function (el) { el.remove(); });
+
+    BLOCK_TYPES.forEach(function (type) {
+      var container = lists[type];
+      if (!container) return;
+      var real = realCardNodes(container).length;
+      var capacity = BLOCK_CAPACITY[type] || 1;
+      // A block at capacity has nothing free to focus, so its chip is inert.
+      var chip = blockChipFor(type);
+      if (chip) chip.disabled = real >= capacity && !firstEmptyCard(type);
     });
-    // Only a SAVED story disables "+ Add widget" — a scratch-occupied cell
-    // still counts as free here, deliberately, for the same reason spelled
-    // out for addMainBtn above: once the scratch exists its assign-story
-    // placeholder is gone and Remove/Delete both need an article_id it does
-    // not have yet, so re-clicking the add button is the only in-app route
-    // back to that draft (startOrResumeScratch → selectScratch, content
-    // intact). Disabling here would make it a dead end.
-    if (addWidgetBtn) addWidgetBtn.disabled = widgetCellsFree === 0;
-    // Whoever owns the lead may have just changed, which is what the Slot
-    // palette's "Lead" button is enabled/disabled from (Important 3). This is
-    // the one function every mutation, refresh and init already funnels
-    // through, so derive it here rather than at each call site.
+
     syncSlotPaletteState();
+  }
+
+  // The chip in "Add a block" that owns a block type. Three of them predate the
+  // block vocabulary and keep their original hooks.
+  function blockChipFor(type) {
+    if (type === 'lead') return addMainBtn;
+    if (type === 'brief') return addBtn;
+    if (type === 'notice') return addWidgetBtn;
+    return composer.querySelector('[data-news-block-chip="' + type + '"]');
+  }
+
+  // The first typeable card in a block -- one with no row behind it yet.
+  function firstEmptyCard(type) {
+    var container = slotListContainers()[type];
+    return container ? container.querySelector('[data-news-id=""]') : null;
   }
 
   function renumberPositionBadges() {
@@ -2532,9 +2723,9 @@ import Sortable from 'sortablejs';
         items.push({ id: id, layout_type: type, priority: idx });
       });
     }
-    if (lists.main) push('main', realCardNodes(lists.main));
-    if (lists.secondary) push('secondary', realCardNodes(lists.secondary));
-    lists.widget.forEach(function (w) { push('widget', realCardNodes(w)); });
+    BLOCK_TYPES.forEach(function (type) {
+      if (lists[type]) push(type, realCardNodes(lists[type]));
+    });
     return items;
   }
 
@@ -2648,7 +2839,7 @@ import Sortable from 'sortablejs';
   // writes — specifically so it's reviewable (and, if this repo ever grows
   // a JS test runner, testable) on its own, independent of the DOM
   // plumbing around it in reconcileMainScratchCollision(). 'unassigned'
-  // over a second capacity-bounded slot (round 2 tried 'secondary' and it
+  // over a second capacity-bounded slot (round 2 tried 'brief' and it
   // could silently overflow the 4-cap and publish invisibly — see the
   // comment on reconcileMainScratchCollision() below) because 'unassigned'
   // has no cap to overflow.
@@ -2693,7 +2884,7 @@ import Sortable from 'sortablejs';
   // was still sitting there went unnoticed. containerHasRoom()/
   // fixOverflow() count only realCardNodes() (cap 1, one real card <= cap,
   // nothing evicted), so the scratch is never removed — and if it's still
-  // the ACTIVE story, its hidden form still carries layout_type="main"
+  // the ACTIVE story, its hidden form still carries layout_type="lead"
   // from creation, with layoutDirty permanently true for its whole
   // lifetime (creating it calls markDirty(), and only Publish or a reload
   // ever clears that flag), so refreshCanvasFragment()'s dirty gate can
@@ -2712,7 +2903,7 @@ import Sortable from 'sortablejs';
   // Up/Down paths already funnel through (afterCanvasMutation(), below).
   //
   // Fix round 3 — round 2's first attempt retargeted a content-bearing
-  // scratch to 'secondary', which just relocated the collision: secondary
+  // scratch to 'brief', which just relocated the collision: secondary
   // has its own cap of 4, NewsController bumps a new story's priority to
   // max+1 (always sorts last), and group_news_slots() slices secondary to
   // [:4] — so if secondary was already full when e.g. a WIDGET card got
@@ -2747,8 +2938,8 @@ import Sortable from 'sortablejs';
   // long as that's true, not just for 3.5 seconds).
   //
   // Round 3 claimed here that an inactive badged scratch had "no remaining
-  // path back to layout_type='main'". That was wrong twice over, and the
-  // final review found both: the inspector's Slot palette could set "main"
+  // path back to layout_type='lead'". That was wrong twice over, and the
+  // final review found both: the inspector's Slot palette could set "lead"
   // straight back on an active badged scratch (closed by
   // syncSlotPaletteState() plus the re-evaluation below), and treating the
   // inactive case as needing no action meant the badge promised safety for a
@@ -2760,15 +2951,15 @@ import Sortable from 'sortablejs';
   // Symmetric on the way back out, too: if a later mutation removes the
   // real card again (e.g. Move Up/Down relocates it elsewhere) and the
   // scratch is once more the lead's sole occupant, that's round 1 Minor
-  // 3's normal state — undo the retarget so it reads as "main" again
+  // 3's normal state — undo the retarget so it reads as "lead" again
   // rather than leaving a stale "Story Library" marker on a card that is,
   // once again, simply the in-progress lead.
   // Final review, Important 3: this runs on EVERY mutation and re-evaluates
   // from scratch — it no longer returns early just because the badge is
   // already on the card. The badge is not proof the retarget still holds: the
-  // inspector's Slot palette could have set layout_type back to "main" in
+  // inspector's Slot palette could have set layout_type back to "lead" in
   // between (that path is narrowed too, see syncSlotPaletteState(), but this
-  // is the check that makes a stale "main" impossible to carry to Publish).
+  // is the check that makes a stale "lead" impossible to carry to Publish).
   //
   // Final review, Critical 1: "does a real story own the lead" is read
   // through leadHasRealStory(), which consults the placement overlay as well
@@ -2778,16 +2969,16 @@ import Sortable from 'sortablejs';
   // collision this function exists to defuse.
   function reconcileMainScratchCollision() {
     var lists = slotListContainers();
-    if (!lists.main) return;
-    var scratch = lists.main.querySelector('.feature-story[data-news-id=""]');
+    if (!lists.lead) return;
+    var scratch = lists.lead.querySelector('.feature-story[data-news-id=""]');
     if (!scratch) return;
 
-    var hasRealCard = leadHasRealStory(lists.main);
+    var hasRealCard = leadHasRealStory(lists.lead);
 
     if (!hasRealCard) {
       if (scratch.classList.contains('is-pending-unassigned')) {
         unmarkScratchPendingUnassigned(scratch);
-        if (scratch === activeArt) { activeSlotType = 'main'; setSlot('main'); }
+        if (scratch === activeArt) { activeSlotType = 'lead'; setSlot('lead'); }
       }
       return;
     }
@@ -3004,7 +3195,7 @@ import Sortable from 'sortablejs';
     ? Array.prototype.slice.call(libraryDrawer.querySelectorAll('[data-news-library-filter]'))
     : [];
   var currentLibraryFilter = 'all';
-  var drawerTarget = null;   // { type: 'secondary'|'widget'|'main', priority: N } or null (generic open)
+  var drawerTarget = null;   // { type: 'brief'|'editorial'|'lead', priority: N } or null (generic open)
   var drawerTrigger = null;  // element focus returns to on close
 
   var DEFAULT_LIBRARY_SUBTITLE = 'Reuse a published story, or place it on the front page.';
@@ -3113,8 +3304,8 @@ import Sortable from 'sortablejs';
   // at 4/2, and reflects priority order via DOM order. Deriving occupancy
   // from library-card `data-news-library-layout` attributes instead (fix
   // round 1's I1) disagreed with this in ordinary states, not just under
-  // concurrency: with no explicit `layout_type="main"` row, the server's
-  // fallback main is still a "secondary"-typed row by attribute, so the
+  // concurrency: with no explicit `layout_type="lead"` row, the server's
+  // fallback main is still a "brief"-typed row by attribute, so the
   // library-card count read it as an extra secondary slot and read main as
   // empty even though the canvas plainly showed a lead story.
   //
@@ -3137,7 +3328,7 @@ import Sortable from 'sortablejs';
   var MAIN_SCRATCH_ID = '__scratch__';
 
   function canvasBucketIds(type) {
-    if (type === 'secondary') {
+    if (type === 'brief') {
       var grid = editor.querySelector('.secondary-grid');
       if (!grid) return [];
       return Array.prototype.map.call(
@@ -3145,7 +3336,7 @@ import Sortable from 'sortablejs';
         function (el) { return el.getAttribute('data-news-id'); }
       ).filter(Boolean);
     }
-    if (type === 'widget') {
+    if (type === 'editorial') {
       return Array.prototype.map.call(
         editor.querySelectorAll('.paper-slot--widget .info-card[data-news-id]'),
         function (el) { return el.getAttribute('data-news-id'); }
@@ -3166,7 +3357,7 @@ import Sortable from 'sortablejs';
   // only Publish or a reload ever clears it, so refreshCanvasFragment()'s
   // dirty gate (which would otherwise reconcile the canvas and reveal the
   // collision) is guaranteed skipped for the scratch's entire lifetime.
-  // The result is two layout_type='main' rows; group_news_slots() keeps
+  // The result is two layout_type='lead' rows; group_news_slots() keeps
   // only the lowest (priority, id) as main_news and excludes the other from
   // every bucket, so the loser publishes but renders nowhere. Reusing
   // mainSlotOccupied() (already the single source of truth for "does a
@@ -3214,7 +3405,7 @@ import Sortable from 'sortablejs';
   // "Has a real story taken the lead away from the scratch?" — the trigger
   // condition for reconcileMainScratchCollision(). Deliberately an OR of the
   // DOM and the overlay rather than "whichever is fresher": missing a
-  // collision publishes a duplicate layout_type='main' row that renders
+  // collision publishes a duplicate layout_type='lead' row that renders
   // nowhere, while an over-cautious retarget only sends a draft to the Story
   // Library, which is visible and recoverable.
   function leadHasRealStory(mainList) {
@@ -3229,8 +3420,8 @@ import Sortable from 'sortablejs';
     if (!virtualSlots) {
       virtualSlots = {
         main: canvasMainId() || null,
-        secondary: canvasBucketIds('secondary'),
-        widget: canvasBucketIds('widget')
+        secondary: canvasBucketIds('brief'),
+        widget: canvasBucketIds('editorial')
       };
     }
     return virtualSlots;
@@ -3247,9 +3438,9 @@ import Sortable from 'sortablejs';
   // before "+ Add main headline" (e.g. by placing a story into Secondary,
   // which snapshots main:null) reported the lead as FREE while a scratch sat
   // in it. firstFreeTarget() then handed the toolbar Story Library a
-  // {type:'main'} target, handlePlaceStory()'s replace-confirm didn't fire
+  // {type:'lead'} target, handlePlaceStory()'s replace-confirm didn't fire
   // because mainOccupant() was null, the POST succeeded, the dirty gate kept
-  // the scratch alive and still active with layout_type='main', and Publish
+  // the scratch alive and still active with layout_type='lead', and Publish
   // wrote a SECOND main row that group_news_slots() drops from every bucket:
   // published, invisible, undiscoverable.
   //
@@ -3273,8 +3464,8 @@ import Sortable from 'sortablejs';
   function slotCounts() {
     return {
       main: mainOccupant() ? 1 : 0,
-      secondary: bucketMembers('secondary').length,
-      widget: bucketMembers('widget').length
+      secondary: bucketMembers('brief').length,
+      widget: bucketMembers('editorial').length
     };
   }
 
@@ -3292,7 +3483,7 @@ import Sortable from 'sortablejs';
     slots.widget = slots.widget.filter(function (x) { return x !== idStr; });
     if (slots.main === idStr) slots.main = null;
 
-    if (target.type === 'main') {
+    if (target.type === 'lead') {
       slots.main = idStr;
       return;
     }
@@ -3308,7 +3499,7 @@ import Sortable from 'sortablejs';
   // Generic toolbar-open decision (no target slot): fill the first free
   // position — lead if empty, else the next open secondary slot, else the
   // next open widget slot. Reading occupancy off the canvas/overlay (not the
-  // library cards) means "main" only ever reads empty when there's truly no
+  // library cards) means "lead" only ever reads empty when there's truly no
   // lead story tracked, so this can no longer target an occupied main slot
   // on its own — handlePlaceStory's confirm guard below is therefore a
   // belt-and-braces check, not the primary defense.
@@ -3318,9 +3509,9 @@ import Sortable from 'sortablejs';
     // data-news-slot-position="1" (Task 1), and removeFilledPlaceholder()
     // no longer bails on main, so this has to match that button's position
     // for the generic toolbar-open path to clean it up immediately too.
-    if (counts.main < 1) return { type: 'main', priority: 1 };
-    if (counts.secondary < 4) return { type: 'secondary', priority: counts.secondary + 1 };
-    if (counts.widget < 2) return { type: 'widget', priority: counts.widget + 1 };
+    if (counts.main < 1) return { type: 'lead', priority: 1 };
+    if (counts.secondary < 4) return { type: 'brief', priority: counts.secondary + 1 };
+    if (counts.widget < 2) return { type: 'editorial', priority: counts.widget + 1 };
     return null;
   }
 
@@ -3329,7 +3520,7 @@ import Sortable from 'sortablejs';
   // in). A new bucket assignment always gets a priority strictly above this,
   // so it can never become the new global minimum. That matters because
   // group_news_slots() falls back to the globally-lowest-priority story as
-  // main_news whenever no row is explicitly layout_type="main" — which is
+  // main_news whenever no row is explicitly layout_type="lead" — which is
   // true of the live dataset today. Reusing a low ordinal (e.g. the
   // placeholder's on-screen position number) as the literal priority risked
   // silently outranking that fallback and hijacking the lead (fix round 1,
@@ -3428,7 +3619,7 @@ import Sortable from 'sortablejs';
   // canvas fragment swap below, this doesn't need to wait on the dirty-edit
   // gate (fix round 1, I2).
   //
-  // Used to bail on target.type === 'main' because main had no placeholder
+  // Used to bail on target.type === 'lead' because main had no placeholder
   // to remove at all — the lead's empty state was a plain, buttonless div.
   // Now that it's "+ Assign story to Main Headline" (same shape as
   // secondary/widget), that early return would leave the button lingering
@@ -3442,121 +3633,6 @@ import Sortable from 'sortablejs';
     if (placeholder) placeholder.remove();
   }
 
-  function handlePlaceStory(placeBtn, card) {
-    var id = card.getAttribute('data-news-library-id');
-    var target = drawerTarget || firstFreeTarget();
-    if (!target) {
-      toast('Every front-page slot is full — remove a story first.', true);
-      return;
-    }
-
-    function proceed() {
-      var items = target.type === 'main'
-        ? [{ id: parseInt(id, 10), layout_type: 'main', priority: 0 }]
-        : buildBucketBatch(target.type, id, target.priority);
-
-      if (!items) {
-        toast('That slot filled up before this could be placed — try again.', true);
-        return;
-      }
-
-      // Defense in depth (round 2, I2): buildBucketBatch already caps and
-      // refuses via the null return above, but that guard is only as good
-      // as its occupancy source. Assert the hard cap here too, independent
-      // of where `items` came from, so a bucket can never be POSTed over
-      // 1/4/2 — the server itself enforces no capacity at all.
-      var cap = target.type === 'main' ? 1 : BUCKET_CAPACITY[target.type];
-      if (cap && items.length > cap) {
-        toast('That would overfill the slot — try again.', true);
-        return;
-      }
-
-      placeBtn.disabled = true;
-      postLayout(items)
-        .then(function (json) {
-          placeBtn.disabled = false;
-          if (json && json.__sessionExpired) {
-            toast('Your session has expired — reload the page and sign in again.', true);
-            return;
-          }
-          if (json && json.ok && json.updated && json.updated.length) {
-            toast((json.messages && json.messages[0]) || 'Story placed on the front page.', false);
-            applyPlacementToVirtualSlots(target, id);
-            // Final review, Critical 1: a placement into the lead can hand it
-            // to a real story while an unsaved scratch is still sitting
-            // there — either through a stale drawerTarget past the
-            // replace-confirm, or through the confirm itself being accepted.
-            // Until now reconcileMainScratchCollision() was wired ONLY into
-            // afterCanvasMutation() (drag / Move Up/Down), so the placement
-            // path had no reconciliation at all, and the canvas refresh below
-            // is dirty-gated — which creating a scratch guarantees. Run it
-            // AFTER the overlay is updated, so leadHasRealStory() can see the
-            // placement the DOM won't show.
-            reconcileMainScratchCollision();
-            removeFilledPlaceholder(target);
-            if (libraryDrawer.close) libraryDrawer.close();
-            if (window.DashboardLive) window.DashboardLive.refresh('news');
-            refreshCanvasFragment('Placed');
-          } else {
-            toast((json && json.errors && json.errors[0]) || 'Could not place that story.', true);
-          }
-        })
-        .catch(function () {
-          placeBtn.disabled = false;
-          toast('Request failed — please try again.', true);
-        });
-    }
-
-    // Targeting "main" while a lead story is already tracked (canvas or
-    // overlay) would displace it. firstFreeTarget() only resolves to main
-    // when none is tracked, so this only fires from a stale drawerTarget or
-    // a race — but it's cheap insurance, and Task 6 may add an explicit
-    // main placeholder that would hit this path routinely (fix round 1, I1).
-    var occupant = target.type === 'main' ? mainOccupant() : null;
-    if (occupant) {
-      confirmAction({
-        title: 'Replace the front-page lead?',
-        // Naming the unsaved draft matters: reconcileMainScratchCollision()
-        // will move it to the Story Library the moment this placement lands,
-        // and the editor should know that before confirming, not after.
-        body: occupant === MAIN_SCRATCH_ID
-          ? 'The lead currently holds an unsaved draft. It will be kept on screen and will publish to the Story Library instead of the front page.'
-          : 'This story will replace the current lead story on the front page.',
-        confirmLabel: 'Replace lead',
-        cancelLabel: 'Cancel'
-      }).then(function (ok) { if (ok) proceed(); });
-    } else {
-      proceed();
-    }
-  }
-
-  // ── Stale-canvas fix ───────────────────────────────────
-  // DashboardLive.refresh('news') only swaps the library grid; the canvas
-  // (the empty-slot placeholders and the story cards themselves) lives
-  // outside that live target and goes stale after an assignment. Re-fetch
-  // it from the same fragment mechanism dashboard-live.js uses elsewhere
-  // (DashboardController.fragment('news-canvas') → DashboardContext.
-  // news_canvas_context(), re-rendering kiosk/_news_slots.html in editor
-  // mode) rather than hand-building the new DOM from the assign response.
-  //
-  // Skipped while the composer shows "Unpublished changes": that state means
-  // there are unsaved inline edits (title/body/image/etc.) sitting only in
-  // this tab's DOM, and overwriting the canvas would silently drop them. The
-  // assignment itself has already persisted by this point either way — only
-  // the *view* of the canvas is deferred, with a toast explaining why
-  // (reloading is explicitly NOT offered as the fix here — that would lose
-  // the very edits this gate exists to protect). `virtualSlots` (see above)
-  // is what keeps occupancy/capacity correct for any further placements made
-  // while the view is behind.
-  //
-  // `actionLabel` (round 2, new minor) lets unassign/delete route through
-  // this same fix without the toast claiming a story was "Placed" when it
-  // was actually removed or deleted.
-  // `onDone` (fix round 1, minor 8) fires after the refresh actually
-  // settles — success, the dirty-gate skip, or a fetch failure alike — so a
-  // caller that needs to act on the FINAL post-refresh DOM (e.g. Move
-  // Up/Down restoring focus) doesn't have to guess whether an innerHTML
-  // swap happened first.
   function refreshCanvasFragment(actionLabel, onDone) {
     var label = actionLabel || 'Placed';
     if (layoutDirty) {
@@ -3622,7 +3698,7 @@ import Sortable from 'sortablejs';
   function clearActiveStory() {
     activeArt = null;
     activeId = '';
-    activeSlotType = 'main';
+    activeSlotType = 'lead';
     if (f.articleId) f.articleId.value = '';
     if (f.title) f.title.value = '';
     if (f.description) f.description.value = '';
@@ -3632,7 +3708,7 @@ import Sortable from 'sortablejs';
     if (f.excerpt) f.excerpt.value = '';
     if (f.caption) f.caption.value = '';
     if (f.credit) f.credit.value = '';
-    setSlot('main');
+    setSlot('lead');
     if (activeLabel) activeLabel.textContent = 'New story';
     // Nothing is being edited, so the body editor and its toolbar have no
     // subject — park them rather than leaving a bar pointing at nothing.
@@ -3649,7 +3725,7 @@ import Sortable from 'sortablejs';
     }
     var leadArt = mainSlotSection ? mainSlotSection.querySelector('.feature-story[data-news-id]') : null;
     if (leadArt) {
-      if (selectStory(leadArt.getAttribute('data-news-id'), 'main', leadArt)) return;
+      if (selectStory(leadArt.getAttribute('data-news-id'), 'lead', leadArt)) return;
       clearActiveStory();
       return;
     }
@@ -3657,7 +3733,7 @@ import Sortable from 'sortablejs';
   }
 
   function reinitCanvas() {
-    mainSlotSection = editor.querySelector('[data-news-slot="main"]');
+    mainSlotSection = editor.querySelector('[data-news-slot="lead"]');
     initCanvasSortable();
     seedActiveStory();
     // "+ Add main headline" lives in `.news-editor__add`, a sibling of
@@ -3669,14 +3745,538 @@ import Sortable from 'sortablejs';
     syncPlaceholders();
   }
 
+
+  /* ── Full-issue composer surface ──────────────────────────────────────────
+   *
+   * The outline, the contextual inspector, the preflight checks and the draft
+   * autosave. All of it READS the canvas and the existing active-story state
+   * rather than keeping a model of its own, so it cannot disagree with the page.
+   *
+   * Nothing in here adds a branch to the delegated root click handler above --
+   * its branch order is behaviour, not style. This listens separately and syncs
+   * after that handler has run.
+   */
+
+  var outlineList  = root.querySelector('[data-news-outline-list]');
+  var preflightBox = root.querySelector('[data-news-preflight]');
+  var preflightList= root.querySelector('[data-news-preflight-list]');
+  var slotTallyEl  = root.querySelector('[data-news-slot-tally]');
+  var autosaveEl   = root.querySelector('[data-news-autosave-state]');
+  var issueStatusEl= root.querySelector('[data-news-issue-status]');
+  var blockFields  = root.querySelector('[data-news-block-fields]');
+  var issueFields  = root.querySelector('[data-news-issue-fields]');
+  var blockActions = root.querySelector('[data-news-block-actions]');
+  var activeSlotTag= root.querySelector('[data-news-active-slot]');
+  var propSection  = root.querySelector('[data-news-prop="location"]');
+  var propByline   = root.querySelector('[data-news-prop="source"]');
+  var photoName    = root.querySelector('[data-news-photo-name]');
+  var photoFit     = root.querySelector('[data-news-photo-fit]');
+  var gaugeFill    = root.querySelector('[data-news-gauge-fill]');
+  var gaugeCaption = root.querySelector('[data-news-gauge-caption]');
+  var orderList    = root.querySelector('[data-news-order-list]');
+  var inspectorEl  = root.querySelector('[data-news-properties]');
+  var doneBtn      = root.querySelector('[data-news-inspector-done]');
+
+  // How much body a slot actually holds before it stops fitting the well it
+  // renders in. Measured against the issue's own type sizes, not invented: the
+  // lead runs a two-column measure, a side brief is clamped to two lines of
+  // summary, a notice card is a short paragraph.
+  var WORD_TARGET = {
+    lead: 600, brief: 150, photo_essay: 40, editorial: 400, quote: 40, notice: 60,
+    unassigned: 600
+  };
+
+  // The aspect each slot's photo is cropped to by kiosk-news.css. `widget` has
+  // no image region at all, so it has no target.
+  var ASPECT_TARGET = { lead: 4 / 5, brief: 16 / 9, photo_essay: 16 / 9 };
+  var ASPECT_LABEL  = { lead: '4:5', brief: '16:9', photo_essay: '16:9' };
+
+  // The issue's blocks, in page order. `slot`/`pos` say which existing bucket
+  // backs each one -- there are no new layout_type values here. Calendar has no
+  // slot because it is the events table, which the Events panel owns.
+  // The outline's rows, in page order. `slot` is the block that backs each one;
+  // Masthead and Calendar have none -- one is template chrome, the other is the
+  // events table, which the Events panel owns.
+  var ISSUE_BLOCKS = [
+    { key: 'lead',        name: 'Lead story',   slot: 'lead' },
+    { key: 'brief',       name: 'Side stories', slot: 'brief' },
+    { key: 'photo_essay', name: 'Photo essay',  slot: 'photo_essay' },
+    { key: 'editorial',   name: 'Editorial',    slot: 'editorial' },
+    { key: 'quote',       name: 'Quote',        slot: 'quote' },
+    { key: 'calendar',    name: 'Calendar',     slot: null },
+    { key: 'notice',      name: 'Notice',       slot: 'notice' }
+  ];
+
+  function blockCards(block) {
+    if (!block.slot) return [];
+    var container = slotListContainers()[block.slot];
+    return container ? realCardNodes(container) : [];
+  }
+
+  // Every card in a block, INCLUDING the empty ones. realCardNodes() excludes
+  // id-less cards, which is right for a capacity check and wrong for "which
+  // block did the editor just click into" -- an empty card belongs to its block
+  // exactly as much as a filled one.
+  function blockCardsIncludingEmpty(block) {
+    if (!block.slot) return [];
+    var container = slotListContainers()[block.slot];
+    if (!container) return [];
+    return Array.prototype.slice.call(container.querySelectorAll('[data-news-id]'));
+  }
+
+  function calendarRowCount() {
+    return editor.querySelectorAll('.issue-dates__row').length;
+  }
+
+  function wordsIn(html) {
+    var text = String(html || '').replace(/<[^>]*>/g, ' ');
+    var words = text.replace(/&nbsp;/g, ' ').trim().split(/\s+/);
+    return (words.length === 1 && !words[0]) ? 0 : words.length;
+  }
+
+  function cardTitle(card) {
+    var el = card && card.querySelector('[data-news-edit="title"]');
+    return (el ? el.textContent : '').trim() || 'Untitled story';
+  }
+
+  /* ── Outline ───────────────────────────────────────── */
+
+  function renderOutline() {
+    if (!outlineList) return;
+    // The Masthead row is authored in the template (it has no story behind it
+    // and never moves); everything after it is rebuilt from the canvas.
+    Array.prototype.slice.call(outlineList.querySelectorAll('[data-news-outline-block]'))
+      .forEach(function (el) { el.remove(); });
+
+    ISSUE_BLOCKS.forEach(function (block) {
+      var li = document.createElement('li');
+      li.className = 'issue-outline__row';
+      li.setAttribute('data-news-outline-block', block.key);
+
+      var cards = blockCards(block);
+      var count = block.key === 'calendar' ? calendarRowCount() : cards.length;
+      var isEmpty = count === 0;
+
+      if (isEmpty) li.classList.add('is-empty');
+      if (activeArt && blockCardsIncludingEmpty(block).indexOf(activeArt) !== -1) {
+        li.classList.add('is-selected');
+      }
+
+      var state;
+      if (block.key === 'calendar') {
+        state = isEmpty ? 'Empty' : count + (count === 1 ? ' date' : ' dates');
+      } else if (block.slot === 'brief') {
+        state = count + ' of 4';
+      } else {
+        state = isEmpty ? 'Empty' : 'Filled';
+      }
+
+      li.innerHTML =
+        '<span class="issue-outline__handle" aria-hidden="true">' +
+          (block.slot ? '⠿' : '·') + '</span>' +
+        '<span class="issue-outline__name"></span>' +
+        '<span class="issue-outline__state"></span>';
+      li.querySelector('.issue-outline__name').textContent = block.name;
+      li.querySelector('.issue-outline__state').textContent = state;
+
+      // Clicking an outline row selects the block it names, so the outline is
+      // navigation and not just a readout.
+      if (cards.length) {
+        li.addEventListener('click', function () {
+          var card = cards[0];
+          var section = card.closest('[data-news-slot]');
+          selectStory(card.getAttribute('data-news-id'),
+                      section ? section.getAttribute('data-news-slot') : block.slot,
+                      card);
+          syncComposerUI();
+        });
+      }
+      outlineList.appendChild(li);
+    });
+  }
+
+  function renderSlotTally() {
+    if (!slotTallyEl) return;
+    // The masthead is always present, so it counts as filled; every other
+    // outline row is counted from the canvas.
+    var filled = 1;
+    ISSUE_BLOCKS.forEach(function (block) {
+      var count = block.key === 'calendar' ? calendarRowCount() : blockCards(block).length;
+      if (count > 0) filled += 1;
+    });
+    slotTallyEl.textContent = filled + ' of ' + (ISSUE_BLOCKS.length + 1) + ' slots filled';
+  }
+
+  /* ── Before publishing ─────────────────────────────── */
+
+  // What the last save refused, by card, with the server's own reason. A
+  // 3.5-second toast reading "3 of 3 blocks could not be saved" is what made
+  // this look like silence: it named nothing and was gone before it was read.
+  // This stays in the Before-publishing panel until the next save.
+  var lastSaveFailures = [];
+
+  function runPreflight() {
+    if (!preflightBox || !preflightList) return;
+    var problems = [];
+
+    lastSaveFailures.forEach(function (fail) {
+      problems.push({ blocking: true, text: 'Not saved — “' + fail.title + '”: ' + fail.reason });
+    });
+
+    ISSUE_BLOCKS.forEach(function (block) {
+      if (!block.slot) return;
+      var cards = blockCards(block);
+
+      if (block.key === 'lead' && !cards.length) {
+        problems.push({ blocking: true, text: 'The lead story slot is empty.' });
+      }
+      if (block.key === 'notice' && !cards.length) {
+        problems.push({ blocking: false, text: 'Notice slot is empty.' });
+      }
+
+      var noByline = 0;
+      var noImage = 0;
+      cards.forEach(function (card) {
+        var src = card.querySelector('[data-news-edit="source"]');
+        // Only the lead renders a byline region, so a missing one elsewhere is
+        // not a fault -- check the field only where the page prints it.
+        if (src && !src.textContent.trim()) noByline += 1;
+        if (ASPECT_TARGET[block.slot] && !card.querySelector('img[data-news-edit="image"]')) noImage += 1;
+
+        var body = card.querySelector('[data-news-edit="body"]');
+        var limit = WORD_TARGET[block.slot] || 600;
+        if (body && wordsIn(body.innerHTML) > limit) {
+          problems.push({
+            blocking: false,
+            text: '“' + cardTitle(card) + '” runs past what the ' + block.name.toLowerCase() + ' slot holds.'
+          });
+        }
+      });
+
+      if (noByline) {
+        problems.push({
+          blocking: false,
+          text: noByline === 1 ? 'One story has no byline.' : noByline + ' stories have no byline.'
+        });
+      }
+      if (noImage) {
+        problems.push({
+          blocking: false,
+          text: noImage === 1 ? 'One story is missing its photo.' : noImage + ' stories are missing photos.'
+        });
+      }
+    });
+
+    preflightList.innerHTML = '';
+    problems.forEach(function (p) {
+      var li = document.createElement('li');
+      if (p.blocking) li.className = 'is-blocking';
+      li.textContent = p.text;
+      preflightList.appendChild(li);
+    });
+    // Hidden entirely when the issue is clean. An empty warnings panel is
+    // furniture that trains an editor to ignore the real ones.
+    preflightBox.hidden = problems.length === 0;
+  }
+
+  /* ── Inspector ─────────────────────────────────────── */
+
+  function syncPhotoField() {
+    if (!photoName || !photoFit) return;
+    var img = activeArt ? activeArt.querySelector('img[data-news-edit="image"]') : null;
+
+    if (!activeArt || !img) {
+      photoName.textContent = activeArt ? 'No photo set' : '—';
+      photoFit.textContent = '';
+      photoFit.className = 'issue-photo__fit';
+      return;
+    }
+
+    var src = img.getAttribute('src') || '';
+    photoName.textContent = src.split('/').pop().split('?')[0] || 'Photo';
+
+    var target = ASPECT_TARGET[activeSlotType];
+    function report() {
+      var w = img.naturalWidth, h = img.naturalHeight;
+      if (!w || !h) { photoFit.textContent = ''; return; }
+      if (!target) {
+        photoFit.textContent = w + '×' + h;
+        photoFit.className = 'issue-photo__fit';
+        return;
+      }
+      // 6% tolerance: the page crops with object-fit anyway, so the warning is
+      // for a photo that will lose something important, not for rounding.
+      var fits = Math.abs((w / h) - target) / target <= 0.06;
+      photoFit.textContent = (fits ? '✓ ' : '! ') + w + '×' + h + ' — ' +
+        (fits ? 'fits ' : 'not ') + ASPECT_LABEL[activeSlotType];
+      photoFit.className = 'issue-photo__fit ' + (fits ? 'is-ok' : 'is-warn');
+    }
+    if (img.complete) report(); else img.addEventListener('load', report, { once: true });
+  }
+
+  function syncGauge() {
+    if (!gaugeFill || !gaugeCaption) return;
+    var body = activeArt ? activeArt.querySelector('[data-news-edit="body"]') : null;
+    var limit = WORD_TARGET[activeSlotType] || 600;
+    var words = body ? wordsIn(body.innerHTML) : 0;
+
+    gaugeFill.style.width = Math.min(100, (words / limit) * 100) + '%';
+    gaugeFill.classList.toggle('is-over', words > limit);
+    gaugeCaption.textContent = !activeArt
+      ? 'Select a block to see its length.'
+      : words + ' of ~' + limit + ' words — ' +
+        (words > limit ? 'longer than the slot holds' : 'fits the slot');
+  }
+
+  function renderOrderList() {
+    if (!orderList) return;
+    orderList.innerHTML = '';
+    flatCanvasCards().forEach(function (card, i) {
+      var li = document.createElement('li');
+      li.className = 'issue-order__row';
+      li.innerHTML =
+        '<span class="issue-order__pos"></span>' +
+        '<span class="issue-order__name"></span>' +
+        '<button type="button" class="news-card-move-btn" data-news-move="up" aria-label="Move up">↑</button>' +
+        '<button type="button" class="news-card-move-btn" data-news-move="down" aria-label="Move down">↓</button>';
+      li.querySelector('.issue-order__pos').textContent = '#' + (i + 1);
+      li.querySelector('.issue-order__name').textContent = cardTitle(card);
+      // Drives the SAME moveCard() path the canvas buttons use, so `priority`
+      // still has exactly one writer (news.layout). A numeric input here would
+      // be a second one, racing it.
+      Array.prototype.forEach.call(li.querySelectorAll('[data-news-move]'), function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          moveCard(card, btn.getAttribute('data-news-move'));
+        });
+      });
+      orderList.appendChild(li);
+    });
+  }
+
+  function isNarrow() { return window.matchMedia('(max-width: 1279px)').matches; }
+
+  function syncInspector() {
+    var hasBlock = !!activeArt;
+    if (blockFields) blockFields.hidden = !hasBlock;
+    if (issueFields) issueFields.hidden = hasBlock;
+    if (blockActions) blockActions.hidden = !hasBlock;
+
+    if (activeSlotTag) {
+      activeSlotTag.hidden = !hasBlock;
+      if (hasBlock) {
+        var owner = ISSUE_BLOCKS.filter(function (b) {
+          return blockCardsIncludingEmpty(b).indexOf(activeArt) !== -1;
+        })[0];
+        activeSlotTag.textContent = owner ? owner.name : 'Story';
+      }
+    }
+
+    if (hasBlock) {
+      if (propByline)  propByline.value  = getText(activeArt, 'source');
+      if (propSection) {
+        var loc = getText(activeArt, 'location') || 'Campus';
+        // An arbitrary stored value must not silently reset the select to its
+        // first option, which would then be written back on the next edit.
+        if (!Array.prototype.some.call(propSection.options, function (o) { return o.value === loc; })) {
+          var opt = document.createElement('option');
+          opt.value = loc; opt.textContent = loc;
+          propSection.appendChild(opt);
+        }
+        propSection.value = loc;
+      }
+    }
+
+    // selectStory() writes the label from the story's RAW title, which is
+    // sanitized inline HTML (it is a Quill target and carries ql-font-* spans).
+    // As a small line of chrome that was tolerable; as a 19px display-serif
+    // heading it printed `<span class="ql-font-tinos">` at the reader. Strip it
+    // for display only -- the field itself is untouched.
+    if (activeLabel) {
+        var raw = hasBlock ? (f.title ? f.title.value : '') : '';
+        var plain = htmlToText(raw).trim();
+        activeLabel.textContent = hasBlock ? (plain || 'Untitled story') : 'Issue';
+    }
+
+    syncPhotoField();
+    syncGauge();
+    renderOrderList();
+
+    // Below 1280px the inspector is a slide-over, so selecting a block has to
+    // open it -- otherwise the fields an editor just asked for are off-screen.
+    if (inspectorEl && isNarrow()) inspectorEl.classList.toggle('is-open', hasBlock);
+  }
+
+  /* ── Selection painting ────────────────────────────── */
+
+  function paintSelection() {
+    Array.prototype.slice.call(editor.querySelectorAll('.is-selected-block'))
+      .forEach(function (el) { el.classList.remove('is-selected-block'); });
+    if (activeArt) activeArt.classList.add('is-selected-block');
+  }
+
+  function syncComposerUI() {
+    paintSelection();
+    renderOutline();
+    renderSlotTally();
+    runPreflight();
+    syncInspector();
+  }
+
+  // Runs AFTER the delegated root handler above has updated activeArt. A
+  // separate listener rather than another branch in that handler, because its
+  // branch order is load-bearing.
+  root.addEventListener('click', function () {
+    window.requestAnimationFrame(syncComposerUI);
+  });
+  document.addEventListener('live:refreshed', function () {
+    window.requestAnimationFrame(syncComposerUI);
+  });
+
+  if (doneBtn) {
+    doneBtn.addEventListener('click', function () {
+      clearActiveStory();
+      if (inspectorEl) inspectorEl.classList.remove('is-open');
+      syncComposerUI();
+    });
+  }
+
+  /* ── Inspector fields write through to the page ────── */
+
+  // Both write the hidden field AND the canvas region when one exists. Side and
+  // notice cards genuinely have no source/location region, and
+  // syncFormFromSurface() only reads a region that exists -- so for those the
+  // hidden field set here is what survives to Publish.
+  if (propByline) {
+    propByline.addEventListener('input', function () {
+      if (f.source) f.source.value = propByline.value.trim();
+      setText(activeArt, 'source', propByline.value.trim());
+      markDirty();
+      scheduleAutosave();
+    });
+  }
+  if (propSection) {
+    propSection.addEventListener('change', function () {
+      if (f.location) f.location.value = propSection.value;
+      setText(activeArt, 'location', propSection.value);
+      markDirty();
+      scheduleAutosave();
+      syncComposerUI();
+    });
+  }
+
+  /* ── Draft autosave ────────────────────────────────── */
+
+  var AUTOSAVE_MS = 1500;
+  var autosaveTimer = null;
+  var autosaveSeq = 0;
+
+  function setAutosaveState(text) {
+    if (autosaveEl) autosaveEl.textContent = text;
+  }
+
+  function scheduleAutosave() {
+    // A brand-new scratch has no row to write to. Creating one here would drop
+    // half-typed stories into the library behind the editor's back, so it says
+    // so instead of silently doing nothing.
+    if (!activeId) { setAutosaveState('Not saved yet'); return; }
+    if (autosaveTimer) window.clearTimeout(autosaveTimer);
+    setAutosaveState('Saving…');
+    autosaveTimer = window.setTimeout(runAutosave, AUTOSAVE_MS);
+  }
+
+  function runAutosave() {
+    var id = activeId;
+    if (!id) return;
+    // Pull the live editor's content into the hidden fields first -- the same
+    // read Publish does, so autosave can never save something different from
+    // what a publish would have.
+    syncFormFromSurface();
+
+    var payload = new URLSearchParams();
+    payload.set('title', f.title ? f.title.value : '');
+    payload.set('description', f.description ? f.description.value : '');
+    payload.set('source', f.source ? f.source.value : '');
+    payload.set('location', f.location ? f.location.value : '');
+    payload.set('dek', f.dek ? f.dek.value : '');
+    payload.set('excerpt', f.excerpt ? f.excerpt.value : '');
+    payload.set('image_caption', f.caption ? f.caption.value : '');
+    payload.set('image_credit', f.credit ? f.credit.value : '');
+
+    var seq = ++autosaveSeq;
+    fetch('/news/dashboard/' + encodeURIComponent(id) + '/autosave', {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN': csrf,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      credentials: 'same-origin',
+      body: payload.toString()
+    })
+      .then(readJsonEnvelope)
+      .then(function (json) {
+        // A newer autosave already went out; its result is the current one.
+        if (seq !== autosaveSeq) return;
+        if (json && json.ok) {
+          setAutosaveState('Saved ' + (json.saved_at || ''));
+          return;
+        }
+        // 409 = the story is live. Not a failure; the server is telling the
+        // editor that changing public text has to go through the reviewed path.
+        setAutosaveState(json && json.__status === 409
+          ? 'Published — use Publish to update'
+          : 'Not saved');
+      })
+      .catch(function () {
+        if (seq === autosaveSeq) setAutosaveState('Not saved');
+      });
+    // Deliberately does NOT call setLayoutDirty(false): the dirty badge tracks
+    // unpublished LAYOUT and status, which an autosave does not change, and
+    // clearing it here would also drop the canvas-refresh gate protecting the
+    // edit that is still in flight.
+  }
+
+  // Capture phase on the editor catches both binding mechanisms at once: the
+  // plain contenteditable regions and Quill (whose host is inserted INTO the
+  // card while mounted). One listener rather than a hook inside either.
+  editor.addEventListener('input', scheduleAutosave, true);
+
+  /* ── Keyboard ──────────────────────────────────────── */
+
+  document.addEventListener('keydown', function (event) {
+    var key = (event.key || '').toLowerCase();
+
+    if ((event.metaKey || event.ctrlKey) && key === 's') {
+      event.preventDefault();
+      var draft = root.querySelector('[data-news-save-draft]');
+      if (draft) draft.click();
+      return;
+    }
+
+    // Esc deselects. The context-menu handler above also listens for Esc and
+    // closes that first; both running is intended.
+    if (key === 'escape' && activeArt) {
+      if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+      }
+      clearActiveStory();
+      if (inspectorEl) inspectorEl.classList.remove('is-open');
+      syncComposerUI();
+    }
+  });
+
   // ── Init: edit the real rendered front page ────────────
   (function init() {
-    mainSlotSection = editor.querySelector('[data-news-slot="main"]');
+    mainSlotSection = editor.querySelector('[data-news-slot="lead"]');
     seedActiveStory();
     // Sets the initial disabled state of "+ Add main headline" to match
     // whatever the server actually rendered for the lead — see the same
     // call in reinitCanvas() above for why this can't be left to the
     // server-rendered markup alone.
     syncPlaceholders();
+    // Paint the outline, tally, preflight and inspector against whatever the
+    // server rendered, so none of them is blank until the first click.
+    syncComposerUI();
   })();
 })();

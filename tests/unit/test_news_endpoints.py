@@ -86,12 +86,12 @@ class NewsLayoutEndpointTestCase(TestCase):
             description="<p>Keep me</p>",
             status="approved",
             published_at="2026-01-01T00:00:00",
-            layout_type="secondary",
+            layout_type="brief",
             priority=5,
         )
         record.save = Mock()
 
-        items = [{"id": 1, "layout_type": "main", "priority": 0}]
+        items = [{"id": 1, "layout_type": "lead", "priority": 0}]
         records = {1: record}
         request = _mock_request(inputs={"__all__": {"items": items}})
         request.all.return_value = {"items": items}
@@ -102,7 +102,7 @@ class NewsLayoutEndpointTestCase(TestCase):
         ), patch("app.controllers.gears.NewsController.Cache") as cache_mock:
             controller.layout(request, response)
 
-        self.assertEqual(record.layout_type, "main")
+        self.assertEqual(record.layout_type, "lead")
         self.assertEqual(record.priority, 0)
         record.save.assert_called_once()
         # Untouched fields.
@@ -115,15 +115,15 @@ class NewsLayoutEndpointTestCase(TestCase):
     def test_bulk_layout_save_writes_many_rows_in_one_request(self):
         controller = NewsController()
 
-        record_a = Mock(id=1, layout_type="secondary", priority=5, status="approved")
+        record_a = Mock(id=1, layout_type="brief", priority=5, status="approved")
         record_a.save = Mock()
-        record_b = Mock(id=2, layout_type="widget", priority=9, status="approved")
+        record_b = Mock(id=2, layout_type="notice", priority=9, status="approved")
         record_b.save = Mock()
         records = {1: record_a, 2: record_b}
 
         items = [
-            {"id": 1, "layout_type": "main", "priority": 0},
-            {"id": 2, "layout_type": "secondary", "priority": 1},
+            {"id": 1, "layout_type": "lead", "priority": 0},
+            {"id": 2, "layout_type": "brief", "priority": 1},
         ]
         request = _mock_request()
         request.all.return_value = {"items": items}
@@ -134,9 +134,9 @@ class NewsLayoutEndpointTestCase(TestCase):
         ), patch("app.controllers.gears.NewsController.Cache"):
             controller.layout(request, response)
 
-        self.assertEqual(record_a.layout_type, "main")
+        self.assertEqual(record_a.layout_type, "lead")
         self.assertEqual(record_a.priority, 0)
-        self.assertEqual(record_b.layout_type, "secondary")
+        self.assertEqual(record_b.layout_type, "brief")
         self.assertEqual(record_b.priority, 1)
         record_a.save.assert_called_once()
         record_b.save.assert_called_once()
@@ -164,15 +164,15 @@ class NewsLayoutEndpointTestCase(TestCase):
         control flow is proven, not just mocked away."""
         controller = NewsController()
 
-        record_ok = Mock(id=1, layout_type="secondary", priority=5)
+        record_ok = Mock(id=1, layout_type="brief", priority=5)
         record_ok.save = Mock()
-        record_bad = Mock(id=2, layout_type="widget", priority=9)
+        record_bad = Mock(id=2, layout_type="notice", priority=9)
         record_bad.save = Mock(side_effect=RuntimeError("simulated write failure"))
         records = {1: record_ok, 2: record_bad}
 
         items = [
-            {"id": 1, "layout_type": "main", "priority": 0},
-            {"id": 2, "layout_type": "secondary", "priority": 1},
+            {"id": 1, "layout_type": "lead", "priority": 0},
+            {"id": 2, "layout_type": "brief", "priority": 1},
         ]
         request = _mock_request(ajax=True)
         request.all.return_value = {"items": items}
@@ -206,11 +206,11 @@ class NewsLayoutEndpointTestCase(TestCase):
         """
         controller = NewsController()
 
-        record = Mock(id=1, layout_type="secondary", priority=5)
+        record = Mock(id=1, layout_type="brief", priority=5)
         record.save = Mock()
         records = {1: record}
 
-        items = [{"id": 1, "layout_type": "main", "priority": 0}]
+        items = [{"id": 1, "layout_type": "lead", "priority": 0}]
 
         request = Mock()
         request.all.return_value = {"items": items}
@@ -227,7 +227,7 @@ class NewsLayoutEndpointTestCase(TestCase):
             controller.layout(request, response)
 
         record.save.assert_called_once()
-        self.assertEqual(record.layout_type, "main")
+        self.assertEqual(record.layout_type, "lead")
         self.assertEqual(record.priority, 0)
         cache_mock.forget.assert_called_once()
 
@@ -237,11 +237,11 @@ class NewsLayoutEndpointTestCase(TestCase):
         redirect branch."""
         controller = NewsController()
 
-        record = Mock(id=1, layout_type="secondary", priority=5)
+        record = Mock(id=1, layout_type="brief", priority=5)
         record.save = Mock()
         records = {1: record}
 
-        items = [{"id": 1, "layout_type": "main", "priority": 0}]
+        items = [{"id": 1, "layout_type": "lead", "priority": 0}]
         request = _mock_request(ajax=True)
         request.all.return_value = {"items": items}
         response = _mock_response()
@@ -365,7 +365,7 @@ class NewsUnassignEndpointTestCase(TestCase):
     def test_unassign_sets_value_without_deleting_or_changing_status(self):
         controller = NewsController()
 
-        record = Mock(id=3, layout_type="secondary", status="approved")
+        record = Mock(id=3, layout_type="brief", status="approved")
         record.save = Mock()
         record.delete = Mock()
         records = {3: record}
@@ -387,7 +387,7 @@ class NewsUnassignEndpointTestCase(TestCase):
     def test_unassign_json_success_payload_shape(self):
         controller = NewsController()
 
-        record = Mock(id=3, layout_type="secondary", status="approved")
+        record = Mock(id=3, layout_type="brief", status="approved")
         record.save = Mock()
         record.delete = Mock()
         records = {3: record}
@@ -523,7 +523,7 @@ class NewsStoreSchedulingTestCase(TestCase):
             "dek": "",
             "image_caption": "",
             "image_credit": "",
-            "layout_type": "secondary",
+            "layout_type": "brief",
             "status": status,
             "published_at": published_at,
             "priority": "3",
@@ -634,7 +634,7 @@ class FeaturedImageRemovalTestCase(TestCase):
             description="<p>Existing</p>",
             image="news/photo.jpg",
             status="published",
-            layout_type="main",
+            layout_type="lead",
             priority=0,
         )
         record.save = Mock()
@@ -646,7 +646,7 @@ class FeaturedImageRemovalTestCase(TestCase):
             "title": "Existing",
             "description": "<p>Existing</p>",
             "article_id": "1",
-            "layout_type": "main",
+            "layout_type": "lead",
             "status": "published",
             "category_id": "1",
         }
@@ -767,3 +767,113 @@ class NormalizeHeadlineFontTestCase(TestCase):
         # the server advertises must also validate.
         for slug in NEWSLETTER_FONTS:
             self.assertEqual(normalize_headline_font(slug), slug)
+
+
+class PerBlockRequirementsTestCase(TestCase):
+    """store() requires what the kiosk actually prints for that block.
+
+    It used to demand title AND body from every block. The composer presents a
+    side story as a headline and a summary, with "Full article body" behind a
+    collapsed disclosure the editor never opens -- so every side story arrived
+    with an empty body and was refused with "Title and description are
+    required." The kiosk never prints a side story's body, so the requirement
+    was friction with no purpose. Now each block asks only for what it shows.
+    """
+
+    def _inputs(self, block, **over):
+        base = {
+            "title": "A headline",
+            "description": "<p>Body</p>",
+            "excerpt": "A summary.",
+            "source": "",
+            "location": "",
+            "dek": "",
+            "image_caption": "",
+            "image_credit": "",
+            "layout_type": block,
+            "status": "draft",
+            "published_at": "",
+            "priority": "3",
+            "image": None,
+            "article_id": "",
+            "category_id": "1",
+        }
+        base.update(over)
+        return base
+
+    def _store(self, inputs):
+        controller = NewsController()
+        request = _mock_actor_request(inputs, role="editor")
+        response = _mock_response()
+        created = Mock(id=300, image=None)
+        with patch(
+            "app.controllers.gears.NewsController.News.create", return_value=created
+        ) as create_mock, patch("app.controllers.gears.NewsController.NewNews"), patch(
+            "app.controllers.gears.NewsController.Cache"
+        ), patch(
+            "app.controllers.gears.NewsController.NewsCategories.find_live", return_value=Mock()
+        ):
+            controller.store(request, Mock(), response)
+        return create_mock, response
+
+    def test_a_side_story_saves_with_a_headline_and_no_body(self):
+        create_mock, _ = self._store(self._inputs("brief", description=""))
+        create_mock.assert_called_once()
+
+    def test_a_notice_saves_with_a_headline_and_no_body(self):
+        create_mock, _ = self._store(self._inputs("notice", description=""))
+        create_mock.assert_called_once()
+
+    def test_the_lead_still_needs_a_body(self):
+        """The kiosk prints the lead's full body; there is nothing to print
+        without one."""
+        create_mock, _ = self._store(self._inputs("lead", description=""))
+        create_mock.assert_not_called()
+
+    def test_the_editorial_still_needs_a_body(self):
+        create_mock, _ = self._store(self._inputs("editorial", description=""))
+        create_mock.assert_not_called()
+
+    def test_a_quote_needs_its_text_but_no_headline(self):
+        """The body IS the quote. A quote card has no headline region, so an
+        empty title must not refuse it."""
+        create_mock, _ = self._store(
+            self._inputs("quote", title="", description="<p>We built it.</p>"))
+        create_mock.assert_called_once()
+
+    def test_an_empty_quote_title_is_derived_from_the_quote_text(self):
+        """`title` is NOT NULL and the Story Library shows it, so a blank one
+        would list the quote as nothing. Derived from what the editor wrote."""
+        create_mock, _ = self._store(self._inputs(
+            "quote", title="", description="<p>We built the retrofit around the students.</p>"))
+        stored = create_mock.call_args.kwargs["title"]
+        self.assertTrue(stored.startswith("We built the retrofit"), stored)
+
+    def test_a_quote_with_no_text_is_refused(self):
+        create_mock, _ = self._store(self._inputs("quote", title="", description=""))
+        create_mock.assert_not_called()
+
+    def test_a_photo_essay_entry_saves_with_a_photo_and_no_words(self):
+        image = Mock()
+        image.extension.return_value = ".jpg"
+        image.get_content.return_value = b"\xff\xd8\xff"
+        storage = Mock()
+        storage.disk.return_value.put_file.return_value = "news/x.jpg"
+        controller = NewsController()
+        request = _mock_actor_request(
+            self._inputs("photo_essay", title="", description="", image=image), role="editor")
+        response = _mock_response()
+        with patch(
+            "app.controllers.gears.NewsController.News.create",
+            return_value=Mock(id=301, image="news/x.jpg"),
+        ) as create_mock, patch("app.controllers.gears.NewsController.NewNews"), patch(
+            "app.controllers.gears.NewsController.Cache"
+        ), patch(
+            "app.controllers.gears.NewsController.NewsCategories.find_live", return_value=Mock()
+        ), patch("app.controllers.gears.NewsController.generate_variants"):
+            controller.store(request, storage, response)
+        create_mock.assert_called_once()
+
+    def test_a_photo_essay_entry_with_no_photo_is_refused(self):
+        create_mock, _ = self._store(self._inputs("photo_essay", title="", description=""))
+        create_mock.assert_not_called()

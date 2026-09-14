@@ -5,14 +5,32 @@ which `_news_is_public()` already excludes from every public surface, so a
 submitted story is invisible on the kiosk until an admin acts on it. This module
 is what the admin sees in the meantime.
 
-The preview the queue renders is the real kiosk partial (kiosk/_news_slots.html
+The preview the queue renders is the real kiosk partial (kiosk/_issue.html
 with `news_editor` off), not a dashboard-styled approximation — so what an admin
 approves is what the campus terminal shows. A second renderer here would drift
 from the first one the moment either changed.
+
+── The unit of review is the ISSUE ──────────────────────────────────────────
+An editor composes an issue as one thing and submits it in one click. This
+module used to hand the admin N unrelated submissions instead — one queue row
+and one Approve per block, with every preview forcing the story into the lead
+slot regardless of what it was. A fully-filled issue is twelve blocks: twelve
+clicks, twelve misleading previews.
+
+"The issue" here is every story currently in review. There is no `issues`
+table yet, and the single-issue model means exactly one issue is ever in
+flight, so the two are the same set by construction. When multi-issue lands,
+this becomes "every review story in issue X" and nothing else about the shape
+has to change.
 """
 
 from app.models.News import News
-from app.services.DashboardContext import author_names, normalize_news_status
+from app.services.DashboardContext import (
+    BLOCK_TYPES,
+    author_names,
+    group_news_slots,
+    normalize_news_status,
+)
 
 
 #: The one status this queue acts on.
@@ -41,14 +59,71 @@ def pending_stories():
     return pending
 
 
+def pending_issue(stories=None):
+    """The one issue awaiting a decision, described as a unit.
+
+    Returns None when nothing is pending — the template renders its empty
+    state off that, and the approve/reject endpoints refuse rather than
+    reporting success on nothing.
+    """
+    stories = pending_stories() if stories is None else stories
+    if not stories:
+        return None
+
+    names = author_names(stories)
+    counts = {block: 0 for block in BLOCK_TYPES}
+    for row in stories:
+        block = (getattr(row, "layout_type", "") or "").strip().lower()
+        if block in counts:
+            counts[block] += 1
+
+    # Distinct, in first-seen order: an issue written by two editors names both,
+    # once each, rather than listing an author per block.
+    authors = []
+    for row in stories:
+        name = names.get(getattr(row, "author_id", None))
+        if name and name not in authors:
+            authors.append(name)
+
+    return {
+        "stories": stories,
+        "block_count": len(stories),
+        "blocks": counts,
+        "authors": authors,
+    }
+
+
 def review_context():
-    """Context for the review panel and its live fragment."""
+    """Context for the review panel and its live fragment.
+
+    `review_stories` / `review_count` / `review_authors` are kept: the admin
+    console's count tile and the live-refresh row count read them, and the
+    count of pending BLOCKS is still the right depth for a work queue.
+    """
     stories = pending_stories()
 
     return {
         "review_stories": stories,
         "review_count": len(stories),
         "review_authors": author_names(stories),
+        "review_issue": pending_issue(stories),
+    }
+
+
+def issue_preview_context(stories):
+    """Render the whole pending issue through the kiosk's own partial, every
+    block in its real place.
+
+    group_news_slots() is the same bucketing the kiosk uses, so a quote
+    previews as a quote and an essay photograph as an essay photograph — not,
+    as before, every one of them forced into the lead slot.
+    """
+    return {
+        "blocks": group_news_slots(list(stories or [])),
+        "news_editor": False,
+        "events": [],
+        "issue_vol": None,
+        "issue_no": None,
     }
 
 
@@ -62,8 +137,16 @@ def preview_context(story):
     regions, assign placeholders) leaks into a read-only preview.
     """
     return {
-        "main_story": story,
-        "secondary_stories": [],
-        "widget_news": [],
+        # The story under review fills the frame as the lead, with every other
+        # block empty -- each one then omits its own section and the band
+        # numbering closes the gap, leaving it alone on the page.
+        "blocks": {block: ([story] if block == "lead" else []) for block in BLOCK_TYPES},
         "news_editor": False,
+        # kiosk/_issue.html renders the whole issue, so the sections this
+        # preview has no data for have to be explicitly empty rather than
+        # undefined -- each one skips itself and the band numbering closes the
+        # gap, leaving the story under review alone in the frame.
+        "events": [],
+        "issue_vol": None,
+        "issue_no": None,
     }

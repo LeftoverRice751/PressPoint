@@ -12,89 +12,54 @@
      unlinked path that silently shadows the real stylesheet. #}
   <link rel="stylesheet" href="{{ asset_url('css/swiper-bundle.min.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />
+  {# Required, not optional, for the issue: the headline face (--nl-playfair)
+     is declared here, not in kiosk-tokens.css. #}
   <link rel="stylesheet" href="{{ asset_url('css/newsletter-type.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-nav.css') }}" />
 </head>
 <body class="newspaper-bg">
   {% set main_story = main_news if main_news else featured_news %}
   {% set secondary_stories = secondary_news if secondary_news else (news_items[1:5] if news_items|length > 1 else []) %}
-  {% set issue_date = main_story.published_label if main_story and main_story.published_label else 'Latest edition' %}
 
   {# ── Carousel ─────────────────────────────────────────────────────────────
-     Slide 1 is the broadsheet, unchanged: the lead plus the secondary and
-     widget slots the composer arranges. Slides 2..N are every other approved
-     story, one per slide, each labelled with its category — so nothing
-     approved is unreachable just because it did not fit in the seven slots.
+     Slide 1 is the issue: masthead, numbered sections, colophon. Slides 2..N
+     are every other approved story, one per slide, each labelled with its
+     category — so nothing approved is unreachable just because it did not fit
+     in the seven slots.
 
-     The Swiper wrapper lives HERE rather than inside kiosk/_news_slots.html
-     because that partial has four consumers (this page, the composer canvas,
-     the review preview and the news-canvas fragment). Wrapping it there would
-     put Swiper in a fight with the composer's drag-and-drop over the same
-     DOM. #}
+     The Swiper wrapper lives HERE rather than inside the issue markup because
+     kiosk-news.js binds to it by data attribute and owns horizontal drags for
+     the whole page. #}
   <div class="swiper news-swiper" data-news-swiper>
     <div class="swiper-wrapper">
       <article class="swiper-slide news-slide news-slide--broadsheet">
 
-  <div class="paper-container">
-    {# Folio → masthead → double rule → strapline. The double rule is the
-       page's strongest "this is a newspaper" signal; the folio carries the
-       date, which is what makes a news page credible. #}
-    <header class="paper-header">
-      <div class="paper-folio">
-        <span class="paper-folio__issue">Campus Edition{% if issue_vol and issue_no %} &middot; Vol. {{ issue_vol }}, No. {{ issue_no }}{% endif %}</span>
-        <img class="paper-folio__mark" src="{{ site_logo() }}" alt="" aria-hidden="true">
-        <span class="paper-folio__date">{{ issue_date }}</span>
-      </div>
-
-      <h1 class="paper-masthead">The Gears Publication</h1>
-      <div class="paper-rule" aria-hidden="true"></div>
-
-      <div class="paper-strapline">
-        <span>Laguna, Philippines</span>
-        <span>Established 2026</span>
-      </div>
-    </header>
-
-    <main class="paper-grid">
-      {% include 'kiosk/_news_slots.html' %}
-    </main>
-  </div>
+      {# The issue itself. Extracted to kiosk/_issue.html so the Gears
+         composer canvas renders THIS markup rather than an approximation of
+         it -- the editor's page and the kiosk's page cannot drift apart if
+         there is only one of them. The partial owns the issue identity, the
+         section band macro and the section numbering; `main_story` and
+         `secondary_stories` are set above so this page's own fallbacks
+         (featured_news, news_items[1:5]) still apply. #}
+      {% include 'kiosk/_issue.html' %}
 
       </article>
 
-      {% for story in carousel_news %}
-      <article class="swiper-slide news-slide news-slide--story">
-        <div class="news-slide__inner">
-          {# Category at the top of every story, which is the whole point of
-             the label existing — it tells a reader what section they are in
-             without a nav. #}
-          <p class="news-slide__category">{{ story.category if story.category else 'Uncategorized' }}</p>
+      {# One slide, one complete issue.
 
-          {# `| safe` for the same reason the broadsheet does it: headlines are
-             Quill HTML, sanitized server-side by _sanitize_headline_html. Any
-             ATTRIBUTE printing a title still needs `| striptags`. #}
-          <h2 class="news-slide__title">{{ story.title | safe }}</h2>
+         There used to be a slide here per approved story that had NOT been
+         placed in a block -- each rendered standalone with its own headline,
+         photograph and full body. That let a story escape the newsletter and
+         become a page of its own, which is the opposite of what a composed
+         issue means: every editable element belongs inside the issue.
 
-          {% if story.dek %}
-          <p class="news-slide__dek">{{ story.dek }}</p>
-          {% endif %}
+         The carousel itself stays. It is the ISSUE browser -- editors publish
+         issues and readers swipe between them -- so with one issue there is one
+         slide and nothing to swipe yet. The structure is waiting, not vestigial.
 
-          <div class="news-slide__meta">
-            {% if story.published_label %}
-            <time datetime="{{ story.published_iso }}">{{ story.published_label }}</time>
-            {% endif %}
-            {% if story.source %}<span>{{ story.source }}</span>{% endif %}
-          </div>
-
-          {% if story.image %}
-          <img class="news-slide__image" src="/storage/{{ story | news_image('large') }}"
-               alt="{{ story.title | striptags }}" loading="lazy" decoding="async">
-          {% endif %}
-
-          <div class="news-slide__copy">{{ story.description | safe }}</div>
-        </div>
-      </article>
-      {% endfor %}
+         A story that is approved but never placed simply does not reach the
+         kiosk now. It stays in the composer's Story Library, so nothing is
+         lost; it has to be placed to be printed. #}
     </div>
 
     {# Pagination and arrows are the non-touch fallback. Real <button>s, so

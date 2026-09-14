@@ -222,8 +222,9 @@ class WelcomeTemplateTest(TestCase):
 
 
 class BackControlsTest(TestCase):
-    #: The six destinations. About is the one allowed to keep a control, and
-    #: only its in-content one.
+    #: The six destinations. None carries a back control any more: About kept
+    #: an in-content one to return to its hub until the hub went away and a
+    #: side rail took over navigation between its panes.
     DESTINATIONS = (
         "news.html",
         "campus-map.html",
@@ -242,11 +243,14 @@ class BackControlsTest(TestCase):
             self.assertNotIn("back_href", body, f"{name} still links back to a kiosk menu")
             self.assertNotIn("Kiosk menu", body, name)
 
-    def test_about_keeps_its_own_pane_control(self):
-        # Explicitly protected: it returns to About's hub, a view of the same
-        # URL, which the carousel knows nothing about.
+    def test_about_navigates_by_rail_not_by_a_back_control(self):
+        # About's panes are views of one URL, which the carousel knows nothing
+        # about; the rail is how a visitor moves between them, and there is no
+        # hub left for a back control to return to.
         body = self._template("about-lspu.html")
-        self.assertIn("back_action='hub'", body)
+        self.assertNotIn("kiosk-back.html", body)
+        self.assertNotIn("data-back", body)
+        self.assertIn('class="about-rail"', body)
 
     def test_the_back_partial_no_longer_renders_a_link(self):
         partial = markup(_REPO_ROOT / "templates" / "partials" / "kiosk-back.html")

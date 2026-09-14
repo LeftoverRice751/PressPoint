@@ -157,7 +157,19 @@ import { Navigation, Pagination, Keyboard, A11y } from 'swiper/modules';
   var swiperEl = document.querySelector('[data-news-swiper]');
   var newsSwiper = null;
 
-  if (swiperEl && swiperEl.querySelector('.swiper-slide')) {
+  // A slide is a complete ISSUE. With one issue published there is one slide,
+  // and dots plus arrows pointing at nothing read as broken chrome on a public
+  // screen -- so the navigation hides itself until a second issue exists, and
+  // then appears on its own with no change here.
+  var slideCount = swiperEl ? swiperEl.querySelectorAll('.swiper-slide').length : 0;
+  var navEl = document.querySelector('.news-swiper__nav');
+  var pagerEl = document.querySelector('[data-news-pagination]');
+  if (slideCount < 2) {
+    if (navEl) navEl.hidden = true;
+    if (pagerEl) pagerEl.hidden = true;
+  }
+
+  if (swiperEl && slideCount) {
     newsSwiper = new Swiper(swiperEl, {
       // No EffectCoverflow, matching welcome-screen.js: coverflow's
       // translateZ pushes the peeking slides behind .swiper-wrapper, so side

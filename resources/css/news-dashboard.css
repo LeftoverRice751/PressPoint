@@ -2178,3 +2178,1002 @@
         justify-content: flex-end;
     }
 }
+
+/* ── Full-issue composer ─────────────────────────────────────────────────────
+ *
+ * Three columns: page outline (212px) | the desk | contextual inspector (296px),
+ * with the issue header spanning all three.
+ *
+ * It replaced a two-column preview+form split. The form half showed every field
+ * for every block at once — which is what made the panel feel cramped — and the
+ * preview half rendered a layout the kiosk had already retired.
+ *
+ * The canvas renders kiosk/_issue.html, the kiosk's own partial, dressed by the
+ * `.issue-*` rules in kiosk-news.css (which dashboard.html already loads). Those
+ * rules used to be scoped `body.newspaper-bg`, an element-qualified selector a
+ * dashboard <div> can never match, so they were rescoped to `.issue`. Nothing
+ * here re-implements the page's layout: duplicating it is exactly how the editor
+ * and the kiosk drifted apart in the first place.
+ *
+ * Flat editorial, matching the rest of this file: solid fills, square corners,
+ * no gradients. The single exception is the desk's drop shadow under the sheet —
+ * a desk metaphor, not a card — and the status pills, which stay round.
+ */
+
+.news-layout-editor--composer {
+    display: grid;
+    grid-template-columns: 212px minmax(0, 1fr) 296px;
+    grid-template-areas:
+        "topbar  topbar  topbar"
+        "outline desk    inspector";
+    gap: 1rem;
+    align-items: start;
+    margin-bottom: 1.5rem;
+}
+
+/* ── Issue header ───────────────────────────────────────────── */
+
+.issue-topbar {
+    grid-area: topbar;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 14px 24px;
+    background: var(--ink-paper);
+    border: 1px solid var(--ink-rule);
+    border-bottom-width: 1px;
+}
+
+.issue-topbar__titlerow {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.issue-topbar__title {
+    margin: 0;
+    color: var(--ink-strong);
+    /* The issue's own display face, so the header names the thing the canvas
+       below is showing rather than looking like generic dashboard chrome. */
+    font-family: var(--nl-playfair, Georgia, serif);
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+/* Draft amber. The named fill from the brief; `--ink-marigold` is the brand
+   gold and reads as an ACTION here, not a state. */
+.issue-topbar__pill {
+    background: #F6E2BC;
+    border: 1px solid #E89A1C;
+    color: #8A5A12;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 9999px;
+}
+
+.issue-topbar__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    margin: 6px 0 0;
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+}
+
+.issue-topbar__dot { color: var(--ink-faint); }
+
+.issue-topbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* `Preview` is an <a>, so it needs the button box the class assumes. */
+a.ghost-button[data-news-preview] {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+/* ── Left column: outline ───────────────────────────────────── */
+
+.issue-outline {
+    grid-area: outline;
+    display: grid;
+    gap: 1.1rem;
+    align-content: start;
+    position: sticky;
+    top: 1.25rem;
+    padding: 14px;
+    background: var(--ink-paper);
+    border: 1px solid var(--ink-rule);
+}
+
+.issue-outline__label,
+.issue-preflight__label,
+.issue-inspector__eyebrow {
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.issue-outline__list {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 4px;
+}
+
+.issue-outline__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 9px;
+    background: var(--ink-cream);
+    border: 1px solid var(--ink-rule);
+    color: var(--ink-strong);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+}
+
+.issue-outline__row.is-fixed {
+    cursor: default;
+    color: var(--ink-muted);
+}
+
+/* The selected block, matching the canvas's own selection colour so the two
+   read as one highlight rather than two unrelated ones. */
+.issue-outline__row.is-selected {
+    border: 2px solid var(--ink-oxblood);
+    background: rgb(var(--brand-maroon-rgb) / 0.07);
+    padding: 7px 8px;
+}
+
+/* An empty slot is a hole in the page, so it is drawn as one: dashed, hatched
+   and tagged, rather than looking like a filled row with no text. */
+.issue-outline__row.is-empty {
+    border-style: dashed;
+    color: var(--ink-muted);
+    background-color: var(--ink-cream);
+    background-image: repeating-linear-gradient(
+        45deg,
+        rgb(var(--brand-maroon-rgb) / 0.05) 0 4px,
+        transparent 4px 8px
+    );
+}
+
+.issue-outline__handle {
+    color: var(--ink-faint);
+    cursor: grab;
+    font-size: 11px;
+    line-height: 1;
+}
+
+.issue-outline__row.is-fixed .issue-outline__handle { cursor: default; }
+
+.issue-outline__name { flex: 1; min-width: 0; }
+
+.issue-outline__state {
+    flex: none;
+    color: var(--ink-muted);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.issue-outline__row.is-empty .issue-outline__state {
+    color: var(--ink-oxblood);
+    font-weight: 700;
+}
+
+/* ── Add-a-block chips ──────────────────────────────────────── */
+
+.issue-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+}
+
+.issue-chip {
+    padding: 6px 10px;
+    background: var(--ink-cream);
+    border: 1px solid var(--ink-rule-strong);
+    color: var(--ink-strong);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+}
+
+.issue-chip:hover:not(:disabled) {
+    background: var(--ink-oxblood);
+    border-color: var(--ink-oxblood);
+    color: var(--ink-invert);
+}
+
+.issue-chip:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* ── Before publishing ──────────────────────────────────────── */
+
+.issue-preflight {
+    padding: 10px 12px;
+    background: #F6E2BC;
+    border-left: 3px solid #E89A1C;
+}
+
+.issue-preflight__label { color: #8A5A12; }
+
+.issue-preflight__list {
+    margin: 7px 0 0;
+    padding-left: 1rem;
+    display: grid;
+    gap: 5px;
+    color: #6B4A10;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.45;
+}
+
+/* A blocking problem is the one an editor must act on, so it is the only thing
+   in this panel that carries weight. */
+.issue-preflight__list li.is-blocking {
+    color: var(--ink-oxblood);
+    font-weight: 700;
+}
+
+/* ── Middle: the desk ───────────────────────────────────────── */
+
+.issue-desk {
+    grid-area: desk;
+    min-width: 0;
+    background: #E4DDD2;
+    border: 1px solid var(--ink-rule);
+    padding: 0 0 clamp(16px, 2vw, 32px);
+}
+
+.issue-desk__strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--ink-rule);
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+/* The sheet floating on the desk. This is the one shadow allowed in the
+   composer: it is a desk metaphor, not a card elevation. */
+.news-layout-editor--composer .news-canvas {
+    margin: clamp(16px, 2vw, 32px) auto 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+.news-layout-editor--composer .news-editor {
+    display: block;
+    margin: 0 auto;
+    width: min(100%, 940px);
+}
+
+/* The sheet itself — .paper-container.issue comes from kiosk-news.css; only the
+   desk-specific framing is added here. `--issue-width: 100%` lets the page fill
+   the column instead of clamping to its kiosk measure, which is the one value
+   that had to change to render the same markup at a different size. */
+.news-layout-editor--composer .issue {
+    --issue-width: 100%;
+    background: var(--kiosk-paper);
+    border: 1px solid var(--kiosk-rule);
+    box-shadow: 0 18px 40px rgba(31, 15, 12, 0.1);
+}
+
+/* ── Canvas selection ───────────────────────────────────────── */
+
+/* The composer tracked an active card in JS but painted nothing, so an editor
+   could not see which block the inspector was describing. */
+.news-layout-editor--composer .is-selected-block {
+    outline: 2px solid var(--ink-oxblood);
+    outline-offset: 9px;
+}
+
+/* Inline at the right end of the section eyebrow, never floating above the
+   block — floated, it sat exactly where the format toolbar parks. */
+.issue-band__slot {
+    flex: none;
+    margin-left: 10px;
+    padding: 2px 7px;
+    background: var(--ink-oxblood);
+    color: var(--ink-invert);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* Empty photo zones. Click-to-upload is wireImage() on data-news-edit="image";
+   there is no separate drop-zone hook to style. */
+.issue-photo-zone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 130px;
+    background: rgb(var(--brand-maroon-rgb) / 0.03);
+    border: 1px dashed var(--ink-rule-strong);
+    cursor: pointer;
+}
+
+.issue-photo-zone__label {
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.issue-photo-zone:hover { background: rgb(var(--brand-maroon-rgb) / 0.06); }
+
+/* ── Format toolbar ─────────────────────────────────────────── */
+
+/* Floats above the block being edited. `white-space: nowrap` and a hard cap of
+   six groups are what stop it wrapping onto a second row and covering the slot
+   badge at the narrowest column the layout allows. */
+/* The format toolbar follows the cursor.
+ *
+ * It used to be `position: sticky; top: 40px` at a fixed 940px, so it sat at
+ * the top of the canvas regardless of what was being edited -- overlapping the
+ * masthead and, on a long page, nowhere near the field it belonged to.
+ *
+ * It is now positioned by positionToolbar() in news-dashboard.js against the
+ * mounted region: same left edge, same width, floating just above it, flipping
+ * below when there is no room. `left`, `top` and `width` are all set inline
+ * from there; everything static lives here.
+ *
+ * The element itself is unchanged and still lives OUTSIDE [data-news-editor].
+ * Quill binds a toolbar once at construction, and refreshCanvasFragment()
+ * replaces the editor subtree wholesale -- a toolbar inside it would be torn
+ * out from under Quill on the first live refresh and never come back. */
+.news-layout-editor--composer .news-canvas-toolbar {
+    position: absolute;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 4px 6px;
+    background: #1F0F0C;
+    border: 0;
+    white-space: nowrap;
+    /* Never wider than the field it serves, and never so wide it overhangs the
+       sheet. The width itself comes from JS. */
+    max-width: 100%;
+    box-shadow: 0 6px 18px rgb(var(--n-900-rgb) / 0.28);
+}
+
+/* The canvas is the positioning context. It has to be, rather than the sheet:
+   .issue carries `overflow-x: clip` so a block cannot paint onto the desk, and
+   a toolbar positioned inside that would be clipped by the same rule. */
+.news-layout-editor--composer .news-canvas {
+    position: relative;
+}
+
+/* A narrow field cannot hold ten controls. Rather than let the bar overhang the
+   field or hide its buttons behind a scroll, it drops to the three that matter
+   in a short run of text.
+
+   This is the same mechanism the file already used to hide rich formatting
+   while editing a headline -- an attribute on the bar plus one sibling rule --
+   not a second system. positionToolbar() sets the attribute. */
+.news-canvas-toolbar[data-news-width="narrow"] .ql-formats > select,
+.news-canvas-toolbar[data-news-width="narrow"] .ql-formats > .ql-header,
+.news-canvas-toolbar[data-news-width="narrow"] .ql-formats > .ql-font,
+.news-canvas-toolbar[data-news-width="narrow"] .ql-formats > .ql-size,
+.news-canvas-toolbar[data-news-width="narrow"] .ql-formats > .ql-align,
+.news-canvas-toolbar[data-news-width="narrow"] .ql-formats > .ql-list,
+.news-canvas-toolbar[data-news-width="narrow"] .ql-formats > .ql-blockquote,
+.news-canvas-toolbar[data-news-width="narrow"] .ql-formats > .ql-underline,
+.news-canvas-toolbar[data-news-width="narrow"] .ql-formats > .ql-clean {
+    display: none;
+}
+
+/* On a narrow bar the Save button and its label would push the three surviving
+   controls off the end, so the label goes and Save shrinks. */
+.news-canvas-toolbar[data-news-width="narrow"] .news-canvas-toolbar__label {
+    display: none;
+}
+
+.news-canvas-toolbar[data-news-width="narrow"] .news-canvas-toolbar__actions .primary-button {
+    padding: 3px 8px;
+    font-size: 0.7rem;
+}
+
+.news-layout-editor--composer .news-canvas-toolbar .ql-stroke { stroke: var(--ink-invert); }
+.news-layout-editor--composer .news-canvas-toolbar .ql-fill { fill: var(--ink-invert); }
+.news-layout-editor--composer .news-canvas-toolbar .ql-picker-label { color: var(--ink-invert); }
+.news-layout-editor--composer .news-canvas-toolbar__label { color: rgb(var(--brand-cream-rgb) / 0.75); }
+
+/* ── Right: contextual inspector ────────────────────────────── */
+
+.issue-inspector {
+    grid-area: inspector;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 1.25rem;
+    max-height: calc(100vh - 2.5rem);
+    background: var(--ink-paper);
+    border: 1px solid var(--ink-rule);
+    padding: 0;
+    gap: 0;
+}
+
+.issue-inspector__head {
+    padding: 14px;
+    border-bottom: 1px solid var(--ink-rule);
+}
+
+.issue-inspector__titlerow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 5px;
+}
+
+.issue-inspector__title {
+    margin: 0;
+    color: var(--ink-strong);
+    font-family: var(--nl-playfair, Georgia, serif);
+    font-size: 19px;
+    font-weight: 600;
+}
+
+.issue-inspector__tag {
+    flex: none;
+    padding: 2px 7px;
+    background: var(--ink-oxblood);
+    color: var(--ink-invert);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.issue-inspector__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 14px;
+}
+
+.issue-inspector__pane {
+    display: grid;
+    gap: 20px;
+}
+
+.issue-field { display: grid; gap: 6px; min-width: 0; }
+
+.issue-field__label {
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+/* Deliberately looser than .field__input, which is sized for a dense form. An
+   inspector is read one field at a time. */
+.issue-field__input {
+    width: 100%;
+    min-height: 44px;
+    padding: 13px 14px;
+    background: var(--ink-cream);
+    border: 1px solid var(--ink-rule-strong);
+    border-radius: 0;
+    color: var(--ink-strong);
+    font-family: var(--font-body);
+    font-size: 13px;
+}
+
+.issue-field__input:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+}
+
+.issue-field__hint {
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: 11.5px;
+    line-height: 1.45;
+}
+
+/* ── Layout thumbnails ──────────────────────────────────────── */
+
+.issue-layouts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.issue-layout {
+    display: grid;
+    gap: 5px;
+    justify-items: center;
+    padding: 8px 4px;
+    background: var(--ink-cream);
+    border: 1px solid var(--ink-rule-strong);
+    cursor: pointer;
+}
+
+.issue-layout.is-active {
+    border: 2px solid var(--ink-oxblood);
+    padding: 7px 3px;
+}
+
+.issue-layout__name {
+    color: var(--ink-strong);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.06em;
+}
+
+/* Diagrams, not icons: each one is a miniature of the arrangement it selects,
+   drawn with the same two marks (a photo block and text rules).
+
+   The `linear-gradient(x, x)` calls below are SOLID fills, not colour ramps —
+   it is the standard way to stack several flat blocks as background layers on
+   one element, and kiosk-tokens.css's "never gradients" rule explicitly exempts
+   pattern fills for exactly this reason. Nothing here fades between colours. */
+.issue-layout__fig {
+    display: block;
+    width: 100%;
+    max-width: 44px;
+    height: 30px;
+    background: var(--ink-paper);
+    border: 1px solid var(--ink-rule);
+    background-repeat: no-repeat;
+}
+
+.issue-layout__fig--photo-top {
+    background-image:
+        linear-gradient(var(--ink-oxblood), var(--ink-oxblood)),
+        linear-gradient(var(--ink-rule-strong), var(--ink-rule-strong)),
+        linear-gradient(var(--ink-rule-strong), var(--ink-rule-strong));
+    background-size: 100% 14px, 80% 2px, 60% 2px;
+    background-position: 0 0, 4px 19px, 4px 24px;
+}
+
+.issue-layout__fig--side {
+    background-image:
+        linear-gradient(var(--ink-oxblood), var(--ink-oxblood)),
+        linear-gradient(var(--ink-rule-strong), var(--ink-rule-strong)),
+        linear-gradient(var(--ink-rule-strong), var(--ink-rule-strong));
+    background-size: 18px 100%, 40% 2px, 30% 2px;
+    background-position: 0 0, 22px 10px, 22px 16px;
+}
+
+.issue-layout__fig--text-led {
+    background-image:
+        linear-gradient(var(--ink-oxblood), var(--ink-oxblood)),
+        linear-gradient(var(--ink-rule-strong), var(--ink-rule-strong)),
+        linear-gradient(var(--ink-rule-strong), var(--ink-rule-strong));
+    background-size: 70% 3px, 90% 2px, 75% 2px;
+    background-position: 4px 7px, 4px 16px, 4px 21px;
+}
+
+.issue-inspector__unplace {
+    margin-top: 6px;
+    width: 100%;
+    padding: 9px;
+    background: transparent;
+    border: 1px solid var(--ink-rule-strong);
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+}
+
+/* ── Photo field ────────────────────────────────────────────── */
+
+.issue-photo {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    gap: 9px;
+    align-items: center;
+}
+
+.issue-photo__thumb {
+    width: 54px;
+    height: 40px;
+    object-fit: cover;
+    border: 1px solid var(--ink-rule-strong);
+    border-radius: 0;
+}
+
+.issue-photo__thumb--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ink-cream);
+    border-style: dashed;
+    color: var(--ink-faint);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    text-transform: uppercase;
+}
+
+.issue-photo__meta { display: grid; gap: 3px; min-width: 0; }
+
+.issue-photo__name {
+    color: var(--ink-strong);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.issue-photo__fit {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.35;
+}
+
+.issue-photo__fit.is-ok { color: var(--ok); }
+.issue-photo__fit.is-warn { color: var(--ink-oxblood); }
+
+.issue-photo__actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 5px;
+}
+
+.ghost-button--tiny {
+    padding: 5px 9px;
+    font-size: 10.5px;
+    min-height: 0;
+}
+
+/* ── Length guide ───────────────────────────────────────────── */
+
+.issue-gauge { display: grid; gap: 6px; }
+
+.issue-gauge__track {
+    position: relative;
+    height: 6px;
+    background: var(--ink-charcoal);
+    overflow: visible;
+}
+
+.issue-gauge__fill {
+    height: 100%;
+    width: 0;
+    background: var(--ok);
+    transition: width var(--kiosk-dur-fast, 160ms) linear;
+}
+
+.issue-gauge__fill.is-over { background: var(--ink-oxblood); }
+
+/* The tick marks where the slot stops holding the text, so "over" is a place on
+   the bar rather than only a colour change. */
+.issue-gauge__limit {
+    position: absolute;
+    top: -2px;
+    right: 0;
+    width: 2px;
+    height: 10px;
+    background: var(--ink-oxblood);
+}
+
+.issue-gauge__caption {
+    margin: 0;
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1.4;
+}
+
+/* ── Story order ────────────────────────────────────────────── */
+
+.issue-order {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 4px;
+}
+
+.issue-order__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 8px;
+    background: var(--ink-cream);
+    border: 1px solid var(--ink-rule);
+    font-size: 11.5px;
+}
+
+.issue-order__pos {
+    flex: none;
+    color: var(--ink-oxblood);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.issue-order__name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink-strong);
+}
+
+/* ── Inspector footer + danger zone ─────────────────────────── */
+
+.issue-inspector__foot {
+    display: flex;
+    gap: 0.5rem;
+    padding: 12px 14px;
+    border-top: 1px solid var(--ink-rule);
+    background: var(--ink-paper);
+}
+
+.issue-inspector__foot > * { flex: 1; }
+
+.issue-danger {
+    grid-area: inspector;
+    align-self: end;
+    margin-top: 0.75rem;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+
+/* Below 1280px the inspector stops being a column and becomes a slide-over, so
+   the canvas keeps a usable measure instead of all three columns being squeezed.
+   Same <dialog>-free pattern as the outline: a fixed panel the JS toggles. */
+@media (max-width: 1279px) {
+    .news-layout-editor--composer {
+        grid-template-columns: 200px minmax(0, 1fr);
+        grid-template-areas:
+            "topbar  topbar"
+            "outline desk";
+    }
+
+    .issue-inspector {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 60;
+        width: min(340px, 92vw);
+        max-height: none;
+        border-left: 2px solid var(--ink-oxblood);
+        box-shadow: -12px 0 32px rgb(var(--brand-maroon-rgb) / 0.18);
+        transform: translateX(100%);
+        transition: transform var(--kiosk-dur-med, 280ms) var(--kiosk-ease, ease);
+    }
+
+    .issue-inspector.is-open { transform: translateX(0); }
+
+    .issue-danger { display: none; }
+}
+
+@media (max-width: 900px) {
+    .news-layout-editor--composer {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            "topbar"
+            "outline"
+            "desk";
+    }
+
+    .issue-outline { position: static; }
+
+    .issue-topbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+/* ── Empty-block prompts ─────────────────────────────────────────────────────
+ *
+ * The newsletter opens blank now, so every empty region has to say what belongs
+ * in it. The existing rule keys off `[contenteditable]`, which is only ever set
+ * on the five plain inline regions (source, location, dek, caption, credit) --
+ * the three Quill targets (title, excerpt, body) get `contenteditable` from
+ * Quill itself, and only while the single editor instance is mounted on them.
+ *
+ * So on a blank issue the headline rendered as nothing at all: no text, no
+ * prompt, no visible box to aim at. This keys off the region hook instead, so a
+ * prompt shows whether or not the editor happens to be mounted there.
+ */
+.news-layout-editor--composer [data-news-edit][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: rgb(var(--brand-maroon-rgb) / 0.34);
+    font-style: italic;
+    pointer-events: none;
+}
+
+/* An empty region still has to be big enough to aim at with a mouse. Without
+   this a blank headline is a zero-height line the editor cannot click. */
+.news-layout-editor--composer [data-news-edit]:empty {
+    display: block;
+    min-height: 1.4em;
+}
+
+/* A card with no row behind it yet. Dashed, so it reads as a place to write
+   rather than as content someone already published. */
+.news-layout-editor--composer .is-scratch {
+    outline: 1px dashed var(--ink-rule-strong);
+    outline-offset: 6px;
+}
+
+/* The block name sat on the card's own border and collided with it. */
+.news-layout-editor--composer .paper-slot__label {
+    display: block;
+    margin: 0 0 6px;
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+/* ── Containment: nothing paints outside its box ─────────────────────────────
+ *
+ * A long unbroken string in a side story's body used to run sideways out of its
+ * card and across the block beside it. Two separate things had to be true for
+ * that, and fixing either alone looks like a fix that did not work:
+ *
+ *   1. the body regions carried no wrap rule (now in kiosk-news.css), and
+ *   2. a grid item defaults to `min-width: auto`, which REFUSES to shrink below
+ *      its longest word — so the column simply widened and the wrap never got
+ *      the chance to apply.
+ *
+ * Heights are deliberately untouched. Cards still grow downward as an editor
+ * writes; this is about the horizontal axis only.
+ */
+
+.news-layout-editor--composer .issue-also > *,
+.news-layout-editor--composer .issue-essay__grid > *,
+.news-layout-editor--composer .issue-calendar > * {
+    min-width: 0;
+}
+
+/* Wrap while typing, not only once the editor unmounts and writes back. */
+.news-editor .ql-editor {
+    overflow-wrap: anywhere;
+}
+
+/* The disclosure that holds a side story's full body. Without this its contents
+   size the <details> rather than the other way round. */
+.news-layout-editor--composer .news-inline-body {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* Backstop on the sheet itself, so a block added later cannot paint onto the
+   desk even if it forgets the rules above.
+ *
+ * `clip`, NOT `hidden`: `hidden` makes this a scroll container, and the format
+ * toolbar below is positioned against the canvas so it can hover over the page
+ * — inside a scroll container it would be trapped and clipped by this very
+ * rule. `clip` blocks the paint without creating one. */
+.news-layout-editor--composer .issue {
+    overflow-x: clip;
+}
+
+/* ── The Announcement card ───────────────────────────────────────────────────
+ *
+ * The one dark card on a cream page. It stays dark because that is how the
+ * kiosk prints it and the composer's job is to look like the printed page —
+ * what changes is the ink on it.
+ *
+ * The generic placeholder rule above paints `--brand-maroon` at 34%, which is
+ * right on cream and invisible on this card's near-black ground: the prompts
+ * ("Notice title…", "What is the notice?") rendered but could not be read.
+ * Everything below re-inks this card for its own background.
+ */
+
+.news-layout-editor--composer .issue-notice [data-news-edit][data-placeholder]:empty::before {
+    color: rgb(var(--brand-cream-rgb) / 0.55);
+}
+
+.news-layout-editor--composer .issue-notice [data-news-edit] {
+    color: var(--brand-cream);
+}
+
+/* The "Full article body" disclosure inside the card was maroon-on-near-black
+   for the same reason. */
+.news-layout-editor--composer .issue-notice .news-inline-body {
+    border-top-color: rgb(var(--brand-cream-rgb) / 0.28);
+}
+
+.news-layout-editor--composer .issue-notice .news-inline-body__summary {
+    color: rgb(var(--brand-cream-rgb) / 0.72);
+}
+
+/* And Quill itself, when it mounts inside the card: without this, typing into
+   the announcement produces text the editor cannot see. */
+.news-layout-editor--composer .issue-notice .news-body-editor-host.ql-container.ql-snow {
+    background: rgb(var(--brand-cream-rgb) / 0.08);
+    border-color: rgb(var(--brand-cream-rgb) / 0.3);
+}
+
+.news-layout-editor--composer .issue-notice .ql-editor {
+    color: var(--brand-cream);
+}
+
+.news-layout-editor--composer .issue-notice .ql-editor.ql-blank::before {
+    color: rgb(var(--brand-cream-rgb) / 0.55);
+}
+
+/* ── Every editable region says so ──────────────────────────────────────────
+ *
+ * The hover and focus cues above are gated on `[contenteditable]`, which the
+ * three Quill targets (headline, summary, body) carry only WHILE the editor is
+ * mounted on them. Unmounted -- which is how an editor first meets every one
+ * of them -- they had no cue at all, and the whole card sets `cursor: grab`
+ * for drag-to-reorder. So the body read as static print with a hand cursor
+ * over it: "drag me", never "type here". Editors did not know it was theirs
+ * to edit.
+ *
+ * The card keeps its grab cursor on the margins and the photo; the text
+ * regions inside it take a text cursor and the same hover tint the plain
+ * regions already use. */
+.news-layout-editor--composer [data-news-edit="title"],
+.news-layout-editor--composer [data-news-edit="body"],
+.news-layout-editor--composer [data-news-edit="excerpt"] {
+    cursor: text;
+    border-radius: 2px;
+    transition: background var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, ease),
+                box-shadow var(--kiosk-dur-fast, 160ms) var(--kiosk-ease, ease);
+}
+
+.news-layout-editor--composer [data-news-edit="title"]:hover,
+.news-layout-editor--composer [data-news-edit="body"]:hover,
+.news-layout-editor--composer [data-news-edit="excerpt"]:hover {
+    background: rgb(var(--brand-gold-rgb) / 0.08);
+    box-shadow: inset 0 0 0 1px rgb(var(--brand-maroon-rgb) / 0.18);
+}
+
+/* The dark notice card hovers in its own ink. */
+.news-layout-editor--composer .issue-notice [data-news-edit]:hover {
+    background: rgb(var(--brand-cream-rgb) / 0.08);
+    box-shadow: inset 0 0 0 1px rgb(var(--brand-cream-rgb) / 0.3);
+}

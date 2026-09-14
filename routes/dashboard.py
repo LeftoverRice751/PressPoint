@@ -18,9 +18,22 @@ ROUTES = [
     # Editorial review. These are the first role-gated routes in this file —
     # everything else here is "auth" only, so any signed-in account reaches it.
     # Approving puts a story on a public campus screen, so it takes "admin".
-    Route.get("/gears/review/@id/preview", "gears.ReviewController@preview").name("review.preview").middleware("auth", "admin"),
-    Route.post("/gears/review/@id/approve", "gears.ReviewController@approve").name("review.approve").middleware("auth", "admin"),
-    Route.post("/gears/review/@id/reject", "gears.ReviewController@reject").name("review.reject").middleware("auth", "admin"),
+    # The issue as a unit. An editor submits an issue in one click; these are
+    # the admin's matching single actions.
+    #
+    # The per-story routes below constrain `@id:int` so that the literal
+    # segment "issue" can never match them. Ordering was tried first and is
+    # NOT enough: Masonite's Route.routes is a class-level list, and on a
+    # re-boot (every app TestCase) the registration order is not preserved --
+    # "/gears/review/issue/approve" resolved to approve(id="issue") on the
+    # second boot and 404'd on News.where("id", "issue"). Verified through the
+    # real router in tests/unit/test_review_workflow.py.
+    Route.get("/gears/review/issue/preview", "gears.ReviewController@preview_issue").name("review.issue.preview").middleware("auth", "admin"),
+    Route.post("/gears/review/issue/approve", "gears.ReviewController@approve_issue").name("review.issue.approve").middleware("auth", "admin"),
+    Route.post("/gears/review/issue/reject", "gears.ReviewController@reject_issue").name("review.issue.reject").middleware("auth", "admin"),
+    Route.get("/gears/review/@id:int/preview", "gears.ReviewController@preview").name("review.preview").middleware("auth", "admin"),
+    Route.post("/gears/review/@id:int/approve", "gears.ReviewController@approve").name("review.approve").middleware("auth", "admin"),
+    Route.post("/gears/review/@id:int/reject", "gears.ReviewController@reject").name("review.reject").middleware("auth", "admin"),
     # Self-service profile. "auth" only and always scoped to request.user() —
     # there is deliberately no /profile/@id, so no account can edit another.
     Route.post("/gears/profile", "gears.ProfileController@update").name("profile.update").middleware("auth"),
@@ -36,6 +49,11 @@ ROUTES = [
     Route.post("/news/dashboard", "gears.NewsController@store").name("news.store").middleware("auth"),
     Route.post("/news/dashboard/layout", "gears.NewsController@layout").name("news.layout").middleware("auth"),
     Route.post("/news/dashboard/@id/body", "gears.NewsController@body").name("news.body").middleware("auth"),
+    # The composer's debounced draft save. Separate from news.store on purpose:
+    # it writes text only, never `status`, and refuses outright on a story that
+    # is already public -- see NewsController.autosave for why it declines
+    # rather than re-gating like news.body does.
+    Route.post("/news/dashboard/@id/autosave", "gears.NewsController@autosave").name("news.autosave").middleware("auth"),
     Route.post("/news/dashboard/@id/unassign", "gears.NewsController@unassign").name("news.unassign").middleware("auth"),
     Route.delete("/news/dashboard/@id", "gears.NewsController@destroy").name("news.destroy").middleware("auth"),
     # News categories. "auth" only, DELIBERATELY: unlike the /gears/review/*
