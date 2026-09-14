@@ -715,11 +715,20 @@ document.addEventListener("DOMContentLoaded", () => {
   function playIdleAttract() {
     if (attractShowing) return;
 
-    precacheAllDestinations();
-
     // Behind the attract overlay, so the swap is never seen — and before the
     // flag below is set, so the reset isn't mistaken for visitor activity.
     const contentJustNavigated = resetContentToDefault();
+
+    // Now unattended: flush any section an editor changed while a visitor
+    // was reading. FIRST — before the video and before the route warm-up
+    // below — because a post-eviction reload is a real network fetch and the
+    // browser issues requests in program order. Issued after the idle video's
+    // Range stream and six PRECACHE_ROUTES fetches it queued behind all of
+    // them: on the single-threaded dev server it starved for over a minute,
+    // and on production it was simply the last thing served. The content
+    // frame was just reset above only if it moved, and kiosk-live skips the
+    // redundant reload in that case.
+    if (kioskLive) kioskLive.onAttract({ contentJustNavigated });
 
     if (idleVideoSrc && typeof window.__kioskPlaySrc === "function") {
       attractShowing = true;
@@ -729,22 +738,18 @@ document.addEventListener("DOMContentLoaded", () => {
       // loop, so it should arrive without announcing itself. An editor's
       // Pusher push still shows the banner.
       window.__kioskPlaySrc(idleVideoSrc, idleVideoTitle, true);
-      // Now unattended: flush any section an editor changed while a visitor
-      // was reading. The content frame was just reset above only if it
-      // moved, and kiosk-live skips the redundant reload in that case.
-      if (kioskLive) kioskLive.onAttract({ contentJustNavigated });
-      return;
-    }
-
-    // No video flagged (or kiosk.js never loaded, so there is no player):
-    // fall back to the newsletter. If even that host element is missing the
-    // kiosk simply stays on the menu rather than latching a flag it can
-    // never clear.
-    if (showNewsletterAttract()) {
+    } else if (showNewsletterAttract()) {
+      // No video flagged (or kiosk.js never loaded, so there is no player):
+      // fall back to the newsletter. If even that host element is missing the
+      // kiosk simply stays on the menu rather than latching a flag it can
+      // never clear.
       attractShowing = true;
       attractMode = "newsletter";
-      if (kioskLive) kioskLive.onAttract({ contentJustNavigated });
     }
+
+    // Last: the warm-up is free time, so it must never get ahead of anything
+    // a visitor could see.
+    precacheAllDestinations();
   }
 
   // An unattended terminal shouldn't greet the next visitor with whatever the

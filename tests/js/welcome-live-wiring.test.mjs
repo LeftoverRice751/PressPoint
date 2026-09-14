@@ -62,7 +62,10 @@ async function boot({ video = true, currentSection = 'latest-news' } = {}) {
   };
 
   const posted = [];
-  const navigator = { serviceWorker: { controller: { postMessage: (m) => posted.push(m) } } };
+  // One ordered log across the three things attract does, so a test can
+  // assert which goes first.
+  const order = [];
+  const navigator = { serviceWorker: { controller: { postMessage: (m) => { posted.push(m); order.push(m.type); } } } };
 
   const contentCalls = { reload: [], show: [] };
   const created = { deps: null, onAttract: [], onEvent: [] };
@@ -75,7 +78,7 @@ async function boot({ video = true, currentSection = 'latest-news' } = {}) {
     setInterval: () => nextId++,
     clearInterval() {},
     location: { protocol: 'https:' },
-    __kioskPlaySrc: () => {},
+    __kioskPlaySrc: () => { order.push('PLAY_VIDEO'); },
     __kioskCloseVideo: () => {},
     __kioskContent: {
       defaultId: () => 'latest-news',
@@ -87,7 +90,7 @@ async function boot({ video = true, currentSection = 'latest-news' } = {}) {
       created.deps = deps;
       return {
         onEvent: (p) => created.onEvent.push(p),
-        onAttract: (o) => created.onAttract.push(o),
+        onAttract: (o) => { created.onAttract.push(o); order.push('FLUSH'); },
         dirty: () => [],
       };
     },
@@ -115,7 +118,7 @@ async function boot({ video = true, currentSection = 'latest-news' } = {}) {
     }
   }
 
-  return { created, posted, contentCalls, attractEl, attractHost, advance };
+  return { created, posted, contentCalls, attractEl, attractHost, advance, order };
 }
 
 test('the shell builds the live gate with its five effects', async () => {
@@ -165,4 +168,20 @@ test('newsletter attract reports mode newsletter and reloadAttract re-srcs its i
   iframe.attrs.src = 'stale';
   created.deps.reloadAttract();
   assert.equal(iframe.attrs.src, '/kiosk/embed/latest-news');
+});
+
+test('attract flushes the live update BEFORE starting the video and the route warm-up', async () => {
+  // A post-eviction reload is a real network fetch. Issued after the idle
+  // video's Range stream and six PRECACHE_ROUTES fetches, it queues behind
+  // all of them -- on the single-threaded dev server it starved for over a
+  // minute, and on production it is simply the last thing served. The one
+  // fetch a visitor will actually see goes first.
+  const { order, advance } = await boot({ video: true });
+  advance(IDLE_MS);
+  const flush = order.indexOf('FLUSH');
+  const play = order.indexOf('PLAY_VIDEO');
+  const warm = order.indexOf('PRECACHE_ROUTES');
+  assert.ok(flush !== -1, 'the flush ran');
+  assert.ok(play !== -1 && flush < play, `flush (${flush}) must precede the video (${play})`);
+  assert.ok(warm === -1 || flush < warm, `flush (${flush}) must precede the route warm-up (${warm})`);
 });
