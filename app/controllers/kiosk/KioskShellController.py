@@ -48,6 +48,11 @@ class KioskShellController(Controller):
         return {
             "pusher_key": pusher_settings.get("client") or pusher_settings.get("key") or "",
             "pusher_cluster": pusher_settings.get("cluster") or "mt1",
+            # Empty on hosted pusher.com. Set PUSHER_HOST/PUSHER_PORT to point
+            # the browser at a self-hosted Soketi instead -- same protocol, no
+            # code change (docs/superpowers/specs/2026-09-10-kiosk-live-updates-design.md).
+            "pusher_host": pusher_settings.get("host") or "",
+            "pusher_port": str(pusher_settings.get("port") or ""),
             "kiosk_sections": KioskSections.all_sections(),
             "active_section": section,
             "active_index": KioskSections.index_of(section["id"]),

@@ -27,6 +27,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const flashUpdatesUrl = configEl ? (configEl.getAttribute("data-flash-updates-url") || "").trim() : "";
   const pusherKey = configEl ? (configEl.getAttribute("data-pusher-key") || "").trim() : "";
   const cluster = configEl ? (configEl.getAttribute("data-pusher-cluster") || "mt1").trim() : "mt1";
+  const pusherHost = configEl ? (configEl.getAttribute("data-pusher-host") || "").trim() : "";
+  const pusherPort = configEl ? (configEl.getAttribute("data-pusher-port") || "").trim() : "";
+  const liveChannelName = "kiosk-content";
+  const liveEventName = "app.events.KioskSectionChanged";
   const flashUpdatesChannel = "flash-updates-channel";
   const flashUpdatesEvent = "new-news";
   const pusherScriptId = "welcome-flash-pusher-script";
@@ -78,6 +82,21 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="news-ticker__group">${items}</div>
       <div class="news-ticker__group" aria-hidden="true">${items}</div>
     `;
+  }
+
+  // Hosted pusher.com by default. With PUSHER_HOST set the same client talks
+  // to a self-hosted Pusher-protocol server (Soketi) through nginx, with TLS
+  // terminating there -- so forceTLS follows the page's own scheme.
+  function pusherOptions() {
+    const options = { cluster };
+    if (pusherHost) {
+      options.wsHost = pusherHost;
+      options.wsPort = Number(pusherPort) || 80;
+      options.wssPort = Number(pusherPort) || 443;
+      options.forceTLS = window.location.protocol === "https:";
+      options.enabledTransports = ["ws", "wss"];
+    }
+    return options;
   }
 
   function loadPusherScript() {
@@ -172,7 +191,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function initFlashUpdatesRealtime() {
+  // One socket per terminal. The flash ticker and the live content updates
+  // share it; a second connection would just be a second thing to reconnect.
+  // kioskLive is declared further down with the attract state it reads; it is
+  // only touched inside the async .then(), by which point it exists.
+  function initRealtime() {
     if (!pusherKey) {
       return;
     }
@@ -183,12 +206,19 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
 
-        const pusher = new Pusher(pusherKey, { cluster });
-        const channel = pusher.subscribe(flashUpdatesChannel);
+        const pusher = new Pusher(pusherKey, pusherOptions());
 
-        channel.bind(flashUpdatesEvent, (payload) => {
+        const flash = pusher.subscribe(flashUpdatesChannel);
+        flash.bind(flashUpdatesEvent, (payload) => {
           prependFlashArticle(payload || {});
         });
+
+        if (kioskLive) {
+          const live = pusher.subscribe(liveChannelName);
+          live.bind(liveEventName, (payload) => {
+            kioskLive.onEvent(payload || {});
+          });
+        }
       })
       .catch(() => {
         return;
@@ -223,7 +253,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   renderTicker();
   loadFlashArticles();
-  initFlashUpdatesRealtime();
+  initRealtime();
   window.setInterval(loadFlashArticles, 15 * 1000);
 
   // ───────────────────────────────────────────────────────────────────────
@@ -519,6 +549,40 @@ document.addEventListener("DOMContentLoaded", () => {
   const attractFrameHost = document.getElementById("kiosk-attract-frame");
   let attractIframe = null;
 
+  // Which attract is on screen. kiosk-live.js needs to know, because a
+  // latest-news event has to re-src the newsletter iframe (the thing a
+  // passer-by is looking at) but must never interrupt the idle video.
+  let attractMode = null; // 'video' | 'newsletter' | null
+
+  function evictSection(section) {
+    // Invisible and idempotent, so it is never deferred. Without it a frame
+    // reload would re-serve sw-kiosk.js's stale-while-revalidate copy.
+    if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
+    navigator.serviceWorker.controller.postMessage({ type: "EVICT", section });
+  }
+
+  function reloadContentFrame(section) {
+    if (!window.__kioskContent || typeof window.__kioskContent.reload !== "function") return false;
+    return window.__kioskContent.reload(section);
+  }
+
+  function reloadAttractFrame() {
+    if (attractIframe) attractIframe.setAttribute("src", ATTRACT_SRC);
+  }
+
+  // Absent in the node test harnesses (no kiosk-live.js loaded), and then
+  // every live-update branch below is simply skipped.
+  const kioskLive =
+    typeof window.__kioskLiveCreate === "function"
+      ? window.__kioskLiveCreate({
+          evict: evictSection,
+          reloadContent: reloadContentFrame,
+          reloadAttract: reloadAttractFrame,
+          isAttract: () => attractShowing,
+          attractMode: () => attractMode,
+        })
+      : null;
+
   async function fetchIdleVideo() {
     try {
       const response = await fetch("/kiosk/idle-video", {
@@ -655,15 +719,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Behind the attract overlay, so the swap is never seen — and before the
     // flag below is set, so the reset isn't mistaken for visitor activity.
-    resetContentToDefault();
+    const contentJustNavigated = resetContentToDefault();
 
     if (idleVideoSrc && typeof window.__kioskPlaySrc === "function") {
       attractShowing = true;
+      attractMode = "video";
       document.body.classList.add("kiosk-idle-active");
       // quiet=true: no "Now playing" banner. Nobody asked for the attract
       // loop, so it should arrive without announcing itself. An editor's
       // Pusher push still shows the banner.
       window.__kioskPlaySrc(idleVideoSrc, idleVideoTitle, true);
+      // Now unattended: flush any section an editor changed while a visitor
+      // was reading. The content frame was just reset above only if it
+      // moved, and kiosk-live skips the redundant reload in that case.
+      if (kioskLive) kioskLive.onAttract({ contentJustNavigated });
       return;
     }
 
@@ -673,6 +742,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // never clear.
     if (showNewsletterAttract()) {
       attractShowing = true;
+      attractMode = "newsletter";
+      if (kioskLive) kioskLive.onAttract({ contentJustNavigated });
     }
   }
 
@@ -692,14 +763,16 @@ document.addEventListener("DOMContentLoaded", () => {
     // visible way to navigate.
     setNavExpanded(true);
 
-    if (!window.__kioskContent) return;
+    if (!window.__kioskContent) return false;
     const fallback = window.__kioskContent.defaultId();
-    if (!fallback || window.__kioskContent.current() === fallback) return;
+    if (!fallback || window.__kioskContent.current() === fallback) return false;
     window.__kioskContent.show(fallback, { push: false });
+    return true;
   }
 
   function stopIdleAttract() {
     attractShowing = false;
+    attractMode = null;
     document.body.classList.remove("kiosk-idle-active");
     // Close BOTH paths unconditionally, not just the one we think is open.
     // The bfcache re-arm below calls this blind on restore, and a mode that

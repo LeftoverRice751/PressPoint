@@ -277,3 +277,41 @@ class BackControlsTest(TestCase):
         bridge = markup(_REPO_ROOT / "templates" / "partials" / "kiosk-frame.html")
         self.assertIn("window.name === 'kiosk-content'", bridge)
         self.assertIn('name="kiosk-content"', _WELCOME)
+
+
+class ShellRealtimeConfigTest(TestCase):
+    """The shell hands the browser what it needs to open the Pusher socket.
+
+    Host and port are empty on hosted pusher.com; setting PUSHER_HOST/PORT
+    points the same pusher-js client at a self-hosted Soketi with no code
+    change, which is why they must reach the template even when blank.
+    """
+
+    def test_shell_context_carries_pusher_host_and_port(self):
+        from unittest.mock import patch
+
+        from app.controllers.kiosk.KioskShellController import KioskShellController
+
+        with patch(
+            "app.controllers.kiosk.KioskShellController.config",
+            return_value={
+                "pusher": {"key": "k", "cluster": "ap1", "host": "ws.example", "port": 6001}
+            },
+        ):
+            context = KioskShellController.shell_context(KioskSections.all_sections()[0])
+
+        self.assertEqual(context["pusher_key"], "k")
+        self.assertEqual(context["pusher_host"], "ws.example")
+        self.assertEqual(context["pusher_port"], "6001")
+
+    def test_shell_config_element_exposes_host_and_port(self):
+        html = markup(_REPO_ROOT / "templates" / "welcome.html")
+        self.assertTrue('data-pusher-host="{{ pusher_host }}"' in html, "data-pusher-host missing")
+        self.assertTrue('data-pusher-port="{{ pusher_port }}"' in html, "data-pusher-port missing")
+
+    def test_shell_loads_kiosk_live_before_welcome_screen(self):
+        html = markup(_REPO_ROOT / "templates" / "welcome.html")
+        live = html.find("js/kiosk-live.js")
+        screen = html.find("js/welcome-screen.js")
+        self.assertGreater(live, -1)
+        self.assertLess(live, screen, "defer scripts run in document order")

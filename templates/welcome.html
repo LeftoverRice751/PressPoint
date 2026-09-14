@@ -389,6 +389,8 @@
     id="kiosk-config"
     data-pusher-key="{{ pusher_key }}"
     data-pusher-cluster="{{ pusher_cluster }}"
+    data-pusher-host="{{ pusher_host }}"
+    data-pusher-port="{{ pusher_port }}"
     data-flash-updates-url="{{ route('welcome.flash-updates', {}, False) }}"
     {# Swiper's initialSlide, and the section the frame was server-rendered
        with. Both come from the URL, so /kiosk/virtual-tour arrives with the
@@ -503,6 +505,9 @@
        chance to define itself first. Reversed, the first gesture after every
        load would navigate away from the shell. -->
   <script src="{{ asset_url('js/kiosk-content.js') }}" defer></script>
+  {# Before welcome-screen.js: it reads window.__kioskLiveCreate at
+     DOMContentLoaded, and defer scripts run in document order. #}
+  <script src="{{ asset_url('js/kiosk-live.js') }}" defer></script>
   <script src="{{ asset_url('js/welcome-screen.js') }}" defer></script>
   <script src="{{ asset_url('js/app.js') }}" defer></script>
   <script src="{{ asset_url('js/welcome-lock.js') }}" defer></script>
