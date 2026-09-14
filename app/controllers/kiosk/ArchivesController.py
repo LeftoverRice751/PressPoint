@@ -15,6 +15,7 @@ from app.services.CharterArchive import is_charter_type
 from app.services.StorageRouter import absolute_path, gearsnas_base
 from app.services.PublicUrl import public_url
 from app.services.AjaxResponses import wants_json, json_success, json_errors
+from app.services import KioskBroadcast
 from app.services.FileVerificationService import FileVerificationService
 
 
@@ -242,6 +243,12 @@ class ArchivesController(Controller):
             _sweep_archive_pages_in_background(file_path)
 
             Cache.forget(_ARCHIVES_CACHE_KEY)
+            # After the eager pre-warm above, never before it: a kiosk refresh
+            # at this point opens onto a cover and readable pages, whereas one
+            # at upload time would land on a shelf card with nothing behind
+            # it. The tail of the issue is still sweeping, and page() renders
+            # on demand past the sweep, so "readable" holds from here on.
+            KioskBroadcast.section_changed("gears-archive")
 
             if is_ajax:
                 return json_success(response, payload={
@@ -346,6 +353,7 @@ class ArchivesController(Controller):
             archive.delete()
 
             Cache.forget(_ARCHIVES_CACHE_KEY)
+            KioskBroadcast.section_changed("gears-archive")
 
             if is_ajax:
                 return json_success(response, messages=["Archive deleted successfully."])
