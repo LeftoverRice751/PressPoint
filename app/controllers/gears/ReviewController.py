@@ -20,7 +20,7 @@ from masonite.views import View
 
 from app.controllers.gears.NewsController import _NEWS_CACHE_KEY
 from app.models.News import News
-from app.services import Notifications
+from app.services import KioskBroadcast, Notifications
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from config.database import DB
 
@@ -104,6 +104,10 @@ class ReviewController(Controller):
             # matching on the next bump — leaving the kiosk serving a story the
             # admin just rejected for up to the cache TTL.
             Cache.forget(_NEWS_CACHE_KEY)
+            # Same fact, second consumer: the terminal re-fetches instead of
+            # waiting for its next manual reload. Approval is the moment a
+            # story becomes publicly visible, so this is the site that matters.
+            KioskBroadcast.section_changed("latest-news")
 
             Notifications.notify(
                 getattr(record, "author_id", None),
@@ -190,6 +194,7 @@ class ReviewController(Controller):
 
             # Once, after the batch: the cache is one thing, not one per block.
             Cache.forget(_NEWS_CACHE_KEY)
+            KioskBroadcast.section_changed("latest-news")
 
             # One notification per author, not one per block. Three blocks by
             # the same editor is one issue and one bell entry, not three saying

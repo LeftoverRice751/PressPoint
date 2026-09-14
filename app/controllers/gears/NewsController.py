@@ -16,7 +16,7 @@ from config.database import DB
 from app.events.NewNews import NewNews
 from app.models.Events import Events
 from app.models.News import News
-from app.services import NewsCache, NewsCategories
+from app.services import KioskBroadcast, NewsCache, NewsCategories
 from app.services.KioskBroadcast import pusher_configured as _pusher_configured  # noqa: F401
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.DashboardContext import (
@@ -748,6 +748,10 @@ class NewsController(Controller):
                 pass
 
             Cache.forget(_NEWS_CACHE_KEY)
+            # Wherever the news cache is forgotten, the kiosk is told. The two
+            # are the same fact ("the kiosk's projection is stale") for two
+            # consumers, so a site that does one without the other is a bug.
+            KioskBroadcast.section_changed("latest-news")
 
             if is_ajax:
                 return json_success(response, payload={
@@ -873,6 +877,7 @@ class NewsController(Controller):
                         raise _SlotOverflow(slot)
 
             Cache.forget(_NEWS_CACHE_KEY)
+            KioskBroadcast.section_changed("latest-news")
 
             if is_ajax:
                 return json_success(
@@ -941,6 +946,7 @@ class NewsController(Controller):
             record.save()
 
             Cache.forget(_NEWS_CACHE_KEY)
+            KioskBroadcast.section_changed("latest-news")
 
             if is_ajax:
                 return json_success(
@@ -1049,6 +1055,7 @@ class NewsController(Controller):
             record.save()
 
             Cache.forget(_NEWS_CACHE_KEY)
+            KioskBroadcast.section_changed("latest-news")
 
             if is_ajax:
                 return json_success(
@@ -1098,6 +1105,7 @@ class NewsController(Controller):
             return _err(["Could not delete the news item. Please try again."])
 
         Cache.forget(_NEWS_CACHE_KEY)
+        KioskBroadcast.section_changed("latest-news")
 
         if is_ajax:
             return json_success(response, payload={"id": request.param("id")}, messages=["News deleted."])

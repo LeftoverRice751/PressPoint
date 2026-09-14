@@ -12,7 +12,7 @@ three-outcome create contract in resolve_or_offer().
 
 from app.models.News import News
 from app.models.NewsCategory import NewsCategory
-from app.services import NewsCache
+from app.services import KioskBroadcast, NewsCache
 
 
 #: Matches the varchar(80) in the schema. A category is a one-word kiosk
@@ -208,6 +208,8 @@ def resolve_or_offer(raw_name):
         return _outcome_for(duplicate)
 
     NewsCache.forget()
+    # A category label is printed on the kiosk, so the terminal is told too.
+    KioskBroadcast.section_changed("latest-news")
     return "created", _describe(created)
 
 
@@ -236,6 +238,7 @@ def rename(category_id, raw_name):
     category.save()
 
     NewsCache.forget()
+    KioskBroadcast.section_changed("latest-news")
     return "renamed", _describe(category)
 
 
@@ -271,6 +274,7 @@ def soft_delete_cascade(category_id):
     category.delete()
 
     NewsCache.forget()
+    KioskBroadcast.section_changed("latest-news")
     return "deleted", {
         "id": getattr(category, "id", None),
         "name": getattr(category, "name", None),
@@ -304,6 +308,7 @@ def restore_cascade(category_id):
     News.with_trashed().where("category_id", category_id).update({"deleted_at": None})
 
     NewsCache.forget()
+    KioskBroadcast.section_changed("latest-news")
     restored = NewsCategory.where("id", category_id).first()
     return "restored", {
         "id": category_id,
