@@ -54,6 +54,11 @@
  * resource fetches on a first-ever visit happen before this worker controls
  * that navigation, so interception alone would miss them.
  *
+ * Also receives EVICT from the shell (welcome-screen.js via kiosk-live.js)
+ * when an editor's change is announced over Pusher: it drops one section's
+ * cached document and media so the reload that follows fetches fresh. With
+ * stale-while-revalidate a reload alone would re-serve the stale entry.
+ *
  * Registrations: the kiosk terminal must run this worker and only this worker.
  * sw-archives.js and sw-mobile-route.js both also claim scope /, so a kiosk
  * that has already registered sw-archives.js gets it unregistered by
@@ -119,6 +124,17 @@ const MEDIA_PREFIXES = [
   '/storage/About/',      // About LSPU imagery and audio
   '/storage/news/',       // news_image() webp derivatives
 ];
+
+// What a live-update EVICT drops, per kiosk section. Both the document and
+// the media go, because a story's replaced image is exactly as stale as its
+// HTML. Archive pages are deliberately absent: they are immutable per issue,
+// so only the covers (the shelf) are evicted. Must match
+// app/services/KioskBroadcast.py SECTIONS.
+const EVICT_SECTIONS = {
+  'latest-news':   { document: '/kiosk/embed/latest-news',   media: '/storage/news/' },
+  'about-lspu':    { document: '/kiosk/embed/about-lspu',    media: '/storage/About/' },
+  'gears-archive': { document: '/kiosk/embed/gears-archive', media: '/storage/Archives/covers/' },
+};
 
 // Immutable per build (/assets/ carries ?v=<mtime>) or per deploy. A published
 // issue's rasterised pages never change either, which is why Archives is here
@@ -335,8 +351,36 @@ self.addEventListener('message', (event) => {
     const routes = Array.isArray(event.data.routes) ? event.data.routes : [];
     if (!routes.length) return;
     event.waitUntil(precacheRoutes(routes));
+    return;
+  }
+
+  if (event.data.type === 'EVICT') {
+    const target = EVICT_SECTIONS[event.data.section];
+    if (!target) return;
+    event.waitUntil(evictSection(target));
   }
 });
+
+/*
+ * Drop one section's cached document and media so the next fetch misses.
+ *
+ * Sent by the shell (welcome-screen.js, via kiosk-live.js) the moment an
+ * editor's change is announced over Pusher, BEFORE any frame reload: with
+ * stale-while-revalidate a reload alone would re-serve the stale entry and
+ * appear to do nothing. No CACHE_NAME bump is involved -- the strategy is
+ * unchanged, the worker is just being told that a specific entry is dead.
+ */
+function evictSection(target) {
+  return caches.open(CACHE_NAME).then(async (cache) => {
+    const keys = await cache.keys();
+    const doomed = keys.filter((req) => {
+      const url = new URL(req.url);
+      if (url.origin !== self.location.origin) return false;
+      return url.pathname === target.document || url.pathname.startsWith(target.media);
+    });
+    await Promise.all(doomed.map((req) => cache.delete(req)));
+  });
+}
 
 function precacheUrls(urls) {
   return caches.open(CACHE_NAME).then((cache) =>
