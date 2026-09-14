@@ -20,7 +20,7 @@ from masonite.facades import Cache
 #: because stories carry `category`/`category_id` now, and a cached v4 dict
 #: has no such key, so the kiosk would render a blank category label on every
 #: story for five minutes after release.
-KEY = "kiosk:news:index:v7"
+KEY = "kiosk:news:index:v8"
 
 #: Safety net only. Every write path invalidates explicitly via forget().
 TTL = 300

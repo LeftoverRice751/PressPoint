@@ -409,13 +409,17 @@ class IssuePreviewTestCase(TestCase):
             Mock(id=2, status="review", layout_type="brief", author_id=5),
             Mock(id=3, status="review", layout_type="brief", author_id=5),
         ]
+        pending = Mock(id=1, number=3, title="")
+        pending.stories = rows
         with patch("app.services.ReviewQueue.News") as news_mock, patch(
             "app.services.ReviewQueue.author_names", return_value={5: "John"}
-        ):
+        ), patch("app.services.ReviewQueue.Issues.pending_issues", return_value=[pending]):
             news_mock.all.return_value = rows
             ctx = review_context()
 
-        issue = ctx["review_issue"]
+        self.assertEqual(len(ctx["review_issues"]), 1)
+        issue = ctx["review_issues"][0]
+        self.assertEqual(issue["number"], 3)
         self.assertEqual(issue["block_count"], 3)
         self.assertEqual(issue["blocks"]["brief"], 2)
         self.assertEqual(issue["blocks"]["lead"], 1)
@@ -435,9 +439,9 @@ class IssueRoutesResolveTestCase(_AppTestCase):
     def test_issue_urls_reach_the_issue_actions_not_the_story_ones(self):
         router = self.application.make("router")
         for url, method, expected in (
-            ("/gears/review/issue/preview", "GET", "preview_issue"),
-            ("/gears/review/issue/approve", "POST", "approve_issue"),
-            ("/gears/review/issue/reject", "POST", "reject_issue"),
+            ("/gears/review/issue/5/preview", "GET", "preview_issue"),
+            ("/gears/review/issue/5/approve", "POST", "approve_issue"),
+            ("/gears/review/issue/5/reject", "POST", "reject_issue"),
         ):
             route = router.find(url, method)
             self.assertIsNotNone(route, url)

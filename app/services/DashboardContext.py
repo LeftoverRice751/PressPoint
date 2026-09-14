@@ -278,8 +278,23 @@ def videos_context():
     }
 
 
-def news_context():
-    news_items = ordered_by_id(News)
+def news_context(user_id=None):
+    """The composer's context, scoped to the signed-in editor's OPEN issue.
+
+    `user_id` is the seam this whole feature turns on. Before it, every editor
+    saw and edited the same canvas -- there was one implicit issue and this
+    read the whole table. With it, the canvas is the editor's own newsletter:
+    their newest unpublished issue, created on demand (Issues.current_for).
+
+    None -- a caller with no user, which is the fragment poll from a surface
+    that has none -- gets an empty issue rather than everyone's stories.
+    """
+    # Imported here rather than at module top: Issues imports
+    # normalize_news_status from this module, and the reverse would be a cycle.
+    from app.services import Issues
+
+    issue = Issues.current_for(user_id) if user_id else None
+    news_items = Issues.stories_of(issue) if issue else []
     slots = group_news_slots(news_items)
 
     news_status_counts = {
@@ -307,14 +322,19 @@ def news_context():
         # would be missing on load and appear on the first live refresh, which
         # reads as a bug.
         "events": upcoming_events(),
-        **issue_identity(slots["lead"][0] if slots["lead"] else None),
+        **issue_identity_of(issue),
+        # The issue the composer is editing, for the top bar and the outline.
+        "news_issue": issue_summary(issue),
         "news_status_counts": news_status_counts,
         "news_count": len(news_items),
         # Seeds the composer's optimistic-concurrency token so the FIRST
         # layout write from a freshly loaded page is already versioned. Without
         # it the opening drag of a session is unguarded — exactly the window a
         # long-open tab is most likely to be stale in.
-        "news_stamp": section_stamp(News),
+        #
+        # Per ISSUE, not table-wide: another editor saving their own newsletter
+        # must not read as a conflict on this one.
+        "news_stamp": Issues.stamp_for(issue) if issue else "0:",
         # users.id -> display name, for the Story Library's Author column.
         # Built once here rather than per row: the alternative is an N+1 across
         # a table the composer renders in full.
@@ -351,7 +371,7 @@ def news_categories_context():
     }
 
 
-def news_canvas_context():
+def news_canvas_context(user_id=None):
     """Context for re-rendering `kiosk/_issue.html` from the dashboard
     fragment endpoint (Task 4's stale-canvas fix).
 
@@ -367,7 +387,7 @@ def news_canvas_context():
     Rebuilding those here keeps the fragment's `view.render()` call a plain
     template + context pair, with no `{% set %}` needed on the fragment path.
     """
-    news = news_context()
+    news = news_context(user_id)
     return {
         "blocks": news["blocks"],
         "news_editor": True,
@@ -431,6 +451,36 @@ def upcoming_events(limit=CALENDAR_LIMIT):
             "iso": at.strftime("%Y-%m-%d") if hasattr(at, "strftime") else "",
         })
     return events
+
+
+def issue_summary(issue):
+    """What the composer's top bar and outline say about the issue being
+    edited. None when there is no issue (no signed-in editor)."""
+    if not issue:
+        return None
+    from app.services import Issues
+
+    return {
+        "id": getattr(issue, "id", None),
+        "number": int(getattr(issue, "number", 0) or 0),
+        "title": getattr(issue, "title", None) or "",
+        "status": Issues.status_of(issue),
+        "published_at": getattr(issue, "published_at", None),
+    }
+
+
+def issue_identity_of(issue):
+    """Folio numbering from the ISSUE row. Vol. still counts years since
+    founding, off the issue's publish date (or today's, for an open draft);
+    No. is the issue's own number now rather than a day-of-year stand-in."""
+    if not issue:
+        return {"issue_vol": None, "issue_no": None}
+    at = getattr(issue, "published_at", None) or getattr(issue, "created_at", None)
+    year = at.year if hasattr(at, "year") else datetime.now().year
+    return {
+        "issue_vol": max(1, year - 2025),
+        "issue_no": int(getattr(issue, "number", 0) or 0) or None,
+    }
 
 
 def issue_identity(lead):
@@ -710,14 +760,15 @@ def super_admin_stats():
     }
 
 
-def full_context(default_page="dashboard"):
-    """The complete dashboard context, identical to what the page always got."""
+def full_context(default_page="dashboard", user_id=None):
+    """The complete dashboard context. `user_id` scopes the News panel to
+    that editor's own issue; everything else is shared."""
     locations_data = locations_context()
 
     context = {}
     context.update(overview_context())
     context.update(events_context())
-    context.update(news_context())
+    context.update(news_context(user_id))
     context.update(archives_context())
     context.update(videos_context())
     context.update(locations_data)

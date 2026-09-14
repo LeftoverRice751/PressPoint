@@ -16,10 +16,11 @@ from config.database import DB
 from app.events.NewNews import NewNews
 from app.models.Events import Events
 from app.models.News import News
-from app.services import KioskBroadcast, NewsCache, NewsCategories
+from app.services import Issues, KioskBroadcast, NewsCache, NewsCategories
 from app.services.KioskBroadcast import pusher_configured as _pusher_configured  # noqa: F401
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.DashboardContext import (
+    issue_identity_of,
     BLOCK_CAPACITY,
     BLOCK_TYPES,
     group_news_slots,
@@ -293,6 +294,18 @@ def _resolve_status_for_actor(status, request):
     return status
 
 
+def _int_or_none(value):
+    """A real integer id, or None. Model attributes arrive as ints, but test
+    doubles hand back Mocks, and a Mock is truthy -- so "if issue_id" alone
+    would send a stand-in down the per-issue path with no issue behind it."""
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value) or None
+    except (TypeError, ValueError):
+        return None
+
+
 def _current_user_id(request):
     """users.id of the signed-in account, or None.
 
@@ -419,47 +432,62 @@ def _build_flash_payload(news_item):
 
 class NewsController(Controller):
     def _build_news_payload(self):
-        # Filtering/grouping stays on the real Model instances (unchanged
-        # logic, getattr-based) — dict conversion happens last, only for
-        # what actually goes into the cache. Converting earlier would
-        # silently break group_news_slots/_news_is_public: getattr() on a
-        # plain dict always returns the default, since dicts don't expose
-        # their keys as attributes.
-        news_items = [item for item in News.order_by("id", "desc").get() if _news_is_public(item)]
-        slots = group_news_slots(news_items)
+        """Every published issue, newest first, each with its own blocks.
 
-        # Resolve the public disk once; _news_item_to_dict uses it to pick the
-        # WebP variant that exists on disk. This whole payload is cached, so
-        # the existence checks run once per cache period, not per request.
+        One kiosk slide per issue. This used to build ONE issue from every
+        public story in the table -- there was no other kind of issue. Now a
+        story belongs to a newsletter, and the terminal pages between the
+        newsletters that have been published.
+
+        Filtering and grouping stay on the real Model instances (unchanged
+        logic, getattr-based); dict conversion happens last, only for what goes
+        into the cache. Converting earlier would silently break
+        group_news_slots/_news_is_public: getattr() on a plain dict always
+        returns the default.
+        """
         try:
             disk = StorageFacade.disk("public")
         except Exception:
             disk = None
-
-        # One query for every live category name, resolved behind this cache
-        # so a rename costs nothing per request. A story whose category was
-        # soft-deleted resolves to None here — but it cannot reach this point
-        # anyway, because deleting a category cascades a soft-delete to its
-        # stories and the global scope has already excluded them above.
         category_names = NewsCategories.names_by_id()
-
-        # Folio issue numbering, derived from the lead story's date (no
-        # schema). Shared with the composer via DashboardContext so the
-        # editor's masthead cannot print a different issue line from the one
-        # the kiosk shows.
-        identity = issue_identity(slots["lead"][0] if slots["lead"] else None)
 
         def project(item):
             return _news_item_to_dict(item, disk, category_names)
 
+        issues = []
+        for issue in Issues.published_issues():
+            # published_issues() attaches the published-shaped stories; the
+            # per-story date check for `scheduled` still applies here.
+            stories = [item for item in getattr(issue, "stories", []) if _news_is_public(item)]
+            if not stories:
+                continue
+            slots = group_news_slots(stories)
+            identity = issue_identity_of(issue)
+            issues.append({
+                "id": getattr(issue, "id", None),
+                "number": int(getattr(issue, "number", 0) or 0),
+                "title": getattr(issue, "title", None) or "",
+                "published_label": (
+                    issue.published_at.strftime("%b %d, %Y")
+                    if hasattr(getattr(issue, "published_at", None), "strftime") else None
+                ),
+                "blocks": {
+                    block: [project(item) for item in slots[block]] for block in BLOCK_TYPES
+                },
+                "issue_vol": identity["issue_vol"],
+                "issue_no": identity["issue_no"],
+                "news_items": [project(item) for item in stories],
+            })
+
+        # The first (newest) issue is also exposed flat, so anything that
+        # still reads `blocks` / `issue_no` at the top level keeps working.
+        first = issues[0] if issues else None
         return {
-            "news_items": [project(item) for item in news_items],
-            # Block-keyed, matching what the composer hands the same partial.
-            "blocks": {
-                block: [project(item) for item in slots[block]] for block in BLOCK_TYPES
-            },
-            "issue_vol": identity["issue_vol"],
-            "issue_no": identity["issue_no"],
+            "issues": issues,
+            "news_items": first["news_items"] if first else [],
+            "blocks": first["blocks"] if first else {block: [] for block in BLOCK_TYPES},
+            "issue_vol": first["issue_vol"] if first else None,
+            "issue_no": first["issue_no"] if first else None,
         }
 
     def _upcoming_events(self):
@@ -480,6 +508,10 @@ class NewsController(Controller):
         return view.render(
             "kiosk/news",
             {
+                # One entry per published issue, newest first -- the kiosk
+                # renders a slide for each. `.get()` with a fallback: a cache
+                # entry written before this key existed would KeyError.
+                "issues": payload.get("issues") or [],
                 "news_items": payload["news_items"],
                 "blocks": payload["blocks"],
                 "issue_vol": payload.get("issue_vol"),
@@ -719,7 +751,12 @@ class NewsController(Controller):
                 saved_news = existing
                 is_new = False
             else:
+                # A new story is filed into the author's OPEN issue, created
+                # here if they have none -- this is the write that starts a
+                # newsletter. (Rendering the composer deliberately does not.)
+                issue = Issues.ensure_current_for(actor_id)
                 saved_news = News.create(
+                    issue_id=getattr(issue, "id", None),
                     category_id=category_id,
                     title=title,
                     description=description,
@@ -755,6 +792,16 @@ class NewsController(Controller):
 
             if is_ajax:
                 return json_success(response, payload={
+                    # Where the table is AFTER this write. The composer saves
+                    # an issue as N of these and then writes block order
+                    # through news.layout, which is guarded by this stamp.
+                    # Without it the layout write presented the page-load
+                    # stamp, the server correctly saw the table had moved and
+                    # answered 409 -- and the composer reloaded a canvas it
+                    # had just successfully saved, detecting its own writes
+                    # as someone else's.
+                    "stamp": Issues.stamp_for(_int_or_none(getattr(saved_news, "issue_id", None)))
+                    if _int_or_none(getattr(saved_news, "issue_id", None)) else section_stamp(News),
                     "article": {
                         "id": getattr(saved_news, "id", None),
                         "title": title,
@@ -851,8 +898,17 @@ class NewsController(Controller):
                 # It is table-wide, which means an unrelated body save also
                 # trips it; the cost of that false positive is one forced
                 # canvas refresh, against the cost of a silent total overwrite.
+                # Everything below is scoped to ONE issue: the one the first
+                # item belongs to. A layout write only ever moves stories
+                # within a newsletter, and every guard here must see only that
+                # newsletter -- a table-wide stamp made another editor's save
+                # read as a conflict on this one, and a table-wide capacity
+                # count made two editors' two leads an overflow.
+                first = News.where("id", int(items[0].get("id") or 0)).first() if items else None
+                issue_id = _int_or_none(getattr(first, "issue_id", None) if first else None)
+
                 if base_stamp is not None:
-                    current_stamp = section_stamp(News)
+                    current_stamp = Issues.stamp_for(issue_id) if issue_id else section_stamp(News)
                     if current_stamp != base_stamp:
                         raise _LayoutConflict(current_stamp)
 
@@ -873,7 +929,10 @@ class NewsController(Controller):
                 # a main that another editor added between this tab's last
                 # refresh and this write.
                 for slot, capacity in _NEWS_SLOT_CAPACITY.items():
-                    if News.where("layout_type", slot).count() > capacity:
+                    occupied = News.where("layout_type", slot)
+                    if issue_id:
+                        occupied = occupied.where("issue_id", issue_id)
+                    if occupied.count() > capacity:
                         raise _SlotOverflow(slot)
 
             Cache.forget(_NEWS_CACHE_KEY)
@@ -882,7 +941,10 @@ class NewsController(Controller):
             if is_ajax:
                 return json_success(
                     response,
-                    payload={"updated": updated_ids, "stamp": section_stamp(News)},
+                    payload={
+                        "updated": updated_ids,
+                        "stamp": Issues.stamp_for(issue_id) if issue_id else section_stamp(News),
+                    },
                     messages=["Layout saved."],
                 )
             return response.redirect(name="gears.dashboard").with_success(["Layout saved."])

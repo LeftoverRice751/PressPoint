@@ -68,5 +68,10 @@ class News(Model, SoftDeletesMixin):
         # NewsController.store() validates it against a LIVE category, because
         # pointing a story at a soft-deleted one blanks its kiosk label.
         "category_id",
+        # Which newsletter this story belongs to -- issues.id, nullable
+        # (ON DELETE SET NULL). Set once on create from the author's open
+        # issue (Issues.ensure_current_for); never changed by a save, since a
+        # story does not move between newsletters.
+        "issue_id",
         ]
     pass

@@ -877,3 +877,45 @@ class PerBlockRequirementsTestCase(TestCase):
     def test_a_photo_essay_entry_with_no_photo_is_refused(self):
         create_mock, _ = self._store(self._inputs("photo_essay", title="", description=""))
         create_mock.assert_not_called()
+
+
+class StoreReturnsStampTestCase(TestCase):
+    """store() reports where the table is after its own write.
+
+    The composer saves an issue as N store() posts and then writes the block
+    order through news.layout, which carries an optimistic-concurrency stamp
+    (count:max(updated_at)). Every store() moves that stamp; store() never
+    said so; so the layout write presented a stamp from page load, the server
+    correctly saw the table had changed, raised 409 "someone else changed the
+    front page", and the composer reloaded the canvas -- throwing away the
+    submit that had just succeeded. The system was detecting its own writes
+    as someone else's.
+    """
+
+    def test_store_success_carries_the_fresh_stamp(self):
+        controller = NewsController()
+        inputs = {
+            "title": "A headline", "description": "<p>Body</p>", "excerpt": "", "source": "",
+            "location": "", "dek": "", "image_caption": "", "image_credit": "",
+            "layout_type": "brief", "status": "draft", "published_at": "", "priority": "1",
+            "image": None, "article_id": "", "category_id": "1",
+        }
+        request = _mock_actor_request(inputs, role="editor")
+        # The composer posts as fetch(); the stamp rides the JSON envelope.
+        request.header.side_effect = lambda name: (
+            "XMLHttpRequest" if name == "X-Requested-With" else None
+        )
+        response = _mock_response()
+        with patch(
+            "app.controllers.gears.NewsController.News.create", return_value=Mock(id=5, image=None)
+        ), patch("app.controllers.gears.NewsController.NewNews"), patch(
+            "app.controllers.gears.NewsController.Cache"
+        ), patch(
+            "app.controllers.gears.NewsController.NewsCategories.find_live", return_value=Mock()
+        ), patch(
+            "app.controllers.gears.NewsController.section_stamp", return_value="7:2026-09-14 10:00:00"
+        ):
+            controller.store(request, Mock(), response)
+
+        body = response.json.call_args[0][0]
+        self.assertEqual(body.get("stamp"), "7:2026-09-14 10:00:00")

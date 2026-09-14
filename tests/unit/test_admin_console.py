@@ -171,6 +171,10 @@ class ConsoleTemplateTestCase(TestCase):
             # The queue renders the ISSUE the pending stories make up, so the
             # console needs the same key review_context() supplies.
             "review_issue": _issue_from(list(stories)),
+            "review_issues": (
+                [dict(_issue_from(list(stories)), id=1, number=1, title="")]
+                if _issue_from(list(stories)) else []
+            ),
         }
         context.update(overrides)
         return View.render("gears/admin-console", context).rendered_template

@@ -17,9 +17,10 @@
    through the real kiosk partial and there is no point paying for that until
    the admin asks to see it. #}
 <div class="review-queue" data-review-queue>
-  {% if review_issue %}
-  {% set issue = review_issue %}
-  <article class="review-card review-card--issue" data-review-issue>
+  {# One card per pending ISSUE. Each editor's newsletter is its own unit
+     with its own Approve; approving one does not touch another. #}
+  {% for issue in review_issues %}
+  <article class="review-card review-card--issue" data-review-issue data-review-issue-id="{{ issue.id }}">
     <div class="review-card__head">
       <div class="review-card__meta">
         <p class="review-card__byline">
@@ -27,7 +28,7 @@
           <strong>{{ issue.authors | join(', ') if issue.authors else 'an unknown account' }}</strong>
         </p>
         <h3 class="review-card__title">
-          Issue for review
+          Issue {{ '%02d' % issue.number if issue.number else '' }}{% if issue.title %} &mdash; {{ issue.title }}{% endif %}
           <span class="review-card__count">{{ issue.block_count }} block{{ '' if issue.block_count == 1 else 's' }}</span>
         </h3>
       </div>
@@ -80,11 +81,11 @@
     {# One reason for the whole issue. Required: an editor told only
        "sent back" has no idea what to fix. #}
     <div class="review-card__reject" data-review-reject-form hidden>
-      <label class="review-reject__label" for="reject-reason-issue">
+      <label class="review-reject__label" for="reject-reason-issue-{{ issue.id }}">
         What needs to change?
       </label>
       <textarea class="review-reject__input"
-                id="reject-reason-issue"
+                id="reject-reason-issue-{{ issue.id }}"
                 data-review-reason
                 rows="3"
                 placeholder="Explain what the editor should fix before resubmitting. Every block goes back together."></textarea>
@@ -102,5 +103,5 @@
   <div class="empty-state empty-state--embedded">
     Nothing is waiting for review right now.
   </div>
-  {% endif %}
+  {% endfor %}
 </div>

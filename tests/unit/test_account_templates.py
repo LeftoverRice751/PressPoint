@@ -76,13 +76,17 @@ class ReviewQueueTemplateTestCase(TestCase):
                 "review_authors": names,
                 "review_count": len(stories),
                 "review_issue": issue,
+                # One entry per pending issue; a bare story list is one issue.
+                "review_issues": [dict(issue, id=1, number=1, title="")] if issue else [],
             },
         ).rendered_template
 
     def test_renders_one_card_for_the_whole_issue(self):
         """Two submitted stories are two blocks of ONE issue, not two cards."""
         html = self._render([_story(1), _story(2)])
-        self.assertEqual(html.count("data-review-issue"), 1)
+        # The card class, not the hook: `data-review-issue-id` contains
+        # `data-review-issue` as a substring and would count twice.
+        self.assertEqual(html.count("review-card--issue"), 1)
         self.assertNotIn("data-review-item", html)
 
     def test_card_carries_the_hooks_the_queue_js_reads(self):

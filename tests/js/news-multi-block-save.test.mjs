@@ -261,3 +261,21 @@ test('the editor mounts with what is on screen, not the hidden field', () => {
   assert.match(fn, /staged[\s\S]{0,120}(target\.innerHTML|target\.textContent)/,
     'the staged content must come from the region the editor is standing on');
 });
+
+// ── Round four: the submit reloaded the canvas it had just saved ────────────
+//
+// N store() posts, then news.layout with base_stamp. Every store() moves the
+// table's stamp (count:max(updated_at)); the browser's copy stayed at page
+// load; layout() correctly saw a mismatch and returned 409 "someone else
+// changed the front page"; handleLayoutConflict() reloaded the canvas. The
+// system detected its own writes as someone else's, and the editor watched a
+// successful submit "revert".
+
+test('the flush adopts the stamp each save returns', () => {
+  const fn = blockAfter('function flushPendingCards(');
+  assert.ok(fn);
+
+  assert.match(fn, /canvasStamp\s*=\s*json\.stamp/,
+    'every store() moves the concurrency stamp; the flush has to carry the new '
+      + 'one forward or the layout write that follows is refused as a conflict');
+});

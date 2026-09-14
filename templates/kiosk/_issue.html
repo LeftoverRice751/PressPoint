@@ -67,7 +67,10 @@
 {% set editorial = editorial_rows[0] if editorial_rows else None %}
 {% set notice = notice_rows[0] if notice_rows else None %}
 
-{% set issue_date = main_story.published_label if main_story and main_story.published_label else 'Latest edition' %}
+{# The issue's own publish date when it has one; the lead's as a fallback for
+   an unpublished issue in the composer. #}
+{% set issue_date = issue_published_label if issue_published_label is defined and issue_published_label else (main_story.published_label if main_story and main_story.published_label else 'Latest edition') %}
+{% set issue_title = issue_title if issue_title is defined else '' %}
 
 {# ── Issue identity ───────────────────────────────────────────────────────────
    Derived in ONE place so an `issues` table can replace it with a single edit.
@@ -117,7 +120,7 @@
       </span>
     </div>
     <div class="issue-masthead__issue">
-      <span>{{ issue_label }} &middot; {{ vol_label }}</span>
+      <span>{{ issue_label }} &middot; {{ vol_label }}{% if issue_title %} &middot; {{ issue_title }}{% endif %}</span>
       <span>{{ issue_date }}</span>
     </div>
   </header>

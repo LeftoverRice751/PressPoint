@@ -25,6 +25,7 @@ has to change.
 """
 
 from app.models.News import News
+from app.services import Issues
 from app.services.DashboardContext import (
     BLOCK_TYPES,
     author_names,
@@ -59,14 +60,9 @@ def pending_stories():
     return pending
 
 
-def pending_issue(stories=None):
-    """The one issue awaiting a decision, described as a unit.
-
-    Returns None when nothing is pending — the template renders its empty
-    state off that, and the approve/reject endpoints refuse rather than
-    reporting success on nothing.
-    """
-    stories = pending_stories() if stories is None else stories
+def describe_issue(issue, stories):
+    """One pending issue, described as a unit for the queue card: its id and
+    number, which blocks are filled, and who wrote it."""
     if not stories:
         return None
 
@@ -86,11 +82,40 @@ def pending_issue(stories=None):
             authors.append(name)
 
     return {
+        "id": getattr(issue, "id", None),
+        "number": int(getattr(issue, "number", 0) or 0),
+        "title": getattr(issue, "title", None) or "",
         "stories": stories,
         "block_count": len(stories),
         "blocks": counts,
         "authors": authors,
     }
+
+
+def pending_issue(stories=None):
+    """Kept for the transitional callers and tests that describe a bare list
+    of stories with no issue behind it."""
+    stories = pending_stories() if stories is None else stories
+    return describe_issue(None, stories)
+
+
+def review_stories_of(issue):
+    """The stories of ONE issue that are awaiting a decision."""
+    return [
+        s for s in Issues.stories_of(issue)
+        if normalize_news_status(getattr(s, "status", None)) == REVIEW_STATUS
+    ]
+
+
+def pending_issues_described():
+    """Every issue with something awaiting review, oldest first, each
+    described for its queue card."""
+    out = []
+    for issue in Issues.pending_issues():
+        described = describe_issue(issue, getattr(issue, "stories", []) or [])
+        if described:
+            out.append(described)
+    return out
 
 
 def review_context():
@@ -102,11 +127,16 @@ def review_context():
     """
     stories = pending_stories()
 
+    issues = pending_issues_described()
     return {
         "review_stories": stories,
         "review_count": len(stories),
         "review_authors": author_names(stories),
-        "review_issue": pending_issue(stories),
+        # One entry per pending ISSUE. Each editor's newsletter is its own
+        # card with its own Approve.
+        "review_issues": issues,
+        # The first, for anything still reading the singular key.
+        "review_issue": issues[0] if issues else None,
     }
 
 

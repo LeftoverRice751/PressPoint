@@ -32,34 +32,29 @@
      the whole page. #}
   <div class="swiper news-swiper" data-news-swiper>
     <div class="swiper-wrapper">
-      <article class="swiper-slide news-slide news-slide--broadsheet">
+      {# One slide per PUBLISHED ISSUE, newest first. This is the multi-issue
+         carousel: editors each compose their own newsletter, and every one an
+         admin has approved becomes a page the reader can swipe to. With one
+         published issue there is one slide and the navigation hides itself.
 
-      {# The issue itself. Extracted to kiosk/_issue.html so the Gears
-         composer canvas renders THIS markup rather than an approximation of
-         it -- the editor's page and the kiosk's page cannot drift apart if
-         there is only one of them. The partial owns the issue identity, the
-         section band macro and the section numbering; `main_story` and
-         `secondary_stories` are set above so this page's own fallbacks
-         (featured_news, news_items[1:5]) still apply. #}
-      {% include 'kiosk/_issue.html' %}
-
+         Each slide renders kiosk/_issue.html -- the same partial the composer
+         canvas renders -- with THAT issue's blocks, so what the editor laid
+         out and what the terminal prints cannot drift apart. #}
+      {% for issue in issues %}
+      {% set blocks = issue.blocks %}
+      {% set issue_no = issue.issue_no %}
+      {% set issue_vol = issue.issue_vol %}
+      {% set issue_title = issue.title %}
+      {% set issue_published_label = issue.published_label %}
+      <article class="swiper-slide news-slide news-slide--broadsheet" data-issue-id="{{ issue.id }}">
+        {% include 'kiosk/_issue.html' %}
       </article>
-
-      {# One slide, one complete issue.
-
-         There used to be a slide here per approved story that had NOT been
-         placed in a block -- each rendered standalone with its own headline,
-         photograph and full body. That let a story escape the newsletter and
-         become a page of its own, which is the opposite of what a composed
-         issue means: every editable element belongs inside the issue.
-
-         The carousel itself stays. It is the ISSUE browser -- editors publish
-         issues and readers swipe between them -- so with one issue there is one
-         slide and nothing to swipe yet. The structure is waiting, not vestigial.
-
-         A story that is approved but never placed simply does not reach the
-         kiosk now. It stays in the composer's Story Library, so nothing is
-         lost; it has to be placed to be printed. #}
+      {% else %}
+      {# Nothing published yet. One slide, the partial's own empty state. #}
+      <article class="swiper-slide news-slide news-slide--broadsheet">
+        {% include 'kiosk/_issue.html' %}
+      </article>
+      {% endfor %}
     </div>
 
     {# Pagination and arrows are the non-touch fallback. Real <button>s, so

@@ -28,9 +28,9 @@ ROUTES = [
     # "/gears/review/issue/approve" resolved to approve(id="issue") on the
     # second boot and 404'd on News.where("id", "issue"). Verified through the
     # real router in tests/unit/test_review_workflow.py.
-    Route.get("/gears/review/issue/preview", "gears.ReviewController@preview_issue").name("review.issue.preview").middleware("auth", "admin"),
-    Route.post("/gears/review/issue/approve", "gears.ReviewController@approve_issue").name("review.issue.approve").middleware("auth", "admin"),
-    Route.post("/gears/review/issue/reject", "gears.ReviewController@reject_issue").name("review.issue.reject").middleware("auth", "admin"),
+    Route.get("/gears/review/issue/@id:int/preview", "gears.ReviewController@preview_issue").name("review.issue.preview").middleware("auth", "admin"),
+    Route.post("/gears/review/issue/@id:int/approve", "gears.ReviewController@approve_issue").name("review.issue.approve").middleware("auth", "admin"),
+    Route.post("/gears/review/issue/@id:int/reject", "gears.ReviewController@reject_issue").name("review.issue.reject").middleware("auth", "admin"),
     Route.get("/gears/review/@id:int/preview", "gears.ReviewController@preview").name("review.preview").middleware("auth", "admin"),
     Route.post("/gears/review/@id:int/approve", "gears.ReviewController@approve").name("review.approve").middleware("auth", "admin"),
     Route.post("/gears/review/@id:int/reject", "gears.ReviewController@reject").name("review.reject").middleware("auth", "admin"),

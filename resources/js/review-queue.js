@@ -31,6 +31,7 @@
   }
 
   function cardOf(el) { return el.closest('[data-review-issue]'); }
+  function issueIdOf(card) { return card && card.getAttribute('data-review-issue-id'); }
 
   function refreshQueue() {
     if (window.DashboardLive && window.DashboardLive.refresh) {
@@ -49,16 +50,22 @@
     if (!badge) return;
     // Depth is counted in blocks (review_count), and once the issue is
     // decided there is nothing pending at all.
-    var remaining = host.querySelector('[data-review-issue]') ? parseInt(badge.textContent, 10) || 0 : 0;
+    var remaining = 0;
+    host.querySelectorAll('[data-review-issue]').forEach(function (c) {
+      var n = c.querySelector('.review-card__count');
+      remaining += n ? (parseInt(n.textContent, 10) || 0) : 0;
+    });
     badge.textContent = String(remaining);
     badge.hidden = remaining === 0;
   }
 
   function decide(card, approve, reason) {
+    var id = issueIdOf(card);
+    if (!id) return;
     var buttons = card.querySelectorAll('button');
     buttons.forEach(function (b) { b.disabled = true; });
 
-    fetch('/gears/review/issue/' + (approve ? 'approve' : 'reject'), {
+    fetch('/gears/review/issue/' + id + '/' + (approve ? 'approve' : 'reject'), {
       method: 'POST',
       headers: {
         'X-CSRF-TOKEN': csrf,
@@ -94,16 +101,17 @@
   }
 
   function loadPreview(card) {
+    var id = issueIdOf(card);
     var frame = card.querySelector('[data-review-preview-frame]');
     var target = card.querySelector('[data-review-preview-target]');
-    if (!frame || !target) return;
+    if (!id || !frame || !target) return;
 
     if (!frame.hidden) { frame.hidden = true; return; }
 
     frame.hidden = false;
     target.innerHTML = '<p class="review-preview__loading">Loading preview…</p>';
 
-    fetch('/gears/review/issue/preview', {
+    fetch('/gears/review/issue/' + id + '/preview', {
       headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
       credentials: 'same-origin'
     })

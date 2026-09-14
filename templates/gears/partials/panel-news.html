@@ -85,11 +85,21 @@
         <header class="issue-topbar">
           <div class="issue-topbar__identity">
             <div class="issue-topbar__titlerow">
-              <h2 class="issue-topbar__title">{{ 'Issue %02d'|format(issue_no) if issue_no else 'Issue 01' }} &mdash; Campus edition</h2>
+              {# THIS editor's own issue (news_issue, from Issues.current_for).
+                 None until their first save creates one -- rendering the
+                 composer deliberately writes nothing -- so the bar says the
+                 issue is new rather than inventing a number. #}
+              {% if news_issue %}
+              <h2 class="issue-topbar__title">Issue {{ '%02d'|format(news_issue.number) }}{% if news_issue.title %} &mdash; {{ news_issue.title }}{% endif %}</h2>
+              {% else %}
+              <h2 class="issue-topbar__title">New issue</h2>
+              {% endif %}
               {# Reuses the story-status vocabulary the library cards already
                  use (.news-story-card__status--<status>); there is no separate
-                 status-badge component in this stylesheet. #}
-              <span class="news-story-card__status news-story-card__status--draft issue-topbar__pill" data-news-issue-status>Draft</span>
+                 status-badge component in this stylesheet. Derived from the
+                 issue's stories, never stored. #}
+              {% set issue_state = news_issue.status if news_issue else 'draft' %}
+              <span class="news-story-card__status news-story-card__status--{{ issue_state }} issue-topbar__pill" data-news-issue-status>{{ {'draft': 'Draft', 'review': 'In review', 'published': 'Published'}.get(issue_state, 'Draft') }}</span>
             </div>
             <p class="issue-topbar__meta">
               <span data-news-issue-date>{{ 'Vol. %d'|format(issue_vol) if issue_vol else 'Vol. 1' }}</span>

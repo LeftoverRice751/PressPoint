@@ -1457,6 +1457,11 @@ import Sortable from 'sortablejs';
 
       postForm(function (json) {
         saved += 1;
+        // Carry the concurrency stamp forward. Each save moves the table's
+        // stamp; the layout write after the flush is guarded by it, and
+        // presenting the page-load stamp got a 409 and a canvas reload --
+        // the composer reverting a submit that had just succeeded.
+        if (json && json.stamp) canvasStamp = json.stamp;
         // Adopt the id the server just minted, so a second save updates this
         // story instead of creating a duplicate of it.
         if (json && json.article && json.article.id) {
@@ -1520,9 +1525,12 @@ import Sortable from 'sortablejs';
       if (f.removeImage) f.removeImage.value = '';
       // Positions are written by news.layout, which needs the ids the posts
       // above just minted -- so it runs after them, not before.
+      // persistCanvasOrder() refreshes the canvas itself on success (and on
+      // every failure path), so this only refreshes the Story Library, which
+      // shows status. A second canvas refresh here fetched the same fragment
+      // twice back to back.
       persistCanvasOrder(function () {
         if (window.DashboardLive) { window.DashboardLive.refresh('news'); }
-        refreshCanvasFragment(okMessage);
         done();
       });
     });

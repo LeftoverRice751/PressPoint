@@ -29,6 +29,7 @@ from app.services.ReviewQueue import (
     issue_preview_context,
     pending_stories,
     preview_context,
+    review_stories_of,
 )
 
 
@@ -143,8 +144,8 @@ class ReviewController(Controller):
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return _err(["Could not record that decision. Please try again."])
 
-    def _decide_issue(self, request, response, approve):
-        """Approve or reject the whole pending issue in one decision.
+    def _decide_issue(self, request, response, approve, issue_id=None):
+        """Approve or reject ONE pending issue in one decision.
 
         An editor composes an issue as one thing and submits it in one click;
         this is the admin's matching single action. All-or-nothing by decision:
@@ -167,7 +168,9 @@ class ReviewController(Controller):
 
         # Re-read at decision time, not from whatever the page rendered: two
         # admins with the queue open would otherwise both act on a stale list.
-        stories = list(pending_stories() or [])
+        # Scoped to the issue in the URL: each editor's newsletter is decided
+        # on its own, so approving Maria's does not publish John's.
+        stories = list(review_stories_of(issue_id) if issue_id else pending_stories() or [])
         if not stories:
             # Refuse, do not report success on nothing -- a double-click after
             # a colleague already approved would otherwise say "published" to
@@ -191,6 +194,20 @@ class ReviewController(Controller):
                         record.status = "draft"
                         record.rejection_reason = reason
                     record.save()
+                # The issue's own publish date -- what orders the kiosk's
+                # slides and what its masthead prints.
+                if approve and issue_id:
+                    try:
+                        from datetime import datetime
+
+                        from app.models.Issue import Issue
+
+                        issue = Issue.where("id", issue_id).first()
+                        if issue is not None and not getattr(issue, "published_at", None):
+                            issue.published_at = datetime.now()
+                            issue.save()
+                    except Exception:
+                        pass
 
             # Once, after the batch: the cache is one thing, not one per block.
             Cache.forget(_NEWS_CACHE_KEY)
@@ -242,18 +259,26 @@ class ReviewController(Controller):
             return _err(["Could not record that decision. Please try again."])
 
     def approve_issue(self, request: Request, response: Response):
-        return self._decide_issue(request, response, approve=True)
+        return self._decide_issue(request, response, approve=True, issue_id=self._issue_id(request))
 
     def reject_issue(self, request: Request, response: Response):
-        return self._decide_issue(request, response, approve=False)
+        return self._decide_issue(request, response, approve=False, issue_id=self._issue_id(request))
+
+    @staticmethod
+    def _issue_id(request):
+        try:
+            return int(request.param("id")) or None
+        except (TypeError, ValueError):
+            return None
 
     def preview_issue(self, request: Request, response: Response, view: View):
-        """The whole pending issue, as the kiosk will print it."""
+        """ONE pending issue, as the kiosk will print it."""
         actor = self._actor(request)
         if not _is_admin(actor):
             return json_errors(response, ["Only an admin can review stories."], status=403)
 
-        stories = list(pending_stories() or [])
+        issue_id = self._issue_id(request)
+        stories = list(review_stories_of(issue_id) if issue_id else pending_stories() or [])
         if not stories:
             return json_errors(response, ["Nothing is awaiting review."], status=404)
 

@@ -107,6 +107,23 @@ STAMP_MODELS = {
 _section_stamp = DashboardContext.section_stamp
 
 
+def _user_id(request):
+    """users.id of the signed-in account, or None. Defensive for the same
+    reason NewsController._current_user_id is: request.user() is False for a
+    guest, and the tests drive these methods with request doubles."""
+    try:
+        user = request.user() if callable(getattr(request, "user", None)) else None
+    except Exception:
+        return None
+    return getattr(user, "id", None) or None
+
+
+#: Sections whose context depends on WHO is asking. The News panel is the
+#: editor's own issue now, so its builders take the user; everything else is
+#: shared and takes nothing.
+_USER_SCOPED_SECTIONS = {"news", "news-canvas"}
+
+
 class DashboardController(Controller):
     def show(self, views: View, request: Request, response: Response):
         try:
@@ -128,7 +145,7 @@ class DashboardController(Controller):
             return response.redirect(name="users.view")
 
         default_page = (request.input("page") or "dashboard").strip() or "dashboard"
-        context = DashboardContext.full_context(default_page)
+        context = DashboardContext.full_context(default_page, user_id=getattr(user, "id", None))
 
         # The shell needs to know who is looking at it: the profile border
         # renders their name and avatar. Not part of full_context() because
@@ -143,13 +160,17 @@ class DashboardController(Controller):
 
         return views.render("gears/dashboard", context)
 
-    def fragment(self, section, view: View, response: Response):
-        entry = FRAGMENTS.get((section or "").strip().lower())
+    def fragment(self, section, view: View, request: Request, response: Response):
+        key = (section or "").strip().lower()
+        entry = FRAGMENTS.get(key)
         if not entry:
             return json_errors(response, ["Unknown dashboard section."], status=404)
 
         build_context, template, rows_key = entry
-        context = build_context()
+        # The News builders are scoped to the signed-in editor's own issue;
+        # the rest are shared and take no argument.
+        user_id = _user_id(request)
+        context = build_context(user_id) if key in _USER_SCOPED_SECTIONS else build_context()
         html = view.render(template, context).rendered_template
         rows = context.get(rows_key) or []
 
@@ -157,8 +178,20 @@ class DashboardController(Controller):
             "section": section,
             "html": html,
             "count": len(rows),
-            "stamp": _section_stamp(STAMP_MODELS[section]),
+            "stamp": self._stamp_for(key, user_id),
         })
+
+    @staticmethod
+    def _stamp_for(section, user_id):
+        """The change marker for one section. News is per ISSUE: the stamp
+        the poll and news.layout compare against has to be the editor's own
+        newsletter's, or another editor saving theirs reads as a change here."""
+        if section in _USER_SCOPED_SECTIONS:
+            from app.services import Issues
+
+            issue = Issues.current_for(user_id) if user_id else None
+            return Issues.stamp_for(issue) if issue else "0:"
+        return _section_stamp(STAMP_MODELS[section])
 
     def stamps(self, request: Request, response: Response):
         # The bell's unread count rides along on the poll the dashboard already
@@ -170,10 +203,11 @@ class DashboardController(Controller):
         except Exception:
             user = None
 
+        user_id = getattr(user, "id", None) or None
         return json_success(response, payload={
-            "unread_notifications": Notifications.unread_count(getattr(user, "id", None)),
+            "unread_notifications": Notifications.unread_count(user_id),
             "stamps": {
-                name: _section_stamp(model)
-                for name, model in STAMP_MODELS.items()
+                name: self._stamp_for(name, user_id)
+                for name in STAMP_MODELS
             }
         })
