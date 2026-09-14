@@ -3,7 +3,6 @@ from masonite.request import Request
 from masonite.filesystem import Storage
 from masonite.utils.location import base_path
 from masonite.facades import Broadcast
-from masonite.configuration import config
 from app.models.Video import Video
 from masonite.response import Response
 import os
@@ -16,21 +15,12 @@ from datetime import datetime
 from app.services.StorageRouter import absolute_path, is_safe_path
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.FileVerificationService import FileVerificationService
+from app.services.KioskBroadcast import pusher_configured as _pusher_configured
 
 
 VIDEO_UPLOAD_LIMIT = 10
 VIDEO_UPLOAD_WINDOW_SECONDS = 60
 VIDEO_UPLOAD_RATE_LIMIT_FILE = base_path("storage/framework/cache/video-upload-rate-limit.json")
-
-
-def _pusher_configured():
-    broadcasts = config("broadcast.broadcasts", {}) or config("broadcast.BROADCASTS", {}) or {}
-    pusher_settings = broadcasts.get("pusher") or {}
-    return bool(
-        (pusher_settings.get("client") or pusher_settings.get("key"))
-        and pusher_settings.get("app_id")
-        and pusher_settings.get("secret")
-    )
 
 
 def _broadcast_play_video(src, title):

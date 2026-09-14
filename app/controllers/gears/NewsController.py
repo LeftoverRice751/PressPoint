@@ -5,7 +5,6 @@ import traceback
 import bleach
 
 from masonite.controllers import Controller
-from masonite.configuration import config
 from masonite.filesystem import Storage
 from masonite.facades import Broadcast, Cache, Storage as StorageFacade
 from masonite.request import Request
@@ -18,6 +17,7 @@ from app.events.NewNews import NewNews
 from app.models.News import News
 from app.services import NewsCache, NewsCategories
 from app.services.AjaxResponses import wants_json, json_success, json_errors
+from app.services.KioskBroadcast import pusher_configured as _pusher_configured  # noqa: F401
 from app.services.DashboardContext import group_news_slots, section_stamp
 from app.services.ImageDerivatives import generate_variants, variant_path, variant_relpath
 from app.services.StorageRouter import absolute_path, is_safe_path
@@ -306,16 +306,6 @@ def _news_is_public(news_item):
         return published_at <= now
 
     return True
-
-
-def _pusher_configured():
-    broadcasts = config("broadcast.broadcasts", {}) or config("broadcast.BROADCASTS", {}) or {}
-    pusher_settings = broadcasts.get("pusher") or {}
-    return bool(
-        (pusher_settings.get("client") or pusher_settings.get("key"))
-        and pusher_settings.get("app_id")
-        and pusher_settings.get("secret")
-    )
 
 
 # Public kiosk index is read constantly — templates/kiosk/news.html auto-
