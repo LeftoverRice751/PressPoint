@@ -10,7 +10,7 @@ from masonite.views import View
 
 from app.models.AboutMilestone import AboutMilestone
 from app.models.AboutSection import AboutSection
-from app.services import AboutValues
+from app.services import AboutValues, KioskBroadcast
 from app.services.AboutContent import (
     AboutContent,
     EDITABLE_SLUGS,
@@ -58,6 +58,13 @@ def _drop_stale_hymn_videos(nas_dir, keep):
             os.remove(os.path.join(nas_dir, name))
         except OSError:
             pass
+
+
+def _about_changed():
+    # Every About write ends here. The kiosk's About page is served
+    # stale-while-revalidate by sw-kiosk.js, so without this a saved section
+    # would show up one visit late.
+    KioskBroadcast.section_changed("about-lspu")
 
 
 def _editor_redirect(response: Response):
@@ -180,6 +187,7 @@ class AboutController(Controller):
             section.updated_by_id = None
 
         section.save()
+        _about_changed()
         if wants_json(request):
             return json_success(response, messages=["Section saved."])
         return _editor_redirect(response).with_success(["Section saved."])
@@ -216,6 +224,7 @@ class AboutController(Controller):
             "image_path": image_path,
             "sort_order": next_order,
         })
+        _about_changed()
         if wants_json(request):
             return json_success(response, payload={
                 "milestone": {"id": m.id, "year": m.year, "heading": m.heading}
@@ -254,6 +263,7 @@ class AboutController(Controller):
             row.image_path = None
 
         row.save()
+        _about_changed()
         if wants_json(request):
             return json_success(response, messages=["Milestone updated."])
         return _editor_redirect(response).with_success(["Milestone updated."])
@@ -262,6 +272,7 @@ class AboutController(Controller):
         row = AboutMilestone.where("id", id).first()
         if row:
             row.delete()
+            _about_changed()
         if wants_json(request):
             return json_success(response, payload={"id": int(id)}, messages=["Milestone removed."])
         return _editor_redirect(response).with_success(["Milestone removed."])
@@ -285,6 +296,7 @@ class AboutController(Controller):
             row.sort_order, neighbour.sort_order = neighbour.sort_order, row.sort_order
             row.save()
             neighbour.save()
+            _about_changed()
         if wants_json(request):
             return json_success(response, messages=["Order updated."])
         return _editor_redirect(response).with_success(["Order updated."])
@@ -304,6 +316,7 @@ class AboutController(Controller):
         if section:
             section.image_path = stored_path
             section.save()
+            _about_changed()
 
         if is_ajax:
             return json_success(response, payload={
@@ -371,6 +384,7 @@ class AboutController(Controller):
         if section:
             section.audio_path = relative
             section.save()
+            _about_changed()
 
         if wants_json(request):
             return json_success(response, messages=["Hymn audio uploaded."])
@@ -441,6 +455,7 @@ class AboutController(Controller):
         if section:
             section.video_path = relative
             section.save()
+            _about_changed()
 
         if wants_json(request):
             return json_success(response, messages=["Hymn video uploaded."])
