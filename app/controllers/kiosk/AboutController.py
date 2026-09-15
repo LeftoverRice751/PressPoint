@@ -176,6 +176,19 @@ class AboutController(Controller):
             if raw_body is not None:
                 section.body_html = AboutContent.sanitize_html(raw_body)
 
+        # Tap-to-sync timings ride on the hymn's lyrics form -- they are matched
+        # to lines by index, so they must land in the same save as the text.
+        # Same rule as the body: only a form that rendered the widget posts the
+        # field, so the audio/video upload forms cannot blank it.
+        if slug == "hymn":
+            raw_timings = request.input("lyric_timings", None)
+            if raw_timings is not None:
+                try:
+                    parsed_timings = json.loads(raw_timings or "[]")
+                except (TypeError, ValueError):
+                    parsed_timings = []
+                section.lyric_timings = AboutContent.sanitize_lyric_timings(parsed_timings)
+
         title = (request.input("title") or section.title).strip()
         if title:
             section.title = title[:150]

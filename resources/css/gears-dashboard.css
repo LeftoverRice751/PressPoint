@@ -1534,6 +1534,102 @@ body {
     gap: 0.75rem;
 }
 
+/* ── Hymn tap-to-sync ─────────────────────────────────────
+   A small player, a transport row and the lyric lines as a numbered list.
+   The list is the point: it is numbered by the same split the kiosk uses, so
+   "line 4" here is line 4 on the terminal. Timed lines dim, the next line to
+   tap is the one lit in accent, so an editor tapping along can glance rather
+   than read. Focus ring on the block because Space marks a line while it is
+   focused. */
+.about-hymn-sync {
+    gap: 0.75rem;
+    outline: none;
+}
+
+.about-hymn-sync:focus-visible {
+    box-shadow: 0 0 0 3px var(--accent-tint);
+    border-radius: var(--radius-sm);
+}
+
+.about-hymn-sync__media {
+    display: block;
+    width: 100%;
+    max-height: 16rem;
+    border-radius: var(--radius-sm);
+    background: var(--n-900);
+}
+
+.about-hymn-sync__transport {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.about-hymn-sync__clock {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8125rem;
+    color: var(--ink-muted);
+    min-width: 6.5rem;
+}
+
+.about-hymn-sync__status {
+    margin: 0;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    color: var(--ink-muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.about-hymn-sync__status[data-state="complete"] {
+    background: var(--ok-tint);
+    color: var(--ok);
+}
+
+.about-hymn-sync__status[data-state="mismatch"] {
+    background: var(--warn-tint);
+    color: var(--warn);
+}
+
+.about-hymn-sync__lines {
+    margin: 0;
+    padding: 0 0 0 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    max-height: 18rem;
+    overflow-y: auto;
+}
+
+.about-hymn-sync__line {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: var(--ink-strong);
+}
+
+.about-hymn-sync__line.is-timed {
+    color: var(--ink-muted);
+}
+
+.about-hymn-sync__line.is-next {
+    background: var(--accent-tint);
+    font-weight: 700;
+}
+
+.about-hymn-sync__time {
+    flex-shrink: 0;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8125rem;
+    color: var(--ink-muted);
+}
+
 /* ── Sources repeater ──────────────────────────────────────
    Deliberately shaped like .about-hotspot above: same card, same numbered
    gutter, same trailing Remove. They are the two repeaters on this page and an
@@ -2738,6 +2834,12 @@ body {
 }
 
 .gears-bell__button:hover { background: var(--surface-sunken); }
+
+.gears-bell__icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
 
 .gears-bell__badge {
   position: absolute;

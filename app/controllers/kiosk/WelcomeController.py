@@ -40,7 +40,7 @@ class WelcomeController(Controller):
     def _format_date(self, value):
         return value.strftime("%b %d, %Y") if hasattr(value, "strftime") else ""
 
-    def _append_flash_article(self, flash_articles, item, headline, reference_at, kind):
+    def _append_flash_article(self, flash_articles, copy, headline, reference_at, kind):
         if not self._is_recent(reference_at):
             return
 
@@ -48,7 +48,7 @@ class WelcomeController(Controller):
             {
                 "headline": headline,
                 "date": self._format_date(reference_at),
-                "copy": getattr(item, "description", None) or "",
+                "copy": copy,
                 "kind": kind,
                 "_created_at": reference_at,
             }
@@ -98,7 +98,7 @@ class WelcomeController(Controller):
         # Imported here, not at module scope, for the same reason show() does:
         # NewsController imports DashboardContext, which imports the models this
         # module also pulls in, and a top-level import closes the cycle.
-        from app.controllers.gears.NewsController import _html_to_text, _news_is_public
+        from app.controllers.gears.NewsController import _flash_text, _news_is_public
 
         flash_articles = []
 
@@ -118,14 +118,18 @@ class WelcomeController(Controller):
                     continue
 
                 reference_at = getattr(news_item, "published_at", None) or getattr(news_item, "created_at", None)
+                # Plain text, both fields: news.title and news.description are
+                # HTML columns (authored in Quill), and welcome-screen.js
+                # renders them through escapeHtml(), so the formatting spans
+                # and the body's <p> wrappers would show as literal markup in
+                # the ticker. Flattened here rather than in
+                # _append_flash_article because the import above is local to
+                # this method (circular otherwise) and a NameError inside the
+                # try below would silently drop every story from the band.
                 self._append_flash_article(
                     flash_articles,
-                    news_item,
-                    # Plain text: news.title is an HTML column now (the
-                    # headline is authored in Quill), and welcome-screen.js
-                    # renders this through escapeHtml(), so the formatting
-                    # spans would show as literal markup in the ticker.
-                    _html_to_text(getattr(news_item, "title", None) or "") or "News update",
+                    _flash_text(getattr(news_item, "description", None)),
+                    _flash_text(getattr(news_item, "title", None)) or "News update",
                     reference_at,
                     "news",
                 )
@@ -137,7 +141,7 @@ class WelcomeController(Controller):
                 reference_at = getattr(event_item, "event_date", None) or getattr(event_item, "created_at", None)
                 self._append_flash_article(
                     flash_articles,
-                    event_item,
+                    _flash_text(getattr(event_item, "description", None)),
                     getattr(event_item, "title", None) or "Event update",
                     reference_at,
                     "event",

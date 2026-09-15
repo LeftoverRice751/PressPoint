@@ -1309,6 +1309,33 @@
     line-height: 1.7;
 }
 
+/* Quill's placeholder (`.ql-editor.ql-blank::before`) is `position: absolute`,
+   so it adds nothing to the editor's height: an empty editor is exactly one
+   line tall (its lone <p><br></p>), and a prompt that wraps — every headline
+   in the narrow side column, the excerpt's prompt anywhere — painted its
+   later lines straight over the summary or body below. Quill hides that with
+   `overflow-y: auto`, which the rule above removes on purpose.
+
+   Put the prompt in flow so the box grows to fit it, and park the empty <p>
+   over its first line so the caret still lands where the prompt starts. The
+   12px/15px offsets are Quill's own .ql-editor padding; the <p> returns to
+   flow the moment `.ql-blank` drops, i.e. on the first keystroke. */
+.news-editor .ql-editor.ql-blank {
+    position: relative;
+}
+
+.news-editor .ql-editor.ql-blank::before {
+    position: static;
+    display: block;
+}
+
+.news-editor .ql-editor.ql-blank > p:first-child {
+    position: absolute;
+    top: 12px;
+    left: 15px;
+    right: 15px;
+}
+
 /* The 160px floor is for the article body only. It used to sit on the shared
    .ql-editor rule, which was harmless while the body was the only thing Quill
    ever mounted on — but the same editor now edits the headline and the
@@ -2028,10 +2055,11 @@
    Raised in front of Save Draft / Submit (news-dashboard.js, askCategoryThen).
    Rows come from gears/partials/news-categories-list.html, which is also the
    "news-categories" live fragment — so nothing here may depend on a class
-   the fragment does not render. Solid fills only. */
-.news-category-modal__panel {
-    width: min(560px, 92vw);
-}
+   the fragment does not render. Solid fills only.
+
+   No width on the panel: the dialog is .article-modal--compact (520px) and a
+   panel sized wider than its dialog scrolled sideways, cropping Cancel, the
+   row actions and Confirm. */
 
 .news-category-add {
     margin: 0 0 1rem;

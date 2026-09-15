@@ -20,6 +20,7 @@ import {
   Keyboard,
   A11y,
 } from "swiper/modules";
+import { tickerDurationSeconds } from "./ticker-pace.mjs";
 
 document.addEventListener("DOMContentLoaded", () => {
   const tickerTrack = document.getElementById("ticker-track");
@@ -82,6 +83,22 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="news-ticker__group">${items}</div>
       <div class="news-ticker__group" aria-hidden="true">${items}</div>
     `;
+    paceTicker();
+  }
+
+  // The keyframes travel one content copy, so the CSS duration is the speed:
+  // it has to follow the measured width or a busy news day scrolls
+  // unreadably fast (see ticker-pace.mjs). Measured on the next frame
+  // because innerHTML has not been laid out yet at this point, and the
+  // first group's width is read rather than the track's so the gap between
+  // the copies never counts as content.
+  function paceTicker() {
+    const raf = window.requestAnimationFrame || ((fn) => window.setTimeout(fn, 16));
+    raf(() => {
+      const group = tickerTrack.querySelector(".news-ticker__group");
+      const width = group ? group.getBoundingClientRect().width : 0;
+      tickerTrack.style.setProperty("--ticker-duration", `${tickerDurationSeconds(width)}s`);
+    });
   }
 
   // Hosted pusher.com by default. With PUSHER_HOST set the same client talks

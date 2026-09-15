@@ -44,6 +44,15 @@ import { Navigation, Pagination, Keyboard, A11y } from 'swiper/modules';
   var copy    = document.querySelector('.feature-story__copy');
   var trigger = document.querySelector('[data-news-more]');
   var reader  = document.getElementById('news-reader');
+
+  // Re-size the carousel wrapper to the ACTIVE slide. `var newsSwiper` below
+  // is hoisted, so this is safe to call from measure() before the carousel
+  // is built -- it is simply a no-op until then.
+  function refitCarousel() {
+    if (newsSwiper && typeof newsSwiper.updateAutoHeight === 'function') {
+      newsSwiper.updateAutoHeight();
+    }
+  }
   var isOpen  = false;
 
   function readerPart(name) {
@@ -130,6 +139,7 @@ import { Navigation, Pagination, Keyboard, A11y } from 'swiper/modules';
 
     if (!budget || natural <= budget + 8) {
       trigger.classList.remove('is-visible');
+      refitCarousel();
       return;
     }
 
@@ -137,6 +147,9 @@ import { Navigation, Pagination, Keyboard, A11y } from 'swiper/modules';
     copy.classList.add('is-clamped');
     if (cut > 0) copy.style.maxHeight = cut + 'px';
     trigger.classList.add('is-visible');
+    // The clamp just changed the lead slide's height under a wrapper that
+    // was sized before it ran.
+    refitCarousel();
   }
 
   if (copy && trigger && reader) {
@@ -193,7 +206,21 @@ import { Navigation, Pagination, Keyboard, A11y } from 'swiper/modules';
         clickable: true,
       },
       watchSlidesProgress: true,
+      // Slides are whole issues and differ wildly in height (a quote-heavy
+      // one ran to ~2000px next to an ~800px one). .swiper-wrapper is a flex
+      // row, so without this it is as tall as the TALLEST slide and the
+      // static pagination under it sat 1,200px below the bottom of a short
+      // issue -- the page ended mid-screen with no dots or arrows in sight.
+      autoHeight: true,
     });
+
+    // Swiper 14 re-measures autoHeight on slide change and on update(), but
+    // not when an <img> inside a slide finishes loading -- and an issue is
+    // mostly photographs, so the wrapper sized at init is too short until
+    // they land. 'load' does not bubble; capture on the carousel root.
+    swiperEl.addEventListener('load', function (event) {
+      if (event.target && event.target.tagName === 'IMG') refitCarousel();
+    }, true);
 
     // The lead's clamp is measured against a laid-out element. On first paint
     // only slide 1 is on screen, so a later slide measured while off-screen

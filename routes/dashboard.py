@@ -39,6 +39,12 @@ ROUTES = [
     Route.post("/gears/profile", "gears.ProfileController@update").name("profile.update").middleware("auth"),
     Route.post("/gears/profile/avatar", "gears.ProfileController@upload_avatar").name("profile.avatar").middleware("auth"),
     Route.post("/gears/profile/avatar/remove", "gears.ProfileController@remove_avatar").name("profile.avatar.remove").middleware("auth"),
+    # Its own throttle bucket: the middleware keys on limit_string + ip, so
+    # sharing `password-reset` would let a change attempt spend a stranger's
+    # reset allowance on a campus NAT — the same collision `otp` was split for.
+    Route.post("/gears/profile/password", "gears.ProfileController@change_password")
+    .name("profile.password")
+    .middleware("auth", "throttle:password-change"),
     # The bell. "auth" only — every account has its own notifications, and each
     # endpoint scopes its query to the signed-in user rather than to the role.
     Route.get("/gears/notifications", "gears.NotificationController@index").name("notifications.index").middleware("auth"),

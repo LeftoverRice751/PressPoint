@@ -100,16 +100,71 @@
       });
   }
 
+  // ── Preview dialog ───────────────────────────────────────────────────────
+  //
+  // Found from `document`, not from the card: the dialog is rendered once,
+  // outside the live-refreshed host (review-preview-modal.html), so the 20s
+  // poll cannot tear it down while the admin is reading the issue. It used to
+  // be an inline frame under the card, which the poll did exactly that to.
+  var modal = document.querySelector('[data-review-preview-modal]');
+  var previewTarget = modal ? modal.querySelector('[data-review-preview-target]') : null;
+  var previewWell = modal ? modal.querySelector('[data-review-preview-well]') : null;
+  var previewTitle = modal ? modal.querySelector('[data-review-preview-title]') : null;
+
+  // The kiosk is a 768px-wide portrait terminal and the fetched partial is
+  // its own markup, so it is laid out at that width and shrunk to fit --
+  // re-styling it would defeat the point of a kiosk-accurate preview.
+  var KIOSK_WIDTH = 768;
+
+  // scale() is paint-only: the wrapper still reserves its unscaled height, so
+  // after every fill (and on resize) the well is told the scaled height.
+  function fitPreview() {
+    if (!previewTarget || !previewWell) return;
+    var available = previewWell.clientWidth || KIOSK_WIDTH;
+    var scale = Math.min(1, available / KIOSK_WIDTH);
+    // Measure with the previous fit's height cleared: an explicit height
+    // caps what scrollHeight reports, so a re-fit (resize, a late image)
+    // would otherwise shrink the well from an already-scaled number and
+    // clip the bottom of the issue.
+    previewTarget.style.height = '';
+    previewTarget.style.transform = 'scale(' + scale + ')';
+    previewTarget.style.height = Math.ceil(previewTarget.scrollHeight * scale) + 'px';
+  }
+
+  function openPreview() {
+    if (!modal) return;
+    if (typeof modal.showModal === 'function' && !modal.open) {
+      modal.showModal();
+    } else {
+      modal.setAttribute('open', 'open');
+    }
+  }
+
+  function closePreview() {
+    if (!modal) return;
+    if (typeof modal.close === 'function' && modal.open) {
+      modal.close();
+    } else {
+      modal.removeAttribute('open');
+    }
+  }
+
   function loadPreview(card) {
     var id = issueIdOf(card);
-    var frame = card.querySelector('[data-review-preview-frame]');
-    var target = card.querySelector('[data-review-preview-target]');
-    if (!id || !frame || !target) return;
+    if (!id || !modal || !previewTarget) return;
 
-    if (!frame.hidden) { frame.hidden = true; return; }
+    if (previewTitle) {
+      var titleNode = card.querySelector('.review-card__title');
+      // The card's title carries the block-count chip; only the first text
+      // node is the "Issue 01 — Title" line.
+      var heading = titleNode && titleNode.firstChild ? String(titleNode.firstChild.textContent || '').trim() : '';
+      previewTitle.textContent = heading || 'Issue as it will appear';
+    }
 
-    frame.hidden = false;
-    target.innerHTML = '<p class="review-preview__loading">Loading preview…</p>';
+    previewTarget.style.transform = '';
+    previewTarget.style.height = '';
+    previewTarget.innerHTML = '<p class="review-preview__loading">Loading preview…</p>';
+    openPreview();
 
     fetch('/gears/review/issue/' + id + '/preview', {
       headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
@@ -117,16 +172,52 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (json) {
+        // The admin may have closed the dialog while the render was in flight.
+        if (!modal.open) return;
         if (!json || !json.ok) {
-          target.innerHTML = '<p class="review-preview__loading">Could not load the preview.</p>';
+          previewTarget.innerHTML = '<p class="review-preview__loading">Could not load the preview.</p>';
           return;
         }
         // Server-rendered markup from our own template, not user input.
-        target.innerHTML = json.html;
+        previewTarget.innerHTML = json.html;
+        // Images in the partial change its height as they land; fit now for
+        // the text, then again once the frame has painted.
+        fitPreview();
+        window.requestAnimationFrame(fitPreview);
       })
       .catch(function () {
-        target.innerHTML = '<p class="review-preview__loading">Could not load the preview.</p>';
+        if (!modal.open) return;
+        previewTarget.innerHTML = '<p class="review-preview__loading">Could not load the preview.</p>';
       });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', function (event) {
+      if (event.target.closest('[data-review-preview-close]')) {
+        event.preventDefault();
+        closePreview();
+        return;
+      }
+      // A click on the backdrop lands on the <dialog> itself, not the panel.
+      if (event.target === modal) closePreview();
+    });
+    // Fires on the close button, Esc (via `cancel`), and the backdrop alike.
+    // Emptying releases the render's images rather than holding them until
+    // the next open.
+    modal.addEventListener('close', function () {
+      if (previewTarget) {
+        previewTarget.innerHTML = '';
+        previewTarget.style.transform = '';
+        previewTarget.style.height = '';
+      }
+    });
+    window.addEventListener('resize', function () {
+      if (modal.open) fitPreview();
+    });
+    // The partial's images arrive after the first fit and make it taller.
+    previewTarget.addEventListener('load', function () {
+      if (modal.open) fitPreview();
+    }, true);
   }
 
   host.addEventListener('click', function (event) {

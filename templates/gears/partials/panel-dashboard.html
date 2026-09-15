@@ -8,19 +8,20 @@
 #}
     <section class="gears-page is-visible" data-page-panel="dashboard" id="panel-dashboard" role="tabpanel" aria-labelledby="nav-dashboard" data-hero-eyebrow="Dashboard" data-hero-title="Real-time overview of your kiosk content" data-hero-subtitle="Manage events, news, campus locations, kiosk videos, and screen control from one place.">
       <div class="stats-grid">
-        {# news_count / news_status_counts, not total_articles /
-           published_articles. Those two count the legacy `Posts` table, which
-           nothing in the composer or the kiosk front page writes any more, so
-           these cards reported numbers unrelated to the stories below them.
-           news_context() has computed the real figures all along. #}
+        {# total_news / published_news from overview_context(): table-wide
+           counts of `news`. Not total_articles / published_articles (the
+           legacy `Posts` table, which nothing writes any more), and not
+           news_count / news_status_counts either -- those are scoped to the
+           signed-in editor's own open issue now that the composer is
+           per-editor, so they showed 0 here for anyone without a draft. #}
         <article class="stat-card stat-card--blue">
           <div class="stat-card__label">Total News</div>
-          <div class="stat-card__value">{{ news_count or 0 }}</div>
+          <div class="stat-card__value">{{ total_news or 0 }}</div>
         </article>
 
         <article class="stat-card stat-card--orange">
           <div class="stat-card__label">Published News</div>
-          <div class="stat-card__value">{{ (news_status_counts and news_status_counts['published']) or 0 }}</div>
+          <div class="stat-card__value">{{ published_news or 0 }}</div>
         </article>
 
         <article class="stat-card stat-card--green">
@@ -34,13 +35,13 @@
           <div class="panel-header">
             <div>
               <p class="panel-header__eyebrow">Content Snapshot</p>
-              <h2 class="panel-header__title">Articles by Category</h2>
+              <h2 class="panel-header__title">Newsletters by Category</h2>
             </div>
           </div>
 
           <div class="empty-state" data-empty-state>
             <div class="empty-state__title">No data available</div>
-            <p class="empty-state__text">Publish articles and assign categories to populate this overview.</p>
+            <p class="empty-state__text">Publish newsletters and assign categories to populate this overview.</p>
           </div>
 
           <div class="category-list" data-section-content>
@@ -49,7 +50,7 @@
               <div class="category-row__header">
                 <div>
                   <div class="category-row__name">{{ group['name'] }}</div>
-                  <div class="category-row__meta">{{ group['count'] }} articles</div>
+                  <div class="category-row__meta">{{ group['count'] }} {{ 'story' if group['count'] == 1 else 'stories' }}</div>
                 </div>
                 <div class="category-row__badge">{{ group['count'] }}</div>
               </div>
@@ -65,7 +66,7 @@
                   <span class="mini-list__detail">{{ article.status if article.status else 'draft' }}</span>
                 </div>
                 {% else %}
-                <div class="mini-list__item mini-list__item--muted">No articles in this category.</div>
+                <div class="mini-list__item mini-list__item--muted">No stories in this category.</div>
                 {% endfor %}
               </div>
             </div>
@@ -79,13 +80,13 @@
           <div class="panel-header">
             <div>
               <p class="panel-header__eyebrow">Latest Publishing</p>
-              <h2 class="panel-header__title">Recent Articles</h2>
+              <h2 class="panel-header__title">Recent Newsletters</h2>
             </div>
           </div>
 
           <div class="empty-state" data-empty-state>
             <div class="empty-state__title">No data available</div>
-            <p class="empty-state__text">Recent articles will appear here as soon as you publish content.</p>
+            <p class="empty-state__text">Recent newsletters will appear here as soon as you publish content.</p>
           </div>
 
           <div class="recent-list" data-section-content>
@@ -103,7 +104,7 @@
                 <span>Published: {{ article.published_at if article.published_at else 'Not set' }}</span>
               </div>
 
-              <p class="recent-item__excerpt">{{ article.content[:160] if article.content else 'No summary available.' }}</p>
+              <p class="recent-item__excerpt">{{ article.excerpt[:160] if article.excerpt else 'No summary available.' }}</p>
             </article>
             {% else %}
             <div class="empty-state empty-state--embedded">No data available.</div>

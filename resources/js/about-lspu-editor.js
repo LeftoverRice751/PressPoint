@@ -12,6 +12,7 @@
 // it was never attached. Mission looked "stuck open" only because it is the one
 // panel rendered without `hidden`.
 import Quill from 'quill';
+import { mark, gap, back, syncStatus, splitLyricLines } from './hymn-sync.mjs';
 
 (function () {
   var TOOLBAR = [
@@ -151,7 +152,133 @@ import Quill from 'quill';
     panel.querySelectorAll('[data-hotspot-row]').forEach(wireHotspotRemove);
     panel.querySelectorAll('[data-source-row] input').forEach(wireInput);
     panel.querySelectorAll('[data-source-row]').forEach(wireSourceRemove);
+    panel.querySelectorAll('[data-hymn-sync]').forEach(mountHymnSync);
     panel.querySelectorAll('form').forEach(serializeForm);
+  }
+
+  // ── Hymn tap-to-sync ─────────────────────────────────────
+  //
+  // The arithmetic is in hymn-sync.mjs; this is the DOM around it. The line
+  // list is read live off the lyrics Quill so the numbering here is the
+  // numbering the kiosk will use, and the hidden input is rewritten on every
+  // change for the same FormData-snapshot reason as the body above.
+  function fmtClock(sec) {
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    var m = Math.floor(sec / 60);
+    var s = Math.floor(sec % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function fmtTiming(t) {
+    if (!t) return '';
+    return fmtClock(t.start) + ' \u2192 ' + (typeof t.end === 'number' ? fmtClock(t.end) : 'end');
+  }
+
+  function mountHymnSync(root) {
+    var form = root.closest('form');
+    var payload = root.querySelector('.js-timings-payload');
+    var media = root.querySelector('[data-hymn-sync-media]');
+    var list = root.querySelector('[data-hymn-sync-lines]');
+    var status = root.querySelector('[data-hymn-sync-status]');
+    var clock = root.querySelector('[data-hymn-sync-clock]');
+    var editorEl = form ? form.querySelector('.js-body-editor') : null;
+    if (!payload || !media || !list) return; // no media uploaded yet: note only
+
+    var timings = [];
+    try { timings = JSON.parse(root.getAttribute('data-timings') || '[]') || []; } catch (e) { timings = []; }
+    if (!Array.isArray(timings)) timings = [];
+
+    function lyricLines() {
+      var quill = editorEl && editorEl._quill;
+      return splitLyricLines(quill ? quill.root.innerHTML : (editorEl ? editorEl.innerHTML : ''));
+    }
+
+    function render() {
+      var lines = lyricLines();
+      payload.value = JSON.stringify(timings);
+      if (status) {
+        var state = syncStatus(timings, lines.length);
+        status.setAttribute('data-state', state);
+        status.textContent = {
+          empty: 'Nothing recorded yet. The kiosk will split the track evenly across the ' + lines.length + ' lines.',
+          partial: timings.length + ' of ' + lines.length + ' lines timed. The kiosk only follows a complete recording, so keep going, then Save Hymn.',
+          complete: 'All ' + lines.length + ' lines timed. Save Hymn to send the timings to the kiosk.',
+          mismatch: 'The lyrics lost lines since these timings were recorded, so the kiosk will ignore them. Clear all and record again.'
+        }[state];
+      }
+      list.innerHTML = '';
+      lines.forEach(function (text, i) {
+        var li = document.createElement('li');
+        li.className = 'about-hymn-sync__line';
+        if (i < timings.length) li.classList.add('is-timed');
+        if (i === timings.length) li.classList.add('is-next');
+        var span = document.createElement('span');
+        span.className = 'about-hymn-sync__text';
+        span.textContent = text;
+        var time = document.createElement('span');
+        time.className = 'about-hymn-sync__time';
+        time.textContent = i < timings.length ? fmtTiming(timings[i]) : (i === timings.length ? 'next' : '');
+        li.appendChild(span);
+        li.appendChild(time);
+        list.appendChild(li);
+      });
+    }
+
+    function set(next) {
+      if (next === timings) return;
+      timings = next;
+      render();
+    }
+
+    var playBtn = root.querySelector('[data-hymn-sync-play]');
+    if (playBtn) playBtn.addEventListener('click', function () {
+      if (media.paused) media.play(); else media.pause();
+    });
+    media.addEventListener('play', function () { if (playBtn) playBtn.textContent = 'Pause'; });
+    media.addEventListener('pause', function () { if (playBtn) playBtn.textContent = 'Play'; });
+    media.addEventListener('timeupdate', function () {
+      if (clock) clock.textContent = fmtClock(media.currentTime) + ' / ' + fmtClock(media.duration);
+    });
+    media.addEventListener('loadedmetadata', function () {
+      if (clock) clock.textContent = fmtClock(0) + ' / ' + fmtClock(media.duration);
+    });
+
+    function doMark() {
+      if (timings.length >= lyricLines().length) return; // every line is timed
+      set(mark(timings, media.currentTime));
+    }
+    var markBtn = root.querySelector('[data-hymn-sync-mark]');
+    if (markBtn) markBtn.addEventListener('click', doMark);
+    var gapBtn = root.querySelector('[data-hymn-sync-gap]');
+    if (gapBtn) gapBtn.addEventListener('click', function () { set(gap(timings, media.currentTime)); });
+    var backBtn = root.querySelector('[data-hymn-sync-back]');
+    if (backBtn) backBtn.addEventListener('click', function () {
+      var r = back(timings);
+      media.currentTime = r.seekTo;
+      set(r.timings);
+    });
+    var clearBtn = root.querySelector('[data-hymn-sync-clear]');
+    if (clearBtn) clearBtn.addEventListener('click', function () {
+      media.pause();
+      media.currentTime = 0;
+      set([]);
+    });
+
+    // Space marks a line while the widget has focus — a mouse click on Mark
+    // is too slow for a fast chorus. Not while typing in a field, obviously.
+    root.setAttribute('tabindex', '0');
+    root.addEventListener('keydown', function (ev) {
+      if (ev.key !== ' ' && ev.key !== 'Spacebar') return;
+      var tag = (ev.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || ev.target.isContentEditable) return;
+      ev.preventDefault();
+      doMark();
+    });
+
+    // Lyric edits renumber the list and may make the recording stale.
+    if (editorEl && editorEl._quill) editorEl._quill.on('text-change', render);
+
+    render();
   }
 
   // ── Seal callouts ────────────────────────────────────────
@@ -279,6 +406,9 @@ import Quill from 'quill';
     panels.forEach(function (panel) {
       var active = panel.dataset.aboutPanel === slug;
       panel.hidden = !active;
+      // Leaving the hymn tab must stop the sync preview, or it keeps playing
+      // under a panel that shows no player — same rule as the kiosk.
+      if (!active) panel.querySelectorAll('[data-hymn-sync-media]').forEach(function (m) { m.pause(); });
       if (active && !panel.dataset.quillReady) {
         panel.dataset.quillReady = '1';
         // A single broken editor must never take navigation down with it —

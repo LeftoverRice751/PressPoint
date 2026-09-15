@@ -369,6 +369,7 @@
                         </span>
                       </span>
                       <span class="dropzone__filled" hidden>
+                        <span class="dropzone__preview" data-dropzone-preview aria-hidden="true"></span>
                         <span class="dropzone__filename" data-dropzone-name></span>
                         <span class="dropzone__size" data-dropzone-size></span>
                         <button type="button" class="dropzone__clear"
@@ -442,6 +443,7 @@
                     <span class="dropzone__hint">Optional</span>
                   </span>
                   <span class="dropzone__filled" hidden>
+                    <span class="dropzone__preview" data-dropzone-preview aria-hidden="true"></span>
                     <span class="dropzone__filename" data-dropzone-name></span>
                     <span class="dropzone__size" data-dropzone-size></span>
                     <button type="button" class="dropzone__clear"
@@ -532,6 +534,52 @@
                 <div class="about-editor-frame js-body-editor">{{ section.body_html|safe if section else '' }}</div>
               </label>
               <input type="hidden" name="body_html" class="js-body-payload">
+
+              {# ── Tap-to-sync ──
+                 Timings live on *this* form, next to the lyrics, because the
+                 kiosk matches them to lines by index: a lyric edit and its
+                 timings have to land in the same save or the recording
+                 describes the wrong lines. The widget plays whatever the two
+                 upload forms below have stored (video first, as the kiosk
+                 does) and records `currentTime` at each tap. about-lspu-editor.js
+                 keeps the hidden input current on every change, like the body. #}
+              {% set sync_src = (section.video_path or section.audio_path) if section else '' %}
+              <div class="field about-hymn-sync" data-hymn-sync
+                   data-timings='{{ ((section.lyric_timings if section else None) or []) | tojson }}'>
+                <span class="field__label">Sync lyrics to the hymn</span>
+                {% if sync_src %}
+                  {% if section.video_path %}
+                  <video class="about-hymn-sync__media" data-hymn-sync-media playsinline preload="metadata"
+                         src="/storage/{{ section.video_path | replace('\\', '/') }}#t=0.1"></video>
+                  {% else %}
+                  <audio class="about-hymn-sync__media" data-hymn-sync-media preload="metadata"
+                         src="/storage/{{ section.audio_path | replace('\\', '/') }}"></audio>
+                  {% endif %}
+                  <p class="about-card__note">
+                    Play the hymn and press <strong>Mark line</strong> (or the space bar)
+                    the moment each line is sung. <strong>Gap</strong> ends a line without
+                    starting the next — use it for the intro and the breaks between verses.
+                  </p>
+                  <div class="about-hymn-sync__transport">
+                    <button type="button" class="ghost-button" data-hymn-sync-play>Play</button>
+                    <span class="about-hymn-sync__clock" data-hymn-sync-clock>0:00 / 0:00</span>
+                    <button type="button" class="primary-button" data-hymn-sync-mark>Mark line</button>
+                    <button type="button" class="ghost-button" data-hymn-sync-gap>Gap</button>
+                    <button type="button" class="ghost-button" data-hymn-sync-back>Back one line</button>
+                    <button type="button" class="ghost-button ghost-button--danger" data-hymn-sync-clear>Clear all</button>
+                  </div>
+                  {# One status line, reworded per state by about-lspu-editor.js. The
+                     kiosk only follows a *complete* recording, so a half-done one
+                     has to say so -- an editor who marks a verse, saves and sees
+                     the kiosk ignore it has no other way to learn that. #}
+                  <p class="about-hymn-sync__status" data-hymn-sync-status data-state="empty"></p>
+                  <ol class="about-hymn-sync__lines" data-hymn-sync-lines></ol>
+                {% else %}
+                  <p class="about-card__note">Upload the hymn video or audio below first, then come back to time the lines.</p>
+                {% endif %}
+                <input type="hidden" name="lyric_timings" class="js-timings-payload"
+                       value='{{ ((section.lyric_timings if section else None) or []) | tojson }}'>
+              </div>
 {{ kiosk_labels('hymn') }}
 {{ sources_editor('hymn') }}
               <input type="hidden" name="meta" class="js-meta-payload">
@@ -562,6 +610,7 @@
                     {% endif %}
                   </span>
                   <span class="dropzone__filled" hidden>
+                    <span class="dropzone__preview" data-dropzone-preview aria-hidden="true"></span>
                     <span class="dropzone__filename" data-dropzone-name></span>
                     <span class="dropzone__size" data-dropzone-size></span>
                     <button type="button" class="dropzone__clear"
@@ -594,6 +643,7 @@
                     {% endif %}
                   </span>
                   <span class="dropzone__filled" hidden>
+                    <span class="dropzone__preview" data-dropzone-preview aria-hidden="true"></span>
                     <span class="dropzone__filename" data-dropzone-name></span>
                     <span class="dropzone__size" data-dropzone-size></span>
                     <button type="button" class="dropzone__clear"
@@ -636,6 +686,7 @@
                     <span class="dropzone__hint">JPG, PNG, or WEBP</span>
                   </span>
                   <span class="dropzone__filled" hidden>
+                    <span class="dropzone__preview" data-dropzone-preview aria-hidden="true"></span>
                     <span class="dropzone__filename" data-dropzone-name></span>
                     <span class="dropzone__size" data-dropzone-size></span>
                     <button type="button" class="dropzone__clear"

@@ -559,6 +559,7 @@
     state.drag = {
       memberId: memberId,
       pointerId: event.pointerId,
+      card: card,
       originX: origin.x,
       originY: origin.y,
       started: false,
@@ -571,10 +572,15 @@
       minStartY: Math.min.apply(null, items.map(function (moved) { return moved.startY; }))
     };
 
-    // Keep receiving moves even when the pointer outruns the card.
-    if (cardLayer.setPointerCapture) {
+    // Keep receiving moves even when the pointer outruns the card. Capture on
+    // the *card*, not cardLayer: while capture is active at pointerup the
+    // browser dispatches the following `click` to the capturing element, so
+    // capturing on the layer sent every click to the layer and the editor's
+    // `closest('[data-ob-node]')` found nothing — no card could be opened.
+    // Moves still bubble from the card to cardLayer's listeners.
+    if (card.setPointerCapture) {
       try {
-        cardLayer.setPointerCapture(event.pointerId);
+        card.setPointerCapture(event.pointerId);
       } catch (error) {
         // Capture is a convenience; the window-level listeners still fire.
       }
@@ -656,9 +662,9 @@
 
     state.drag = null;
 
-    if (cardLayer.releasePointerCapture) {
+    if (drag.card && drag.card.releasePointerCapture) {
       try {
-        cardLayer.releasePointerCapture(event.pointerId);
+        drag.card.releasePointerCapture(event.pointerId);
       } catch (error) {
         // Already released.
       }

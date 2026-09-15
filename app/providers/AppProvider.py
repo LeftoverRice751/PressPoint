@@ -135,6 +135,11 @@ class AppProvider(Provider):
         # the two requests that bracket it.
         RateLimiter.register("otp", GuestAuthLimiter("5/minute"))
 
+        # Self-service password change (signed in, must supply the current
+        # password). Tight like `otp`: with one generic refusal message this
+        # endpoint is the only way to test a guessed current password.
+        RateLimiter.register("password-change", GuestAuthLimiter("5/minute"))
+
         # Public, unauthenticated route-session minting (QR handoff to a phone).
         # Looser than auth since it's not a credential-guessing surface, but still
         # per-client so a script can't mint unlimited tokens/emails.

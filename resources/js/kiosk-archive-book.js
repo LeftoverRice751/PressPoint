@@ -19,7 +19,9 @@
 
 import { PageFlip } from 'page-flip';
 import OpenSeadragon from 'openseadragon';
-import { computeRenderScale, maxCanvasPixels, rasterHeadroom, renderKey } from './archive-render-scale.mjs';
+import {
+  bookCanvasDensity, computeRenderScale, maxCanvasPixels, rasterHeadroom, renderKey,
+} from './archive-render-scale.mjs';
 import { hasServerPage, serverDetailUrl, serverPageUrl } from './archive-page-source.mjs';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -785,6 +787,76 @@ document.addEventListener('DOMContentLoaded', () => {
      * the host we just sized. Any disagreement between the two reappears as
      * white bands, so both come from one source on purpose.
      */
+    /*
+     * Give StPageFlip's canvas a device-pixel backing store.
+     *
+     * CanvasUI.resizeCanvas() sets canvas.width/height from getComputedStyle
+     * in CSS pixels and the library never reads devicePixelRatio, so on a 3x
+     * phone every page was drawn with a ninth of the screen's pixels and
+     * CSS-stretched back up — the "folios are blurry on phones/tablets"
+     * report. The server WebP and the OVERSAMPLE'd pdf.js render were both
+     * being discarded at this one drawImage. Tabloids never showed it because
+     * OpenSeadragon handles DPR itself.
+     *
+     * The library draws everything in CSS-pixel coordinates taken from
+     * getRect() (offsetWidth/Height), so a base transform of `dpr` is the
+     * exact shim: its own clear() over-covers harmlessly and every draw uses
+     * save/restore pairs that land back on this transform. Assigning
+     * canvas.width resets the context, transform included, so this has to run
+     * again after every path that does — see hookCanvasResize.
+     */
+    sharpenCanvas() {
+      if (!this.flip || !this.host) return;
+      const canvas = this.host.querySelector('canvas.stf__canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const density = bookCanvasDensity({
+        cssWidth: canvas.offsetWidth,
+        cssHeight: canvas.offsetHeight,
+        dpr: window.devicePixelRatio || 1,
+        maxPixels: PIXEL_BUDGET,
+      });
+      if (canvas.width !== density.width || canvas.height !== density.height) {
+        canvas.width = density.width;
+        canvas.height = density.height;
+      }
+      ctx.setTransform(density.dpr, 0, 0, density.dpr, 0, 0);
+      // The page rasters are ~2400 px on the long edge going into a box a
+      // fraction of that; Chromium's default (bilinear, no mip) aliases text
+      // at that ratio. Context state, so it resets with the transform.
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      debugLog('book canvas', {
+        css: `${canvas.offsetWidth}x${canvas.offsetHeight}`,
+        store: `${canvas.width}x${canvas.height}`,
+        density: +density.dpr.toFixed(2),
+      });
+    },
+
+    /*
+     * Re-apply sharpenCanvas after each library-driven canvas reset. Three
+     * paths call CanvasUI.update() → resizeCanvas(): the 1 ms "safari fix"
+     * timeout inside loadFromImages, the library's own window resize
+     * listener (which fires before our debounced relayout), and
+     * setOrientationStyle. Wrapping ui.update covers all three; the
+     * synchronous resize in the CanvasUI constructor has already happened by
+     * the time loadFromImages returns, so mount/relayout sharpen once
+     * directly as well.
+     */
+    hookCanvasResize() {
+      if (!this.flip || typeof this.flip.getUI !== 'function') return;
+      const ui = this.flip.getUI();
+      if (!ui || typeof ui.update !== 'function' || ui.__sharpened) return;
+      const original = ui.update.bind(ui);
+      ui.update = () => {
+        original();
+        this.sharpenCanvas();
+      };
+      ui.__sharpened = true;
+      this.sharpenCanvas();
+    },
+
     buildFlip(host, pageW, pageH) {
       return new PageFlip(host, {
         // fitSpread already returned integers — do not re-round here.
@@ -857,6 +929,7 @@ document.addEventListener('DOMContentLoaded', () => {
       this.flip = this.buildFlip(host, pageW, pageH);
       this.columns = columns;
       this.flip.loadFromImages(this.urls);
+      this.hookCanvasResize();
 
       this.flip.on('flip', (e) => {
         setPager(`PAGES — ${e.data + 1} / ${state.pageCount}`);
@@ -958,6 +1031,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.flip = this.buildFlip(host, fit.pageW, fit.pageH);
         this.columns = fit.columns;
         this.flip.loadFromImages(this.urls);
+        this.hookCanvasResize();
         this.flip.on('flip', (e) => {
           setPager(`PAGES — ${e.data + 1} / ${state.pageCount}`);
           this.cursor = e.data + 1;
@@ -973,6 +1047,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       } else {
         this.sizeHost(mountRect, aspect);
+        // PageFlip.update() re-measures the rect but does not touch the
+        // canvas store; the library's own resize listener already did, before
+        // sizeHost changed the box — so re-fit the store to the new CSS size
+        // here or the spread draws stretched until the next window resize.
+        this.sharpenCanvas();
         try { this.flip.update(); } catch (_) { /* noop */ }
       }
 

@@ -1,0 +1,40 @@
+{#
+    Centred preview of ONE pending issue, opened from the review card's
+    "Preview the issue as it will appear" button -- see review-queue.js.
+
+    This replaced an inline frame under the card that showed the kiosk page at
+    62% and got wiped by the 20s live refresh while the admin was reading it.
+    The dialog lives here, OUTSIDE [data-review-queue-host], for exactly that
+    reason: the host is re-rendered wholesale by the poll, and a dialog inside
+    it would vanish mid-read. tests/unit/test_admin_console.py pins that.
+
+    The stage is empty until asked for: the kiosk's own _issue partial is
+    fetched from /gears/review/issue/<id>/preview and dropped into
+    [data-review-preview-target], then scaled to fit the dialog's width. It is
+    emptied again on close so the render's images are released.
+#}
+    <dialog class="article-modal review-preview-modal" data-review-preview-modal
+            aria-labelledby="review-preview-title">
+      <div class="article-modal__panel review-preview-modal__panel">
+        {# Same close-button convention as tour-preview-modal.html: the glyph is
+           painted by CSS (::before) and the word is kept for screen readers. #}
+        <button type="button" class="review-preview-modal__close" aria-label="Close"
+                data-review-preview-close><span class="u-visually-hidden">Close</span></button>
+
+        <div class="review-preview-modal__head">
+          <p class="review-preview-modal__eyebrow">Kiosk preview</p>
+          <h3 class="review-preview-modal__title" id="review-preview-title"
+              data-review-preview-title>Issue as it will appear</h3>
+          <p class="review-preview-modal__hint">
+            This is the kiosk's own render, scaled to fit. Nothing here is public until you approve it.
+          </p>
+        </div>
+
+        {# The well is the 768px kiosk viewport, shrunk by review-queue.js to
+           the width available; the scale wrapper keeps the partial's real
+           layout width so nothing reflows differently from the terminal. #}
+        <div class="review-preview-modal__well" data-review-preview-well>
+          <div class="review-preview__scale" data-review-preview-target></div>
+        </div>
+      </div>
+    </dialog>

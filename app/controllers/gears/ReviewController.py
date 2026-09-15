@@ -195,16 +195,23 @@ class ReviewController(Controller):
                         record.rejection_reason = reason
                     record.save()
                 # The issue's own publish date -- what orders the kiosk's
-                # slides and what its masthead prints.
+                # slides, what its masthead prints, and what starts the
+                # expiry clock (Issues.expires_at). Stamped on EVERY approve,
+                # not only when unset: for a daily paper, approval is
+                # publication, and a resubmitted issue is today's paper.
+                # UTC-aware on purpose -- the ORM tags a naive datetime as
+                # UTC without shifting it, so a naive local now() would be
+                # read back eight hours late. created_at is true UTC from
+                # pendulum; this keeps the two columns in one convention.
                 if approve and issue_id:
                     try:
-                        from datetime import datetime
+                        from datetime import datetime, timezone
 
                         from app.models.Issue import Issue
 
                         issue = Issue.where("id", issue_id).first()
-                        if issue is not None and not getattr(issue, "published_at", None):
-                            issue.published_at = datetime.now()
+                        if issue is not None:
+                            issue.published_at = datetime.now(timezone.utc)
                             issue.save()
                     except Exception:
                         pass

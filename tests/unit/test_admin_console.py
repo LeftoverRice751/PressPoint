@@ -209,6 +209,23 @@ class ConsoleTemplateTestCase(TestCase):
         self.assertIn('data-live-target="[data-review-queue-host]"', html)
         self.assertIn("data-review-queue-host", html)
 
+    def test_preview_modal_sits_outside_the_live_refreshed_host(self):
+        """The preview is a centred <dialog>, and it lives OUTSIDE
+        [data-review-queue-host]. The host is re-rendered wholesale by the 20s
+        live poll, so a dialog inside it would vanish while the admin is
+        reading the issue -- which is exactly what the old inline frame did."""
+        html = self._render(stories=[_story(1)])
+        self.assertIn("data-review-preview-modal", html)
+        self.assertIn("data-review-preview-target", html)
+        self.assertIn("data-review-preview-close", html)
+        # Nothing of the modal inside the host: the dialog must come after the
+        # host's closing tag, and the card must not carry the old inline frame.
+        host_start = html.index("data-review-queue-host")
+        modal_start = html.index("data-review-preview-modal")
+        card_end = html.index("</article>", host_start)
+        self.assertGreater(modal_start, card_end)
+        self.assertNotIn("data-review-preview-frame", html)
+
     def test_stats_panel_carries_the_live_hooks(self):
         html = self._render()
         self.assertIn('data-live-section="admin-stats"', html)

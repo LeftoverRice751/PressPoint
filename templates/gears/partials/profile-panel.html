@@ -68,12 +68,77 @@
               <span class="field__label">Username</span>
               <input type="text" class="field__input" value="{{ current_user.username if current_user else '' }}" disabled>
             </label>
-            <p class="profile-editor__hint">
-              Your username and email are your sign-in credentials — ask an admin if either needs to change.
-            </p>
 
             <button type="button" class="review-btn review-btn--approve" data-profile-save>Save profile</button>
           </div>
         </div>
       </div>
+
+      {# Second card: password. A real <form> with the CSRF token so a plain
+         submit works if the script is not loaded; gears-dashboard.js
+         intercepts it for the AJAX path. Three ids are unique on the page —
+         none of the consoles has another #password. #}
+      <form class="gears-panel gears-panel--narrow profile-password"
+            method="POST" action="{{ route('profile.password', {}, False) }}"
+            data-profile-password-form autocomplete="on">
+        {{ csrf_field | safe }}
+        <div class="panel-header panel-header--compact">
+          <div>
+            <p class="panel-header__eyebrow">Security</p>
+            <h3 class="panel-header__title">Change password</h3>
+          </div>
+        </div>
+
+        <div class="profile-password__fields">
+          <label class="field" for="current_password">
+            <span class="field__label">Current password</span>
+            <span class="profile-password__field">
+              <input type="password" name="current_password" id="current_password"
+                     class="field__input" autocomplete="current-password" required>
+              <button type="button" class="profile-password__toggle" data-password-toggle="current_password"
+                      aria-pressed="false" aria-label="Show password">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </span>
+          </label>
+
+          <label class="field" for="password">
+            <span class="field__label">New password</span>
+            <span class="profile-password__field">
+              <input type="password" name="password" id="password"
+                     class="field__input" autocomplete="new-password" required
+                     data-profile-password-new>
+              <button type="button" class="profile-password__toggle" data-password-toggle="password"
+                      aria-pressed="false" aria-label="Show password">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </span>
+          </label>
+          <div class="profile-password__meter" aria-hidden="true">
+            <div class="profile-password__meter-bar" data-profile-password-bar></div>
+          </div>
+          <p class="profile-editor__hint" data-profile-password-label>
+            At least 8 characters, with 2 uppercase, 2 lowercase, 2 numbers and 2 symbols.
+          </p>
+
+          <label class="field" for="password_confirmation">
+            <span class="field__label">Confirm new password</span>
+            <span class="profile-password__field">
+              <input type="password" name="password_confirmation" id="password_confirmation"
+                     class="field__input" autocomplete="new-password" required
+                     data-profile-password-confirm>
+              <button type="button" class="profile-password__toggle" data-password-toggle="password_confirmation"
+                      aria-pressed="false" aria-label="Show password">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </span>
+          </label>
+
+          <p class="profile-editor__hint">
+            Changing your password signs you out everywhere else. This tab stays signed in.
+          </p>
+
+          <button type="submit" class="review-btn review-btn--approve" data-profile-password-save>Update password</button>
+        </div>
+      </form>
     </section>

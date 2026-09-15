@@ -11,17 +11,14 @@ import random
 from datetime import datetime
 
 from app.models.Archives import Archives
-from app.models.Categories import Categories
 from app.models.Organization import Organization
 from app.models.Events import Events
 from app.models.Locations import Locations
 from app.models.Member import Member
 from app.models.News import News
-from app.models.Posts import Posts
 from app.models.TourScenes import TourScenes
 from app.models.User import User
 from app.models.Video import Video
-from app.models.NewsCategory import NewsCategory
 from app.services import NewsCategories
 from app.services.AboutContent import AboutContent
 from app.services.ArchiveServices import ArchiveServices
@@ -615,51 +612,156 @@ def tour_context():
     }
 
 
-def overview_context():
-    posts = ordered_by_id(Posts)
-    categories = ordered_by_id(Categories, descending=False)
+#: How many stories the "Recent Newsletters" panel lists.
+OVERVIEW_RECENT_LIMIT = 5
 
-    published_articles = [
-        post for post in posts if (getattr(post, "status", "") or "").lower() == "published"
-    ]
+#: How many story titles each row of "Newsletters by Category" previews.
+OVERVIEW_CATEGORY_PREVIEW = 3
+
+#: The columns the overview renders. Selected explicitly so the query never
+#: hydrates `description` -- the full Quill HTML body -- for a panel that
+#: shows a title, a status pill and a one-line excerpt.
+_OVERVIEW_COLUMNS = [
+    "id", "title", "status", "category_id", "issue_id", "published_at", "excerpt", "dek",
+]
+
+
+def _published_label(value):
+    """`value` as a campus-local "Sep 15, 2026", or "" when unset.
+
+    Goes through Issues' campus-zone conversion rather than strftime on the
+    raw value: the ORM hands `published_at` back UTC-aware, and a 23:50 UTC
+    approval is already the next day in Manila.
+    """
+    from app.services import Issues
+
+    local = Issues._campus_local(value)
+    return local.strftime("%b %d, %Y") if local else ""
+
+
+def _overview_story(row, issue_published_at):
+    """A plain dict for the overview partial -- title, folded status, category
+    id, a display-ready date and a one-line summary.
+
+    Plain dicts rather than models because the template used to print
+    `published_at` raw, which for an ORM datetime is a full ISO timestamp with
+    offset; the panel wants a date an editor can read at a glance.
+
+    The date is the story's own `published_at` when set, else its ISSUE's.
+    Since review went issue-based, approval stamps `issues.published_at`
+    (ReviewController) and leaves the story's column NULL -- so without the
+    fallback every published story here read "Not set".
+    """
+    published_at = getattr(row, "published_at", None)
+    if published_at is None:
+        published_at = issue_published_at.get(getattr(row, "issue_id", None))
+
+    return {
+        "id": getattr(row, "id", None),
+        "title": getattr(row, "title", None) or "Untitled story",
+        "status": normalize_news_status(getattr(row, "status", None)),
+        "category_id": getattr(row, "category_id", None),
+        "published_at": _published_label(published_at),
+        "excerpt": getattr(row, "excerpt", None) or getattr(row, "dek", None) or "",
+    }
+
+
+def _issue_published_dates(rows):
+    """{issues.id: published_at} for the issues these stories belong to.
+
+    One where_in rather than a lookup per story, same shape as author_names().
+    """
+    from app.models.Issue import Issue
+
+    wanted = {getattr(row, "issue_id", None) for row in rows} - {None}
+    if not wanted:
+        return {}
+    try:
+        issues = Issue.select("id", "published_at").where_in("id", list(wanted)).get() or []
+    except Exception:
+        return {}
+    return {getattr(i, "id", None): getattr(i, "published_at", None) for i in issues}
+
+
+def _overview_stories():
+    """Every live story, newest first, as _overview_story() dicts.
+
+    Whole table on purpose: the category panel needs every story's
+    category_id to group and to size the progress bars, and the table is
+    tens of rows. What it must NOT do is load the bodies -- hence the column
+    list. The soft-delete scope on News hides deleted stories here the same
+    way it does on the kiosk.
+    """
+    try:
+        rows = News.select(*_OVERVIEW_COLUMNS).order_by("id", "desc").get() or []
+    except Exception:
+        # Same failure posture as the rest of this module: a broken query
+        # renders an empty panel rather than taking the dashboard down.
+        return []
+    issue_dates = _issue_published_dates(rows)
+    return [_overview_story(row, issue_dates) for row in rows]
+
+
+def overview_context():
+    """The Dashboard tab: the three stat cards, "Newsletters by Category" and
+    "Recent Newsletters".
+
+    All of it reads `news` + `news_categories` -- the tables the composer and
+    the kiosk actually run on. This used to read the legacy `Posts` /
+    `Categories` tables, which nothing has written since the composer
+    replaced them, so both panels rendered "No data available" forever while
+    the kiosk was showing seventeen published stories.
+    """
+    stories = _overview_stories()
+    total = len(stories)
+
+    # Category rows in the same order the composer's picker lists them
+    # (NewsCategories.live() is name-ascending). Grouping is done here rather
+    # than with one GROUP BY because each row also previews its first few
+    # titles, which an aggregate cannot return.
+    by_category = {}
+    for story in stories:
+        by_category.setdefault(story["category_id"], []).append(story)
 
     category_rows = []
-    for category in categories:
-        article_items = [
-            post for post in posts
-            if getattr(post, "category_id", None) == getattr(category, "id", None)
-        ]
+    for category in NewsCategories.live():
+        items = by_category.pop(getattr(category, "id", None), [])
         category_rows.append(
             {
-                "name": getattr(category, "name", "Untitled category"),
-                "count": len(article_items),
-                "percent": round((len(article_items) / len(posts)) * 100) if posts else 0,
-                "items": article_items[:3],
+                "name": getattr(category, "name", None) or "Untitled category",
+                "count": len(items),
+                "percent": round((len(items) / total) * 100) if total else 0,
+                "items": items[:OVERVIEW_CATEGORY_PREVIEW],
             }
         )
 
-    uncategorized_posts = [post for post in posts if not getattr(post, "category_id", None)]
-    if uncategorized_posts:
+    # A story whose category was soft-deleted still counts -- the story is
+    # live, only its label is gone. Folded into one trailing row rather than
+    # dropped, so the row counts add up to the "Total News" card.
+    orphaned = [story for items in by_category.values() for story in items]
+    if orphaned:
         category_rows.append(
             {
                 "name": "Uncategorized",
-                "count": len(uncategorized_posts),
-                "percent": round((len(uncategorized_posts) / len(posts)) * 100) if posts else 0,
-                "items": uncategorized_posts[:3],
+                "count": len(orphaned),
+                "percent": round((len(orphaned) / total) * 100) if total else 0,
+                "items": orphaned[:OVERVIEW_CATEGORY_PREVIEW],
             }
         )
 
+    # The two stat cards. Not news_context()'s `news_count`: that one is
+    # scoped to the signed-in editor's own open issue since the composer
+    # became per-editor, so on the overview it read 0 for anyone without a
+    # draft in progress. Same status folding as super_admin_stats(), so the
+    # two dashboards agree.
+    published_news = sum(1 for story in stories if story["status"] == "published")
+
     return {
-        "posts": posts,
-        "categories": categories,
-        "recent_articles": posts[:5],
+        "recent_articles": stories[:OVERVIEW_RECENT_LIMIT],
         "article_groups": category_rows,
-        "category_lookup": {
-            getattr(category, "id", None): getattr(category, "name", "")
-            for category in categories
-        },
-        "total_articles": len(posts),
-        "published_articles": len(published_articles),
+        "category_lookup": NewsCategories.names_by_id(),
+        "total_news": total,
+        "published_news": published_news,
     }
 
 

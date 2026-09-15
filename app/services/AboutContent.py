@@ -9,6 +9,7 @@ without spinning up the request/response cycle.
 """
 
 import copy
+import math
 from urllib.parse import urlparse
 
 import bleach
@@ -135,6 +136,9 @@ MAX_HOTSPOTS = 12
 #: Attribution rows per section. Eight is well past what any About pane cites
 #: and keeps the kiosk's footer from growing past the fold on a 768x1024 pane.
 MAX_SOURCES = 8
+# Hymn lyric lines the tap-to-sync widget can time. The longest school hymn
+# is a few dozen lines; the cap is against a runaway payload, not a real limit.
+MAX_LYRIC_LINES = 200
 
 #: Schemes a source link may carry. `javascript:` and `data:` are the reason
 #: this is an allowlist and not a blocklist -- the kiosk renders these as real
@@ -253,6 +257,47 @@ class AboutContent:
         if "." in host and " " not in text:
             return "https://" + text
         return ""
+
+    @staticmethod
+    def sanitize_lyric_timings(raw):
+        """Validate the tap-to-sync list: `[{"start": s, "end": s|None}, ...]`.
+
+        Rows are matched to lyric lines by index, so a row is never reordered
+        here -- only dropped (no usable start) or opened (an end that is not
+        after its start becomes None, which the kiosk reads as "until the track
+        ends"). Dropping rather than nulling a bad start would shift every later
+        line by one, but a row with no start has nothing to anchor it, and the
+        kiosk falls back to the even split when the counts disagree anyway.
+        """
+        if not isinstance(raw, list):
+            return []
+        out = []
+        for entry in raw:
+            if not isinstance(entry, dict):
+                continue
+            start = AboutContent._seconds(entry.get("start"))
+            if start is None or start < 0:
+                continue
+            end = AboutContent._seconds(entry.get("end"))
+            if end is not None and end <= start:
+                end = None
+            out.append({"start": start, "end": end})
+            if len(out) >= MAX_LYRIC_LINES:
+                break
+        return out
+
+    @staticmethod
+    def _seconds(value):
+        """A finite float, or None. Bools are ints in Python; keep them out."""
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(number) or math.isinf(number):
+            return None
+        return number
 
     @staticmethod
     def _sanitize_sources(raw):

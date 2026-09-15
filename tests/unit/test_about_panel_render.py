@@ -13,6 +13,9 @@ the field exists in the panel, and the value reaches the kiosk pane.
 Rendering goes through the View facade so the real Jinja environment is in play.
 """
 
+import json
+import re
+
 from masonite.facades import View
 
 from app.services.AboutContent import AboutContent, DEFAULT_META, SECTION_SLUGS
@@ -228,3 +231,43 @@ class AboutKioskRenderTestCase(TestCase):
         html = self._render(_meta({"page": {"title": "<script>alert(1)</script>"}}))
 
         self.assertNotIn("<script>alert(1)</script>", html)
+
+
+class HymnSyncWidgetRenderTestCase(AboutPanelRenderTestCase):
+    """The tap-to-sync block on the hymn form, in each of its media states."""
+
+    def _hymn(self, **overrides):
+        sections = {slug: _Section(slug) for slug in SECTION_SLUGS}
+        sections["hymn"] = _Section("hymn", **overrides)
+        return self._render(sections=sections)
+
+    def test_prefers_the_video_like_the_kiosk_does(self):
+        html = self._hymn(video_path="About/hymn_video.mp4", audio_path="About/hymn_audio.mp3")
+        self.assertIn('<video class="about-hymn-sync__media" data-hymn-sync-media', html)
+        self.assertIn('src="/storage/About/hymn_video.mp4#t=0.1"', html)
+        self.assertNotIn('<audio class="about-hymn-sync__media"', html)
+
+    def test_falls_back_to_the_audio_file(self):
+        html = self._hymn(audio_path="About/hymn_audio.mp3")
+        self.assertIn('<audio class="about-hymn-sync__media" data-hymn-sync-media', html)
+        self.assertIn('src="/storage/About/hymn_audio.mp3"', html)
+
+    def test_no_media_means_no_transport_but_still_the_field(self):
+        """The hidden input stays so a save cannot blank stored timings just
+        because the media was temporarily missing."""
+        html = self._hymn()
+        self.assertNotIn("data-hymn-sync-mark", html)
+        self.assertIn("Upload the hymn video or audio below first", html)
+        self.assertIn('name="lyric_timings"', html)
+
+    def test_stored_timings_round_trip_into_the_form(self):
+        html = self._hymn(
+            video_path="About/hymn_video.mp4",
+            lyric_timings=[{"start": 8.0, "end": 14.5}, {"start": 14.5, "end": None}],
+        )
+        match = re.search(r"""name="lyric_timings"[^>]*value='([^']*)'""", html)
+        self.assertIsNotNone(match)
+        self.assertEqual(
+            json.loads(match.group(1)),
+            [{"start": 8.0, "end": 14.5}, {"start": 14.5, "end": None}],
+        )

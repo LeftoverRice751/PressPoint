@@ -164,6 +164,9 @@
     </section>
 
     {% include 'gears/partials/profile-panel.html' %}
+
+    {# Outside every live-refreshed host on purpose -- see the partial. #}
+    {% include 'gears/partials/review-preview-modal.html' %}
 {% endblock %}
 
 {% block js %}

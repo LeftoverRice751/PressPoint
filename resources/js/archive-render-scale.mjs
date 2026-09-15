@@ -110,6 +110,41 @@ export function computeRenderScale(opts = {}) {
 }
 
 /*
+ * Backing-store size for StPageFlip's canvas.
+ *
+ * The library sizes its canvas from getComputedStyle() — CSS pixels — and
+ * never reads devicePixelRatio (grep its dist: zero hits). Every folio page
+ * was therefore drawImage()'d into a store with 1/dpr² of the screen's pixels
+ * and CSS-stretched back up, discarding the 2400 px server WebP and the
+ * oversampled pdf.js render alike at that one step. Tabloids never showed it
+ * because OpenSeadragon is DPR-aware. The reader applies this after every
+ * path on which the library resets canvas.width (which also resets the 2D
+ * transform): construction, its 1 ms "safari fix" update, its own window
+ * resize listener, and our relayout.
+ *
+ * Same MAX_DPR cap and area budget as computeRenderScale, for the same
+ * reasons: a two-page desktop spread at DPR 3 is ~29 MP, and iOS blanks a
+ * canvas over 16 MP rather than throwing.
+ */
+export function bookCanvasDensity(opts = {}) {
+  const cssWidth = Math.max(1, Number(opts.cssWidth) || 1);
+  const cssHeight = Math.max(1, Number(opts.cssHeight) || 1);
+  const maxPixels = Math.max(1, Number(opts.maxPixels) || PIXELS_16MP);
+  let dpr = Math.min(Math.max(Number(opts.dpr) || 1, 1), MAX_DPR);
+
+  const area = cssWidth * dpr * cssHeight * dpr;
+  if (area > maxPixels) {
+    dpr = Math.max(1, dpr * Math.sqrt(maxPixels / area));
+  }
+
+  return {
+    dpr,
+    width: Math.max(1, Math.round(cssWidth * dpr)),
+    height: Math.max(1, Math.round(cssHeight * dpr)),
+  };
+}
+
+/*
  * Cache generation token. Two pages rendered under the same key are
  * interchangeable; a page whose key no longer matches is a stale bitmap that
  * must be re-rendered before it can be treated as final.

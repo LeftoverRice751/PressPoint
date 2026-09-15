@@ -71,12 +71,10 @@
       </button>
     </div>
 
-    {# Filled by review-queue.js from /gears/review/issue/preview — the
-       kiosk's own _issue partial with every pending block in its real place,
-       scaled down. Empty until asked for. #}
-    <div class="review-card__preview" data-review-preview-frame hidden>
-      <div class="review-preview__scale" data-review-preview-target></div>
-    </div>
+    {# The preview itself is NOT in the card: review-queue.js fetches the
+       kiosk's own _issue partial into the centred dialog in
+       review-preview-modal.html, which sits outside this live-refreshed host
+       so the poll cannot wipe it while the admin is reading. #}
 
     {# One reason for the whole issue. Required: an editor told only
        "sent back" has no idea what to fix. #}

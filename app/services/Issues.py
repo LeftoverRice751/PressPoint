@@ -5,7 +5,8 @@ stories (`news.issue_id`). This module answers the questions every surface
 asks about them:
 
     the composer   which issue is THIS editor working on?     current_for()
-    the kiosk      which issues are published, newest first?  published_issues()
+    the composer   which issues were ever published?          published_issues()
+    the kiosk      which issues are today's paper?            current_issues()
     the admin      which issues are waiting on a decision?    pending_issues()
     news.layout    has this issue moved since the page loaded? stamp_for()
 
@@ -14,9 +15,24 @@ docstring for why). An issue is published if any of its stories is publicly
 visible, in review if any is in review, otherwise a draft.
 """
 
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
 from app.models.Issue import Issue
 from app.models.News import News
 from app.services.DashboardContext import normalize_news_status
+
+#: Where the kiosk stands. Named explicitly rather than read from the process
+#: because `published_at` comes back UTC-aware from pendulum and CI runs in
+#: UTC: converting through the system zone there would put a 23:50 UTC
+#: approval on the wrong calendar day.
+CAMPUS_TZ = ZoneInfo("Asia/Manila")
+
+#: Latest News is a daily paper. An issue is current from approval until this
+#: hour on the NEXT calendar day -- 08:00, not midnight, so the morning shift
+#: still sees yesterday's paper on the way in and a fresh one is expected by
+#: the start of classes. One place to change if that ever moves.
+ISSUE_EXPIRES_AT_HOUR = 8
 
 #: Statuses that put a story on the kiosk. Mirrors NewsController's
 #: _NEWS_VISIBLE_STATUSES; not imported from there because the controller
@@ -103,11 +119,14 @@ def ensure_current_for(user_id):
     existing = current_for(user_id)
     if existing is not None:
         return existing
+    # No `published_at` key at all. It is a __dates__ column, and the ORM
+    # runs every dates column it is handed through get_new_date(), where
+    # None means "now" -- so `"published_at": None` stamped every issue as
+    # published at creation, and the approval's "set if unset" never fired.
     return Issue.create({
         "number": next_number(),
         "owner_id": user_id,
         "title": None,
-        "published_at": None,
     })
 
 
@@ -143,6 +162,65 @@ def published_issues():
         )
     )
     return found
+
+
+def _campus_local(value):
+    """`value` as a naive campus-local datetime, or None.
+
+    Naive datetimes are taken as already local: approval writes
+    `datetime.now()` on a +08:00 server. Aware ones (pendulum's UTC reads)
+    are converted explicitly, never through the process zone (see CAMPUS_TZ).
+    """
+    if value is None or not hasattr(value, "year"):
+        return None
+    if not isinstance(value, datetime):
+        return datetime.combine(value, datetime.min.time())
+    if value.tzinfo is not None:
+        return value.astimezone(CAMPUS_TZ).replace(tzinfo=None)
+    return value
+
+
+def campus_now():
+    """Naive campus-local now -- what `_campus_local()` values compare to."""
+    return datetime.now(CAMPUS_TZ).replace(tzinfo=None)
+
+
+def expires_at(issue):
+    """When `issue` stops being today's paper: ISSUE_EXPIRES_AT_HOUR on the
+    calendar day after it was published (campus time). Whatever the hour of
+    approval -- 07:30 Monday and 23:50 Monday both expire Tuesday 08:00.
+
+    Issues from before `published_at` existed fall back to `created_at`.
+    None when neither is readable, which current_issues() treats as expired.
+    """
+    at = _campus_local(getattr(issue, "published_at", None)) or _campus_local(
+        getattr(issue, "created_at", None)
+    )
+    if at is None:
+        return None
+    next_day = at.date() + timedelta(days=1)
+    return datetime.combine(next_day, datetime.min.time()).replace(hour=ISSUE_EXPIRES_AT_HOUR)
+
+
+def current_issues(now=None):
+    """The kiosk's cut of published_issues(): every issue that has not yet
+    expired, newest first. When nothing is current (Monday morning before a
+    new paper is approved) the newest published issue is kept so the terminal
+    never shows a blank Latest News.
+
+    The kiosk reads this through NewsCache (TTL 300s), so an issue drops off
+    within five minutes of its expiry with no scheduler involved.
+    """
+    now = now if now is not None else campus_now()
+    published = published_issues()
+    current = []
+    for issue in published:
+        until = expires_at(issue)
+        if until is not None and now < until:
+            current.append(issue)
+    if current:
+        return current
+    return published[:1]
 
 
 def pending_issues():

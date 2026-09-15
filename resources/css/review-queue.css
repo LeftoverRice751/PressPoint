@@ -161,35 +161,109 @@
   margin-top: 10px;
 }
 
-/* ── Kiosk-accurate preview ─────────────────────────────────────────────── */
+/* ── Kiosk-accurate preview (centred dialog) ────────────────────────────── */
 
-.review-card__preview {
-  margin-top: 16px;
-  padding: 16px;
+/* Extends .article-modal (gears-dashboard.css) the way tour-preview-modal
+   does. Wide enough to show the 768px kiosk viewport at 1:1 with the panel's
+   padding around it, so on a desktop the admin reads the issue at the size a
+   student will; on anything narrower review-queue.js scales it down to fit. */
+.review-preview-modal {
+  width: min(840px, calc(100vw - 2rem));
+}
+
+.review-preview-modal__panel {
+  position: relative;
+  padding: 1.5rem;
+  /* The issue is a full kiosk page, taller than any viewport: cap the panel
+     and let it scroll inside the dialog, never the page behind it. */
+  max-height: 90vh;
+  overflow: hidden auto;
+  box-sizing: border-box;
+}
+
+.review-preview-modal__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--rule-strong);
+  border-radius: 50%;
+  background: var(--ink-paper);
+  color: var(--ink);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.review-preview-modal__close::before { content: "\2715"; }
+
+.review-preview-modal__close:hover {
+  background: var(--ink-oxblood);
+  color: var(--ink-invert);
+  border-color: var(--ink-oxblood);
+}
+
+.review-preview-modal__close:focus-visible {
+  outline: 2px solid var(--ink-oxblood);
+  outline-offset: 2px;
+}
+
+.review-preview-modal__head {
+  margin-bottom: 1rem;
+  padding-right: 3rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.review-preview-modal__eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.review-preview-modal__title {
+  margin: 0;
+  font-family: var(--font-heading, inherit);
+  font-size: 1.25rem;
+  line-height: 1.25;
+  color: var(--ink-strong);
+}
+
+.review-preview-modal__hint {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+/* The well is the terminal's screen: sunken, bordered, and it clips the
+   scaled render rather than letting the dialog scroll sideways. */
+.review-preview-modal__well {
   background: var(--surface-sunken);
   border: 1px solid var(--rule);
   border-radius: var(--radius-md, 6px);
-  /* The kiosk is a 768px-wide portrait terminal; the panel is narrower than
-     that, so the rendered partial has to be allowed to scroll rather than
-     forcing the dashboard page to scroll sideways. */
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 /* Scaled, not re-styled: this is the kiosk's own markup, so shrinking it is
-   the only honest way to fit it in a dashboard panel. transform-origin keeps
-   it pinned to the top-left of the well as it shrinks. */
+   the only honest way to fit it. The scale factor and the resulting layout
+   height are set by review-queue.js (scale() is paint-only and would leave
+   the unscaled height reserved underneath). transform-origin keeps the render
+   pinned to the top-left as it shrinks. */
 .review-preview__scale {
   width: 768px;
-  transform: scale(0.62);
   transform-origin: top left;
-  /* scale() does not affect layout box size, so the well would otherwise
-     reserve the full unscaled height and leave a large gap underneath. */
-  height: auto;
-  margin-bottom: -38%;
+  margin: 0 auto;
 }
 
 .review-preview__loading {
   margin: 0;
+  padding: 16px;
   color: var(--ink-muted);
   font-size: 0.9rem;
 }
@@ -253,10 +327,24 @@
 
 .profile-editor__avatar-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.profile-editor__upload { cursor: pointer; }
+/* "Change picture" is a <span> inside a <label> (the file input needs a label
+   to open the picker), while "Remove" is a real <button>. An inline span's
+   line box is not a button's border box, so the two sat a few pixels apart;
+   flex on both makes them the same 8px + 16px shape. */
+.profile-editor__upload {
+  display: flex;
+  cursor: pointer;
+}
+
+.profile-editor__avatar-actions .review-btn {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.25;
+}
 
 .profile-editor__hint {
   margin: 0;
@@ -276,6 +364,76 @@
   background: var(--surface-sunken);
   color: var(--ink-muted);
   cursor: not-allowed;
+}
+
+/* ── Change password card ─────────────────────────────────────────────── */
+
+.profile-password { margin-top: 20px; }
+
+.profile-password__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+}
+
+/* The reveal button sits inside the input's box; the input keeps its own
+   right padding so typed text never runs under the glyph. */
+.profile-password__field {
+  position: relative;
+  display: block;
+}
+
+.profile-password__field .field__input {
+  width: 100%;
+  padding-right: 44px;
+}
+
+.profile-password__toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.profile-password__toggle svg { width: 18px; height: 18px; }
+
+.profile-password__toggle:hover,
+.profile-password__toggle[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--surface-sunken);
+}
+
+.profile-password__toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.profile-password__meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.profile-password__meter-bar {
+  height: 100%;
+  width: 0;
+  background: var(--danger);
+  transition: width 0.15s ease, background-color 0.15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-password__meter-bar { transition: none; }
 }
 
 @media (max-width: 640px) {

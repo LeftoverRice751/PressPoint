@@ -1,4 +1,5 @@
 from datetime import datetime
+import html as html_module
 import os
 import traceback
 
@@ -164,6 +165,20 @@ def _html_to_text(html):
     """Plain-text projection of the body — used for the 'required' check so an
     editor can't publish a visually-empty body like Quill's '<p><br></p>'."""
     return bleach.clean(html or "", tags=[], strip=True).strip()
+
+
+def _flash_text(value):
+    """What a stored field looks like on the kiosk's one-line flash ticker.
+
+    welcome-screen.js renders every ticker field through escapeHtml(), so the
+    stored Quill HTML must be flattened here or the body shows up on the
+    campus terminal as a literal `<p>Despite the …</p>`. Two things beyond
+    `_html_to_text()`: the entities it leaves encoded (`&amp;`) are decoded,
+    because the client escapes again and "Tom &amp; Jerry" would otherwise
+    read that way on glass; and the newlines it emits between paragraphs are
+    collapsed, since the band is a single `white-space: nowrap` line.
+    """
+    return " ".join(html_module.unescape(_html_to_text(value)).split())
 
 
 #: What each block has to carry before it can be saved -- which is exactly
@@ -421,9 +436,9 @@ def _build_flash_payload(news_item):
         # Plain text, not the stored HTML: welcome-screen.js renders this
         # through escapeHtml(), so a headline carrying Quill's formatting spans
         # would show as literal `<span class="ql-font-…">` in the kiosk ticker.
-        "headline": _html_to_text(getattr(news_item, "title", None) or "") or "News update",
+        "headline": _flash_text(getattr(news_item, "title", None)) or "News update",
         "date": reference_at.strftime("%b %d, %Y") if hasattr(reference_at, "strftime") else "",
-        "copy": getattr(news_item, "description", None) or "",
+        "copy": _flash_text(getattr(news_item, "description", None)),
         "kind": "news",
         "occured_on": reference_at.date().isoformat() if hasattr(reference_at, "date") else "",
         "today_key": datetime.now().date().isoformat(),
@@ -432,7 +447,7 @@ def _build_flash_payload(news_item):
 
 class NewsController(Controller):
     def _build_news_payload(self):
-        """Every published issue, newest first, each with its own blocks.
+        """Every CURRENT issue (today's paper), newest first, each with its own blocks.
 
         One kiosk slide per issue. This used to build ONE issue from every
         public story in the table -- there was no other kind of issue. Now a
@@ -455,8 +470,12 @@ class NewsController(Controller):
             return _news_item_to_dict(item, disk, category_names)
 
         issues = []
-        for issue in Issues.published_issues():
-            # published_issues() attaches the published-shaped stories; the
+        # current_issues(), not published_issues(): Latest News is a daily
+        # paper, so an issue leaves the terminal at 08:00 the morning after
+        # it was approved (Issues.ISSUE_EXPIRES_AT_HOUR). The archive of every
+        # issue ever published is the composer's concern, not the kiosk's.
+        for issue in Issues.current_issues():
+            # The published-shaped stories ride along on the issue; the
             # per-story date check for `scheduled` still applies here.
             stories = [item for item in getattr(issue, "stories", []) if _news_is_public(item)]
             if not stories:

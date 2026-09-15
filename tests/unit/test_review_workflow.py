@@ -11,6 +11,7 @@ anyone signed in can post `status=published` to the same endpoint.
 """
 
 from unittest import TestCase
+from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
 from app.controllers.gears.NewsController import (
@@ -333,6 +334,34 @@ class IssueLevelReviewTestCase(TestCase):
         self.assertTrue(_body(response)["ok"])
         # Once, not once per block: the kiosk cache is one thing.
         cache_mock.forget.assert_called_once()
+
+    def test_approve_stamps_the_issue_published_now_in_utc(self):
+        """Approval IS publication for a daily paper, so the stamp is taken
+        on every approve -- a resubmitted issue is today's paper, not the
+        paper of the day it was first approved. UTC-aware, because the ORM
+        tags a naive datetime as UTC without shifting it (created_at is true
+        UTC from pendulum) and Issues.expires_at() converts from UTC."""
+        rows = self._pending(2)
+        for r in rows:
+            r.issue_id = 5
+        issue = Mock(id=5, published_at=datetime(2026, 9, 1, 0, 0))
+        issue.save = Mock()
+        request = _request(role="admin", params={"id": "5"})
+        response = _response()
+        before = datetime.now(timezone.utc)
+        with patch(
+            "app.controllers.gears.ReviewController.review_stories_of", return_value=rows
+        ), patch("app.models.Issue.Issue.where") as where, patch(
+            "app.controllers.gears.ReviewController.Cache"
+        ), patch("app.controllers.gears.ReviewController.Notifications"):
+            where.return_value.first.return_value = issue
+            ReviewController().approve_issue(request, response)
+        self.assertTrue(_body(response)["ok"])
+        stamped = issue.published_at
+        self.assertIsNotNone(stamped.tzinfo, "must be timezone-aware")
+        self.assertEqual(stamped.utcoffset().total_seconds(), 0)
+        self.assertGreaterEqual(stamped, before)
+        issue.save.assert_called_once()
 
     def test_approve_issue_notifies_each_author_once(self):
         """Three blocks by the same editor is one issue and one notification,

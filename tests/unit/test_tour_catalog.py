@@ -135,17 +135,18 @@ class TourPreviewFaceTestCase(TestCase):
         self.assertEqual(preview_face_index({"yaw": 2 * math.pi}), FRONT)
 
     def test_the_opening_scene_crops_its_left_face(self):
-        # 0-jst-1 opens at yaw -1.772 rad (~ -101 deg). This is the case the
-        # whole function exists for: a fixed "front" crop would show an editor
-        # a wall, not the building the panorama is of. A regression to a
-        # constant face fails right here.
+        # 0-jst-1 opens at yaw -1.939 rad (~ -111 deg) in the 2026-09 capture
+        # (the previous export had -1.772). This is the case the whole function
+        # exists for: a fixed "front" crop would show an editor a wall, not the
+        # building the panorama is of. A regression to a constant face fails
+        # right here.
         opening = next(
             scene
             for scene in TourScenesCatalog.all_scenes()
             if scene["scene_id"] == "0-jst-1"
         )
 
-        self.assertAlmostEqual(opening["initial_view"]["yaw"], -1.7720201955843162)
+        self.assertAlmostEqual(opening["initial_view"]["yaw"], -1.9394217698135492)
         self.assertEqual(opening["preview_face"], LEFT)
 
     def test_a_missing_or_unusable_yaw_falls_back_to_front(self):

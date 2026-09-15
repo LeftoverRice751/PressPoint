@@ -1349,6 +1349,98 @@
         });
       });
     }
+
+    // ── Change password ──────────────────────────────────────────────────
+    // Mirrors app/services/PasswordChange.py's thresholds (Masonite's
+    // `strong` defaults). The server is the authority; this only tells an
+    // honest user which rule they miss BEFORE submit, since the server's
+    // refusal is deliberately one generic sentence.
+    var pwForm = root.querySelector('[data-profile-password-form]');
+    if (pwForm) {
+      var pwNew = pwForm.querySelector('[data-profile-password-new]');
+      var pwConfirm = pwForm.querySelector('[data-profile-password-confirm]');
+      var pwBar = pwForm.querySelector('[data-profile-password-bar]');
+      var pwLabel = pwForm.querySelector('[data-profile-password-label]');
+      var pwSave = pwForm.querySelector('[data-profile-password-save]');
+      var pwHint = pwLabel ? pwLabel.textContent : '';
+
+      function count(str, test) {
+        var n = 0;
+        for (var i = 0; i < str.length; i++) if (test(str[i])) n++;
+        return n;
+      }
+
+      function missingRules(pw) {
+        var missing = [];
+        if (pw.length < 8) missing.push('8+ characters');
+        if (count(pw, function (c) { return c !== c.toLowerCase() && c === c.toUpperCase(); }) < 2) missing.push('2 uppercase');
+        if (count(pw, function (c) { return c !== c.toUpperCase() && c === c.toLowerCase(); }) < 2) missing.push('2 lowercase');
+        if (count(pw, function (c) { return /\d/.test(c); }) < 2) missing.push('2 numbers');
+        if (count(pw, function (c) { return /[^A-Za-z0-9]/.test(c); }) < 2) missing.push('2 symbols');
+        return missing;
+      }
+
+      function updateMeter() {
+        var pw = pwNew ? pwNew.value : '';
+        var missing = missingRules(pw);
+        var met = 5 - missing.length;
+        if (pwBar) {
+          pwBar.style.width = (pw ? (met / 5) * 100 : 0) + '%';
+          pwBar.style.backgroundColor = met < 3 ? 'var(--danger)' : met < 5 ? 'var(--warn)' : 'var(--ok)';
+        }
+        if (pwLabel) {
+          if (!pw) { pwLabel.textContent = pwHint; pwLabel.style.color = ''; }
+          else if (!missing.length) { pwLabel.textContent = 'Strong password.'; pwLabel.style.color = 'var(--ok)'; }
+          else { pwLabel.textContent = 'Needs: ' + missing.join(', '); pwLabel.style.color = ''; }
+        }
+      }
+
+      if (pwNew) { pwNew.addEventListener('input', updateMeter); updateMeter(); }
+      if (pwConfirm && pwNew) {
+        pwConfirm.addEventListener('input', function () {
+          pwConfirm.setCustomValidity(
+            pwNew.value && pwConfirm.value && pwNew.value !== pwConfirm.value ? 'Passwords do not match.' : ''
+          );
+        });
+      }
+
+      // aria-pressed is the single source of truth, same as auth-password-toggle.js.
+      Array.prototype.forEach.call(pwForm.querySelectorAll('[data-password-toggle]'), function (toggle) {
+        var input = document.getElementById(toggle.getAttribute('data-password-toggle'));
+        if (!input) return;
+        toggle.addEventListener('click', function () {
+          var showing = toggle.getAttribute('aria-pressed') === 'true';
+          input.type = showing ? 'password' : 'text';
+          toggle.setAttribute('aria-pressed', String(!showing));
+          toggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+        });
+      });
+
+      pwForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        if (!pwForm.reportValidity()) return;
+        if (pwSave) pwSave.disabled = true;
+        postJson(pwForm.getAttribute('action'), {
+          current_password: pwForm.elements.current_password.value,
+          password: pwForm.elements.password.value,
+          password_confirmation: pwForm.elements.password_confirmation.value
+        })
+          .then(function (json) {
+            if (pwSave) pwSave.disabled = false;
+            if (json && json.ok) {
+              pwForm.reset();
+              updateMeter();
+              toast((json.messages && json.messages[0]) || 'Password changed.', false);
+            } else {
+              toast((json && json.errors && json.errors[0]) || 'Could not change your password.', true);
+            }
+          })
+          .catch(function () {
+            if (pwSave) pwSave.disabled = false;
+            toast('Request failed — please try again.', true);
+          });
+      });
+    }
   }
 
   /* ── Off-canvas rail ──────────────────────────────────────────────────────

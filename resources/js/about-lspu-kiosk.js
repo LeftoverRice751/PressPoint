@@ -133,11 +133,14 @@
     var totalEl = root.querySelector('[data-hymn-total]');
     var lines = Array.prototype.slice.call(root.querySelectorAll('[data-hymn-line]'));
 
-    // Per-line timings are editorial data when present. They rarely are — no
-    // editor UI writes them yet — so the fallback divides the track evenly,
-    // which tracks a sung hymn closely enough to follow.
+    // Per-line timings come from the dashboard's tap-to-sync widget. Without
+    // them the fallback divides the track evenly, which is roughly followable.
+    // A set recorded against a different number of lines is ignored whole:
+    // it was made for other lyrics, and mixing timed lines with arithmetic
+    // ones per index reads as random highlighting.
     var timings = [];
     try { timings = JSON.parse(root.getAttribute('data-timings') || '[]') || []; } catch (e) { timings = []; }
+    if (!Array.isArray(timings) || timings.length !== lines.length) timings = [];
 
     function fmt(sec) {
       if (!isFinite(sec) || sec < 0) sec = 0;

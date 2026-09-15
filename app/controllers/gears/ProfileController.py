@@ -19,9 +19,10 @@ from masonite.controllers import Controller
 from masonite.request import Request
 from masonite.response import Response
 
-from app.services import Profiles
+from app.services import PasswordChange, Profiles
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.ImageUploads import save_uploaded_image
+from app.tab_slots import slot_cookie
 
 
 #: Longest display name we will store. The column is varchar(255); this is a
@@ -148,3 +149,50 @@ class ProfileController(Controller):
             Profiles.delete_avatar_file(previous)
 
         return self._respond(request, response, user, "Profile picture removed.")
+
+    def change_password(self, request: Request, response: Response):
+        """Change the signed-in account's own password.
+
+        PasswordChange.apply does the checking and the write; this re-issues
+        the cookie. Sessions on this app are `users.remember_token`, which the
+        service rotates so every other tab and device drops — without a fresh
+        cookie for *this* slot the caller would drop with them.
+        """
+        is_ajax = wants_json(request)
+
+        def _err(messages, status=422):
+            if is_ajax:
+                return json_errors(response, messages, status=status)
+            return response.back().with_errors(messages)
+
+        user = self._actor(request)
+        if not user:
+            return _err(["Not signed in."], status=401)
+
+        try:
+            result = PasswordChange.apply(
+                user,
+                request.input("current_password"),
+                request.input("password"),
+                request.input("password_confirmation"),
+            )
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return _err(["Could not change your password. Please try again."])
+
+        if not result.ok:
+            return _err(result.errors)
+
+        response.cookie(
+            slot_cookie("token", getattr(request, "tab_slot", 0)),
+            getattr(user, "remember_token", "") or "",
+        )
+
+        message = "Password changed. Other devices have been signed out."
+        if is_ajax:
+            return json_success(
+                response, payload={"emailed": result.emailed}, messages=[message]
+            )
+        return response.redirect(
+            name="gears.dashboard", query_params={"page": "profile"}
+        ).with_success([message])

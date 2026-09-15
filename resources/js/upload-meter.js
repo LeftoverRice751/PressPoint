@@ -3,7 +3,8 @@
  *
  * Responsibilities:
  *   1. Make every <label class="dropzone"> behave: drag-over highlight,
- *      filled-state preview (filename + size), and a clear (×) button.
+ *      filled-state preview (the file itself — thumbnail, player, or a
+ *      PDF's first page — plus filename + size), and a clear (×) button.
  *   2. Intercept submits for every <form data-upload-form> and run the
  *      upload through XHR so we can show a bottom-right progress toast
  *      that updates as the file streams up.
@@ -11,6 +12,8 @@
  *      (with the JSON payload) and either re-fetch the section partial
  *      (when the form opts in) or simply reload the page.
  */
+import { previewKindFor } from './dropzone-preview.mjs';
+
 (function () {
   var META = document.querySelector('meta[name="csrf-token"]');
   var CSRF = META ? META.getAttribute('content') : '';
@@ -31,6 +34,102 @@
     return (Math.round(bytes * 10) / 10) + ' ' + units[unit];
   }
 
+  // pdf.js is only fetched the first time an editor picks a PDF: the archive
+  // form is one panel of many and the library is ~400 KB. Same vendored copy
+  // and worker as the kiosk reader (see webpack.mix.js).
+  var pdfjsPromise = null;
+  function getPdfjs() {
+    if (pdfjsPromise) return pdfjsPromise;
+    pdfjsPromise = import(/* webpackIgnore: true */ '/assets/js/pdfjs/pdf.min.mjs')
+      .then(function (mod) {
+        var lib = mod && mod.default ? mod.default : mod;
+        if (lib && lib.GlobalWorkerOptions) {
+          lib.GlobalWorkerOptions.workerSrc = '/assets/js/pdfjs/pdf.worker.min.mjs';
+        }
+        return lib;
+      });
+    return pdfjsPromise;
+  }
+
+  // First page onto a canvas, sized for the preview slot rather than print.
+  // Resolves to the canvas, or rejects so the caller falls back to the
+  // filename row — a corrupt PDF is the server's error to report on submit.
+  function renderPdfPreview(file) {
+    return getPdfjs().then(function (pdfjs) {
+      return file.arrayBuffer().then(function (buffer) {
+        return pdfjs.getDocument({ data: buffer }).promise;
+      });
+    }).then(function (doc) {
+      return doc.getPage(1).then(function (page) {
+        var base = page.getViewport({ scale: 1 });
+        var scale = (240 * (window.devicePixelRatio || 1)) / Math.max(base.width, base.height);
+        var viewport = page.getViewport({ scale: scale });
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        canvas.className = 'dropzone__thumb';
+        return page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise
+          .then(function () {
+            doc.destroy();
+            return canvas;
+          });
+      });
+    });
+  }
+
+  // Object URLs pin the file in memory until revoked; a 200 MB video picked
+  // and cleared three times would otherwise cost 600 MB until the tab closes.
+  function releasePreview(zone) {
+    var slot = zone.querySelector('[data-dropzone-preview]');
+    if (!slot) return;
+    if (slot.__objectUrl) {
+      URL.revokeObjectURL(slot.__objectUrl);
+      slot.__objectUrl = null;
+    }
+    slot.innerHTML = '';
+    slot.__token = (slot.__token || 0) + 1;
+    zone.removeAttribute('data-preview-kind');
+  }
+
+  function renderPreview(zone, file) {
+    var slot = zone.querySelector('[data-dropzone-preview]');
+    if (!slot) return;
+    releasePreview(zone);
+    var kind = previewKindFor(file);
+    if (!kind) return;
+    zone.setAttribute('data-preview-kind', kind);
+
+    if (kind === 'pdf') {
+      // The render is async; if the editor picks another file before it
+      // lands, the stale canvas must not replace the newer preview.
+      var token = slot.__token;
+      renderPdfPreview(file).then(function (canvas) {
+        if (slot.__token !== token) return;
+        slot.appendChild(canvas);
+      }).catch(function () {
+        if (slot.__token !== token) return;
+        zone.removeAttribute('data-preview-kind');
+      });
+      return;
+    }
+
+    var url = URL.createObjectURL(file);
+    slot.__objectUrl = url;
+    var el;
+    if (kind === 'image') {
+      el = document.createElement('img');
+      el.alt = '';
+    } else {
+      el = document.createElement(kind);
+      el.controls = true;
+      el.preload = 'metadata';
+      if (kind === 'video') el.muted = true;
+    }
+    el.className = 'dropzone__thumb';
+    el.src = url;
+    slot.appendChild(el);
+  }
+
   function syncDropzone(zone) {
     var input = zone.querySelector('.dropzone__input');
     if (!input) return;
@@ -44,10 +143,12 @@
       zone.classList.remove('is-invalid');
       if (nameEl) nameEl.textContent = file.name;
       if (sizeEl) sizeEl.textContent = humanSize(file.size);
+      renderPreview(zone, file);
     } else {
       zone.classList.remove('is-filled');
       if (nameEl) nameEl.textContent = '';
       if (sizeEl) sizeEl.textContent = '';
+      releasePreview(zone);
     }
   }
 

@@ -17,6 +17,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  bookCanvasDensity,
   computeRenderScale,
   maxCanvasPixels,
   rasterHeadroom,
@@ -181,4 +182,42 @@ test('headroom never drops below 1', () => {
 test('headroom degrades to 1 on missing geometry rather than NaN', () => {
   assert.equal(rasterHeadroom({}), 1);
   assert.equal(rasterHeadroom({ contentWidth: 0, contentHeight: 0, targetWidth: 10, targetHeight: 10 }), 1);
+});
+
+// ── bookCanvasDensity ──────────────────────────────────────
+//
+// StPageFlip sizes its canvas backing store from getComputedStyle() — CSS
+// pixels — and never reads devicePixelRatio, so on a 3x phone every folio
+// page was drawn with a ninth of the screen's pixels and stretched back up.
+// The server WebP and the oversampled pdf.js render were both thrown away at
+// that one step. These pin the density the reader must re-apply.
+
+test('book canvas backing store is CSS size times DPR', () => {
+  const d = bookCanvasDensity({ cssWidth: 390, cssHeight: 546, dpr: 3, maxPixels: PIXELS_16MP });
+  assert.equal(d.dpr, 3);
+  assert.equal(d.width, 1170);
+  assert.equal(d.height, 1638);
+});
+
+test('book canvas DPR is floored at 1 and capped at MAX_DPR', () => {
+  assert.equal(bookCanvasDensity({ cssWidth: 100, cssHeight: 100, dpr: 0.5 }).dpr, 1);
+  assert.equal(bookCanvasDensity({ cssWidth: 100, cssHeight: 100, dpr: undefined }).dpr, 1);
+  assert.equal(bookCanvasDensity({ cssWidth: 100, cssHeight: 100, dpr: 4 }).dpr, MAX_DPR);
+});
+
+test('book canvas density backs off to fit the pixel budget', () => {
+  // A two-page desktop spread at DPR 3 would be ~29 MP; a 16 MP budget must
+  // pull the density down rather than hand iOS a canvas it silently blanks.
+  const d = bookCanvasDensity({ cssWidth: 1800, cssHeight: 1800, dpr: 3, maxPixels: PIXELS_16MP });
+  assert.ok(d.dpr < 3 && d.dpr >= 1, `dpr ${d.dpr}`);
+  assert.ok(d.width * d.height <= PIXELS_16MP, `${d.width}x${d.height}`);
+  assert.equal(d.width, Math.round(1800 * d.dpr));
+});
+
+test('book canvas density never returns a zero-sized store', () => {
+  // A canvas measured before layout (0x0) still needs a real store — a 0-wide
+  // canvas makes getContext('2d') drawing a no-op with no error.
+  const d = bookCanvasDensity({ cssWidth: 0, cssHeight: 0, dpr: 2 });
+  assert.ok(d.width >= 1 && Number.isFinite(d.width));
+  assert.ok(d.height >= 1 && Number.isFinite(d.height));
 });

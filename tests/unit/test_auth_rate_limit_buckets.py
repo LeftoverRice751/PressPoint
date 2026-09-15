@@ -31,12 +31,14 @@ EXPECTED_ROUTE_LIMITERS = {
     "auth.forgot-password.store": "throttle:password-reset",
     "auth.forgot-password.otp.store": "throttle:otp",
     "auth.change-password.store": "throttle:password-reset",
+    "profile.password": "throttle:password-change",
 }
 
 EXPECTED_LIMITS = {
     "auth": "5/minute",
     "password-reset": "10/minute",
     "otp": "5/minute",
+    "password-change": "5/minute",
 }
 
 

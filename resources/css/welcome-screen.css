@@ -498,7 +498,12 @@
   gap: clamp(14px, 1.6vw, 28px);
   align-items: center;
   will-change: transform;
-  animation: ticker-scroll 50s linear infinite;
+  /* The keyframes travel one content copy (-50%), so the duration is the
+     speed. welcome-screen.js sets --ticker-duration from the measured copy
+     width at a fixed px/s (ticker-pace.mjs) after every render; a fixed 50s
+     here made a 12-story day scroll at ~500 px/s. The fallback only covers
+     the instant before the first measurement. */
+  animation: ticker-scroll var(--ticker-duration, 50s) linear infinite;
 }
 
 .news-ticker__group {

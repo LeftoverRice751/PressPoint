@@ -146,7 +146,15 @@
                   aria-haspopup="true"
                   aria-expanded="false"
                   aria-label="Notifications">
-            <span class="gears-bell__icon" aria-hidden="true">◔</span>
+            {# Inline SVG, not a glyph: the previous "◔" is outside the
+               dashboard's typefaces, and the fallback face drew it as a
+               speck, so the badge appeared to float beside an empty box. #}
+            <svg class="gears-bell__icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"
+                 fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/>
+              <path d="M10 20.5a2 2 0 0 0 4 0"/>
+              <path d="M12 3v2"/>
+            </svg>
             <span class="gears-bell__badge"
                   data-bell-count
                   aria-live="polite"
