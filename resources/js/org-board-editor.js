@@ -46,8 +46,6 @@
   var preview = section.querySelector('[data-ob-member-preview]');
   var photoHint = section.querySelector('[data-ob-member-photo-hint]');
   var orgsModal = section.querySelector('[data-ob-orgs-modal]');
-  var memberModalTrigger = null;
-  var orgsModalTrigger = null;
 
   function bindAll(selector, handler) {
     var elements = section.querySelectorAll(selector);
@@ -60,38 +58,21 @@
 
   // Wired before the canvas guard below: managing organizations has to work on
   // a board that has none yet, which is exactly when there is no canvas.
+  //
+  // The cancel/backdrop/focus-return trio that used to be spelled out here is
+  // now GearsModal.wire (modal-behavior.js) -- this dialog was the only one on
+  // the dashboard that got all three right, so it became the shared version.
   function wireOrganizationsDialog() {
-    if (!orgsModal || typeof orgsModal.showModal !== 'function') {
+    if (!window.GearsModal.wire(orgsModal)) {
       return;
     }
 
     bindAll('[data-ob-orgs-modal-open]', function (event, trigger) {
-      orgsModalTrigger = trigger || null;
-      orgsModal.showModal();
+      window.GearsModal.open(orgsModal, trigger);
     });
 
     bindAll('[data-ob-orgs-modal-close]', function () {
-      if (orgsModal.open) {
-        orgsModal.close();
-      }
-    });
-
-    orgsModal.addEventListener('cancel', function (event) {
-      event.preventDefault();
-      orgsModal.close();
-    });
-
-    orgsModal.addEventListener('click', function (event) {
-      if (event.target === orgsModal) {
-        orgsModal.close();
-      }
-    });
-
-    orgsModal.addEventListener('close', function () {
-      if (orgsModalTrigger && orgsModalTrigger.isConnected) {
-        orgsModalTrigger.focus();
-      }
-      orgsModalTrigger = null;
+      window.GearsModal.close(orgsModal);
     });
   }
 
@@ -1115,7 +1096,7 @@
   // progress meter working, and it fires `upload:success` for both paths.
 
   function openMemberModal(memberId, trigger) {
-    if (!memberModal || typeof memberModal.showModal !== 'function') {
+    if (!window.GearsModal.supported(memberModal)) {
       return;
     }
 
@@ -1123,7 +1104,6 @@
     var editing = !!node;
 
     state.selectedId = editing ? node.id : null;
-    memberModalTrigger = trigger || null;
 
     if (memberModalTitle) {
       memberModalTitle.textContent = editing ? 'Edit member' : 'Add member';
@@ -1161,7 +1141,7 @@
         : 'Optional — you can add a portrait later.';
     }
 
-    memberModal.showModal();
+    window.GearsModal.open(memberModal, trigger);
     render();
 
     var nameField = panelField('name');
@@ -1173,8 +1153,9 @@
   function closeMemberModal() {
     state.selectedId = null;
     if (memberModal && memberModal.open) {
-      // The `close` listener below handles focus return and the re-render.
-      memberModal.close();
+      // GearsModal's `close` listener handles focus return; the onClose hook
+      // below re-renders.
+      window.GearsModal.close(memberModal);
     } else {
       render();
     }
@@ -1228,31 +1209,16 @@
     }
   }
 
-  if (memberModal) {
-    // ESC: intercept so focus returns to the trigger the same way an explicit
-    // close does. Same shape as news-dashboard.js's body modal.
-    memberModal.addEventListener('cancel', function (event) {
-      event.preventDefault();
-      closeMemberModal();
-    });
-
-    memberModal.addEventListener('click', function (event) {
-      if (event.target === memberModal) {
-        closeMemberModal();
-      }
-    });
-
-    memberModal.addEventListener('close', function () {
+  // fallbackFocus matters here specifically: a member card is re-rendered on
+  // every change, so the card that opened the dialog is usually detached by the
+  // time it closes, and without somewhere to send focus it would land on <body>.
+  window.GearsModal.wire(memberModal, {
+    fallbackFocus: addMemberButton,
+    onClose: function () {
       state.selectedId = null;
-      if (memberModalTrigger && memberModalTrigger.isConnected) {
-        memberModalTrigger.focus();
-      } else if (addMemberButton) {
-        addMemberButton.focus();
-      }
-      memberModalTrigger = null;
       render();
-    });
-  }
+    }
+  });
 
   bindAll('[data-ob-member-modal-close]', closeMemberModal);
   bindAll('[data-ob-member-modal-open]', function (event, trigger) {

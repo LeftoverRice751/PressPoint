@@ -113,7 +113,7 @@
         <mxCell id="m4" value="Visitor picks a destination&lt;br&gt;(start pinned to Student Services Building)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7EEF8;strokeColor=#3C5C8D;fontColor=#12233F;fontSize=11;arcSize=12;" vertex="1" parent="1">
           <mxGeometry x="250" y="1160" width="180" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="m5" value="MapWayfinderService&lt;br&gt;Dijkstra over campus_graph.json&lt;br&gt;114 nodes / 153 edges" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E2F1E8;strokeColor=#2E7D4F;fontColor=#123320;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="m5" value="MapWayfinderService&lt;br&gt;Dijkstra over campus_graph.json&lt;br&gt;116 nodes / 155 edges" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E2F1E8;strokeColor=#2E7D4F;fontColor=#123320;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="250" y="1260" width="180" height="70" as="geometry" />
         </mxCell>
         <mxCell id="m6" value="Route polyline + step list&lt;br&gt;drawn on the kiosk" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7EEF8;strokeColor=#3C5C8D;fontColor=#12233F;fontSize=11;arcSize=12;" vertex="1" parent="1">

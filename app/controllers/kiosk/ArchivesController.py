@@ -19,19 +19,12 @@ from app.services import KioskBroadcast
 from app.services.FileVerificationService import FileVerificationService
 
 
-# Public kiosk index is read constantly (every kiosk device, plus visitors)
-# but written rarely (an editor publishing/deleting an archive), so it's
-# cached and explicitly invalidated on write rather than re-scanning the
-# whole table + re-touching the NAS filesystem on every single request.
+# Kiosk index is read constantly and written rarely, so it is cached and invalidated on write.
 _ARCHIVES_CACHE_KEY = "kiosk:archives:index"
-_ARCHIVES_CACHE_TTL = 300  # seconds — safety net only; writes invalidate explicitly.
+_ARCHIVES_CACHE_TTL = 300  # safety net only; writes invalidate explicitly
 
 
-# Files written to the NAS need to be group-writable so the web user and
-# the SMB-mapped editor accounts (both in the `www-data` group) can both
-# manage them. Default umask 022 produces 0644 files and 0755 dirs, which
-# locks editors out and surfaces as "permission denied" the next time
-# anything on the share touches the upload.
+# NAS files must be group-writable so SMB-mapped editors (www-data group) can manage them.
 _NAS_UMASK = 0o002
 _NAS_FILE_MODE = 0o664
 _NAS_DIR_MODE = 0o775
@@ -47,20 +40,10 @@ def _group_writable_umask():
 
 
 def _sweep_archive_pages_in_background(file_path):
-    """Rasterise the rest of an archive off the request thread.
+    """Rasterise the remaining pages off the request thread.
 
-    Every page of an archive is rendered server-side so the kiosk never has to
-    fall back to rasterising from the PDF itself (see
-    ArchiveServices.prewarm_archive_pages). For a 180-page issue that is ~70s
-    of CPU, which no editor should spend watching an upload spinner — so the
-    request renders only the first EAGER_PAGE_LIMIT pages and this finishes the
-    job afterwards.
-
-    A plain daemon thread, matching app/providers/RosFusionProvider.py: this app
-    has no queue worker (config/queue.py is the `async` driver and nothing
-    consumes it). It swallows everything — a failed sweep degrades to the
-    on-demand route in page() below, and must never take a gunicorn worker with
-    it.
+    A daemon thread because the app has no queue worker. Swallows everything:
+    a failed sweep degrades to on-demand rendering in page().
     """
     def run():
         try:
@@ -77,21 +60,14 @@ class ArchivesController(Controller):
     def _build_archives_payload(self):
         archive_services = ArchiveServices()
         archives = Archives.order_by("id", "desc").get()
-        # The citizen's charter is an ordinary archive row (type "charter") so
-        # that editors upload it through this same form, but it is not part of
-        # the publication back-catalogue and belongs to the virtual tour, which
-        # opens it from its 3D model. It has to be filtered *out* explicitly:
-        # kiosk-archives.js treats "folio" as the fallback category (anything
-        # not tabloid/magazine/newsletter), so a charter would otherwise appear
-        # under Folios — and, since both surfaces share this payload builder,
-        # on the phone as well.
+        # The charter belongs to the virtual tour; without this filter the kiosk
+        # would file it under Folios (its fallback category).
         archive_entries = [
             archive_services.build_archive_entry(archive)
             for archive in archives
             if not is_charter_type(getattr(archive, "type", None))
         ]
-        # Newest first, deterministically: year desc, then upload id desc.
-        # DOM order then matches coverflow order with no client-side sorting.
+        # Newest first: year desc, then id desc. DOM order matches coverflow order.
         archive_entries.sort(
             key=lambda entry: (entry.get("year") or 0, entry.get("id") or 0),
             reverse=True,
@@ -102,12 +78,7 @@ class ArchivesController(Controller):
         )
         selected_year = archive_years[0] if archive_years else None
 
-        # JSON-safe copy for the cache: build_archive_entry()'s "date" is a
-        # raw date object, which json.dumps() (used by the file cache driver)
-        # can't serialize. The kiosk template never reads this field (only
-        # the derived "year"), so converting it here is safe and doesn't
-        # touch build_archive_entry() itself — every other caller of that
-        # method (the dashboard, destroy()) is unaffected.
+        # JSON-safe copy for the file cache: "date" is a raw date object.
         cache_entries = []
         for entry in archive_entries:
             cache_entry = dict(entry)
@@ -140,9 +111,7 @@ class ArchivesController(Controller):
         return view.render(template, context)
 
     def show(self, view: View):
-        # The kiosk offers a QR handoff to the phone page. Built from APP_URL,
-        # never the request host -- the scanning phone is not on the kiosk's
-        # network path. See app/services/PublicUrl.py.
+        # QR handoff URL is built from APP_URL, not the request host, so the phone can reach it.
         return self._render_index(
             view,
             "kiosk/archives",
@@ -150,17 +119,12 @@ class ArchivesController(Controller):
         )
 
     def mobile(self, view: View):
-        # Same data, same cache entry, different skin. The kiosk template is
-        # laid out for a 768x1024 terminal; this one is for a phone held in
-        # one hand. Keeping both on one payload builder means an editor's
-        # upload can never appear on one surface and not the other.
+        # Same payload and cache entry as the kiosk, phone-sized template.
         return self._render_index(view, "mobile/archives")
 
     def store(self, request: Request, storage: Storage, response: Response):
-        # Failures redirect to the dashboard GET route, not `back()`. The
-        # form posts to /archives/dashboard, which is POST-only — without an
-        # explicit __back hidden field, response.back() would 302 to that
-        # POST-only URL and the browser's follow-up GET hits a 405.
+        # Failures redirect to the dashboard GET, not back(): the form posts to a
+        # POST-only URL, so back() would 405.
         is_ajax = wants_json(request)
 
         archives_dashboard = lambda: response.redirect(
@@ -201,9 +165,7 @@ class ArchivesController(Controller):
             return _err(["Year published must be a valid year."])
 
         try:
-            # Archive PDFs live on GearsNAS under /Archives so the Gears
-            # editors can see/manage them via SMB. The returned path is
-            # already prefixed with "Archives/" — store it verbatim.
+            # PDFs live on the NAS under Archives/ so editors can manage them over SMB.
             archives_root = os.path.join(gearsnas_base(), "Archives")
             try:
                 os.makedirs(archives_root, mode=_NAS_DIR_MODE, exist_ok=True)
@@ -234,20 +196,12 @@ class ArchivesController(Controller):
             )
 
             archive_services = ArchiveServices()
-            # Cover + the opening pages inline so the archive is readable the
-            # moment the card appears; the remaining pages follow in the
-            # background. Both write to the same NAS directory, and
-            # prewarm_archive_pages() skips pages that already exist, so the
-            # overlap between the two is free.
+            # Cover and opening pages inline; the rest sweep in the background.
             archive_services.prewarm_archive_previews(file_path, max_pages=EAGER_PAGE_LIMIT)
             _sweep_archive_pages_in_background(file_path)
 
             Cache.forget(_ARCHIVES_CACHE_KEY)
-            # After the eager pre-warm above, never before it: a kiosk refresh
-            # at this point opens onto a cover and readable pages, whereas one
-            # at upload time would land on a shelf card with nothing behind
-            # it. The tail of the issue is still sweeping, and page() renders
-            # on demand past the sweep, so "readable" holds from here on.
+            # After the eager pre-warm, so a kiosk refresh opens onto readable pages.
             KioskBroadcast.section_changed("gears-archive")
 
             if is_ajax:
@@ -289,9 +243,7 @@ class ArchivesController(Controller):
             return response.view("Not found", status=404)
 
         page_index = page_number - 1
-        # resolve_page_relative, not _page_relative_path: an archive uploaded
-        # before the WebP switch still has .png pages on the NAS and must not
-        # be re-rendered on every request.
+        # resolve_page_relative finds legacy .png pages too, so they are not re-rendered.
         page_relative = archive_services.resolve_page_relative(file_path, page_index)
         if not page_relative:
             archive_services.build_page_preview(file_path, page_index)

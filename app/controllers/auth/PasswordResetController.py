@@ -80,9 +80,7 @@ class PasswordResetController(Controller):
             return response.back().with_errors([
                 "Could not send the OTP email. Please try again later."
             ])
-        # The address this flow is for, held server-side. verify_otp() binds the
-        # submitted code against it; without that the code is not tied to any
-        # account and matching *anyone's* live row unlocks the reset (CWE-640).
+        # Held server-side so verify_otp() binds the code to this address (CWE-640).
         request.session.set("pending_reset_email", email)
 
         return response.redirect(
@@ -109,12 +107,7 @@ class PasswordResetController(Controller):
         if not otp or len(otp) != 6 or not otp.isdigit():
             return response.back().with_errors(["OTP code is required."])
 
-        # Which account this flow asked to reset. Matching on the token alone
-        # made every outstanding row in the table a valid answer for anybody:
-        # six digits bought you whichever account happened to own them, so an
-        # attacker could seed resets for known staff addresses and take over the
-        # first one that matched. The code is only meaningful paired with the
-        # address that requested it.
+        # Match token AND email: on the token alone, any outstanding row unlocks any account.
         pending_email = (request.session.get("pending_reset_email") or "").strip().lower()
         if not pending_email:
             return response.redirect(name="auth.forgot-password").with_errors([
@@ -132,8 +125,7 @@ class PasswordResetController(Controller):
             return response.back().with_errors(["Invalid OTP code. Please try again."])
 
         if self._is_reset_record_expired(reset_record):
-            # Scoped to the email too, so a guessed token cannot delete another
-            # account's pending reset.
+            # Scoped to the email so a guessed token can't delete another account's reset.
             application.make("builder").new().statement(
                 f"DELETE FROM {reset_table} WHERE token = %s AND email = %s",
                 [otp, pending_email],
@@ -161,21 +153,14 @@ class PasswordResetController(Controller):
                 "Session expired. Please try again."
             ])
 
-        # The account verify_otp() proved ownership of. Re-reading it from the
-        # token row would put us back where we started, so the identity comes
-        # from the session the OTP step wrote.
+        # The account verify_otp() proved ownership of, from the session it wrote.
         verified_email = (request.session.get("reset_email") or "").strip().lower()
         if not verified_email:
             return response.back().with_errors([
                 "Session expired. Please try again."
             ])
 
-        # request.validate() returns a MessageBag of ERRORS, and MessageBag
-        # defines only __len__ -- so an error-free bag is FALSY. The test used to
-        # read `if not is_valid:`, which ran the failure branch on a *good*
-        # password and fell through to the write on a bad one. A missing field
-        # was the worst case: request.input() defaults to "", so Hash.make("")
-        # was stored and the account then accepted a blank password at login.
+        # validate() returns a MessageBag of errors; an empty bag is falsy.
         errors = request.validate(
             {
                 "password": "required|strong|confirmed",
@@ -184,8 +169,7 @@ class PasswordResetController(Controller):
 
         raw_password = request.input("password") or ""
         if errors or not raw_password:
-            # The token stays put: a mistyped confirmation should not cost the
-            # user the OTP they already verified.
+            # The token stays put: a typo should not cost the user their verified OTP.
             return response.back().with_errors([
                 "Password must be at least 8 characters with upper and lower case "
                 "letters, numbers and symbols, and must match the confirmation."

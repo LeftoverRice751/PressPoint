@@ -1262,11 +1262,18 @@ body {
 
 /* Marzipano sizes its canvas to this box, so it needs real dimensions before
    the viewer is built -- a zero-height stage renders nothing and reports no
-   error. */
+   error.
+
+   max-height is what keeps this dialog off the shared body scroller: at the
+   900px width, 16/9 is 506px, and with the title, scene id and hint that is
+   ~706px against the 660px a 768px-tall laptop allows. Capping the stage lets
+   the whole preview fit instead of making the editor scroll a panorama. */
 .tour-preview-modal__stage {
+    flex: 0 0 auto;
     width: 100%;
     aspect-ratio: 16 / 9;
-    min-height: 280px;
+    min-height: 240px;
+    max-height: 52vh;
     border-radius: var(--radius-sm);
     border: 1px solid var(--ink-rule-strong);
     background: var(--ink-cream);
@@ -1893,7 +1900,29 @@ body {
     background: rgb(var(--brand-maroon-rgb) / 0.7);
 }
 
+/* The panel used to declare only its skin -- no max-height, no overflow, no
+   display -- which left the UA's `dialog:modal { max-height: calc(100% - 6px -
+   2em); overflow: auto }` as the scroller. Header, body and footer therefore
+   scrolled together as one block, and on a 768px-tall laptop "Save Event" and
+   "Save member" sat below the fold: an editor had to scroll the dialog to
+   finish the job. Every modal that needed a scrolling body had to re-solve this
+   for itself, which is where the four different strategies came from.
+
+   The panel is now the height-capped flex column, and .article-modal__body is
+   the ONLY scroller, so the header and the footer stay pinned. This is the
+   shape .news-library-drawer__panel already proved works.
+
+   86vh and not min(86vh, 100%): the dialog's own height is content-driven, so
+   a percentage max-height on its child resolves against an indefinite height
+   and the declaration stops capping anything -- measured at 1366x768, the
+   panel came back 735px tall and the dialog scrolled exactly as before. The
+   UA's own dialog cap (~730px here) is always the looser of the two, so the
+   viewport unit is the one doing the work. */
 .article-modal__panel {
+    display: flex;
+    flex-direction: column;
+    max-height: 86vh;
+    overflow: hidden;
     border-radius: var(--radius-md);
     border: 1px solid var(--rule-strong);
     background: var(--ink-paper);
@@ -1901,7 +1930,30 @@ body {
     padding: 1.5rem;
 }
 
+/* Where a <form> wraps both the fields and the footer (Add Event, the org-board
+   member editor), it sits between the panel and the body and has to carry the
+   column through, or the body has no flex parent to shrink against. */
+.article-modal__form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* min-height: 0 is load-bearing: a flex item defaults to min-height: auto and
+   refuses to shrink below its content, so overflow-y here does nothing without
+   it. The negative margin pairs with the padding to keep the scrollbar off the
+   field borders without insetting the content. */
+.article-modal__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    margin-right: -0.25rem;
+}
+
 .article-modal__header {
+    flex: 0 0 auto;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
@@ -1946,6 +1998,7 @@ body {
 }
 
 .article-modal__footer {
+    flex: 0 0 auto;
     display: flex;
     justify-content: flex-end;
     gap: 0.75rem;
@@ -2373,14 +2426,15 @@ body {
     width: min(560px, calc(100vw - 2rem));
 }
 
-/* The poster is no longer a fixed-ratio banner at the top, so the panel's own
-   height is now content-driven and a tall portrait poster could run past the
-   viewport -- `overflow: hidden` alone would silently clip it. Cap and scroll. */
+/* The panel used to be the scroller itself (overflow: hidden auto, max-height:
+   88vh) so a tall portrait poster would not run past the viewport. But the
+   close button is absolutely positioned INSIDE that panel, so it scrolled away
+   with the poster and left no visible way out. The body scrolls now -- per the
+   shared contract on .article-modal__panel -- which parks the button against a
+   panel that never moves. */
 .event-view-modal__panel {
     position: relative;
     padding: 0;
-    overflow: hidden auto;
-    max-height: 88vh;
 }
 
 .event-view-modal__close {
@@ -2396,8 +2450,6 @@ body {
     background: var(--ink-paper);
     color: var(--ink);
     font-size: 1.05rem;
-    line-height: 1;
-    cursor: pointer;
     line-height: 1;
     cursor: pointer;
 }
@@ -2436,8 +2488,12 @@ body {
     content: "\2715";
 }
 
+/* The panel zeroes its own padding so the close button can sit against its
+   edge, so the body carries the full inset -- and cancels the shared body's
+   scrollbar gutter, which 1.5rem of padding already provides. */
 .event-view-modal__body {
     padding: 1.5rem;
+    margin-right: 0;
 }
 
 .event-view-modal__title {

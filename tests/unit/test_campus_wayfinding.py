@@ -28,18 +28,22 @@ from tests.unit.test_campus_layer_space import _layer_bounds, _seeded_locations
 #: The kiosk's start, matching MapController.KIOSK_START_LOCATION_NAME.
 START_ID = 2
 
-#: Locations the walkways do not reach, by name. These keep the kiosk's
-#: straight-line fallback until someone draws a spur to them in QGIS. Listed
-#: rather than counted so that a *different* location dropping out is a
-#: failure, not an accepted new total.
-UNREACHED = {
-    "College of Criminal Justice and Education Academic Building (CCJE)",
-    "CFOSH Bakery",
-    "Activity Center (AC)",
-}
+#: Locations the walkways do not reach, by name. These get the kiosk's
+#: straight-line fallback. Empty since the build script's DOORS reached the
+#: last three; listed rather than counted so that any location dropping out
+#: is a failure, not an accepted new total.
+UNREACHED = set()
 
 #: The start has no route to itself, so it is absent from the route map too.
 NO_ROUTE = UNREACHED | {"Student Services Building"}
+
+#: Buildings with no door of their own on the walkway network, routed to a
+#: neighbour's instead (see DOORS in scripts/build_campus_graph.py). The bakery
+#: sits directly behind COE Old with no path drawn around it, so its route
+#: genuinely ends nearer COE Old — that is the decision, not a mis-assignment.
+SHARED_DOORS = {
+    "CFOSH Bakery": "College of Engineering Old Building (COE)",
+}
 
 
 class CampusWayfindingTestCase(TestCase):
@@ -154,8 +158,9 @@ class CampusWayfindingTestCase(TestCase):
             # Two pairs of neighbours share a walkway terminus (I.G.P with the
             # Second Gate, UDRRMO with the PDNC Computer Lab), so "nearest" is
             # a genuine tie there rather than a mis-assignment.
+            expected = SHARED_DOORS.get(location.name, location.name)
             self.assertIn(
-                location.name, {nearest_name, distances[1][1]},
+                expected, {nearest_name, distances[1][1]},
                 f"route assigned to {location.name} ends at {nearest_name}",
             )
             # Coarse guard against a whole-space regression: any offset error
@@ -169,7 +174,7 @@ class CampusWayfindingTestCase(TestCase):
         routes = MapWayfinderService.build_location_route_map(locations, START_ID)
 
         self.assertGreaterEqual(
-            len(routes), 33,
+            len(routes), 36,
             f"route coverage fell to {len(routes)} locations; rebuild the graph",
         )
 
@@ -182,14 +187,41 @@ class CampusWayfindingTestCase(TestCase):
         )
 
     def test_unanchored_locations_get_no_route_rather_than_a_wrong_one(self):
-        locations = _seeded_locations()
-        bakery = next(location for location in locations if location.name == "CFOSH Bakery")
+        # Every seeded location is anchored now, so an id the graph has never
+        # heard of stands in for one a future re-export leaves stranded.
+        stranded = 99998
+        self.assertIsNone(MapWayfinderService.anchor_for(stranded))
 
         # None, not an exception and not a guessed path: the kiosk's
         # straight-line fallback is honest about being a guess.
-        self.assertIsNone(MapWayfinderService.anchor_for(bakery.id))
-        self.assertIsNone(MapWayfinderService.route_between(2, bakery.id))
-        self.assertIsNone(MapWayfinderService.route_between(bakery.id, 2))
+        self.assertIsNone(MapWayfinderService.route_between(2, stranded))
+        self.assertIsNone(MapWayfinderService.route_between(stranded, 2))
+
+    def test_a_shared_door_routes_to_the_neighbours_door(self):
+        by_name = {location.name: location for location in _seeded_locations()}
+        for name, neighbour in SHARED_DOORS.items():
+            self.assertEqual(
+                MapWayfinderService.anchor_for(by_name[name].id),
+                MapWayfinderService.anchor_for(by_name[neighbour].id),
+                f"{name} should share {neighbour}'s door",
+            )
+
+    def test_a_spur_ends_at_its_own_building_not_at_a_neighbours_door(self):
+        # The CCJE Academic Building is reached by a spur off the ROTC walkway
+        # that runs along its south face. Borrowing CCJE's door instead would
+        # end the route at a different building ~160px away.
+        by_name = {location.name: location for location in _seeded_locations()}
+        academic = by_name["College of Criminal Justice and Education Academic Building (CCJE)"]
+        path = MapWayfinderService.route_between(START_ID, academic.id)
+
+        self.assertIsNotNone(path)
+        end_y, end_x = path[-1]
+        x, y = Campus25dMapping.layer_point(academic)
+        self.assertLess(((end_x - x) ** 2 + (end_y - y) ** 2) ** 0.5, 30)
+        self.assertNotEqual(
+            MapWayfinderService.anchor_for(academic.id),
+            MapWayfinderService.anchor_for(by_name["College of Criminal Justice (CCJE)"].id),
+        )
 
     def test_unknown_ids_are_survivable(self):
         self.assertIsNone(MapWayfinderService.route_between(None, 2))

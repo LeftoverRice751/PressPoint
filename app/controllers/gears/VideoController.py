@@ -95,11 +95,8 @@ class VideoController(Controller):
         return None
 
     def serve_storage(self, request: Request, response: Response, path):
-        # /storage/<path> serves files from either the GearsNAS volume
-        # (anything under Archives/ or Videos/) or the project's local
-        # public folder (everything else). The router maps which one;
-        # the safety check confirms the resolved file is still inside
-        # an allowed root, blocking ../ traversal.
+        # Python fallback for /storage/<path> when nginx misses. StorageRouter picks
+        # the root (NAS or local); is_safe_path blocks ../ traversal.
         requested_path = str(path or "").replace("\\", "/").lstrip("/")
 
         if not requested_path or not is_safe_path(requested_path):
@@ -122,9 +119,7 @@ class VideoController(Controller):
         if request.header("If-None-Match") == etag:
             return response.status(304)
 
-        # Uploaded images have content-random filenames and are never
-        # overwritten, so they can cache for a year — a kiosk fetches each
-        # one once instead of daily. Other content keeps the 1-day default.
+        # Uploaded images have random names and are never overwritten, so cache for a year.
         ext = os.path.splitext(full_path)[1].lower()
         if ext in (".webp", ".jpg", ".jpeg", ".png", ".gif"):
             response.header("Cache-Control", "public, max-age=31536000, immutable")
@@ -132,10 +127,7 @@ class VideoController(Controller):
             response.header("Cache-Control", "public, max-age=86400")
         response.header("ETag", etag)
         response.header("Last-Modified", last_modified)
-        # Advertise range support so pdf.js (and video seeking) stream large
-        # files instead of forcing a full in-memory download. Without this,
-        # ~100 MB archive PDFs never finish loading and the reader shows
-        # "Could not open this archive".
+        # Range support lets pdf.js and video seeking stream large files.
         response.header("Accept-Ranges", "bytes")
 
         file_size = stat.st_size
@@ -144,8 +136,7 @@ class VideoController(Controller):
             spec = range_header.split("=", 1)[1].split(",", 1)[0].strip()
             start_str, _, end_str = spec.partition("-")
             try:
-                if start_str == "":
-                    # Suffix range: the last N bytes of the file.
+                if start_str == "":  # suffix range: last N bytes
                     suffix = int(end_str)
                     if suffix <= 0:
                         raise ValueError
@@ -171,8 +162,7 @@ class VideoController(Controller):
             response.status(206)
             response.header("Content-Type", content_type)
             response.header("Content-Range", f"bytes {start}-{end}/{file_size}")
-            # Content-Length is recomputed from the slice by make_headers().
-            return response.view(data)
+            return response.view(data)  # Content-Length is recomputed by make_headers()
 
         return response.download(os.path.basename(full_path), full_path, force=False)
 
@@ -180,7 +170,7 @@ class VideoController(Controller):
         sw_path = os.path.realpath(
             os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
-                "../../../storage/compiled/js/sw-archives.js",  # app/controllers/gears/ -> repo root
+                "../../../storage/compiled/js/sw-archives.js",  # three levels up to the repo root
             )
         )
         if not os.path.isfile(sw_path):
@@ -243,8 +233,7 @@ class VideoController(Controller):
             return _err(["Please upload a valid video file."])
 
         try:
-            # Videos live on GearsNAS/Videos so editors can drop files
-            # via SMB and the kiosk plays them without an extra copy.
+            # Videos live on the NAS so editors can manage them over SMB.
             path = storage.disk("gearsnas").put_file("Videos", video_file)
 
             video = Video.create(
@@ -274,9 +263,7 @@ class VideoController(Controller):
             return _err(["Could not save the video. Please try again."])
 
     def set_idle(self, request: Request, response: Response):
-        # Editors flag exactly one video as the kiosk attract video.
-        # We enforce the singleton on the server: clear every other
-        # row first, then mark the chosen one.
+        # Exactly one attract video: clear every other row, then flag this one.
         is_ajax = wants_json(request)
         video = Video.find(request.param("id"))
 
@@ -286,11 +273,7 @@ class VideoController(Controller):
             return response.back().with_errors(["Video not found."])
 
         try:
-            # Singleton: iterate currently-flagged rows and clear them via
-            # instance.save(), which is the persistence pattern every
-            # other controller uses. The class-level builder .update()
-            # call we tried before raises against masoniteorm 2.x when
-            # the model has no loaded instance behind the builder.
+            # Per-instance save(): a class-level builder .update() raises on masoniteorm 2.x.
             currently_idle = list(Video.where("show_when_idle", True).get() or [])
             for other in currently_idle:
                 if getattr(other, "id", None) == video.id:
@@ -343,8 +326,7 @@ class VideoController(Controller):
         return response.redirect(name="gears.dashboard", query_params={"page": "video-manager"})
 
     def idle_video(self, response: Response):
-        # Public read endpoint the welcome screen polls every minute to
-        # discover which video (if any) should play during attract mode.
+        # Public endpoint the welcome screen polls for the attract video.
         video = Video.where("show_when_idle", True).first()
         if not video:
             return response.json({"src": None, "title": None})

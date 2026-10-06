@@ -25,6 +25,9 @@ import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(here, '../../resources/js/review-queue.js'), 'utf8');
+// admin-console.html's js block calls super(), which pulls in modal-behavior.js
+// from the shell ahead of this file, so the fake window needs it too.
+const MODAL_BEHAVIOR = readFileSync(join(here, '../../resources/js/modal-behavior.js'), 'utf8');
 
 class FakeElement {
   constructor(tag, selectors = []) {
@@ -130,6 +133,7 @@ function boot({ fail = false, html = '<section class="issue">Issue 01</section>'
     return Promise.resolve({ json: () => Promise.resolve({ ok: true, html }) });
   };
 
+  new Function('window', MODAL_BEHAVIOR)(fakeWindow);
   new Function('window', 'document', 'fetch', SOURCE)(fakeWindow, fakeDocument, fakeFetch);
 
   return { host, card, previewButton, modal, target, closeButton, fetches };

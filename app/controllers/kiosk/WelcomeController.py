@@ -1,4 +1,4 @@
-"""A WelcomeController Module."""
+"""Kiosk JSON and asset endpoints (flash ticker, CSRF, tour, service worker)."""
 
 import os
 from datetime import datetime, timedelta
@@ -22,8 +22,6 @@ from app.services.TourScenesCatalog import TourScenesCatalog
 
 
 class WelcomeController(Controller):
-    """WelcomeController Controller Class."""
-
     def _is_recent(self, created_at):
         if not created_at:
             return False
@@ -54,13 +52,8 @@ class WelcomeController(Controller):
             }
         )
 
-    #: How far either side of the 24h ticker window the SQL pre-filter reaches.
-    #: `_is_recent()` remains the authoritative gate; this only bounds how many
-    #: rows it has to look at. The margin exists because the two columns the
-    #: window is measured against do not agree on a timezone -- `created_at`
-    #: comes back UTC-aware from pendulum while `events.event_date` is a naive
-    #: local date -- so a tight SQL window could drop a row the Python gate
-    #: would have kept. Two days comfortably covers the +08:00 campus offset.
+    # Slack around the 24h SQL pre-filter; `_is_recent()` is the real gate. Wide
+    # because created_at is UTC-aware while event_date is a naive local date.
     _FLASH_WINDOW_MARGIN = timedelta(days=2)
 
     def _recent_window(self):
@@ -73,15 +66,8 @@ class WelcomeController(Controller):
     def _recent_rows(self, model, date_column):
         """Rows whose ticker date plausibly falls in the last 24 hours.
 
-        This endpoint is public, unauthenticated, and polled by the kiosk, and
-        it used to run `Model.all()` -- pulling every story ever written, full
-        HTML body and all, to keep the handful published yesterday. The window
-        is a strict superset of what `_is_recent()` accepts, so narrowing here
-        cannot change which articles appear.
-
-        Falls back to the unfiltered read if the driver rejects the predicate,
-        because a ticker that renders nothing looks identical to a quiet news
-        day and would hide the failure.
+        Falls back to an unfiltered read if the driver rejects the predicate,
+        since an empty ticker looks identical to a quiet news day.
         """
         start, end = self._recent_window()
         try:
@@ -95,37 +81,20 @@ class WelcomeController(Controller):
             return list(model.all() or [])
 
     def _build_flash_articles(self):
-        # Imported here, not at module scope, for the same reason show() does:
-        # NewsController imports DashboardContext, which imports the models this
-        # module also pulls in, and a top-level import closes the cycle.
+        # Local import: a module-level one closes an import cycle through DashboardContext.
         from app.controllers.gears.NewsController import _flash_text, _news_is_public
 
         flash_articles = []
 
         for news_item in self._recent_rows(News, "published_at"):
             try:
-                # The ticker is served publicly and unauthenticated at
-                # /kiosk/flash-updates, and it emits the headline AND the full
-                # body. Without this gate every draft and every story awaiting
-                # an admin's review broadcast themselves to the campus terminal
-                # for 24 hours after being touched — which would make the
-                # review workflow decorative, since a story could reach the
-                # screen here without ever being approved.
-                #
-                # Same gate as the front page and the lead teaser use, so all
-                # three agree on what "public" means.
+                # This endpoint is public and emits the full body, so drafts and
+                # pending stories must not reach it. Same gate as the front page.
                 if not _news_is_public(news_item):
                     continue
 
                 reference_at = getattr(news_item, "published_at", None) or getattr(news_item, "created_at", None)
-                # Plain text, both fields: news.title and news.description are
-                # HTML columns (authored in Quill), and welcome-screen.js
-                # renders them through escapeHtml(), so the formatting spans
-                # and the body's <p> wrappers would show as literal markup in
-                # the ticker. Flattened here rather than in
-                # _append_flash_article because the import above is local to
-                # this method (circular otherwise) and a NameError inside the
-                # try below would silently drop every story from the band.
+                # Plain text: welcome-screen.js escapes these, so HTML would show literally.
                 self._append_flash_article(
                     flash_articles,
                     _flash_text(getattr(news_item, "description", None)),
@@ -163,12 +132,7 @@ class WelcomeController(Controller):
             for item in flash_articles
         ]
 
-    # The kiosk menu used to be rendered from here, by a show() that also
-    # loaded every public News row to derive a `main_news` value welcome.html
-    # never referenced. Rendering the shell now lives in KioskShellController,
-    # because the shell is served at seven URLs rather than one and has to
-    # resolve which section a request path selects. This controller keeps the
-    # kiosk's JSON and asset endpoints.
+    # The kiosk shell itself is rendered by KioskShellController.
 
     def flash_updates(self, response: Response):
         return response.json({
@@ -176,36 +140,8 @@ class WelcomeController(Controller):
         })
 
     def csrf(self, request: Request, response: Response):
-        """Hand the current CSRF token to a kiosk page whose HTML came from cache.
-
-        This exists to get the token OUT of the document, which is what lets
-        sw-kiosk.js serve kiosk pages from cache instead of network-first.
-        Every kiosk page used to be fetched from the network on every entry for
-        one reason: the markup carries a per-session token that the campus
-        map's QR handoff (POST /api/route-sessions) needs, and a cached
-        document would carry a stale one. With the token available separately,
-        the documents are static and can be served instantly.
-
-        Masonite's VerifyCsrfToken.create_token() returns request.cookie(
-        "SESSID") verbatim, so the token IS the session id: stable for the life
-        of the session rather than rotated per request, which is what makes
-        this safe to fetch once at page init and hold. It cannot simply be read
-        from document.cookie instead — config/session.py leaves http_only at
-        its True default (masonite/cookies/Cookie.py), and the cookie is
-        encrypted on the way out.
-
-        A same-origin GET that returns the CSRF token is the standard shape for
-        this (Laravel's /sanctum/csrf-cookie, Django's ensure_csrf_cookie): CORS
-        stops a cross-origin page reading the response, so the only actor this
-        helps is one who can already run same-origin script — at which point
-        CSRF was bypassed anyway. It is not a hole to be closed later.
-
-        no-store, and listed in sw-kiosk.js's BYPASS_PREFIXES, because a cached
-        token is the exact failure this endpoint exists to prevent.
-        """
         token = request.cookie("SESSID") or ""
-        # Headers before json(): Response.json() returns the serialized body
-        # rather than the response, so it is not chainable.
+        # Headers before json(): Response.json() is not chainable.
         response.header("Cache-Control", "no-store")
         return response.json({"token": token})
 
@@ -220,18 +156,7 @@ class WelcomeController(Controller):
     def latest_news(self, view: View):
         return self.coming_soon(view, "Latest News")
 
-    def ai_assistant(self, view: View):
-        return self.coming_soon(view, "AI Assistant")
-
     def virtual_tour(self, view: View):
-        # The scene-list drawer is rendered from the catalog rather than
-        # hardcoded in the template, so a tour re-export only means dropping a
-        # new resources/js/data.js in place. all_scenes() returns [] instead of
-        # raising if that file is missing, so a broken catalog still renders a
-        # page (empty drawer) rather than a 500.
-        # The charter is resolved server-side rather than fetched by the tour
-        # bundle so that "no charter uploaded yet" is a non-event: the template
-        # simply omits the 3D hotspot and the tour is what it was before.
         return view.render(
             "kiosk/kiosk-tour",
             {
@@ -249,22 +174,10 @@ class WelcomeController(Controller):
         return response.redirect(name="kiosk.org-board")
 
     def serve_sw(self, response: Response):
-        """Serve the kiosk service worker from the site root.
-
-        Same reasoning as VideoController.serve_sw (sw-archives.js) and
-        MapController.serve_sw (sw-mobile-route.js): the file is compiled to
-        storage/compiled/js/ and would normally be served from /assets/, but a
-        worker's scope is capped at the directory it is served from, so from
-        there it could only control /assets/. Serving it from the root and
-        declaring Service-Worker-Allowed: / is what lets it control /kiosk.
-        no-store keeps browsers re-checking the script itself, so a new worker
-        rolls out on the next navigation instead of up to a week later
-        (nginx puts `expires 7d` on /assets/).
-        """
         sw_path = os.path.realpath(
             os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
-                "../../../storage/compiled/js/sw-kiosk.js",  # app/controllers/kiosk/ -> repo root
+                "../../../storage/compiled/js/sw-kiosk.js",  # three levels up to the repo root
             )
         )
         if not os.path.isfile(sw_path):

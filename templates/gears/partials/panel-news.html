@@ -473,27 +473,32 @@
             <button type="button" class="article-modal__close" data-news-category-cancel>Cancel</button>
           </div>
 
-          <form class="news-category-add" data-news-category-add-form>
-            <label class="news-category-add__label" for="news-category-new-name">New category</label>
-            <div class="news-category-add__row">
-              <input type="text" id="news-category-new-name" class="news-category-add__input"
-                     maxlength="60" autocomplete="off" placeholder="e.g. Sports"
-                     data-news-category-new-name>
-              <button type="submit" class="ghost-button" data-news-category-add>Add</button>
-            </div>
-            {# The "restorable" outcome renders here: the controller's message
-               plus an explicit Restore button. Auto-restoring would put every
-               story cascade-deleted with the category straight back on the
-               kiosk on what may have been a typo. #}
-            <div class="news-category-add__notice" data-news-category-notice hidden>
-              <span data-news-category-notice-text></span>
-              <button type="button" class="wp-row-action" data-news-category-restore>Restore it</button>
-            </div>
-          </form>
+          {# The add form and the list scroll together as one region. They used
+             to be two: the list had its own max-height, so a short viewport
+             scrolled a scroller inside a scroller. #}
+          <div class="article-modal__body">
+            <form class="news-category-add" data-news-category-add-form>
+              <label class="news-category-add__label" for="news-category-new-name">New category</label>
+              <div class="news-category-add__row">
+                <input type="text" id="news-category-new-name" class="news-category-add__input"
+                       maxlength="60" autocomplete="off" placeholder="e.g. Sports"
+                       data-news-category-new-name>
+                <button type="submit" class="ghost-button" data-news-category-add>Add</button>
+              </div>
+              {# The "restorable" outcome renders here: the controller's message
+                 plus an explicit Restore button. Auto-restoring would put every
+                 story cascade-deleted with the category straight back on the
+                 kiosk on what may have been a typo. #}
+              <div class="news-category-add__notice" data-news-category-notice hidden>
+                <span data-news-category-notice-text></span>
+                <button type="button" class="wp-row-action" data-news-category-restore>Restore it</button>
+              </div>
+            </form>
 
-          <div class="news-category-modal__list" data-live-section="news-categories">
-            <div data-live-target>
+            <div class="news-category-modal__list" data-live-section="news-categories">
+              <div data-live-target>
 {% include "gears/partials/news-categories-list.html" %}
+              </div>
             </div>
           </div>
 

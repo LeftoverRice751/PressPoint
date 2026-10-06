@@ -1,9 +1,4 @@
-"""The dashboard bell.
-
-Every endpoint here is scoped to the signed-in account — the id in a URL is
-never trusted on its own, because otherwise any editor could read or clear
-another editor's notifications by guessing integers.
-"""
+"""The dashboard bell. Every endpoint is scoped to the signed-in account."""
 
 from masonite.controllers import Controller
 from masonite.request import Request
@@ -57,8 +52,7 @@ class NotificationController(Controller):
             return json_errors(response, ["Not signed in."], status=401)
 
         if not Notifications.mark_read(actor_id, request.param("id")):
-            # 404 rather than 403 for someone else's notification: telling an
-            # attacker "that exists but is not yours" is a needless disclosure.
+            # 404, not 403: don't disclose that someone else's notification exists.
             return json_errors(response, ["Notification not found."], status=404)
 
         return json_success(response, payload={"unread": Notifications.unread_count(actor_id)})

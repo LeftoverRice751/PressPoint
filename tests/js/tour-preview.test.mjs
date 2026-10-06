@@ -27,6 +27,9 @@ import { dirname, join } from 'node:path';
 const here = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(here, '../../resources/js/tour-preview.js'), 'utf8');
 const KIOSK_TOUR = readFileSync(join(here, '../../resources/js/kiosk-tour.js'), 'utf8');
+// shell.html loads modal-behavior.js ahead of every panel script, so the fake
+// window has to be given window.GearsModal the same way a browser gets it.
+const MODAL_BEHAVIOR = readFileSync(join(here, '../../resources/js/modal-behavior.js'), 'utf8');
 
 /** What DashboardContext.tour_context() puts on the card. */
 const GEOMETRY = {
@@ -171,6 +174,7 @@ function boot({ scenes = [], vendorFails = false } = {}) {
     return script;
   };
 
+  new Function('window', MODAL_BEHAVIOR)(fakeWindow);
   new Function('window', 'document', 'Promise', SOURCE)(fakeWindow, fakeDocument, Promise);
 
   return { card, modal, stage, title, sceneLabel, errorNode, triggers, vendor, record };
@@ -348,6 +352,7 @@ test('does nothing when the page has no tour mapping card', () => {
   const fakeDocument = { head: new FakeElement('head'), querySelector: () => null };
 
   assert.doesNotThrow(() => {
+    new Function('window', MODAL_BEHAVIOR)(fakeWindow);
     new Function('window', 'document', 'Promise', SOURCE)(fakeWindow, fakeDocument, Promise);
   });
 });

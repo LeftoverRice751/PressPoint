@@ -13,31 +13,18 @@ def _role_of(user):
 
 
 def _is_admin(user):
-    """True only for role=admin.
-
-    Credential editing is scoped to admins on purpose. Editors are managed
-    from the admin console (/users), and super admins are filtered out of
-    show() so one super admin can never act on a peer. Mirrors _is_editor()
-    in UserController, including the case-insensitive compare -- the live
-    `users.role` column has drifted and holds values with stray casing.
-    """
+    """True only for role=admin (case-insensitive: the live column has stray casing)."""
     return _role_of(user) == "admin"
 
 
 class SuperAdminController(Controller):
     def show(self, view: View, request: Request):
-        # Super admins are deliberately absent from this list: one super admin
-        # should neither see nor be able to act on another's account. The
-        # delete button is rendered per row, so filtering here is also what
-        # keeps that button from ever pointing at a peer.
+        # Super admins never see or act on a peer's account.
         manageable_users = [
             user for user in (User.all() or []) if _role_of(user) != "superadmin"
         ]
 
-        # "current_user", not "current_admin": this page wears gears/shell.html
-        # now, and the shell's profile menu reads current_user for the avatar,
-        # display name and role. Same key UserController.view() and
-        # DashboardController use, so the shared partials render identically.
+        # "current_user" is the key the shared shell partials read.
         context = {
             "users": manageable_users,
             "current_user": request.user(),
@@ -84,13 +71,7 @@ class SuperAdminController(Controller):
         ])
 
     def reset_password(self, request: Request, response: Response):
-        """Mint a new password for an admin and email it to them.
-
-        The plaintext never reaches the browser: it is generated here, sent,
-        and discarded. The super admin only ever learns which address it went
-        to, so the password cannot be shoulder-surfed off this screen or dug
-        out of the response later.
-        """
+        """Mint a new password for an admin and email it; the plaintext never reaches the browser."""
         user = User.find(request.param("id"))
 
         if not user or not _is_admin(user):
@@ -107,10 +88,7 @@ class SuperAdminController(Controller):
 
         password = Credentials.generate_password()
 
-        # Send BEFORE saving, and abandon the reset if delivery fails. This
-        # follows PasswordResetController, which rolls its reset row back for
-        # the same reason: a saved password whose email never arrived locks
-        # the admin out of their own account with no way back in.
+        # Send before saving: a saved password whose email never arrived locks the admin out.
         if not Credentials.send_credentials(email, getattr(user, "username", ""), password):
             return response.redirect(name="auth.super_admin").with_errors([
                 "Could not send the new password, so the existing one is "
@@ -127,9 +105,7 @@ class SuperAdminController(Controller):
     def destroy(self, request: Request, response: Response):
         user = User.find(request.param("id"))
 
-        # show() already hides super admins, so the UI never offers this. The
-        # check is repeated here because the route accepts any id — a crafted
-        # DELETE must not be able to remove a super admin either.
+        # Re-checked server-side: the route accepts any id, not just what show() lists.
         if user and _role_of(user) == "superadmin":
             return response.redirect(name="auth.super_admin").with_errors([
                 "Super admin accounts cannot be deleted from this dashboard.",
@@ -141,14 +117,7 @@ class SuperAdminController(Controller):
         return response.redirect(name="auth.super_admin")
 
     def logout(self, request: Request, response: Response):
-        """Sign the super admin out from the super admin dashboard.
-
-        delete_cookie("token") is the half that actually ends the session --
-        remove_user() alone leaves the sign-in cookie in the browser, so the
-        very next request re-authenticates and the logout looks like a no-op.
-        """
-        # Slot-scoped: signing out of this tab must leave the other tab's
-        # sign-in alone (app/tab_slots.py).
+        """Sign out this tab's slot only; remove_user() alone leaves the cookie behind."""
         slot = getattr(request, "tab_slot", 0)
         request.remove_user()
         response.delete_cookie(slot_cookie("token", slot))

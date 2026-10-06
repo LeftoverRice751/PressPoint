@@ -1,10 +1,4 @@
-"""BrandingController — lets editors swap the site logo from the dashboard.
-
-The uploaded mark replaces /gears.png everywhere it appears: the kiosk pages,
-the dashboard sidebar, the auth shell, and the browser tab icon. The shipped
-gears.png is never overwritten, so 'Restore default' always has something to
-fall back to.
-"""
+"""Site logo upload. The shipped gears.png is never overwritten, so 'Restore default' always works."""
 
 from masonite.controllers import Controller
 from masonite.request import Request

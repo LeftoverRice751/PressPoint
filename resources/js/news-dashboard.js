@@ -1591,21 +1591,27 @@ import Sortable from 'sortablejs';
     categoryRestoreUrl = '';
   }
 
-  function askCategoryThen(proceed) {
+  function askCategoryThen(proceed, trigger) {
     // No modal in the DOM (or no <dialog> support): let the server say no,
     // exactly as it did before this existed, rather than block the save.
-    if (!categoryModal || typeof categoryModal.showModal !== 'function') { proceed(); return; }
+    if (!window.GearsModal.supported(categoryModal)) { proceed(); return; }
     categoryProceed = proceed;
     hideCategoryNotice();
     if (categoryNewName) categoryNewName.value = '';
     syncCategorySelection();
-    if (!categoryModal.open) categoryModal.showModal();
+    window.GearsModal.open(categoryModal, trigger);
   }
 
   function closeCategoryModal() {
-    categoryProceed = null;
-    if (categoryModal && categoryModal.open) categoryModal.close();
+    window.GearsModal.close(categoryModal);
   }
+
+  // Dismissing the modal any way at all abandons the save it was gating, so the
+  // continuation is cleared here rather than in closeCategoryModal -- Escape
+  // and a backdrop click never went through that function.
+  window.GearsModal.wire(categoryModal, {
+    onClose: function () { categoryProceed = null; }
+  });
 
   function categoryRequest(url, method, body) {
     var opts = {
@@ -1654,8 +1660,6 @@ import Sortable from 'sortablejs';
       });
     }
     if (categoryCancel) categoryCancel.addEventListener('click', closeCategoryModal);
-    // Esc closes a <dialog> natively; make sure the queued submit dies with it.
-    categoryModal.addEventListener('close', function () { categoryProceed = null; });
 
     // "Add": create, or adopt what already holds the name. The controller
     // reports this through `outcome`, not the HTTP status — an existing name
@@ -1804,7 +1808,7 @@ import Sortable from 'sortablejs';
             'Sent to an admin for review. It stays off the kiosk until approved.'
           );
         }
-      });
+      }, saveBtn);
     });
   }
 
@@ -1813,7 +1817,7 @@ import Sortable from 'sortablejs';
     draftBtn.addEventListener('click', function () {
       askCategoryThen(function () {
         submitWithStatus(draftBtn, 'draft', 'Saving…', 'Draft saved.');
-      });
+      }, draftBtn);
     });
   }
 
@@ -3204,7 +3208,6 @@ import Sortable from 'sortablejs';
     : [];
   var currentLibraryFilter = 'all';
   var drawerTarget = null;   // { type: 'brief'|'editorial'|'lead', priority: N } or null (generic open)
-  var drawerTrigger = null;  // element focus returns to on close
 
   var DEFAULT_LIBRARY_SUBTITLE = 'Reuse a published story, or place it on the front page.';
 
@@ -3255,38 +3258,32 @@ import Sortable from 'sortablejs';
     // Native <dialog> only — no non-modal fallback. A browser without
     // showModal() gets no focus trap, no backdrop, no Escape handling, so
     // degrading to a plain `open` attribute would ship a broken drawer
-    // silently; declining to open is more honest.
-    if (!libraryDrawer || typeof libraryDrawer.showModal !== 'function') return;
+    // silently; declining to open is more honest. GearsModal.open holds the
+    // same line for every dialog on the dashboard.
+    if (!window.GearsModal.supported(libraryDrawer)) return;
     drawerTarget = target || null;
-    drawerTrigger = trigger || null;
     updateLibrarySubtitle();
     setLibraryFilter('all');
-    libraryDrawer.showModal();
+    window.GearsModal.open(libraryDrawer, trigger);
     var closeBtn = libraryDrawer.querySelector('[data-news-library-close]');
     if (closeBtn) closeBtn.focus();
   }
 
   if (libraryDrawer) {
-    // Fires on Escape too (native <dialog> cancel → close), so this is the
-    // single place trigger-focus-return and target reset happen. The
-    // trigger can be a canvas placeholder that a same-tick DOM swap already
-    // removed (e.g. handlePlaceStory's removeFilledPlaceholder) — fall back
-    // to the always-present toolbar button rather than losing focus to
-    // <body>.
-    libraryDrawer.addEventListener('close', function () {
-      var trigger = drawerTrigger;
-      drawerTarget = null;
-      drawerTrigger = null;
-      if (trigger && trigger.isConnected && trigger.focus) {
-        trigger.focus();
-      } else if (libraryOpenBtn) {
-        libraryOpenBtn.focus();
-      }
+    // Focus return on every exit, Escape included, lives in GearsModal now.
+    // The fallback matters here: the trigger can be a canvas placeholder that a
+    // same-tick DOM swap already removed (handlePlaceStory's
+    // removeFilledPlaceholder), so focus would otherwise land on <body>.
+    window.GearsModal.wire(libraryDrawer, {
+      fallbackFocus: libraryOpenBtn,
+      onClose: function () { drawerTarget = null; }
     });
 
     var libraryCloseBtn = libraryDrawer.querySelector('[data-news-library-close]');
     if (libraryCloseBtn) {
-      libraryCloseBtn.addEventListener('click', function () { libraryDrawer.close(); });
+      libraryCloseBtn.addEventListener('click', function () {
+        window.GearsModal.close(libraryDrawer);
+      });
     }
 
     libraryFilterBtns.forEach(function (btn) {

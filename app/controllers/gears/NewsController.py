@@ -33,12 +33,8 @@ from app.services.ImageDerivatives import generate_variants, variant_path, varia
 from app.services.StorageRouter import absolute_path, is_safe_path
 
 
-# The fonts an editor may choose. THIS LIST IS THE AUTHORITY: a ql-font-* class
-# naming anything not in here is stripped on save, so adding a face to the CSS
-# or the editor without adding it here means it silently vanishes on publish.
-# Keep in sync with resources/css/newsletter-type.css and the FONTS array in
-# resources/js/news-dashboard.js — the header comment in the CSS lists all four
-# places that have to agree.
+# Authoritative font list: unknown ql-font-* classes are stripped on save.
+# Keep in sync with newsletter-type.css and FONTS in news-dashboard.js.
 NEWSLETTER_FONTS = [
     "playfair",
     "lora",
@@ -50,22 +46,15 @@ NEWSLETTER_FONTS = [
     "caveat",
     "jetbrains-mono",
 ]
-_NEWSLETTER_SIZES = ["small", "large", "huge"]  # "normal" is the absence of a class
+_NEWSLETTER_SIZES = ["small", "large", "huge"]  # "normal" has no class
 
-# The story body is authored in a rich-text editor (Quill) and rendered as HTML
-# on the kiosk news page, so it MUST be sanitized on write. Only this small,
-# formatting-only allowlist survives; everything else (scripts, event handlers,
-# style, iframes, etc.) is stripped.
+# Story bodies are Quill HTML rendered on the kiosk, so only this allowlist survives.
 _ALLOWED_TAGS = [
     "p", "br", "strong", "em", "u", "s", "h2", "h3", "blockquote", "ul", "ol", "li", "a",
-    # Quill's carrier for an inline font/size run. It has no semantics of its
-    # own and no attributes beyond the class filter below.
-    "span",
+    "span",  # Quill's carrier for inline font/size runs
 ]
 
-# Every class Quill can legitimately emit, as an exact set. Building it here
-# rather than matching a regex like r"ql-font-[\w-]+" means an attacker cannot
-# invent `ql-font-anything` and have it survive: the value must be a member.
+# Exact set, not a regex, so `ql-font-anything` cannot survive.
 _ALLOWED_CLASSES = frozenset(
     [f"ql-font-{slug}" for slug in NEWSLETTER_FONTS]
     + [f"ql-size-{name}" for name in _NEWSLETTER_SIZES]
@@ -75,26 +64,14 @@ _ALLOWED_CLASSES = frozenset(
 
 
 def _allow_class(tag, name, value):
-    """bleach attribute filter: permit only known Quill formatting classes.
-
-    bleach hands us the raw attribute value, which for `class` may hold several
-    space-separated names (Quill stacks them — `ql-font-bebas ql-size-huge`).
-    bleach's filter API is all-or-nothing per attribute, so a single unknown
-    name drops the whole attribute rather than being quietly filtered out of it;
-    that is the conservative direction and it cannot be used to smuggle one in.
-    """
+    """bleach attribute filter: keep `class` only if every name is a known Quill class."""
     if name != "class":
         return False
     names = value.split()
     return bool(names) and all(n in _ALLOWED_CLASSES for n in names)
 
 
-# `class` is allowed only on the elements Quill actually puts formatting on.
-# Before this, no element allowed `class` at all, which meant alignment and
-# indent were silently destroyed on every save even though the editor offered
-# them. Note `style` is still allowed nowhere: fonts are carried by class, so
-# there is no reason to accept inline CSS (and no need for bleach's optional
-# tinycss2 dependency, which isn't installed).
+# `class` only on elements Quill formats; `style` allowed nowhere (fonts ride on class).
 _ALLOWED_ATTRS = {
     "a": ["href", "title", "rel"],
     "span": _allow_class,
@@ -115,31 +92,17 @@ def _sanitize_news_html(raw_html):
         protocols=["http", "https", "mailto"],
         strip=True,
     )
-    # Auto-link bare URLs. `nofollow` is an SEO hint, not a security control —
-    # the actual safety here is that `target` is no longer an allowed attribute,
-    # so a stored target="_blank" can't reach the kiosk without rel="noopener"
-    # and hand the opened page a window.opener handle back to us.
+    # Auto-link bare URLs. `target` is not allowed, so no window.opener leak.
     return bleach.linkify(cleaned, callbacks=[bleach.callbacks.nofollow]) if cleaned else cleaned
 
 
-# The headline is authored in Quill too now (it replaced a "Headline font"
-# dropdown), so `news.title` became an HTML column and the kiosk renders it with
-# `| safe`. It gets its OWN, much smaller allowlist rather than reusing
-# _ALLOWED_TAGS: a headline is one line of display type, and an <h2>, a list or
-# a blockquote inside one would wreck the newspaper typography the composer
-# exists to preview. Inline formatting only, no <a> (hence no linkify below —
-# a link in a headline has nowhere to go on a touchscreen kiosk).
+# Headlines are Quill HTML too, but inline-only: a block element would wreck the typography.
 _HEADLINE_TAGS = ["strong", "em", "u", "s", "span"]
 _HEADLINE_ATTRS = {"span": _allow_class}
 
 
 def _sanitize_headline_html(raw_html):
-    """Return a safe INLINE-only HTML subset for a story headline.
-
-    `strip=True` unwraps rather than escapes, so Quill's block wrappers (it
-    always emits at least one <p>) collapse to their contents and a headline
-    stays one line even if something upstream sent several.
-    """
+    """Safe inline-only HTML for a headline; `strip=True` collapses Quill's <p> wrapper."""
     return bleach.clean(
         raw_html or "",
         tags=_HEADLINE_TAGS,
@@ -149,56 +112,33 @@ def _sanitize_headline_html(raw_html):
 
 
 def normalize_headline_font(value):
-    """Slug for the per-story furniture font, or None for the brand face.
-
-    Validated against the same list the sanitizer uses, so the control that
-    sets it and the body allowlist can never drift apart. The editor-side
-    dropdown is gone — news-dashboard.js derives this from the font Quill
-    applied to the headline — but the column and its `story-font-<slug>` render
-    both stay, so stories published before that change keep their face.
-    """
+    """Font slug for the story's furniture, or None for the brand face."""
     slug = (value or "").strip().lower()
     return slug if slug in NEWSLETTER_FONTS else None
 
 
 def _html_to_text(html):
-    """Plain-text projection of the body — used for the 'required' check so an
-    editor can't publish a visually-empty body like Quill's '<p><br></p>'."""
+    """Plain-text projection, so `<p><br></p>` counts as empty."""
     return bleach.clean(html or "", tags=[], strip=True).strip()
 
 
 def _flash_text(value):
-    """What a stored field looks like on the kiosk's one-line flash ticker.
-
-    welcome-screen.js renders every ticker field through escapeHtml(), so the
-    stored Quill HTML must be flattened here or the body shows up on the
-    campus terminal as a literal `<p>Despite the …</p>`. Two things beyond
-    `_html_to_text()`: the entities it leaves encoded (`&amp;`) are decoded,
-    because the client escapes again and "Tom &amp; Jerry" would otherwise
-    read that way on glass; and the newlines it emits between paragraphs are
-    collapsed, since the band is a single `white-space: nowrap` line.
-    """
+    """Flatten stored HTML for the kiosk ticker: decode entities, collapse to one line."""
     return " ".join(html_module.unescape(_html_to_text(value)).split())
 
 
-#: What each block has to carry before it can be saved -- which is exactly
-#: what the kiosk prints for it and nothing more. This used to be one rule,
-#: "title and description", for every block. The composer presents a side
-#: story as a headline and a summary with "Full article body" behind a
-#: collapsed disclosure the editor never opens, so every side story arrived
-#: with an empty body and was refused. The kiosk never prints a side story's
-#: body; demanding one was friction with no purpose. A block not listed here
-#: keeps the old rule.
+# Required fields per block: exactly what the kiosk prints for it. Unlisted blocks
+# need title and description.
 _BLOCK_REQUIRES = {
     "lead": ("title", "description"),
     "editorial": ("title", "description"),
-    "quote": ("description",),  # the body IS the quote; a quote has no headline
-    "brief": ("title",),  # kiosk prints headline + summary
-    "notice": ("title",),  # kiosk prints headline + summary
-    "photo_essay": ("image",),  # a photograph, not prose
+    "quote": ("description",),  # the body is the quote
+    "brief": ("title",),
+    "notice": ("title",),
+    "photo_essay": ("image",),
 }
 
-#: How much of a quote's text stands in for its title in the Story Library.
+# How much of a quote stands in for its title in the Story Library.
 _DERIVED_TITLE_CHARS = 60
 
 
@@ -213,13 +153,7 @@ _NEWS_ALLOWED_STATUSES = {"draft", "review", "approved", "scheduled", "published
 
 
 def _normalize_news_status(raw_status, default="draft"):
-    """Resolve a status string, falling back to something INVISIBLE.
-
-    The default used to be "approved", which is one of the publicly visible
-    statuses — so an unrecognised or missing status published to the campus
-    kiosk. That is the wrong direction to fail in: a story wrongly left as a
-    draft is a phone call, a story wrongly on a public screen is a retraction.
-    """
+    """Resolve a status string; unknown values fail closed to an invisible status."""
     status = (raw_status or default or "draft").strip().lower()
     status = _NEWS_STATUS_ALIASES.get(status, status)
     if status not in _NEWS_ALLOWED_STATUSES:
@@ -228,16 +162,7 @@ def _normalize_news_status(raw_status, default="draft"):
 
 
 def _apply_scheduling(status, published_at):
-    """Upgrade a default publish-intent status to 'scheduled' when the
-    given published_at is still in the future.
-
-    The composer's hidden status field is hardcoded to "published" today
-    (frontend work lands in later tasks), so without this the "schedule for
-    later" flow silently published immediately. Only the default
-    publish-intent statuses ("approved"/"published") are eligible — an
-    editor who explicitly chose "draft"/"review"/"archived" is left alone,
-    and an already-"scheduled" status is left alone too. _news_is_public's
-    gate (scheduled goes live once published_at <= now) is untouched."""
+    """Turn a publish-intent status into 'scheduled' when published_at is in the future."""
     if not published_at or status not in ("approved", "published"):
         return status
 
@@ -249,46 +174,28 @@ def _apply_scheduling(status, published_at):
     return status
 
 
-#: Everything layout() will accept. The blocks, plus `unassigned` -- which is a
-#: real destination (the story library) that "Remove from front page" writes,
-#: but not a place on the page, so it carries no capacity.
+# Everything layout() accepts. `unassigned` is the story library: real, but no capacity.
 _NEWS_LAYOUT_TYPES = set(BLOCK_TYPES) | {"unassigned"}
 
-#: How many rows each front-page bucket can hold. These are the same numbers
-#: group_news_slots() truncates at capacity; enforcing it here means a
-#: story can no longer read as "placed" in the composer while being silently
-#: sliced off the kiosk render.
-#: Mirrors DashboardContext.BLOCK_CAPACITY, which is the source. Imported
-#: rather than restated: layout() enforces this inside its transaction, and a
-#: second copy here would be a second answer to "how many briefs fit".
+# Per-bucket capacity, enforced inside layout()'s transaction. Same source as
+# group_news_slots(), so a story cannot read as placed while being sliced off the kiosk.
 _NEWS_SLOT_CAPACITY = dict(BLOCK_CAPACITY)
 
 
 class _LayoutConflict(Exception):
-    """The canvas that produced this batch is behind the database.
-
-    Raised inside layout()'s transaction so the rollback is the normal path,
-    and turned into a 409 (not a 422) by the caller: nothing about the request
-    is malformed, it just lost a race.
-    """
+    """The canvas that produced this batch is behind the database (→ 409)."""
 
 
 class _SlotOverflow(Exception):
     """Applying this batch would leave a bucket over its capacity."""
 
 
-#: Statuses that put a story in front of the public. Only an admin may write
-#: one of these directly; everyone else's publish attempt becomes "review".
+# Only an admin may write one of these; everyone else's attempt becomes "review".
 _PUBLISH_INTENT_STATUSES = {"approved", "scheduled", "published"}
 
 
 def _actor_is_admin(request):
-    """True when the signed-in account may approve and publish.
-
-    `admin` only — superadmin manages accounts, not editorial. Normalised the
-    way every other role check in the app is, because the live `role` column
-    holds values with stray casing (see UserController._is_editor).
-    """
+    """True when the signed-in account may approve and publish (`admin` only)."""
     try:
         user = request.user() if callable(getattr(request, "user", None)) else None
     except Exception:
@@ -297,22 +204,14 @@ def _actor_is_admin(request):
 
 
 def _resolve_status_for_actor(status, request):
-    """Downgrade a non-admin's publish intent to `review`.
-
-    Called on every write path an editor can reach, so the gate holds for a
-    hand-crafted POST as much as for the composer's buttons. Draft stays draft:
-    submitting is a deliberate act, and silently promoting a save to a
-    submission would put half-written stories in the admin's queue.
-    """
+    """Downgrade a non-admin's publish intent to `review`. Draft stays draft."""
     if status in _PUBLISH_INTENT_STATUSES and not _actor_is_admin(request):
         return "review"
     return status
 
 
 def _int_or_none(value):
-    """A real integer id, or None. Model attributes arrive as ints, but test
-    doubles hand back Mocks, and a Mock is truthy -- so "if issue_id" alone
-    would send a stand-in down the per-issue path with no issue behind it."""
+    """A real integer id, or None (test Mocks are truthy, so `if issue_id` is not enough)."""
     if isinstance(value, bool):
         return None
     try:
@@ -322,12 +221,7 @@ def _int_or_none(value):
 
 
 def _current_user_id(request):
-    """users.id of the signed-in account, or None.
-
-    Defensive because `request.user()` is False (not None) for a guest in
-    Masonite, and because the unit tests drive these controllers with request
-    doubles that have no user at all.
-    """
+    """users.id of the signed-in account, or None (guests and test doubles)."""
     try:
         user = request.user() if callable(getattr(request, "user", None)) else None
     except Exception:
@@ -336,10 +230,7 @@ def _current_user_id(request):
 
 
 def _delete_image_files(image_path):
-    """Remove an uploaded news image and its generated .large/.thumb WebP
-    derivatives from disk, guarding against path traversal. Shared by
-    destroy() and by store()'s "remove featured image" path so the two can't
-    drift — missing the derivatives orphans them on disk forever."""
+    """Remove an uploaded news image and its .large/.thumb derivatives, safely."""
     if not image_path:
         return
 
@@ -371,37 +262,21 @@ def _news_is_public(news_item):
     return True
 
 
-# Public kiosk index is read constantly — templates/kiosk/news.html auto-
-# reloads every 30s per device — but written rarely (an editor publishing/
-# deleting a story), so it's cached and explicitly invalidated on write
-# rather than re-scanning the whole table on every single request.
-#
-# The key itself moved to app/services/NewsCache.py, because a CATEGORY write
-# also has to invalidate this: renaming a category changes a label the kiosk
-# renders while touching zero `news` rows, so no news-side invalidation would
-# ever fire for it. These aliases stay because the existing tests patch and
-# assert against these names.
+# Kiosk index is read every 30s per device and written rarely, so it is cached and
+# invalidated on write. Key lives in NewsCache so category writes can invalidate too;
+# these aliases stay because tests patch them.
 _NEWS_CACHE_KEY = NewsCache.KEY
 _NEWS_CACHE_TTL = NewsCache.TTL
 
 
 def _news_item_to_dict(item, disk=None, category_names=None):
-    """Plain, JSON-safe projection of a News model instance — the file
-    cache driver json.dumps()s dict values, which a masoniteorm Model
-    instance is not. Jinja2's `.` operator falls back to item access on
-    dicts, so templates render this identically to the model instance."""
+    """JSON-safe projection of a News row (the file cache driver json.dumps values)."""
     published_at = getattr(item, "published_at", None)
     fallback_at = published_at or getattr(item, "created_at", None)
     image = getattr(item, "image", None)
-    # Resolve the fast WebP variants once here (behind the projection cache),
-    # not per request. variant_path falls back to the original if missing.
+    # Resolve WebP variants once here, behind the cache; falls back to the original.
     image_large = variant_path(image, "large", disk) if (image and disk) else image
     image_thumb = variant_path(image, "thumb", disk) if (image and disk) else image
-    # Category label, resolved from a {id: name} dict built ONCE per payload
-    # rather than per story — same shape as DashboardContext.author_names().
-    # Deliberately not an ORM relationship: with ~20 stories and well under 20
-    # categories there is no N+1 to avoid, and a relationship would be another
-    # thing to configure and keep in sync.
     category_id = getattr(item, "category_id", None)
     return {
         "id": getattr(item, "id", None),
@@ -423,8 +298,7 @@ def _news_item_to_dict(item, disk=None, category_names=None):
         "priority": getattr(item, "priority", None),
         "status": getattr(item, "status", None),
         "published_at": published_at.isoformat() if hasattr(published_at, "isoformat") else None,
-        # Pre-formatted for the kiosk dateline/folio — Jinja2 can't strftime an
-        # ISO string, and the cache driver can't store a datetime.
+        # Pre-formatted: Jinja can't strftime an ISO string and the cache can't hold a datetime.
         "published_label": fallback_at.strftime("%b %d, %Y") if hasattr(fallback_at, "strftime") else None,
         "published_iso": fallback_at.strftime("%Y-%m-%d") if hasattr(fallback_at, "strftime") else None,
     }
@@ -433,9 +307,7 @@ def _news_item_to_dict(item, disk=None, category_names=None):
 def _build_flash_payload(news_item):
     reference_at = getattr(news_item, "published_at", None) or getattr(news_item, "created_at", None)
     return {
-        # Plain text, not the stored HTML: welcome-screen.js renders this
-        # through escapeHtml(), so a headline carrying Quill's formatting spans
-        # would show as literal `<span class="ql-font-…">` in the kiosk ticker.
+        # Plain text: welcome-screen.js escapes this, so HTML would show literally.
         "headline": _flash_text(getattr(news_item, "title", None)) or "News update",
         "date": reference_at.strftime("%b %d, %Y") if hasattr(reference_at, "strftime") else "",
         "copy": _flash_text(getattr(news_item, "description", None)),
@@ -447,18 +319,10 @@ def _build_flash_payload(news_item):
 
 class NewsController(Controller):
     def _build_news_payload(self):
-        """Every CURRENT issue (today's paper), newest first, each with its own blocks.
+        """Every current issue, newest first, each with its own blocks (one kiosk slide per issue).
 
-        One kiosk slide per issue. This used to build ONE issue from every
-        public story in the table -- there was no other kind of issue. Now a
-        story belongs to a newsletter, and the terminal pages between the
-        newsletters that have been published.
-
-        Filtering and grouping stay on the real Model instances (unchanged
-        logic, getattr-based); dict conversion happens last, only for what goes
-        into the cache. Converting earlier would silently break
-        group_news_slots/_news_is_public: getattr() on a plain dict always
-        returns the default.
+        Filtering runs on Model instances; dict conversion happens last, because
+        getattr() on a dict always returns the default.
         """
         try:
             disk = StorageFacade.disk("public")
@@ -470,13 +334,8 @@ class NewsController(Controller):
             return _news_item_to_dict(item, disk, category_names)
 
         issues = []
-        # current_issues(), not published_issues(): Latest News is a daily
-        # paper, so an issue leaves the terminal at 08:00 the morning after
-        # it was approved (Issues.ISSUE_EXPIRES_AT_HOUR). The archive of every
-        # issue ever published is the composer's concern, not the kiosk's.
+        # current_issues(), not published_issues(): an issue leaves the kiosk at 08:00 next day.
         for issue in Issues.current_issues():
-            # The published-shaped stories ride along on the issue; the
-            # per-story date check for `scheduled` still applies here.
             stories = [item for item in getattr(issue, "stories", []) if _news_is_public(item)]
             if not stories:
                 continue
@@ -498,8 +357,7 @@ class NewsController(Controller):
                 "news_items": [project(item) for item in stories],
             })
 
-        # The first (newest) issue is also exposed flat, so anything that
-        # still reads `blocks` / `issue_no` at the top level keeps working.
+        # Newest issue also exposed flat for readers of the old top-level keys.
         first = issues[0] if issues else None
         return {
             "issues": issues,
@@ -510,13 +368,7 @@ class NewsController(Controller):
         }
 
     def _upcoming_events(self):
-        """The issue's calendar rows.
-
-        Delegates to DashboardContext so the kiosk and the Gears composer run
-        the SAME query -- the composer renders kiosk/_issue.html too, and two
-        copies of this would be two calendars to keep in step. Kept as a method
-        because the existing tests reach it through the controller.
-        """
+        """Calendar rows, shared with the composer via DashboardContext."""
         return upcoming_events()
 
     def show(self, view: View):
@@ -527,64 +379,41 @@ class NewsController(Controller):
         return view.render(
             "kiosk/news",
             {
-                # One entry per published issue, newest first -- the kiosk
-                # renders a slide for each. `.get()` with a fallback: a cache
-                # entry written before this key existed would KeyError.
+                # `.get()` with fallback: a cache entry from before this key would KeyError.
                 "issues": payload.get("issues") or [],
                 "news_items": payload["news_items"],
                 "blocks": payload["blocks"],
                 "issue_vol": payload.get("issue_vol"),
                 "issue_no": payload.get("issue_no"),
-                # Outside the cached payload on purpose -- see _upcoming_events.
-                "events": self._upcoming_events(),
+                "events": self._upcoming_events(),  # not cached on purpose
                 "active_nav": "news",
             },
         )
 
     def store(self, request: Request, storage: Storage, response: Response):
-        # The headline is rich text now and the kiosk renders it with `| safe`,
-        # so it MUST be sanitized on write exactly like the body is — through
-        # the inline-only headline allowlist, not the body's.
+        # Headline and body are rendered with `| safe`, so both are sanitized on write.
         title = _sanitize_headline_html((request.input("title") or "").strip()).strip()
         description = _sanitize_news_html((request.input("description") or "").strip())
         source = (request.input("source") or "").strip()
         location = (request.input("location") or "").strip()
-        # Editorial extras are plain text (like source/location) — strip any
-        # markup that leaks in from the contenteditable regions.
+        # Editorial extras are plain text; strip markup from the contenteditable regions.
         dek = _html_to_text(request.input("dek") or "").strip()
-        # Front-page excerpt (Task 1 column, wired into the composer in Task
-        # 5): plain text like dek/caption/credit — strips markup that leaks
-        # in from the contenteditable region. Optional; the front page falls
-        # back to a truncated body when it's blank (kiosk/_issue.html).
         excerpt = _html_to_text(request.input("excerpt") or "").strip()
-        # Unrecognised slugs normalise to None (the brand face) rather than
-        # erroring — the dropdown is the only legitimate source, so a bad value
-        # means a stale form, not something worth failing an editor's publish over.
         headline_font = normalize_headline_font(request.input("headline_font"))
         image_caption = _html_to_text(request.input("image_caption") or "").strip()
         image_credit = _html_to_text(request.input("image_credit") or "").strip()
         layout_type = (request.input("layout_type") or "brief").strip().lower() or "brief"
         category_id = (request.input("category_id") or "").strip()
         actor_id = _current_user_id(request)
-        # Fail closed. The old default here was "approved", which is publicly
-        # visible — so a request that simply omitted `status` (a stale form, a
-        # replayed POST, a caller that forgot the field) published straight to
-        # the campus kiosk. `draft` is invisible and recoverable; a wrong
-        # `approved` is a story on a public screen that nobody chose to put there.
+        # Fail closed: a missing status must not publish to the kiosk.
         status = _normalize_news_status(request.input("status"), default="draft")
-        # An editor cannot publish. Whatever status the request carries, an
-        # account that is not an admin gets its publish-intent downgraded to
-        # `review` so an admin has to look at it first. This is enforced here
-        # rather than in the UI because the UI is just a form: posting
-        # status=published by hand has to fail too.
+        # Server-side gate: a non-admin's publish intent becomes `review`.
         status = _resolve_status_for_actor(status, request)
         published_at_value = (request.input("published_at") or "").strip()
         priority_value = request.input("priority")
         image_file = request.input("image")
         article_id = (request.input("article_id") or "").strip()
-        # The composer's Featured Image "Remove" action. An absent upload
-        # means "keep the current photo" (so a text-only edit doesn't wipe
-        # it), so clearing one has to be asked for explicitly.
+        # No upload means "keep the current photo", so clearing must be explicit.
         remove_image = str(request.input("remove_image") or "").strip().lower() in (
             "1",
             "true",
@@ -627,32 +456,20 @@ class NewsController(Controller):
                 return json_errors(response, messages)
             return response.back().with_errors(messages)
 
-        # `_html_to_text(title)`, not `title`: the headline is HTML now, and an
-        # empty Quill editor still serialises to markup — `<p><br></p>`, or a
-        # bare formatting span with nothing in it. A truthiness check on the raw
-        # string would wave those through and publish a blank headline.
-        #
-        # Which fields are required depends on the block (_BLOCK_REQUIRES): the
-        # kiosk prints a side story's headline and summary and never its body,
-        # so a side story is not refused for lacking one.
+        # Required fields depend on the block; check text content, since an empty
+        # Quill editor still serialises to `<p><br></p>`.
         required = _BLOCK_REQUIRES.get(layout_type, ("title", "description"))
         present = {
             "title": bool(_html_to_text(title)),
             "description": bool(_html_to_text(description)),
-            # The image is validated properly further down; here it only has
-            # to exist. `image_file` is resolved a few lines below, so read the
-            # raw input.
-            "image": bool(request.input("image")),
+            "image": bool(request.input("image")),  # validated properly further down
         }
         missing = [name for name in required if not present[name]]
         if missing:
             labels = {"title": "a headline", "description": "the text", "image": "a photograph"}
             return _err(["This block needs " + " and ".join(labels[m] for m in missing) + "."])
 
-        # `title` is NOT NULL and the Story Library lists by it, so a quote --
-        # which has no headline of its own -- would show as nothing. Stand in
-        # the opening of the quote itself: derived from what the editor wrote,
-        # not invented.
+        # `title` is NOT NULL and the Story Library lists by it; a quote borrows its opening.
         if not _html_to_text(title) and _html_to_text(description):
             title = _html_to_text(description)[:_DERIVED_TITLE_CHARS].strip()
 
@@ -661,26 +478,15 @@ class NewsController(Controller):
         except (TypeError, ValueError):
             return _err(["Priority must be a valid number."])
 
-        # A category is required, and it is enforced HERE rather than only in
-        # the composer's submit modal — for the same reason
-        # _resolve_status_for_actor is enforced server-side. The UI is just a
-        # form; a hand-crafted POST that omits the field has to fail too.
-        #
-        # Validated against a LIVE category: the id has to exist AND not be a
-        # tombstone. Pointing a story at a soft-deleted category would blank
-        # its label on the kiosk, and the FK alone cannot catch that (a
-        # tombstone is still a real row).
+        # Category is required and must be live: a soft-deleted one would blank the
+        # kiosk label, and the FK alone cannot catch a tombstone.
         if not category_id:
             return _err(["Please choose a category for this story."])
         if not NewsCategories.find_live(category_id):
             return _err(["That category no longer exists. Pick another one."])
 
-        # Ascending priority now means "lower number = earlier slot" (see
-        # DashboardContext.group_news_slots). A brand-new story with no
-        # explicit priority — the composer always posts priority=0 today —
-        # would otherwise land below zero, i.e. ahead of every existing
-        # story, and instantly steal the lead slot. Append it to the end of
-        # the current order instead; editors can still reposition it later.
+        # Lower priority renders first, so a new story at 0 would steal the lead.
+        # Append it to the end of the current order instead.
         if not article_id and priority == 0:
             current_max = News.max("priority").get()
             current_max_priority = (
@@ -713,9 +519,7 @@ class NewsController(Controller):
                 public_disk = storage.disk("public")
                 image_path = public_disk.put_file("news", image_file)
 
-                # Generate fast WebP variants from the bytes already in memory
-                # (no re-read). Never blocks publishing — serving falls back to
-                # the original if this fails. See app/services/ImageDerivatives.
+                # WebP derivatives never block publishing; serving falls back to the original.
                 try:
                     generate_variants(image_file.get_content(), image_path, public_disk)
                 except Exception:
@@ -724,12 +528,8 @@ class NewsController(Controller):
             if article_id:
                 existing = News.where("id", article_id).first()
                 if not existing:
-                    # The lookup above is soft-delete scoped, so a story that
-                    # was deleted underneath this editor — most likely by
-                    # someone deleting its whole category — reads as missing.
-                    # Say which it is: falling through to the create branch
-                    # would silently fork a second row, and a bare "not found"
-                    # sends the editor looking for a typo that isn't there.
+                    # Lookup is soft-delete scoped: tell the editor if the story was
+                    # trashed under them instead of silently creating a second row.
                     if News.with_trashed().where("id", article_id).first():
                         return _err([
                             "That story was deleted while you were editing it. "
@@ -751,10 +551,7 @@ class NewsController(Controller):
                 existing.status = status
                 if actor_id is not None:
                     existing.updated_by_id = actor_id
-                # Resubmitting clears the last rejection: the reason described
-                # a version of the story that no longer exists, and leaving it
-                # set would keep showing the editor a complaint they have
-                # already answered.
+                # Resubmitting clears a rejection the editor has already answered.
                 if status == "review":
                     existing.rejection_reason = None
                 if published_at is not None:
@@ -762,17 +559,13 @@ class NewsController(Controller):
                 if image_path is not None:
                     existing.image = image_path
                 elif remove_image:
-                    # Drop the files too — destroy() is careful about this and
-                    # leaving them behind orphans them on disk forever.
                     _delete_image_files(getattr(existing, "image", None))
                     existing.image = None
                 existing.save()
                 saved_news = existing
                 is_new = False
             else:
-                # A new story is filed into the author's OPEN issue, created
-                # here if they have none -- this is the write that starts a
-                # newsletter. (Rendering the composer deliberately does not.)
+                # A new story is filed into the author's open issue, creating one if needed.
                 issue = Issues.ensure_current_for(actor_id)
                 saved_news = News.create(
                     issue_id=getattr(issue, "id", None),
@@ -791,9 +584,7 @@ class NewsController(Controller):
                     layout_type=layout_type,
                     priority=priority,
                     status=status,
-                    # Set once, never rewritten — `updated_by_id` is what moves
-                    # when someone else edits the story later.
-                    author_id=actor_id,
+                    author_id=actor_id,  # set once; updated_by_id moves on later edits
                     updated_by_id=actor_id,
                 )
                 is_new = True
@@ -804,21 +595,12 @@ class NewsController(Controller):
                 pass
 
             Cache.forget(_NEWS_CACHE_KEY)
-            # Wherever the news cache is forgotten, the kiosk is told. The two
-            # are the same fact ("the kiosk's projection is stale") for two
-            # consumers, so a site that does one without the other is a bug.
+            # Forgetting the cache and telling the kiosk are the same fact; always do both.
             KioskBroadcast.section_changed("latest-news")
 
             if is_ajax:
                 return json_success(response, payload={
-                    # Where the table is AFTER this write. The composer saves
-                    # an issue as N of these and then writes block order
-                    # through news.layout, which is guarded by this stamp.
-                    # Without it the layout write presented the page-load
-                    # stamp, the server correctly saw the table had moved and
-                    # answered 409 -- and the composer reloaded a canvas it
-                    # had just successfully saved, detecting its own writes
-                    # as someone else's.
+                    # Post-write stamp, so the composer's next layout save doesn't 409 on its own write.
                     "stamp": Issues.stamp_for(_int_or_none(getattr(saved_news, "issue_id", None)))
                     if _int_or_none(getattr(saved_news, "issue_id", None)) else section_stamp(News),
                     "article": {
@@ -839,16 +621,10 @@ class NewsController(Controller):
             return _err(["Could not save the news item. Please try again."])
 
     def layout(self, request: Request, response: Response):
-        """Bulk slot/order save — writes ONLY layout_type and priority for
-        many rows in one request. This is what drag-reorder and slot
-        assignment call; it must never touch body/title/status/published_at.
+        """Bulk slot/order save: writes only layout_type and priority.
 
-        Payload: JSON body `{"items": [{"id": 1, "layout_type": "main",
-        "priority": 0}, ...]}`. Read via request.all() rather than
-        request.input("items") — Masonite's InputBag.get() silently
-        unwraps a length-1 list to its single element, which would corrupt
-        a single-card reorder; request.all() returns the raw parsed value
-        with no such unwrapping.
+        Payload is `{"items": [{"id", "layout_type", "priority"}, ...]}`, read via
+        request.all() because request.input() unwraps a length-1 list to its element.
         """
         is_ajax = wants_json(request)
 
@@ -863,10 +639,7 @@ class NewsController(Controller):
         if not isinstance(items, list) or not items:
             return _err(["No layout changes were provided."])
 
-        # Optional so a plain form post (and every existing caller) still
-        # works; when absent the conflict check is skipped rather than
-        # failing closed, because refusing an unversioned write would break
-        # the non-AJAX degradation path this endpoint is required to keep.
+        # Optional so plain form posts still work; absent means skip the conflict check.
         base_stamp = payload.get("base_stamp")
         if base_stamp is not None and not isinstance(base_stamp, str):
             base_stamp = str(base_stamp)
@@ -895,34 +668,13 @@ class NewsController(Controller):
         editor_id = _current_user_id(request)
 
         try:
-            # All-or-nothing: without this, a mid-batch failure (item 4 of 7
-            # raises) would leave items 1-3 committed while the cache is
-            # never invalidated below — the kiosk keeps serving the
-            # pre-change layout for up to _NEWS_CACHE_TTL seconds while the
-            # table itself holds a half-applied order. Sharing one
-            # transaction across every row means a failure rolls the whole
-            # batch back, so the (unchanged) cache stays correct with no
-            # invalidation needed on the error path.
+            # One transaction: a mid-batch failure rolls everything back, so the
+            # (unchanged) cache stays correct with no invalidation on the error path.
             updated_ids = []
             with DB.transaction():
-                # Optimistic concurrency. The composer rebuilds the ENTIRE
-                # canvas from its own DOM on every drag (currentCanvasBatch in
-                # news-dashboard.js), so a tab that loaded an hour ago does not
-                # send "move card 7" — it sends its whole stale front page.
-                # Without this check the stale tab wins and the other editor's
-                # work is gone with no error on either side.
-                #
-                # The token is the section stamp the liveness poll already
-                # computes, so there is no new column and no new query shape.
-                # It is table-wide, which means an unrelated body save also
-                # trips it; the cost of that false positive is one forced
-                # canvas refresh, against the cost of a silent total overwrite.
-                # Everything below is scoped to ONE issue: the one the first
-                # item belongs to. A layout write only ever moves stories
-                # within a newsletter, and every guard here must see only that
-                # newsletter -- a table-wide stamp made another editor's save
-                # read as a conflict on this one, and a table-wide capacity
-                # count made two editors' two leads an overflow.
+                # Optimistic concurrency, scoped to the first item's issue. The composer
+                # sends its whole canvas on every drag, so a stale tab would otherwise
+                # silently overwrite another editor's work.
                 first = News.where("id", int(items[0].get("id") or 0)).first() if items else None
                 issue_id = _int_or_none(getattr(first, "issue_id", None) if first else None)
 
@@ -942,11 +694,8 @@ class NewsController(Controller):
                     record.save()
                     updated_ids.append(item_id)
 
-                # Counted across the whole table AFTER applying, not across the
-                # batch: a batch legitimately carries only one bucket
-                # (buildBucketBatch), so checking the payload alone would miss
-                # a main that another editor added between this tab's last
-                # refresh and this write.
+                # Count the whole issue after applying, not just the batch, to catch a
+                # story another editor placed since this tab last refreshed.
                 for slot, capacity in _NEWS_SLOT_CAPACITY.items():
                     occupied = News.where("layout_type", slot)
                     if issue_id:
@@ -968,9 +717,7 @@ class NewsController(Controller):
                 )
             return response.redirect(name="gears.dashboard").with_success(["Layout saved."])
         except _LayoutConflict:
-            # 409, not 422 — the payload was fine, it just lost a race. The
-            # composer reloads the canvas on this status rather than showing a
-            # validation error.
+            # 409, not 422: the payload was fine, it just lost a race. The composer reloads.
             if is_ajax:
                 return json_errors(
                     response,
@@ -992,7 +739,7 @@ class NewsController(Controller):
             return _err(["Could not save layout changes. Please try again."])
 
     def body(self, request: Request, response: Response):
-        """Saves ONLY the sanitized article body (`description`)."""
+        """Saves only the sanitized article body (`description`)."""
         is_ajax = wants_json(request)
 
         def _err(messages, status=422):
@@ -1011,12 +758,7 @@ class NewsController(Controller):
         try:
             record.description = sanitized
 
-            # `description` is the column the kiosk renders, so rewriting it is
-            # a content change like any other and has to face the same gate
-            # store() applies. Without this an editor could get a story
-            # approved, then swap its text for anything -- on any story in the
-            # table -- and it would go straight to the campus terminal on the
-            # next cache miss. Admins are the approvers, so their edit stays put.
+            # Rewriting the body is a content change, so it faces store()'s publish gate.
             record.status = _resolve_status_for_actor(
                 _normalize_news_status(getattr(record, "status", None)), request
             )
@@ -1043,25 +785,9 @@ class NewsController(Controller):
     def autosave(self, request: Request, response: Response):
         """Persist an in-progress draft's text. Never publishes anything.
 
-        The composer debounces this while an editor types, so it is the one
-        write on this controller that fires without anybody pressing a button.
-        That shapes every decision below.
-
-        WHY IT REFUSES TO TOUCH A PUBLIC STORY. `body()` re-runs
-        _resolve_status_for_actor on every save precisely because rewriting
-        `description` is a content change: without that gate an editor could get
-        a story approved and then swap its text for anything, and it would reach
-        the campus terminal on the next cache miss. An autosave cannot use that
-        same gate, because silently pulling a live story back to `review` in the
-        background -- taking it off the kiosk mid-sentence -- is worse than the
-        problem it solves. So it takes the third option and declines: a story
-        that is publicly visible is not autosaved at all, and the editor is told
-        to use Publish, which runs the full reviewed path. A draft or a story
-        awaiting review has nothing public to protect and saves freely.
-
-        It therefore never reads or writes `status`, never fires NewNews, never
-        writes a notification, and never invalidates the kiosk cache -- because
-        nothing it can write is on the kiosk.
+        Refuses to touch a public story: silently pulling a live story back to
+        `review` in the background is worse than the problem it solves, so the
+        editor is told to use Publish. Never writes status or invalidates the kiosk.
         """
         is_ajax = wants_json(request)
 
@@ -1075,13 +801,10 @@ class NewsController(Controller):
             return _err(["Article not found."], status=404)
 
         if _normalize_news_status(getattr(record, "status", None)) in _NEWS_VISIBLE_STATUSES:
-            # 409, not 422: the request was well-formed, the story's state is
-            # what makes it inapplicable. The composer shows this as
-            # "Published - use Publish to update" rather than a failure.
+            # 409: well-formed request, inapplicable state. The composer shows it as a hint.
             return _err(["This story is live. Use Publish to change what the kiosk shows."], status=409)
 
-        # Same sanitizers store() uses, on the same fields. A separate, laxer
-        # path here would be a way around the allowlist.
+        # Same sanitizers as store(); a laxer path here would bypass the allowlist.
         fields = {
             "title": _sanitize_headline_html((request.input("title") or "").strip()).strip(),
             "description": _sanitize_news_html((request.input("description") or "").strip()),
@@ -1094,9 +817,7 @@ class NewsController(Controller):
         }
 
         try:
-            # Assigned one at a time rather than mass-assigned: News.__fillable__
-            # includes `status` and `layout_type`, and a dict update built from
-            # request input is how an autosave silently becomes a publish.
+            # One at a time: __fillable__ includes `status`, so a mass assignment could publish.
             for column, value in fields.items():
                 setattr(record, column, value)
 
@@ -1118,8 +839,7 @@ class NewsController(Controller):
             return _err(["Could not save the draft."])
 
     def unassign(self, request: Request, response: Response):
-        """Sets layout_type = "unassigned". Does not delete the story and
-        does not change its status."""
+        """Sets layout_type = "unassigned" without deleting or changing status."""
         is_ajax = wants_json(request)
 
         def _err(messages, status=422):
@@ -1161,24 +881,8 @@ class NewsController(Controller):
         if not record:
             return _err(["Article not found."])
 
-        # NOTE: this deliberately does NOT delete the image files any more.
-        #
-        # `record.delete()` is a SOFT delete now (News mixes in
-        # SoftDeletesMixin), so the row is recoverable — but its image would
-        # not be. A restored story would render a broken <img> with its
-        # .large/.thumb WebP derivatives gone for good, which is a worse
-        # outcome than leaving a few files on disk.
-        #
-        # This also fixes an existing bug in passing: the unlink used to run
-        # BEFORE record.delete() succeeded, so a failing delete already
-        # orphaned the derivatives while keeping the row.
-        #
-        # The hard purge belongs to a path that does not exist yet — a Trash
-        # panel's "Delete permanently", or a maintenance command walking
-        # News.only_trashed() — and would pair force_delete() with
-        # _delete_image_files(). Until then, the cost of this change is that
-        # a deleted story's images stay on disk indefinitely.
-
+        # Soft delete only: image files stay so a restored story still renders.
+        # A future hard purge would pair force_delete() with _delete_image_files().
         try:
             record.delete()
         except Exception as exception:

@@ -166,11 +166,10 @@
       errorNode.hidden = true;
     }
 
-    if (typeof modal.showModal === 'function' && !modal.open) {
-      modal.showModal();
-    } else {
-      modal.setAttribute('open', 'open');
-    }
+    // Used to fall back to setAttribute('open'), which renders a non-modal
+    // dialog: no backdrop, no focus trap, and a Marzipano canvas sitting loose
+    // in the page. GearsModal does not open at all in that case.
+    window.GearsModal.open(modal, trigger);
 
     var initialView = readJson(trigger.getAttribute('data-scene-view'));
 
@@ -188,12 +187,7 @@
   }
 
   function closePreview() {
-    disposeCurrentScene();
-    if (typeof modal.close === 'function' && modal.open) {
-      modal.close();
-    } else {
-      modal.removeAttribute('open');
-    }
+    window.GearsModal.close(modal);
   }
 
   card.addEventListener('click', function (event) {
@@ -214,11 +208,8 @@
     }
   });
 
-  // Esc fires `cancel` on a <dialog>; let it close, but tear the scene down too.
-  modal.addEventListener('cancel', function () {
-    disposeCurrentScene();
-  });
-  modal.addEventListener('close', function () {
-    disposeCurrentScene();
-  });
+  // One teardown hook instead of two: GearsModal turns `cancel` (Esc) into a
+  // close(), so every exit -- Esc, backdrop, the close button -- arrives here
+  // and the panorama is disposed exactly once.
+  window.GearsModal.wire(modal, { onClose: disposeCurrentScene });
 })();

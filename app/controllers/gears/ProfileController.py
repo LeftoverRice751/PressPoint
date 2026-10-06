@@ -1,16 +1,7 @@
-"""Self-service profile: display name and avatar.
+"""Self-service profile: display name, avatar and password.
 
-There was no authenticated self-service surface anywhere in this app before —
-the only way to change anything about your own account was the logged-out OTP
-password reset. This is the first, which is why it is deliberately narrow: name
-and picture only. Username and email are login credentials (User.__auth__ is
-"username"), and letting people change those self-service can lock them out or
-collide with another account.
-
-SECURITY NOTE, load-bearing: `User.__fillable__` includes `role`. Every write
-here assigns one attribute at a time. Do not "tidy" this into
-`user.update(request.all())` — an editor posting role=admin would be obeyed,
-and admins are the accounts that approve stories onto a public screen.
+`User.__fillable__` includes `role`, so every write here assigns one attribute
+at a time. A mass assignment from request input would be privilege escalation.
 """
 
 import traceback
@@ -25,8 +16,7 @@ from app.services.ImageUploads import save_uploaded_image
 from app.tab_slots import slot_cookie
 
 
-#: Longest display name we will store. The column is varchar(255); this is a
-#: UI limit so the profile border and the review byline stay laid out.
+# UI limit so the profile border and review byline stay laid out (column is varchar(255)).
 MAX_NAME_LENGTH = 80
 
 
@@ -73,7 +63,6 @@ class ProfileController(Controller):
             return _err([f"Name must be {MAX_NAME_LENGTH} characters or fewer."])
 
         try:
-            # One attribute, assigned by name. See the module docstring.
             user.full_name = full_name
             user.save()
         except Exception as exception:
@@ -83,12 +72,7 @@ class ProfileController(Controller):
         return self._respond(request, response, user, "Profile updated.")
 
     def upload_avatar(self, request: Request, response: Response):
-        """Replace the signed-in account's profile picture.
-
-        Goes through ImageUploads.save_uploaded_image, which validates by magic
-        bytes rather than by the browser-supplied filename, caps the size, and
-        writes with the group-writable umask the Samba share needs.
-        """
+        """Replace the signed-in account's profile picture (magic-byte validated)."""
         is_ajax = wants_json(request)
 
         def _err(messages, status=422):
@@ -112,13 +96,10 @@ class ProfileController(Controller):
             user.save()
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
-            # The row did not take the new path, so the file we just wrote is
-            # unreferenced — clean it up rather than leaving it on the NAS.
-            Profiles.delete_avatar_file(stored_path)
+            Profiles.delete_avatar_file(stored_path)  # unreferenced, don't leave it on the NAS
             return _err(["Could not save your picture. Please try again."])
 
-        # Only after the new path is committed: if this ran first and the save
-        # failed, the account would be left pointing at a file we had deleted.
+        # Only after the new path is committed, or a failed save would point at a deleted file.
         if previous and previous != stored_path:
             Profiles.delete_avatar_file(previous)
 
@@ -151,13 +132,8 @@ class ProfileController(Controller):
         return self._respond(request, response, user, "Profile picture removed.")
 
     def change_password(self, request: Request, response: Response):
-        """Change the signed-in account's own password.
-
-        PasswordChange.apply does the checking and the write; this re-issues
-        the cookie. Sessions on this app are `users.remember_token`, which the
-        service rotates so every other tab and device drops — without a fresh
-        cookie for *this* slot the caller would drop with them.
-        """
+        """Change the signed-in account's password, then re-issue this tab's cookie
+        (the service rotates remember_token, which signs every other tab out)."""
         is_ajax = wants_json(request)
 
         def _err(messages, status=422):

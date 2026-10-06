@@ -171,13 +171,15 @@
   width: min(840px, calc(100vw - 2rem));
 }
 
+/* The issue is a full kiosk page, taller than any viewport. The panel used to
+   be the scroller itself (max-height: 90vh; overflow: hidden auto), but the
+   close button and the "Kiosk preview" head are positioned inside it, so they
+   scrolled away and left the admin partway down a story with no visible way
+   out. The well scrolls now -- see below -- and the panel takes its cap from
+   .article-modal__panel. */
 .review-preview-modal__panel {
   position: relative;
   padding: 1.5rem;
-  /* The issue is a full kiosk page, taller than any viewport: cap the panel
-     and let it scroll inside the dialog, never the page behind it. */
-  max-height: 90vh;
-  overflow: hidden auto;
   box-sizing: border-box;
 }
 
@@ -213,6 +215,7 @@
 }
 
 .review-preview-modal__head {
+  flex: 0 0 auto;
   margin-bottom: 1rem;
   padding-right: 3rem;
   padding-bottom: 0.85rem;
@@ -243,11 +246,17 @@
 
 /* The well is the terminal's screen: sunken, bordered, and it clips the
    scaled render rather than letting the dialog scroll sideways. */
+/* The well is the scroller, so the head and the close button above it stay
+   put while the admin reads down the issue. min-height: 0 is required: a flex
+   item defaults to min-height: auto and would refuse to shrink below the full
+   768px render, putting the scrollbar back on the panel. */
 .review-preview-modal__well {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   background: var(--surface-sunken);
   border: 1px solid var(--rule);
   border-radius: var(--radius-md, 6px);
-  overflow: hidden;
 }
 
 /* Scaled, not re-styled: this is the kiosk's own markup, so shrinking it is

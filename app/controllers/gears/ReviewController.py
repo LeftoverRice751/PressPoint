@@ -1,13 +1,7 @@
 """Admin review of stories editors have submitted.
 
-Before this, "Publish" was one click by one person straight to a public campus
-terminal, and the `news` table recorded nothing about who did it. Now an
-editor's publish intent becomes `review` (NewsController._resolve_status_for_actor),
-and it stays invisible until an admin acts here.
-
-Both actions are admin-only at the route level. They are also written to be
-safe if that guard were ever removed: each one re-checks the role rather than
-trusting that the middleware ran.
+Routes are admin-only, but every action re-checks the role so a dropped
+middleware cannot let an editor publish.
 """
 
 import traceback
@@ -33,14 +27,12 @@ from app.services.ReviewQueue import (
 )
 
 
-#: Where an editor lands from the notification — the composer, with their story
-#: in the library. There is no per-story deep link on the dashboard today.
+# Where an editor lands from the notification; there is no per-story deep link.
 _EDITOR_LINK = "/gears/dashboard?page=news"
 
 
 def _is_admin(user):
-    """Normalised like every other role check in the app: the live `role`
-    column holds values with stray casing (see UserController._is_editor)."""
+    """Case-insensitive: the live `role` column has stray casing."""
     return (getattr(user, "role", "") or "").strip().lower() == "admin"
 
 
@@ -52,8 +44,7 @@ class ReviewController(Controller):
             return None
 
     def _decide(self, request, response, story_id, approve):
-        """Shared approve/reject body — the two differ only in the status they
-        write, whether a reason is required, and the notification they send."""
+        """Shared approve/reject body for one story."""
         is_ajax = wants_json(request)
 
         def _err(messages, status=422):
@@ -63,10 +54,6 @@ class ReviewController(Controller):
 
         actor = self._actor(request)
         if not _is_admin(actor):
-            # Belt and braces: the route already carries the `admin`
-            # middleware. Duplicated because the cost of this check being
-            # absent is an editor approving their own story onto a public
-            # screen, and route middleware is easy to drop in a refactor.
             return _err(["Only an admin can review stories."], status=403)
 
         record = News.where("id", story_id).first()
@@ -75,10 +62,7 @@ class ReviewController(Controller):
 
         current = (getattr(record, "status", "") or "").strip().lower()
         if current != REVIEW_STATUS:
-            # Someone else already decided, or the editor withdrew it. Refusing
-            # is better than silently re-deciding: two admins opening the queue
-            # together would otherwise both "approve" and the second would
-            # overwrite a rejection that had already been sent.
+            # Already decided or withdrawn; refuse rather than overwrite another admin's call.
             return _err(["That story is no longer awaiting review."], status=409)
 
         reason = (request.input("reason") or "").strip()
@@ -92,22 +76,12 @@ class ReviewController(Controller):
                 record.status = "published"
                 record.rejection_reason = None
             else:
-                # Back to draft, not deleted and not left in the queue: the
-                # editor can fix it and resubmit, and store() clears the reason
-                # when they do.
+                # Back to draft so the editor can fix and resubmit; store() clears the reason.
                 record.status = "draft"
                 record.rejection_reason = reason
             record.save()
 
-            # Imported from NewsController rather than repeated as a literal:
-            # the key carries a version suffix that gets bumped whenever the
-            # cached projection changes, and a second copy would silently stop
-            # matching on the next bump — leaving the kiosk serving a story the
-            # admin just rejected for up to the cache TTL.
             Cache.forget(_NEWS_CACHE_KEY)
-            # Same fact, second consumer: the terminal re-fetches instead of
-            # waiting for its next manual reload. Approval is the moment a
-            # story becomes publicly visible, so this is the site that matters.
             KioskBroadcast.section_changed("latest-news")
 
             Notifications.notify(
@@ -134,9 +108,7 @@ class ReviewController(Controller):
                     payload={"id": getattr(record, "id", None), "status": record.status},
                     messages=[message],
                 )
-            # The admin console, not the editor dashboard: the queue moved
-            # to /users and an admin is redirected off /gears/dashboard, so
-            # this fallback would bounce them straight back here anyway.
+            # The admin console: an admin is redirected off /gears/dashboard anyway.
             return response.redirect(
                 name="users.view", query_params={"page": "review"}
             ).with_success([message])
@@ -145,16 +117,7 @@ class ReviewController(Controller):
             return _err(["Could not record that decision. Please try again."])
 
     def _decide_issue(self, request, response, approve, issue_id=None):
-        """Approve or reject ONE pending issue in one decision.
-
-        An editor composes an issue as one thing and submits it in one click;
-        this is the admin's matching single action. All-or-nothing by decision:
-        one Approve publishes every pending block, one Reject sends every
-        pending block back with one reason.
-
-        The per-story _decide() above stays as the building block and for the
-        API it already exposes; this is what the queue's buttons call.
-        """
+        """Approve or reject one pending issue, all blocks at once. The queue's buttons call this."""
         is_ajax = wants_json(request)
 
         def _err(messages, status=422):
@@ -166,15 +129,11 @@ class ReviewController(Controller):
         if not _is_admin(actor):
             return _err(["Only an admin can review stories."], status=403)
 
-        # Re-read at decision time, not from whatever the page rendered: two
-        # admins with the queue open would otherwise both act on a stale list.
-        # Scoped to the issue in the URL: each editor's newsletter is decided
-        # on its own, so approving Maria's does not publish John's.
+        # Re-read at decision time and scoped to this issue, so two admins with the
+        # queue open cannot act on a stale list or each other's newsletter.
         stories = list(review_stories_of(issue_id) if issue_id else pending_stories() or [])
         if not stories:
-            # Refuse, do not report success on nothing -- a double-click after
-            # a colleague already approved would otherwise say "published" to
-            # an admin who published nothing.
+            # Refuse rather than report success on nothing (double-click after a colleague).
             return _err(["Nothing is awaiting review."], status=409)
 
         reason = (request.input("reason") or "").strip()
@@ -182,9 +141,7 @@ class ReviewController(Controller):
             return _err(["Please say why you are sending this issue back."])
 
         try:
-            # One transaction: an issue is published whole or not at all. A
-            # failure halfway would otherwise leave the kiosk printing half an
-            # issue with the other half still in the queue.
+            # One transaction: an issue is published whole or not at all.
             with DB.transaction():
                 for record in stories:
                     if approve:
@@ -194,15 +151,8 @@ class ReviewController(Controller):
                         record.status = "draft"
                         record.rejection_reason = reason
                     record.save()
-                # The issue's own publish date -- what orders the kiosk's
-                # slides, what its masthead prints, and what starts the
-                # expiry clock (Issues.expires_at). Stamped on EVERY approve,
-                # not only when unset: for a daily paper, approval is
-                # publication, and a resubmitted issue is today's paper.
-                # UTC-aware on purpose -- the ORM tags a naive datetime as
-                # UTC without shifting it, so a naive local now() would be
-                # read back eight hours late. created_at is true UTC from
-                # pendulum; this keeps the two columns in one convention.
+                # Stamp published_at on every approve (approval is publication for a
+                # daily). UTC-aware: the ORM tags a naive datetime as UTC without shifting.
                 if approve and issue_id:
                     try:
                         from datetime import datetime, timezone
@@ -216,13 +166,10 @@ class ReviewController(Controller):
                     except Exception:
                         pass
 
-            # Once, after the batch: the cache is one thing, not one per block.
             Cache.forget(_NEWS_CACHE_KEY)
             KioskBroadcast.section_changed("latest-news")
 
-            # One notification per author, not one per block. Three blocks by
-            # the same editor is one issue and one bell entry, not three saying
-            # the same thing.
+            # One notification per author, not one per block.
             notified = set()
             for record in stories:
                 author_id = getattr(record, "author_id", None)
@@ -279,7 +226,7 @@ class ReviewController(Controller):
             return None
 
     def preview_issue(self, request: Request, response: Response, view: View):
-        """ONE pending issue, as the kiosk will print it."""
+        """One pending issue, as the kiosk will print it."""
         actor = self._actor(request)
         if not _is_admin(actor):
             return json_errors(response, ["Only an admin can review stories."], status=403)
@@ -302,12 +249,7 @@ class ReviewController(Controller):
         return self._decide(request, response, request.param("id"), approve=False)
 
     def preview(self, view: View, request: Request, response: Response):
-        """The kiosk-accurate render of one pending story.
-
-        Returned as an HTML fragment the queue drops into a scaled frame rather
-        than a JSON projection, because the whole point is that it goes through
-        the same template the touchscreen uses.
-        """
+        """One pending story rendered through the kiosk's own template."""
         record = News.where("id", request.param("id")).first()
         if not record:
             return json_errors(response, ["Story not found."], status=404)

@@ -27,29 +27,16 @@ _SEAL_NAS_SUBDIR = "About"
 _MILESTONE_NAS_SUBDIR = "About/milestones"
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
 
-# The hymn video is buffered whole in memory before it is written, and
-# production runs five gunicorn processes against one box, so this cap is a
-# memory guard rather than a disk one. 100 MB is a comfortable 720p hymn.
+# The video is buffered whole in memory before writing, so this is a memory guard.
 MAX_VIDEO_BYTES = 100 * 1024 * 1024
 
-# Narrower than FileVerificationService's shared "video" set, which also allows
-# .mov and .ogg. Those upload and verify happily and then fail to decode in the
-# kiosk browser, and a video that does not decode reports nothing at all -- the
-# pane just shows a black rectangle. Rejecting at upload time is the only point
-# where anyone is around to read the error.
+# Narrower than the shared "video" set: .mov/.ogg verify fine but won't decode in the kiosk browser.
 HYMN_VIDEO_EXTENSIONS = (".mp4", ".webm", ".m4v")
 
 
 def _drop_stale_hymn_videos(nas_dir, keep):
-    """Delete the previous hymn video when a re-upload changed the container.
-
-    The stored name carries the extension, so uploading a .webm over a .mp4
-    writes a second file and `video_path` points at only one of them. Nothing in
-    the dashboard lists the NAS folder, so the loser is invisible -- and at up
-    to MAX_VIDEO_BYTES each they accumulate silently. Only the names this
-    endpoint itself writes are candidates, and a failure here must never fail an
-    upload that already succeeded.
-    """
+    """Delete the previous hymn video when a re-upload changed the extension.
+    Must never fail an upload that already succeeded."""
     for ext in HYMN_VIDEO_EXTENSIONS:
         name = f"hymn_video{ext}"
         if name == keep:
@@ -61,14 +48,12 @@ def _drop_stale_hymn_videos(nas_dir, keep):
 
 
 def _about_changed():
-    # Every About write ends here. The kiosk's About page is served
-    # stale-while-revalidate by sw-kiosk.js, so without this a saved section
-    # would show up one visit late.
+    # Every About write ends here; the kiosk page is served stale-while-revalidate.
     KioskBroadcast.section_changed("about-lspu")
 
 
 def _editor_redirect(response: Response):
-    """Helper: every editor save endpoint redirects back to the editor page."""
+    """Every editor save endpoint redirects back to the editor page."""
     return response.redirect(name="gears.dashboard", query_params={"page": "about-lspu"})
 
 
@@ -79,11 +64,8 @@ class AboutController(Controller):
         data = AboutContent.load_all()
         sections = data["sections"]
 
-        # The kiosk lays these sections out as structured objects (a values
-        # strip, an acrostic grid, a pull quote, sung lines) while the editor
-        # authors them as free Quill HTML. AboutValues derives the shapes; each
-        # one degrades to empty and the template falls back to the raw HTML, so
-        # reformatting in the editor never breaks the pane.
+        # AboutValues derives structured shapes from free Quill HTML; each degrades
+        # to empty and the template falls back to the raw HTML.
         values = sections.get("values")
         value_subs = (values.subsections or []) if values else []
         core_html = value_subs[0].get("body_html") if len(value_subs) > 0 else ""
@@ -111,11 +93,7 @@ class AboutController(Controller):
                 "quality_statement": statement,
                 "quality_support": support,
                 "hymn_lines": AboutValues.hymn_lines(hymn.body_html if hymn else ""),
-                # Short display copy (hub hero, index hints, section chrome, and
-                # the seal callouts) comes from each row's `meta`, falling back
-                # to AboutContent.DEFAULT_META. It used to be a `tile_meta`
-                # literal in the template and a constant in this file, so a typo
-                # on the kiosk needed a deploy to fix.
+                # Short display copy from each row's `meta`, falling back to DEFAULT_META.
                 "tile_meta": data["meta"],
                 "page": data["page"],
                 "seal_hotspots": data["meta"]["seal"].get("hotspots") or [],
@@ -135,9 +113,7 @@ class AboutController(Controller):
 
         section = AboutSection.where("slug", slug).first()
         if not section and slug == PAGE_SLUG:
-            # The six section rows are seeded; the hub row was introduced with
-            # `meta` and has no seed behind it on an existing install, so create
-            # it on first save rather than making the migration carry data.
+            # The hub row has no seed on existing installs; create it on first save.
             section = AboutSection.create({"slug": PAGE_SLUG, "title": "About LSPU"})
         if not section:
             if wants_json(request):
@@ -151,16 +127,12 @@ class AboutController(Controller):
             except (TypeError, ValueError):
                 parsed_meta = None
             if parsed_meta is not None:
-                # Merge, don't replace: each editor form posts only the keys it
-                # renders, and the seal's two forms both target this endpoint.
+                # Merge, don't replace: each form posts only the keys it renders.
                 merged = dict(section.meta or {})
                 merged.update(AboutContent.sanitize_meta(slug, parsed_meta))
                 section.meta = merged
 
-        # Only touch a body field the posted form actually carries. The seal tab
-        # now has three forms (image, description, callouts) all aimed at this
-        # endpoint, so a blind `input("body_html") or ""` would let the callout
-        # save blank the description it never rendered.
+        # Only touch a field the posted form carries; several forms share this endpoint.
         if slug in ("mission", "values"):
             raw = request.input("subsections", None)
             if raw is not None:
@@ -170,16 +142,12 @@ class AboutController(Controller):
                     parsed = []
                 section.subsections = AboutContent.sanitize_subsections(parsed)
                 section.body_html = None
-        elif slug != PAGE_SLUG:
-            # The hub row is hero copy in `meta` and has no body of its own.
+        elif slug != PAGE_SLUG:  # the hub row has no body of its own
             raw_body = request.input("body_html", None)
             if raw_body is not None:
                 section.body_html = AboutContent.sanitize_html(raw_body)
 
-        # Tap-to-sync timings ride on the hymn's lyrics form -- they are matched
-        # to lines by index, so they must land in the same save as the text.
-        # Same rule as the body: only a form that rendered the widget posts the
-        # field, so the audio/video upload forms cannot blank it.
+        # Lyric timings are matched to lines by index, so they save with the text.
         if slug == "hymn":
             raw_timings = request.input("lyric_timings", None)
             if raw_timings is not None:
@@ -259,9 +227,7 @@ class AboutController(Controller):
         if body_html is not None:
             row.body_html = AboutContent.sanitize_html(body_html)
 
-        # Optional image upload swap-in. The endpoint has always accepted this;
-        # the dashboard grew the file input alongside it, so a milestone photo
-        # on the kiosk's history pager is now editable rather than seed-only.
+        # Optional image swap-in.
         file = request.input("file")
         if isinstance(file, list):
             file = file[0] if file else None
@@ -291,8 +257,7 @@ class AboutController(Controller):
         return _editor_redirect(response).with_success(["Milestone removed."])
 
     def reorder_milestone(self, id, request: Request, response: Response):
-        # direction = 'up' (smaller sort_order) or 'down' (larger).
-        # Swap sort_order with the adjacent neighbour.
+        # Swap sort_order with the adjacent neighbour in the given direction.
         direction = (request.input("direction") or "").strip()
         row = AboutMilestone.where("id", id).first()
         if not row or direction not in ("up", "down"):
@@ -404,15 +369,10 @@ class AboutController(Controller):
         return _editor_redirect(response).with_success(["Hymn audio uploaded."])
 
     def upload_hymn_video(self, request: Request, response: Response):
-        """The hymn's video, which the kiosk prefers over the audio file.
+        """The hymn's video, preferred by the kiosk over the audio file.
 
-        Gated twice on purpose. The extension allowlist is what keeps the
-        stored *name* safe -- nginx serves About/ directly and derives
-        Content-Type from the extension, so a stored .html would come back as
-        markup on this origin (the escalation documented in
-        tests/unit/test_upload_extension_binding.py). The libmagic check is what
-        keeps the stored *bytes* honest, since the filename comes from the
-        browser and the editor is only an `auth` role away from an admin.
+        Gated twice: the extension allowlist keeps the stored name safe (nginx
+        derives Content-Type from it), the libmagic check keeps the bytes honest.
         """
         file = request.input("file")
         if isinstance(file, list):

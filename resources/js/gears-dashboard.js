@@ -209,32 +209,16 @@
     previewPlayer.setAttribute('aria-label', 'Video preview player');
   }
 
-  function openEventsModal() {
-    if (!eventsModal) {
-      return;
-    }
-
-    if (typeof eventsModal.showModal === 'function') {
-      eventsModal.showModal();
-      return;
-    }
-
-    eventsModal.hidden = false;
-    eventsModal.classList.add('is-open');
+  // Both dialogs used to carry a `hidden = false` + `.is-open` fallback for a
+  // browser without showModal(). Nothing ever styled `.article-modal.is-open`,
+  // so that path rendered an unpositioned, un-backdropped box in the page flow
+  // -- dead code that read as a safety net. GearsModal does not pretend.
+  function openEventsModal(trigger) {
+    window.GearsModal.open(eventsModal, trigger);
   }
 
   function closeEventsModal() {
-    if (!eventsModal) {
-      return;
-    }
-
-    if (typeof eventsModal.close === 'function') {
-      eventsModal.close();
-      return;
-    }
-
-    eventsModal.hidden = true;
-    eventsModal.classList.remove('is-open');
+    window.GearsModal.close(eventsModal);
   }
 
   function openEventViewModal(row) {
@@ -266,27 +250,11 @@
       }
     }
 
-    if (typeof eventViewModal.showModal === 'function') {
-      eventViewModal.showModal();
-      return;
-    }
-
-    eventViewModal.hidden = false;
-    eventViewModal.classList.add('is-open');
+    window.GearsModal.open(eventViewModal, row);
   }
 
   function closeEventViewModal() {
-    if (!eventViewModal) {
-      return;
-    }
-
-    if (typeof eventViewModal.close === 'function') {
-      eventViewModal.close();
-      return;
-    }
-
-    eventViewModal.hidden = true;
-    eventViewModal.classList.remove('is-open');
+    window.GearsModal.close(eventViewModal);
   }
 
   function getHeroValue(panel, attribute, fallback) {
@@ -358,7 +326,7 @@
     var eventsModalTrigger = event.target.closest('[data-events-modal-open]');
     if (eventsModalTrigger && dashboardRoot.contains(eventsModalTrigger)) {
       event.preventDefault();
-      openEventsModal();
+      openEventsModal(eventsModalTrigger);
       return;
     }
 
@@ -542,21 +510,12 @@
   syncEmptyStates();
   switchPage(defaultPage);
 
-  if (eventsModal) {
-    eventsModal.addEventListener('click', function (event) {
-      if (event.target === eventsModal) {
-        closeEventsModal();
-      }
-    });
-  }
-
-  if (eventViewModal) {
-    eventViewModal.addEventListener('click', function (event) {
-      if (event.target === eventViewModal) {
-        closeEventViewModal();
-      }
-    });
-  }
+  // Both dialogs handled a backdrop click here but nothing else, so Escape
+  // closed them natively and dropped focus on <body> -- an editor who dismissed
+  // Add Event with the keyboard had to tab back in from the top of the page.
+  // GearsModal.wire adds the `cancel` and focus-return halves.
+  window.GearsModal.wire(eventsModal);
+  window.GearsModal.wire(eventViewModal);
 
   dashboardRoot.addEventListener('keydown', function (event) {
     if (event.key !== 'Enter' && event.key !== ' ') {

@@ -10,7 +10,8 @@
     The stage stays empty until Marzipano is loaded on first open; the viewer is
     built into it at runtime.
 #}
-    <dialog class="article-modal tour-preview-modal" data-tour-preview-modal>
+    <dialog class="article-modal tour-preview-modal" data-tour-preview-modal
+            aria-labelledby="tour-preview-modal-title">
       <div class="article-modal__panel tour-preview-modal__panel">
         {# Same close-button convention as events-view-modal.html: the glyph is
            painted by CSS (::before) and the word is kept for screen readers,
@@ -18,7 +19,8 @@
         <button type="button" class="tour-preview-modal__close" aria-label="Close"
                 data-tour-preview-close><span class="u-visually-hidden">Close</span></button>
 
-        <h3 class="tour-preview-modal__title" data-tour-preview-title></h3>
+        <h3 class="tour-preview-modal__title" id="tour-preview-modal-title"
+            data-tour-preview-title></h3>
         <p class="tour-preview-modal__scene" data-tour-preview-scene></p>
 
         <div class="tour-preview-modal__stage" data-tour-preview-stage></div>

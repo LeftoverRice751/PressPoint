@@ -161,6 +161,12 @@ window.APP_DATA = {
           "pitch": 0.28788355787372666,
           "rotation": 0,
           "target": "4-jst-5"
+        },
+        {
+          "yaw": 0.42,
+          "pitch": 0.2096,
+          "rotation": 0,
+          "target": "86-jst-90"
         }
       ],
       "infoHotspots": []
@@ -837,6 +843,12 @@ window.APP_DATA = {
           "pitch": 0.32387430909313686,
           "rotation": 0,
           "target": "22-jst-22"
+        },
+        {
+          "yaw": -1.88,
+          "pitch": 0.2758,
+          "rotation": 0,
+          "target": "20-jst-20"
         }
       ],
       "infoHotspots": []
@@ -871,6 +883,12 @@ window.APP_DATA = {
           "pitch": 0.2757926290507431,
           "rotation": 0,
           "target": "19-jst-21"
+        },
+        {
+          "yaw": 2.58,
+          "pitch": 0.2651,
+          "rotation": 0,
+          "target": "18-jst-19"
         }
       ],
       "infoHotspots": []
@@ -1078,6 +1096,12 @@ window.APP_DATA = {
           "pitch": 0.28255007706624014,
           "rotation": 0,
           "target": "69-jst-71"
+        },
+        {
+          "yaw": 0.98,
+          "pitch": 0.2416,
+          "rotation": 0,
+          "target": "24-jst-25"
         }
       ],
       "infoHotspots": []
@@ -1451,6 +1475,12 @@ window.APP_DATA = {
           "pitch": 0.4127479613490195,
           "rotation": 0,
           "target": "35-jst-36"
+        },
+        {
+          "yaw": -1.07,
+          "pitch": 0.3,
+          "rotation": 0,
+          "target": "33-jst-34"
         }
       ],
       "infoHotspots": []
@@ -2363,6 +2393,12 @@ window.APP_DATA = {
           "pitch": 0.3313946186182477,
           "rotation": 0,
           "target": "103-jst-107"
+        },
+        {
+          "yaw": 2.02,
+          "pitch": 0.3,
+          "rotation": 0,
+          "target": "55-jst-57"
         }
       ],
       "infoHotspots": []
@@ -3055,7 +3091,14 @@ window.APP_DATA = {
         "yaw": 0,
         "fov": 1.5707963267948966
       },
-      "linkHotspots": [],
+      "linkHotspots": [
+        {
+          "yaw": 1.23,
+          "pitch": -1.3646,
+          "rotation": 0,
+          "target": "71-jst-73"
+        }
+      ],
       "infoHotspots": []
     },
     {
@@ -3208,6 +3251,12 @@ window.APP_DATA = {
           "pitch": 0.12424284999151425,
           "rotation": 0,
           "target": "77-jst-79"
+        },
+        {
+          "yaw": 0.88,
+          "pitch": 0.2973,
+          "rotation": 0,
+          "target": "75-jst-77"
         }
       ],
       "infoHotspots": []
@@ -3322,6 +3371,12 @@ window.APP_DATA = {
           "pitch": 0.22165130736053484,
           "rotation": 0,
           "target": "80-jst-82"
+        },
+        {
+          "yaw": 3.07,
+          "pitch": 0.1509,
+          "rotation": 0,
+          "target": "78-jst-80"
         }
       ],
       "infoHotspots": []
@@ -3356,6 +3411,12 @@ window.APP_DATA = {
           "pitch": 0.24691525246286083,
           "rotation": 0,
           "target": "81-jst-84"
+        },
+        {
+          "yaw": -3.11,
+          "pitch": 0.2217,
+          "rotation": 0,
+          "target": "79-jst-81"
         }
       ],
       "infoHotspots": [
@@ -3437,6 +3498,12 @@ window.APP_DATA = {
           "pitch": 0.22210182333434503,
           "rotation": 0.7853981633974483,
           "target": "83-jst-86"
+        },
+        {
+          "yaw": -1.56,
+          "pitch": 0.1164,
+          "rotation": 0,
+          "target": "81-jst-84"
         }
       ],
       "infoHotspots": []
@@ -3611,6 +3678,12 @@ window.APP_DATA = {
           "pitch": 0.20955757129899766,
           "rotation": 0,
           "target": "3-jst-4"
+        },
+        {
+          "yaw": -0.45,
+          "pitch": 0.3,
+          "rotation": 0,
+          "target": "85-jst-89"
         }
       ],
       "infoHotspots": []
@@ -3685,6 +3758,12 @@ window.APP_DATA = {
           "pitch": 0.13118849212224148,
           "rotation": 0,
           "target": "87-jst-92"
+        },
+        {
+          "yaw": -1.88,
+          "pitch": 0.1516,
+          "rotation": 0,
+          "target": "86-jst-90"
         }
       ],
       "infoHotspots": []
@@ -3967,7 +4046,14 @@ window.APP_DATA = {
           "target": "96-jst-100"
         }
       ],
-      "infoHotspots": []
+      "infoHotspots": [
+        {
+          "yaw": 2.2,
+          "pitch": -0.12,
+          "title": "Business Affairs Office",
+          "text": "Manages the university's financial operations, procurement, and business transactions."
+        }
+      ]
     },
     {
       "id": "96-jst-100",
@@ -4005,9 +4091,22 @@ window.APP_DATA = {
           "pitch": 0.15516458149025425,
           "rotation": 0,
           "target": "97-jst-101"
+        },
+        {
+          "yaw": -2.27,
+          "pitch": 0.1652,
+          "rotation": 0,
+          "target": "95-jst-99"
         }
       ],
-      "infoHotspots": []
+      "infoHotspots": [
+        {
+          "yaw": -1.29,
+          "pitch": -0.2,
+          "title": "Business Affairs Office",
+          "text": "Manages the university's financial operations, procurement, and business transactions."
+        }
+      ]
     },
     {
       "id": "97-jst-101",
@@ -4053,7 +4152,14 @@ window.APP_DATA = {
           "target": "99-jst-102"
         }
       ],
-      "infoHotspots": []
+      "infoHotspots": [
+        {
+          "yaw": -1.15,
+          "pitch": -0.12,
+          "title": "Business Affairs Office",
+          "text": "Manages the university's financial operations, procurement, and business transactions."
+        }
+      ]
     },
     {
       "id": "98-jst-103",
@@ -4085,6 +4191,12 @@ window.APP_DATA = {
           "pitch": 0.10579570502912006,
           "rotation": 0,
           "target": "100-jst-104"
+        },
+        {
+          "yaw": 2.69,
+          "pitch": 0.1224,
+          "rotation": 0,
+          "target": "99-jst-102"
         }
       ],
       "infoHotspots": []
@@ -4125,6 +4237,12 @@ window.APP_DATA = {
           "pitch": 0.12242565411415107,
           "rotation": 0,
           "target": "98-jst-103"
+        },
+        {
+          "yaw": 2.29,
+          "pitch": 0.1676,
+          "rotation": 0,
+          "target": "119-jst-124"
         }
       ],
       "infoHotspots": []
@@ -4579,6 +4697,12 @@ window.APP_DATA = {
           "pitch": 0.26394992666856965,
           "rotation": 0,
           "target": "111-jst-115"
+        },
+        {
+          "yaw": -1.56,
+          "pitch": 0.2437,
+          "rotation": 0,
+          "target": "107-jst-111"
         }
       ],
       "infoHotspots": []
@@ -4833,6 +4957,12 @@ window.APP_DATA = {
           "pitch": 0.3161799750798693,
           "rotation": 0,
           "target": "117-jst-121"
+        },
+        {
+          "yaw": 0.79,
+          "pitch": 0.2239,
+          "rotation": 0,
+          "target": "111-jst-115"
         }
       ],
       "infoHotspots": []
@@ -4971,6 +5101,18 @@ window.APP_DATA = {
           "pitch": 0.16763761175616132,
           "rotation": 1.5707963267948966,
           "target": "99-jst-102"
+        },
+        {
+          "yaw": -1.58,
+          "pitch": 0.1839,
+          "rotation": 0,
+          "target": "96-jst-100"
+        },
+        {
+          "yaw": -1.01,
+          "pitch": 0.2504,
+          "rotation": 0,
+          "target": "97-jst-101"
         }
       ],
       "infoHotspots": []
@@ -5571,6 +5713,12 @@ window.APP_DATA = {
           "pitch": 0.12733021477315987,
           "rotation": 0,
           "target": "133-jst-140"
+        },
+        {
+          "yaw": 2.62,
+          "pitch": 0.1783,
+          "rotation": 0,
+          "target": "132-jst-138"
         }
       ],
       "infoHotspots": []
@@ -7240,6 +7388,12 @@ window.APP_DATA = {
           "pitch": 0.15375683039069266,
           "rotation": 10.995574287564278,
           "target": "190-jst-198"
+        },
+        {
+          "yaw": -2.88,
+          "pitch": 0.237,
+          "rotation": 0,
+          "target": "189-jst-197"
         }
       ],
       "infoHotspots": []
@@ -7886,6 +8040,12 @@ window.APP_DATA = {
           "pitch": 0.20286970118649883,
           "rotation": 0,
           "target": "189-jst-197"
+        },
+        {
+          "yaw": -2.36,
+          "pitch": 0.1538,
+          "rotation": 0,
+          "target": "174-jst-181"
         }
       ],
       "infoHotspots": []
@@ -7920,6 +8080,12 @@ window.APP_DATA = {
           "pitch": 0.37878818874726683,
           "rotation": 0,
           "target": "192-jst-200"
+        },
+        {
+          "yaw": 1.59,
+          "pitch": 0.3,
+          "rotation": 0,
+          "target": "189-jst-197"
         }
       ],
       "infoHotspots": []
@@ -8154,6 +8320,12 @@ window.APP_DATA = {
           "pitch": 0.19122016497466277,
           "rotation": 0,
           "target": "198-jst-206"
+        },
+        {
+          "yaw": -2.84,
+          "pitch": 0.2432,
+          "rotation": 0,
+          "target": "195-jst-203"
         }
       ],
       "infoHotspots": []

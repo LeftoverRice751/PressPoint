@@ -9,13 +9,7 @@ from app.services.TourScenesCatalog import TourScenesCatalog
 
 class TourController(Controller):
     def mappings(self, response: Response):
-        """Public endpoint the kiosk tour calls on load.
-
-        Returns every scene from the catalog merged with its saved
-        mapping, plus the resolved location info so the client doesn't
-        need a second round trip. Unmapped scenes still show up — they
-        just have null location fields.
-        """
+        """Every catalog scene merged with its saved mapping; unmapped scenes have null location fields."""
         catalog = TourScenesCatalog.all_scenes()
         rows = list(TourScenes.all() or [])
         rows_by_scene = {
@@ -53,12 +47,7 @@ class TourController(Controller):
         return response.json(payload)
 
     def store(self, request: Request, response: Response):
-        """Editor upserts a scene→location mapping from the dashboard.
-
-        Idempotent on scene_id: a second submit replaces the prior row.
-        Posting an empty location_id clears the mapping but keeps the
-        display_name override around.
-        """
+        """Upsert a scene→location mapping. An empty location_id clears it but keeps display_name."""
         scene_id = (request.input("scene_id") or "").strip()
         if not scene_id:
             return response.redirect(

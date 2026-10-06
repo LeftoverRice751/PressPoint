@@ -55,9 +55,13 @@ connected component, because that failure is otherwise invisible: the kiosk
 just answers "no route" for half the campus and falls back to straight lines.
 If it refuses, either fix the gap in QGIS or raise `--snap`.
 
-Three locations have no walkway drawn to them yet — the CCJE Academic
-Building, the CFOSH Bakery, and the Activity Center. They keep the kiosk's
-straight-line fallback until someone draws them a spur.
+Three locations have no walkway *ending* at them — the CCJE Academic
+Building, the CFOSH Bakery, and the Activity Center — so the builder anchors
+them through `DOORS` in `scripts/build_campus_graph.py` instead: a door point
+per building, joined to the nearest walkway by a short spur (CCJE Academic),
+or matched to a walkway that already reaches it (Activity Center), or shared
+with a neighbour (the bakery uses COE Old's door). Drawing their paths in QGIS
+is still the better fix; delete the `DOORS` entry when you do.
 
 ## Everything else
 

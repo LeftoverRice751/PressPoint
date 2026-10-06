@@ -131,25 +131,17 @@
     previewTarget.style.height = Math.ceil(previewTarget.scrollHeight * scale) + 'px';
   }
 
-  function openPreview() {
-    if (!modal) return;
-    if (typeof modal.showModal === 'function' && !modal.open) {
-      modal.showModal();
-    } else {
-      modal.setAttribute('open', 'open');
-    }
+  // setAttribute('open') used to be the fallback, which renders a non-modal
+  // dialog -- no backdrop, no focus trap -- with a whole kiosk page inside it.
+  function openPreview(trigger) {
+    window.GearsModal.open(modal, trigger);
   }
 
   function closePreview() {
-    if (!modal) return;
-    if (typeof modal.close === 'function' && modal.open) {
-      modal.close();
-    } else {
-      modal.removeAttribute('open');
-    }
+    window.GearsModal.close(modal);
   }
 
-  function loadPreview(card) {
+  function loadPreview(card, trigger) {
     var id = issueIdOf(card);
     if (!id || !modal || !previewTarget) return;
 
@@ -164,7 +156,7 @@
     previewTarget.style.transform = '';
     previewTarget.style.height = '';
     previewTarget.innerHTML = '<p class="review-preview__loading">Loading preview…</p>';
-    openPreview();
+    openPreview(trigger);
 
     fetch('/gears/review/issue/' + id + '/preview', {
       headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
@@ -196,19 +188,19 @@
       if (event.target.closest('[data-review-preview-close]')) {
         event.preventDefault();
         closePreview();
-        return;
       }
-      // A click on the backdrop lands on the <dialog> itself, not the panel.
-      if (event.target === modal) closePreview();
     });
-    // Fires on the close button, Esc (via `cancel`), and the backdrop alike.
-    // Emptying releases the render's images rather than holding them until
+    // Fires on the close button, Esc (via `cancel`), and the backdrop alike --
+    // GearsModal also adds the backdrop-click handler this file used to spell
+    // out. Emptying releases the render's images rather than holding them until
     // the next open.
-    modal.addEventListener('close', function () {
-      if (previewTarget) {
-        previewTarget.innerHTML = '';
-        previewTarget.style.transform = '';
-        previewTarget.style.height = '';
+    window.GearsModal.wire(modal, {
+      onClose: function () {
+        if (previewTarget) {
+          previewTarget.innerHTML = '';
+          previewTarget.style.transform = '';
+          previewTarget.style.height = '';
+        }
       }
     });
     window.addEventListener('resize', function () {
@@ -224,8 +216,9 @@
     var card = cardOf(event.target);
     if (!card) return;
 
-    if (event.target.closest('[data-review-preview]')) {
-      loadPreview(card);
+    var previewTrigger = event.target.closest('[data-review-preview]');
+    if (previewTrigger) {
+      loadPreview(card, previewTrigger);
       return;
     }
 

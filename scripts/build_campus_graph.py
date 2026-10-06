@@ -59,6 +59,31 @@ DEFAULT_SNAP = 3.0
 #: plausible, far enough that a wrong assignment stands out.
 ANCHOR_REVIEW_DISTANCE = 60.0
 
+#: Doors the terminus match cannot find on its own, by location name, as a
+#: point in layer space. Each location here is anchored to that point: on the
+#: network if a walkway already reaches it, otherwise via a straight spur from
+#: the nearest point on any walkway. Without these, the three buildings below
+#: sat over ANCHOR_REVIEW_DISTANCE from every terminus and got the kiosk's
+#: straight-line fallback, which reads as "the routing is broken".
+#:
+#: Prefer drawing the path in QGIS; this is for doors the gpkg cannot express
+#: (a pin far from its own entrance, a building with no path of its own).
+DOORS = {
+    # The ROTC walkway runs along this block's south face, ~30px below it, but
+    # only *ends* at the ROTC building. A short spur north reaches its door.
+    "College of Criminal Justice and Education Academic Building (CCJE)": (222.0, -255.0),
+    # A walkway already ends at its south face; the pin was just placed at the
+    # block's south-east corner, 62px away, two pixels past the review cutoff.
+    "Activity Center (AC)": (734.39, -542.55),
+    # Directly behind COE Old with no path drawn around it, so it shares COE
+    # Old's door. The route ends nearer COE Old, on purpose.
+    "CFOSH Bakery": (951.81, -264.92),
+}
+
+#: A door further than this from every walkway is a typo, not a spur: a long
+#: straight leg would cut through buildings, which is the bug DOORS fixes.
+MAX_SPUR_LENGTH = 40.0
+
 
 # --------------------------------------------------------------------------
 # Reading the GeoPackage
@@ -258,6 +283,67 @@ def resolve_anchors(nodes, walkways, locations):
     return anchors, rows
 
 
+def attach_doors(nodes, edges, anchors, rows, locations, snap):
+    """Anchor each DOORS location to its door, adding a spur where needed.
+
+    The door joins the network at the nearest point on any edge, splitting
+    that edge there -- welding only joins vertices, so a door beside the middle
+    of a walkway would otherwise have nothing to attach to. Mutates nodes,
+    edges, anchors and rows in place.
+    """
+    by_name = {location.name: location for location in locations}
+
+    def cost(a, b):
+        return math.hypot(nodes[a][0] - nodes[b][0], nodes[a][1] - nodes[b][1])
+
+    for name, door in DOORS.items():
+        location = by_name.get(name)
+        if location is None:
+            # A renamed row would otherwise quietly drop back to a straight line.
+            raise SystemExit("DOORS names %r, but no location has that name." % name)
+
+        best = None
+        for position, (a, b, _) in enumerate(edges):
+            (ax, ay), (bx, by) = nodes[a], nodes[b]
+            dx, dy = bx - ax, by - ay
+            t = ((door[0] - ax) * dx + (door[1] - ay) * dy) / ((dx * dx + dy * dy) or 1.0)
+            t = max(0.0, min(1.0, t))
+            point = (ax + t * dx, ay + t * dy)
+            distance = math.hypot(point[0] - door[0], point[1] - door[1])
+            if best is None or distance < best[0]:
+                best = (distance, position, point)
+
+        distance, position, point = best
+        if distance > MAX_SPUR_LENGTH:
+            raise SystemExit(
+                "Door for %r is %.1fpx from every walkway (max %.0f). "
+                "Draw its path in QGIS instead." % (name, distance, MAX_SPUR_LENGTH)
+            )
+
+        a, b, _ = edges[position]
+        if math.hypot(nodes[a][0] - point[0], nodes[a][1] - point[1]) <= snap:
+            junction = a
+        elif math.hypot(nodes[b][0] - point[0], nodes[b][1] - point[1]) <= snap:
+            junction = b
+        else:
+            nodes.append(point)
+            junction = len(nodes) - 1
+            edges[position] = [a, junction, cost(a, junction)]
+            edges.append([junction, b, cost(junction, b)])
+
+        target = junction
+        if distance > snap:
+            nodes.append(door)
+            target = len(nodes) - 1
+            edges.append([junction, target, cost(junction, target)])
+
+        anchors[str(location.id)] = target
+        point = Campus25dMapping.layer_point(location)
+        door_distance = math.hypot(point[0] - nodes[target][0], point[1] - nodes[target][1])
+        rows[:] = [row for row in rows if row[0].id != location.id]
+        rows.append((location, target, door_distance))
+
+
 def print_report(walkways, nodes, edges, components, anchors, rows, snap):
     print("source      : %s" % os.path.relpath(_GPKG_PATH, _ROOT))
     print("walkways    : %d" % len(walkways))
@@ -307,6 +393,9 @@ def main():
     components = connected_components(len(nodes), edges)
     locations = Locations.all()
     anchors, rows = resolve_anchors(nodes, walkways, locations)
+    # After resolve_anchors, so a spur's end never becomes a terminus some
+    # other building could claim.
+    attach_doors(nodes, edges, anchors, rows, locations, args.snap)
 
     print_report(walkways, nodes, edges, components, anchors, rows, args.snap)
 

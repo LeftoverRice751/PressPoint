@@ -1712,10 +1712,11 @@
     background: transparent;
 }
 
-.news-library-drawer::backdrop {
-    background: rgb(var(--brand-maroon-rgb) / 0.55);
-}
-
+/* This is the one full-height sheet on the dashboard, so it must NOT inherit
+   .article-modal__panel's max-height: min(86vh, 100%). It wins because
+   news-dashboard.css is linked after gears-dashboard.css (shell.html, then
+   dashboard.html) -- reorder those two links and this drawer stops reaching
+   the bottom of the screen. */
 .news-library-drawer__panel {
     display: flex;
     flex-direction: column;
@@ -2114,9 +2115,12 @@
     font-size: 0.9rem;
 }
 
+/* The list used to cap itself at min(46vh, 380px) and scroll, which was this
+   modal's private answer to a panel that had no max-height. The panel has one
+   now and .article-modal__body scrolls the add form and the list together --
+   a second scroller nested inside the first is what made a short viewport feel
+   like two half-stuck lists. Rules only, no height. */
 .news-category-modal__list {
-    max-height: min(46vh, 380px);
-    overflow-y: auto;
     border-top: 1px solid var(--rule-strong);
     border-bottom: 1px solid var(--rule-strong);
 }

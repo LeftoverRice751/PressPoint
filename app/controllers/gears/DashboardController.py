@@ -1,12 +1,3 @@
-"""Editor dashboard: the full page, plus the pieces that keep it live.
-
-`fragment` re-renders one section's list from the same partial the full page
-uses, so an editor's change lands in place instead of reloading everything.
-`stamps` reports a cheap per-section change marker the browser polls, so a
-dashboard left open notices another editor's work without refetching anything
-that has not moved.
-"""
-
 from masonite.controllers import Controller
 from masonite.request import Request
 from masonite.response import Response
@@ -22,54 +13,34 @@ from app.services.AjaxResponses import json_success, json_errors
 from app.services import AdminConsole, DashboardContext, Notifications, ReviewQueue
 
 
-#: section -> (context builder, partial template, context key holding the rows)
+# section -> (context builder, partial template, context key holding the rows)
 FRAGMENTS = {
     "events": (DashboardContext.events_context, "gears/partials/events-list", "events"),
     "archives": (DashboardContext.archives_context, "gears/partials/archives-list", "archives"),
     "videos": (DashboardContext.videos_context, "gears/partials/videos-list", "videos"),
     "news": (DashboardContext.news_context, "gears/partials/news-slots", "news_items"),
-    # Re-renders the composer canvas (kiosk/_issue.html in editor mode) so the
-    # story-library drawer can refresh the slot placeholders after an
-    # assignment without a full page reload. It is the same partial the kiosk
-    # renders, which is the point: an injected row cannot differ from a freshly
-    # rendered one. Never wired into the 20s poll (no matching
-    # `data-live-section` in the DOM) — only fetched directly, right after a
-    # drawer assignment succeeds. See news-dashboard.js `refreshCanvasFragment()`.
+    # Composer canvas, same partial the kiosk renders. Fetched directly after a
+    # drawer assignment, never by the 20s poll.
     "news-canvas": (DashboardContext.news_canvas_context, "kiosk/_issue", "news_items"),
-    # The composer's category list. Refreshing it also re-emits the JSON block
-    # the category modal rebuilds its options from, so a category another
-    # editor just added becomes assignable without a reload — same pattern as
-    # org-board-organizations below.
-    #
-    # This needs its OWN section rather than riding on "news": a rename
-    # changes a label the kiosk renders while touching zero news rows, so
-    # section_stamp(News) does not move and the news poll would never fire.
+    # Own section, not part of "news": a category rename touches zero news rows.
     "news-categories": (
         DashboardContext.news_categories_context,
         "gears/partials/news-categories-list",
         "news_categories",
     ),
-    # The org board's managed organization list. Refreshing it also re-emits the
-    # JSON block the three organization <select>s rebuild themselves from, so
-    # adding one shows up in every dropdown without a page reload.
+    # Also re-emits the JSON block the organization <select>s rebuild from.
     "org-board-organizations": (
         DashboardContext.org_board_context,
         "gears/partials/organizations-list",
         "organizations",
     ),
-    # The admin's queue of stories editors have submitted. Polled like any
-    # other section so a submission appears without the admin reloading — the
-    # only signal they get, since submissions deliberately do not raise a bell
-    # notification.
+    # Admin review queue; polling is the only signal since submissions raise no bell.
     "review": (
         ReviewQueue.review_context,
         "gears/partials/review-queue",
         "review_stories",
     ),
-    # The admin console's count tiles. Same 20s poll, so the queue depth on
-    # /users is never staler than the queue itself sitting next to it.
-    # `review_stories` as the rows_key is not a placeholder: the pending count
-    # IS the number this fragment's payload should report.
+    # Admin count tiles; `review_stories` is the count the payload should report.
     "admin-stats": (
         AdminConsole.stats_context,
         "gears/partials/admin-stats",
@@ -77,40 +48,26 @@ FRAGMENTS = {
     ),
 }
 
-#: section -> model to read the change stamp from
+# section -> model to read the change stamp from. Every FRAGMENTS key needs one.
 STAMP_MODELS = {
     "events": Events,
     "archives": Archives,
     "videos": Video,
     "news": News,
     "news-canvas": News,
-    # Its own model, deliberately: a rename bumps news_categories.updated_at
-    # and nothing on `news`, so watching News here would miss exactly the
-    # change this section exists to catch.
-    "news-categories": NewsCategory,
-    # `fragment` indexes this dict unguarded, so every FRAGMENTS key needs one.
+    "news-categories": NewsCategory,  # a rename only bumps news_categories.updated_at
     "org-board-organizations": Organization,
-    # Submissions are News rows, so the news stamp already moves when one
-    # arrives. Pointing at the same model keeps the queue live without a
-    # second aggregate.
-    "review": News,
-    # Three of the four tiles are News figures, and the fourth (editor
-    # accounts) only changes through this console's own form, which does a
-    # full redirect. News is the right thing to watch.
-    "admin-stats": News,
+    "review": News,  # submissions are News rows
+    "admin-stats": News,  # three of four tiles are News figures
 }
 
 
-# Moved to DashboardContext so NewsController.layout can share it as an
-# optimistic-concurrency token without importing this controller. Kept as an
-# alias because the fragment/stamps methods below and the tests both name it.
+# Lives in DashboardContext so NewsController.layout can share it; alias kept for tests.
 _section_stamp = DashboardContext.section_stamp
 
 
 def _user_id(request):
-    """users.id of the signed-in account, or None. Defensive for the same
-    reason NewsController._current_user_id is: request.user() is False for a
-    guest, and the tests drive these methods with request doubles."""
+    """users.id of the signed-in account, or None (guests and test doubles)."""
     try:
         user = request.user() if callable(getattr(request, "user", None)) else None
     except Exception:
@@ -118,9 +75,7 @@ def _user_id(request):
     return getattr(user, "id", None) or None
 
 
-#: Sections whose context depends on WHO is asking. The News panel is the
-#: editor's own issue now, so its builders take the user; everything else is
-#: shared and takes nothing.
+# Sections whose context depends on who is asking (the editor's own issue).
 _USER_SCOPED_SECTIONS = {"news", "news-canvas"}
 
 
@@ -133,28 +88,17 @@ class DashboardController(Controller):
 
         is_admin = (getattr(user, "role", "") or "").strip().lower() == "admin"
 
-        # Admins have their own console at /users -- counts, the approval
-        # queue, and editor accounts. This is the editors' composer, and an
-        # admin landing here is how the approval queue ended up buried inside
-        # a surface its own audience never opens. Checked before
-        # full_context() so the redirect does not pay for a page nobody
-        # renders. Only show() redirects: fragment() and stamps() below are
-        # what the admin console itself polls, and bouncing those would break
-        # its live refresh.
+        # Admins get their own console at /users. Only show() redirects: fragment()
+        # and stamps() are what that console polls.
         if is_admin:
             return response.redirect(name="users.view")
 
         default_page = (request.input("page") or "dashboard").strip() or "dashboard"
         context = DashboardContext.full_context(default_page, user_id=getattr(user, "id", None))
 
-        # The shell needs to know who is looking at it: the profile border
-        # renders their name and avatar. Not part of full_context() because
-        # that is request-agnostic — the fragment endpoints call the same
-        # builders.
+        # Request-specific keys, kept out of the request-agnostic full_context().
         context["current_user"] = user or None
-        # Presentation only, and now always False here. The composer still
-        # reads it for data-can-publish; the server downgrades an editor's
-        # publish intent regardless (NewsController._resolve_status_for_actor).
+        # Presentation only; the server downgrades an editor's publish intent regardless.
         context["is_admin"] = is_admin
         context["unread_notifications"] = Notifications.unread_count(getattr(user, "id", None))
 
@@ -167,8 +111,6 @@ class DashboardController(Controller):
             return json_errors(response, ["Unknown dashboard section."], status=404)
 
         build_context, template, rows_key = entry
-        # The News builders are scoped to the signed-in editor's own issue;
-        # the rest are shared and take no argument.
         user_id = _user_id(request)
         context = build_context(user_id) if key in _USER_SCOPED_SECTIONS else build_context()
         html = view.render(template, context).rendered_template
@@ -183,9 +125,8 @@ class DashboardController(Controller):
 
     @staticmethod
     def _stamp_for(section, user_id):
-        """The change marker for one section. News is per ISSUE: the stamp
-        the poll and news.layout compare against has to be the editor's own
-        newsletter's, or another editor saving theirs reads as a change here."""
+        """Change marker for one section. News is per issue, so another editor's
+        newsletter does not read as a change here."""
         if section in _USER_SCOPED_SECTIONS:
             from app.services import Issues
 
@@ -194,10 +135,7 @@ class DashboardController(Controller):
         return _section_stamp(STAMP_MODELS[section])
 
     def stamps(self, request: Request, response: Response):
-        # The bell's unread count rides along on the poll the dashboard already
-        # runs every 20 seconds rather than adding a second timer. It is a
-        # COUNT against the (user_id, read_at) index, so it costs about the
-        # same as one more stamp.
+        # The bell's unread count rides on this 20s poll rather than a second timer.
         try:
             user = request.user() if callable(getattr(request, "user", None)) else None
         except Exception:

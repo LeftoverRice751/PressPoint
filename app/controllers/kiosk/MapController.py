@@ -12,14 +12,10 @@ from app.models.RouteSessions import RouteSessions
 from app.services import Campus25dMapping, CampusGeoTransform, MapWayfinderService
 
 
-# How long a QR-shared route stays valid on the phone after the kiosk
-# generates it. The kiosk itself resets after 60s, but the phone keeps
-# working for the full window below.
+# How long a QR-shared route stays valid on the phone (the kiosk resets after 60s).
 ROUTE_SESSION_TTL_MINUTES = 30
 
-# The kiosk currently lives at SSB. Single source of truth for "where
-# routes start"; if a second kiosk gets installed, this is the line to
-# replace with a per-kiosk lookup.
+# Where routes start. Replace with a per-kiosk lookup if a second kiosk is installed.
 KIOSK_START_LOCATION_NAME = "student services building"
 
 
@@ -39,11 +35,7 @@ class MapController(Controller):
         return response.json(payload)
 
     def create_route_session(self, request: Request, response: Response):
-        """Kiosk hits this when the user taps 'Show Route'.
-
-        Generates a one-time token, persists it, and returns the public
-        URL the kiosk will encode into the QR code.
-        """
+        """Mint a one-time route token and return the public URL for the QR code."""
         try:
             destination_id = int(request.input("destination_id") or 0)
         except (TypeError, ValueError):
@@ -89,11 +81,7 @@ class MapController(Controller):
         )
 
     def route_session_data(self, request: Request, response: Response):
-        """Mobile JS calls this on load to draw the route.
-
-        Returns the route geometry plus a status flag so the client can
-        render an 'expired' or 'finished' state without a separate request.
-        """
+        """Route geometry plus a status flag, for the phone page to draw from."""
         token = request.param("token")
         session = RouteSessions.where("token", token).first()
 
@@ -110,8 +98,7 @@ class MapController(Controller):
         if not start or not destination:
             return response.json({"status": "expired"}, status=404)
 
-        # The session's own start, not KIOSK_START_LOCATION_NAME: the phone is
-        # replaying a route that was minted at a particular kiosk.
+        # The session's own start: the phone replays a route minted at a particular kiosk.
         route_map = MapWayfinderService.build_location_route_map(
             Locations.all(), session.start_location_id
         )
@@ -125,17 +112,9 @@ class MapController(Controller):
                 "status": "active",
                 "start": self._serialize_location(start, route_map),
                 "destination": destination_payload,
-                # WGS84->pixel, for the phone to place its own GPS reading
-                # against the route polyline (same space as `route`/`map_x`/
-                # `map_y`). Only mobile-route.js consumes this today.
+                # WGS84->pixel, so the phone can place its GPS reading against the route.
                 "geo_transform": CampusGeoTransform.wgs84_to_pixel_matrix(),
-                # ISO 8601, not bare str(): once a service worker can serve a
-                # stale cached copy of this response while the phone is
-                # offline, the client needs to parse this itself (`new
-                # Date(...)`) to know the session has actually expired rather
-                # than trusting a cache-served "active" forever. A bare
-                # "YYYY-MM-DD HH:MM:SS" string isn't reliably parsed by every
-                # browser's Date constructor; ISO 8601 is.
+                # ISO 8601 so every browser's Date constructor can parse it offline.
                 "expires_at": pendulum.parse(str(session.expires_at)).to_iso8601_string(),
             }
         )
@@ -155,18 +134,11 @@ class MapController(Controller):
         return response.json({"status": "finished"})
 
     def serve_sw(self, response: Response):
-        """The mobile-route offline service worker, at root scope.
-
-        Same reasoning as VideoController.serve_sw (sw-archives.js): the file
-        physically lives under /assets/js/ with the rest of the compiled
-        bundles, but a service worker can only control paths at or below the
-        scope it's registered with, so it needs Service-Worker-Allowed to
-        claim "/" from a script served outside that tree.
-        """
+        """The mobile-route service worker; Service-Worker-Allowed lets it claim "/"."""
         sw_path = os.path.realpath(
             os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
-                "../../../storage/compiled/js/sw-mobile-route.js",  # app/controllers/kiosk/ -> repo root
+                "../../../storage/compiled/js/sw-mobile-route.js",  # three levels up to the repo root
             )
         )
         if not os.path.isfile(sw_path):
@@ -179,31 +151,15 @@ class MapController(Controller):
     # --- helpers --------------------------------------------------------
 
     def _serialize_location(self, location, route_map=None):
-        """The one shape every client gets, for both the kiosk and the phone.
+        """The one location shape every client gets.
 
-        `map_x` / `map_y` are what a client draws with: pixel positions in the
-        2.5D layer's space (x right, y negative running down from the top of
-        the campus). Anything placed on the map — markers, route lines, camera
-        moves — must use this pair, never the raw columns below.
-
-        `latitude` and `longitude` are the values as stored, kept for the
-        building pane's readout. They are pixels too, but in the older y-up
-        space the deleted flat imageOverlay used; drawing with them puts a
-        feature one image height off the map. See Campus25dMapping.
-
-        `route` is the polyline ([y, x] pairs, already in layer space) walked
-        from the start to this building, routed over the QGIS walkway network
-        by MapWayfinderService. It is None for the three locations no walkway
-        reaches yet, and for the start itself; the JS falls back to a straight
-        start->destination line in that case.
+        Draw with `map_x`/`map_y` (2.5D layer space). `latitude`/`longitude`
+        are the raw columns in the old y-up space, for the readout only.
+        `route` is a [y, x] polyline from the start, or None if unreachable.
         """
         name = getattr(location, "name", "") or ""
         location_id = getattr(location, "id", None)
-        # `or (0.0, 0.0)` used to live here, which silently reported the CRS
-        # origin for a location with missing coordinates -- indistinguishable
-        # to the client from a real point at the map's corner. Emit null and
-        # let the client refuse to draw or route instead of quietly placing
-        # the building off-campus.
+        # None for missing coordinates; a (0, 0) fallback would look like a real corner point.
         layer_point = Campus25dMapping.layer_point(location)
 
         return {
@@ -221,34 +177,15 @@ class MapController(Controller):
         }
 
     def _destination_wgs84(self, destination_payload):
-        """[lat, lng] for the destination, derived from its own map_x/map_y.
-
-        This is for the mobile route page's arrival check ONLY -- a
-        haversine distance against the phone's live GPS reading. It must
-        never be drawn with (fed into a Leaflet CRS.Simple call): that is
-        the same one-image-height-off mistake `Campus25dMapping.py` exists
-        to prevent, just arriving through a new field instead of the old
-        `latitude`/`longitude` columns.
-        """
+        """[lat, lng] of the destination, for the phone's GPS arrival check only. Never draw with it."""
         x, y = destination_payload["map_x"], destination_payload["map_y"]
-        # None once `_serialize_location` stopped inventing (0.0, 0.0) for a
-        # location with no usable coordinates. There is nothing to measure
-        # arrival against in that case, so say so rather than handing the
-        # phone a finish line at the map's corner.
         if x is None or y is None:
             return None
         lat, lng = CampusGeoTransform.layer_point_to_wgs84(x, y)
         return [lat, lng]
 
     def _route_wgs84(self, destination_payload):
-        """`route` (pixel [y, x] pairs), converted point-for-point to WGS84.
-
-        Same "never draw with it" rule as `_destination_wgs84` -- this exists
-        so the phone can sum real-world segment lengths (haversine) for a
-        remaining-distance/ETA readout, not to place anything on the map.
-        None when there's no walkway-routed polyline to convert (see
-        `_serialize_location`'s note on `route`).
-        """
+        """`route` converted to WGS84, for the phone's distance/ETA readout only. Never draw with it."""
         route = destination_payload.get("route")
         if not route:
             return None
@@ -280,10 +217,7 @@ class MapController(Controller):
         return "active"
 
     def _mobile_url(self, request: Request, token: str):
-        # The mobile page must be reachable from the phone, which means
-        # the URL has to use the public host (the cloudflared tunnel),
-        # not whatever internal host the kiosk was browsed through. The
-        # APP_URL config is set to the public domain in production.
+        # Public host (APP_URL), not the kiosk's internal one: the phone must reach it.
         from masonite.configuration import config
 
         base = (config("application.app_url") or request.get_host() or "").rstrip("/")

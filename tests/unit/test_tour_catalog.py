@@ -24,6 +24,20 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _TILES_DIR = _REPO_ROOT / "storage" / "public" / "pano" / "tiles"
 _DATA_JS = _REPO_ROOT / "resources" / "js" / "data.js"
 
+# (source, target) arrows that deliberately have no reverse. Each of these is a
+# shortcut that skips the scene in between: seen from the target, the way back
+# lies within ~5 degrees of the arrow to that nearer scene, so a reverse arrow
+# would sit on top of it. The nearer scene already leads back.
+_ONE_WAY_BY_DESIGN = frozenset(
+    {
+        ("119-jst-124", "95-jst-99"),  # from 95, in line with the arrow to 96
+        ("140-jst-146", "142-jst-148"),  # from 142, in line with the arrow to 141
+        ("141-jst-147", "144-jst-150"),  # from 144, in line with the arrow to 140
+        ("163-jst-170", "165-jst-172"),  # from 165, in line with the arrow to 162
+        ("165-jst-172", "162-jst-169"),  # from 162, in line with the arrow to 163
+    }
+)
+
 
 def _raw_payload():
     """Parse data.js the same way TourScenesCatalog does, but keep the whole
@@ -86,6 +100,27 @@ class TourCatalogTestCase(TestCase):
         ]
 
         self.assertEqual(dangling, [], "link hotspots pointing at scenes that don't exist")
+
+    def test_every_link_has_a_way_back(self):
+        # The Marzipano Tool makes every arrow by hand, so a re-export can
+        # leave a scene you can walk into but not back out of. The 2026-09
+        # capture shipped 30 of them; the one that got reported was the
+        # Business Affairs Office (96-jst-100), with no arrow back down the road
+        # to 95-jst-99.
+        payload = _raw_payload()
+        links = {
+            (scene["id"], hotspot["target"])
+            for scene in payload["scenes"]
+            for hotspot in scene.get("linkHotspots") or []
+        }
+
+        one_way = sorted(
+            (source, target)
+            for source, target in links
+            if (target, source) not in links and (source, target) not in _ONE_WAY_BY_DESIGN
+        )
+
+        self.assertEqual(one_way, [], "link hotspots with no arrow back from their target")
 
     def test_prefix_regex_accepts_both_assignment_forms(self):
         # We rewrite the Tool's `var APP_DATA` to `window.APP_DATA` on import,

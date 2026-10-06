@@ -227,6 +227,10 @@
    starts polling, and may redirect to restore a dropped `u=` parameter. #}
 <script src="{{ asset_url('js/tab-slot.js') }}"></script>
 <script src="{{ asset_url('js/confirm-modal.js') }}" defer></script>
+{# Defines window.GearsModal, which gears-dashboard.js and every panel script
+   below call at wire-up time. Deferred scripts run in document order, so it
+   only has to sit above its callers -- not be non-deferred. #}
+<script src="{{ asset_url('js/modal-behavior.js') }}" defer></script>
 <script src="{{ asset_url('js/gears-dashboard.js') }}" defer></script>
 <script src="{{ asset_url('js/dashboard-live.js') }}" defer></script>
 {% endblock %}

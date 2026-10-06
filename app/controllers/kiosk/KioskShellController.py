@@ -1,14 +1,8 @@
-"""The kiosk shell — the one document the terminal ever loads.
+"""The kiosk shell (templates/welcome.html), served at /kiosk and every section path.
 
-Serves templates/welcome.html for `/kiosk` and for all six section paths. The
-section is resolved server-side from the request path, so a deep link (a typed
-URL, a QR scan, a browser reload) paints with its content already in the frame
-rather than flashing an empty shell and filling it from JS.
-
-The frame does not load the section's own path — that would load this shell
-inside itself, forever. It loads `embed_path`, which routes/public.py points at
-the same unchanged controller that used to serve the section directly. See
-app/services/KioskSections.py.
+The section is resolved from the request path so deep links paint with content
+already framed. The frame loads `embed_path`, not the section's own path, or
+the shell would load inside itself. See app/services/KioskSections.py.
 """
 
 from masonite.configuration import config
@@ -28,18 +22,8 @@ class KioskShellController(Controller):
 
     @staticmethod
     def shell_context(section):
-        """Everything welcome.html needs, for whichever section is active.
-
-        Deliberately cheap. This runs on seven URLs now rather than one, so it
-        does no ORM work at all: the carousel is a static table, and the flash
-        ticker fetches itself from /kiosk/flash-updates after paint.
-
-        (It used to load every public News row and run group_news_slots() to
-        derive `main_news`. That value was never referenced anywhere in
-        welcome.html — the lead story is rendered by the framed news page, not
-        the shell — so it was a full table scan per menu load, and would have
-        become one per section.)
-        """
+        """Everything welcome.html needs. Deliberately does no ORM work: the ticker
+        fetches itself after paint."""
         broadcasts = (
             config("broadcast.broadcasts", {}) or config("broadcast.BROADCASTS", {}) or {}
         )
@@ -48,9 +32,7 @@ class KioskShellController(Controller):
         return {
             "pusher_key": pusher_settings.get("client") or pusher_settings.get("key") or "",
             "pusher_cluster": pusher_settings.get("cluster") or "mt1",
-            # Empty on hosted pusher.com. Set PUSHER_HOST/PUSHER_PORT to point
-            # the browser at a self-hosted Soketi instead -- same protocol, no
-            # code change (docs/superpowers/specs/2026-09-10-kiosk-live-updates-design.md).
+            # Empty on hosted pusher.com; set PUSHER_HOST/PUSHER_PORT for self-hosted Soketi.
             "pusher_host": pusher_settings.get("host") or "",
             "pusher_port": str(pusher_settings.get("port") or ""),
             "kiosk_sections": KioskSections.all_sections(),

@@ -3,7 +3,8 @@
     table (events-list.html). Populated client-side from that row's
     data-event-* attributes -- see openEventViewModal() in gears-dashboard.js.
 #}
-    <dialog class="article-modal event-view-modal" data-event-view-modal>
+    <dialog class="article-modal event-view-modal" data-event-view-modal
+            aria-labelledby="event-view-modal-title">
       <div class="article-modal__panel event-view-modal__panel">
         {# The glyph is painted by CSS (::before); the word is kept for screen
            readers only. Both visible at once rendered as "✕Close" crammed
@@ -11,8 +12,11 @@
         <button type="button" class="event-view-modal__close" aria-label="Close"
                 data-event-view-modal-close><span class="u-visually-hidden">Close</span></button>
 
-        <div class="event-view-modal__body">
-          <h3 class="event-view-modal__title" data-event-view-title></h3>
+        {# article-modal__body is what scrolls; the close button above stays put
+           against the panel because the panel is no longer the scroller. #}
+        <div class="article-modal__body event-view-modal__body">
+          <h3 class="event-view-modal__title" id="event-view-modal-title"
+              data-event-view-title></h3>
 
           <dl class="event-view-modal__meta">
             <div class="event-view-modal__meta-item">

@@ -29,6 +29,9 @@ import { dirname, join } from 'node:path';
 const here = dirname(fileURLToPath(import.meta.url));
 const LAYOUT_SRC = readFileSync(join(here, '../../resources/js/org-chart-layout.js'), 'utf8');
 const EDITOR_SRC = readFileSync(join(here, '../../resources/js/org-board-editor.js'), 'utf8');
+// shell.html loads modal-behavior.js before the panel scripts, so the fake
+// window gets window.GearsModal the same way a browser does.
+const MODAL_BEHAVIOR = readFileSync(join(here, '../../resources/js/modal-behavior.js'), 'utf8');
 
 const CARD_W = 200;
 const CARD_H = 96;
@@ -258,6 +261,7 @@ function boot() {
     return Promise.resolve({ ok: true, json: () => Promise.resolve(boardPayload()) });
   }
 
+  new Function('window', MODAL_BEHAVIOR)(win);
   new Function('window', 'document', 'fetch', 'FormData', 'URL', EDITOR_SRC)(
     win, document, fetchStub, StubFormData, URL,
   );

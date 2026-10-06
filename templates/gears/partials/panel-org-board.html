@@ -117,62 +117,70 @@
         It keeps the upload-meter attributes so the portrait still gets a
         progress meter, exactly as the old inline form did.
       #}
-      <dialog class="article-modal article-modal--compact" data-ob-member-modal>
+      <dialog class="article-modal article-modal--compact" data-ob-member-modal
+              aria-labelledby="org-board-member-modal-title">
         <div class="article-modal__panel">
           <div class="article-modal__header">
             <div>
-              <h3 class="article-modal__title" data-ob-member-modal-title>Add member</h3>
+              <h3 class="article-modal__title" id="org-board-member-modal-title"
+                  data-ob-member-modal-title>Add member</h3>
               <p class="article-modal__subtitle">Names and reporting lines here; drag cards on the canvas to arrange them.</p>
             </div>
             <button type="button" class="article-modal__close" data-ob-member-modal-close>Close</button>
           </div>
 
-          <form action="{{ route('org-board.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="form-stack" data-upload-form data-upload-reload="false" data-upload-label="member photo" data-ob-member-form>
+          {# This is the tallest dialog on the dashboard -- four fields plus a
+             portrait dropzone -- so on a 768px-tall laptop the body genuinely
+             does scroll. What matters is that Save member and Remove member no
+             longer scroll with it. #}
+          <form action="{{ route('org-board.store', {}, False) }}" method="POST" enctype="multipart/form-data" class="article-modal__form" data-upload-form data-upload-reload="false" data-upload-label="member photo" data-ob-member-form>
             {{ csrf_field | safe }}
             <input type="hidden" name="member_id" value="" data-ob-field="member_id">
 
-            <label class="field" for="org-board-member-name">
-              <span class="field__label">Name</span>
-              <input type="text" name="name" id="org-board-member-name" class="field__input" placeholder="Member name" data-ob-field="name" required>
-            </label>
-
-            <label class="field" for="org-board-member-position">
-              <span class="field__label">Position</span>
-              <input type="text" name="position" id="org-board-member-position" class="field__input" placeholder="Dean, President, Adviser…" data-ob-field="position" required>
-            </label>
-
-            <label class="field" for="org-board-member-organization">
-              <span class="field__label">Organization</span>
-              <select name="organization_id" id="org-board-member-organization" class="field__input field__input--select" data-ob-field="organization_id" data-ob-organization-select required>
-                {{ organization_options(organization_groups, placeholder='Choose an organization') }}
-              </select>
-            </label>
-
-            <label class="field" for="org-board-member-parent">
-              <span class="field__label">Reports to</span>
-              <select name="parent_id" id="org-board-member-parent" class="field__input field__input--select" data-ob-field="parent_id"></select>
-            </label>
-
-            <div class="field">
-              <span class="field__label">Photo</span>
-              <div class="org-board-member-photo">
-                <div class="org-board-member-preview" data-ob-member-preview aria-hidden="true"></div>
-                <p class="org-board-member-photo__hint" data-ob-member-photo-hint>Uploading a new portrait replaces the current one.</p>
-              </div>
-              <label class="dropzone" data-dropzone>
-                <input type="file" name="photo_path" id="org-board-member-photo" class="dropzone__input" accept="image/*" data-ob-field="photo_path">
-                <span class="dropzone__empty">
-                  <span class="dropzone__icon" aria-hidden="true">↑</span>
-                  <span class="dropzone__title">Drop a portrait here, or tap to choose</span>
-                  <span class="dropzone__hint">PNG, JPG, GIF, or WEBP · optional</span>
-                </span>
-                <span class="dropzone__filled" hidden>
-                  <span class="dropzone__preview" data-dropzone-preview aria-hidden="true"></span>
-                  <span class="dropzone__filename" data-dropzone-name></span>
-                  <span class="dropzone__size" data-dropzone-size></span>
-                  <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
-                </span>
+            <div class="article-modal__body form-stack">
+              <label class="field" for="org-board-member-name">
+                <span class="field__label">Name</span>
+                <input type="text" name="name" id="org-board-member-name" class="field__input" placeholder="Member name" data-ob-field="name" required>
               </label>
+
+              <label class="field" for="org-board-member-position">
+                <span class="field__label">Position</span>
+                <input type="text" name="position" id="org-board-member-position" class="field__input" placeholder="Dean, President, Adviser…" data-ob-field="position" required>
+              </label>
+
+              <label class="field" for="org-board-member-organization">
+                <span class="field__label">Organization</span>
+                <select name="organization_id" id="org-board-member-organization" class="field__input field__input--select" data-ob-field="organization_id" data-ob-organization-select required>
+                  {{ organization_options(organization_groups, placeholder='Choose an organization') }}
+                </select>
+              </label>
+
+              <label class="field" for="org-board-member-parent">
+                <span class="field__label">Reports to</span>
+                <select name="parent_id" id="org-board-member-parent" class="field__input field__input--select" data-ob-field="parent_id"></select>
+              </label>
+
+              <div class="field">
+                <span class="field__label">Photo</span>
+                <div class="org-board-member-photo">
+                  <div class="org-board-member-preview" data-ob-member-preview aria-hidden="true"></div>
+                  <p class="org-board-member-photo__hint" data-ob-member-photo-hint>Uploading a new portrait replaces the current one.</p>
+                </div>
+                <label class="dropzone" data-dropzone>
+                  <input type="file" name="photo_path" id="org-board-member-photo" class="dropzone__input" accept="image/*" data-ob-field="photo_path">
+                  <span class="dropzone__empty">
+                    <span class="dropzone__icon" aria-hidden="true">↑</span>
+                    <span class="dropzone__title">Drop a portrait here, or tap to choose</span>
+                    <span class="dropzone__hint">PNG, JPG, GIF, or WEBP · optional</span>
+                  </span>
+                  <span class="dropzone__filled" hidden>
+                    <span class="dropzone__preview" data-dropzone-preview aria-hidden="true"></span>
+                    <span class="dropzone__filename" data-dropzone-name></span>
+                    <span class="dropzone__size" data-dropzone-size></span>
+                    <button type="button" class="dropzone__clear" data-dropzone-clear aria-label="Remove file">×</button>
+                  </span>
+                </label>
+              </div>
             </div>
 
             <div class="article-modal__footer">
@@ -189,11 +197,12 @@
         dashboard-live.js can swap it in place after an add or a delete — the
         dialog stays inside this section, which is how the panel is located.
       #}
-      <dialog class="article-modal" data-ob-orgs-modal>
+      <dialog class="article-modal" data-ob-orgs-modal
+              aria-labelledby="org-board-orgs-modal-title">
         <div class="article-modal__panel">
           <div class="article-modal__header">
             <div>
-              <h3 class="article-modal__title">Organizations</h3>
+              <h3 class="article-modal__title" id="org-board-orgs-modal-title">Organizations</h3>
               <p class="article-modal__subtitle">Departments and student organizations both live here. Anything you add is immediately available on the board.</p>
             </div>
             <button type="button" class="article-modal__close" data-ob-orgs-modal-close>Close</button>
@@ -206,36 +215,41 @@
             below. Without it the form posts natively and reloads the page,
             which would defeat the point of adding one mid-edit.
           #}
-          <form action="{{ route('org-board.organization.store', {}, False) }}" method="POST" class="form-stack org-manage-add"
-                data-live-form="org-board-organizations" data-upload-form data-upload-reload="false" data-upload-label="organization">
-            {{ csrf_field | safe }}
+          {# The footer is a sibling of the form here, not inside it, so the body
+             wraps both the add form and the list -- an unbounded org list used
+             to push "Done" off the bottom of the dialog. #}
+          <div class="article-modal__body">
+            <form action="{{ route('org-board.organization.store', {}, False) }}" method="POST" class="form-stack org-manage-add"
+                  data-live-form="org-board-organizations" data-upload-form data-upload-reload="false" data-upload-label="organization">
+              {{ csrf_field | safe }}
 
-            <div class="org-manage-add__row">
-              <label class="field" for="org-manage-new-name">
-                <span class="field__label">Name</span>
-                <input type="text" name="name" id="org-manage-new-name" class="field__input" placeholder="Supreme Student Council" required>
-              </label>
+              <div class="org-manage-add__row">
+                <label class="field" for="org-manage-new-name">
+                  <span class="field__label">Name</span>
+                  <input type="text" name="name" id="org-manage-new-name" class="field__input" placeholder="Supreme Student Council" required>
+                </label>
 
-              <label class="field" for="org-manage-new-kind">
-                <span class="field__label">Kind</span>
-                <select name="kind" id="org-manage-new-kind" class="field__input field__input--select" required>
-                  {% for kind_value, kind_label in organization_kind_labels %}
-                  <option value="{{ kind_value }}">{{ kind_label }}</option>
-                  {% endfor %}
-                </select>
-              </label>
-            </div>
+                <label class="field" for="org-manage-new-kind">
+                  <span class="field__label">Kind</span>
+                  <select name="kind" id="org-manage-new-kind" class="field__input field__input--select" required>
+                    {% for kind_value, kind_label in organization_kind_labels %}
+                    <option value="{{ kind_value }}">{{ kind_label }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+              </div>
 
-            <button type="submit" class="primary-button">Add organization</button>
-          </form>
+              <button type="submit" class="primary-button">Add organization</button>
+            </form>
 
-          <div class="org-manage-divider" data-section-count="{{ organizations|length }}">
-            <div class="empty-state empty-state--embedded" data-empty-state{% if organizations %} hidden{% endif %}>
-              Nothing here yet. Add a department or organization to start a chart.
-            </div>
+            <div class="org-manage-divider" data-section-count="{{ organizations|length }}">
+              <div class="empty-state empty-state--embedded" data-empty-state{% if organizations %} hidden{% endif %}>
+                Nothing here yet. Add a department or organization to start a chart.
+              </div>
 
-            <div class="org-manage" data-section-content data-live-target>
-              {% include "gears/partials/organizations-list.html" %}
+              <div class="org-manage" data-section-content data-live-target>
+                {% include "gears/partials/organizations-list.html" %}
+              </div>
             </div>
           </div>
 

@@ -14,18 +14,8 @@ from app.models.Locations import Locations
 
 
 def _uploaded_image(value):
-    """The file an editor actually attached, or None.
-
-    Two shapes have to be unwrapped. Masonite's InputBag stores a multipart
-    file as `{name: [UploadedFile]}` (a list), and `request.input()` returns
-    the "" default when the field is absent entirely.
-
-    The filename check is the part that matters: a browser submits a file input
-    the editor never touched as a real part carrying an empty filename and zero
-    bytes, so the UploadedFile is truthy. Passing that to save_uploaded_image
-    fails magic-byte verification and would reject an honest imageless submit
-    with "Upload must be a JPEG, PNG, or WEBP image."
-    """
+    """The file an editor actually attached, or None. An untouched file input
+    still arrives as a truthy part with an empty filename."""
     if isinstance(value, list):
         value = value[0] if value else None
     if not value or not getattr(value, "filename", ""):
@@ -66,17 +56,13 @@ class EventController(Controller):
 
             location_id = location.id
 
-        # The event image is optional, and it is saved last so that a submit
-        # which fails validation never leaves an orphaned file on the NAS.
+        # Optional image, saved last so a failed validation leaves no orphan on the NAS.
         event_image = None
         upload = _uploaded_image(request.input("event_image"))
         if upload is not None:
             event_image, upload_error = save_uploaded_image(upload, "Events", "event")
             if upload_error:
-                # Reject the whole submit rather than saving the event without
-                # the poster: a silent drop leaves the editor believing an image
-                # is attached, and the events table would disagree.
-                return _err([upload_error])
+                return _err([upload_error])  # reject rather than silently drop the poster
 
         created_event = Events.create(
             title=title,

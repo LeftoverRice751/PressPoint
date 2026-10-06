@@ -22,6 +22,12 @@
     background: rgb(var(--brand-maroon-rgb) / 0.7);
 }
 
+/* grid-template-rows pins the title and the footer and gives the body the
+   only flexible track, so a long interpolated message -- news-dashboard.js
+   names the story count when deleting a category -- scrolls instead of
+   pushing Cancel/Confirm past the bottom of the screen. Same contract as
+   .article-modal__panel in gears-dashboard.css, expressed in grid because
+   this panel was already one. */
 .confirm-modal__panel {
     border-radius: var(--radius-md, 6px);
     border: 1px solid var(--rule-strong);
@@ -29,6 +35,8 @@
     box-shadow: 0 24px 48px rgb(var(--brand-maroon-rgb) / 0.28);
     padding: 1.4rem 1.5rem 1.25rem;
     display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    max-height: 86vh;
     gap: 0.95rem;
     font-family: var(--font-ui, var(--font-heading));
 }
@@ -45,6 +53,8 @@
 
 .confirm-modal__body {
     margin: 0;
+    min-height: 0;
+    overflow-y: auto;
     color: var(--ink-soot, var(--ink-muted));
     font-size: 0.95rem;
     line-height: 1.55;
@@ -55,7 +65,6 @@
     justify-content: flex-end;
     gap: 0.65rem;
     flex-wrap: wrap;
-    padding-top: 0.25rem;
     border-top: 1px solid var(--ink-rule, var(--rule));
     margin-top: 0.35rem;
     padding-top: 0.95rem;

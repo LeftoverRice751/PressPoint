@@ -6,8 +6,8 @@ never the intent — it was the fallback showing through, because the previous
 source (`campus_routes.geojson`, one hand-drawn polyline per building) only
 covered 11 of 37 locations and every other building fell through to it.
 
-This module routes over `resources/geo/campus_graph.json` instead: 114 nodes
-and 153 edges welded out of the 34 walkways in `resources/geo/lspu-data.gpkg`,
+This module routes over `resources/geo/campus_graph.json` instead: 116 nodes
+and 155 edges welded out of the 34 walkways in `resources/geo/lspu-data.gpkg`,
 which were digitised in QGIS against the real campus. Rebuild it with
 `scripts/build_campus_graph.py` after editing the walkways; the transform from
 QGIS's WGS84 into the coordinates used here lives in that script, offline,
@@ -161,7 +161,7 @@ def build_location_route_map(locations, start_location_id):
 def _shortest_path(start_node, end_node):
     """Dijkstra over the walkway graph. Returns node indices, or None.
 
-    Dijkstra rather than A*: 114 nodes resolve in microseconds, and a heuristic
+    Dijkstra rather than A*: ~120 nodes resolve in microseconds, and a heuristic
     would be one more thing to get subtly wrong for no measurable gain.
     """
     distances = {start_node: 0.0}
