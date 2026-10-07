@@ -842,9 +842,13 @@
               color var(--kiosk-dur) var(--kiosk-ease);
 }
 
+/* Light up fast, fade out slow. The active line's own transition is what
+   plays on the way in, and at --kiosk-dur (280ms) a line was still half-dim a
+   beat after it was sung. The line leaving keeps the slow fade from above. */
 .hymn__line.is-active {
   opacity: 1;
   color: var(--kiosk-amber);
+  transition-duration: 80ms;
 }
 
 /* ── Seal: annotated artwork + legend ──────────────────────────────── */

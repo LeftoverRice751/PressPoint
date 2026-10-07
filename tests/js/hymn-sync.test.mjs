@@ -12,7 +12,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { mark, gap, back, isStale, syncStatus, splitLyricLines } from '../../resources/js/hymn-sync.mjs';
+import { mark, gap, back, shift, tapTime, TAP_LEAD, activeLine, isStale, syncStatus, splitLyricLines } from '../../resources/js/hymn-sync.mjs';
 
 test('first tap opens line 1 at the tapped time with no end', () => {
   assert.deepEqual(mark([], 8.2), [{ start: 8.2, end: null }]);
@@ -102,4 +102,40 @@ test('syncStatus tells a half-finished recording from lyrics that moved', () => 
   assert.equal(syncStatus(two, 6), 'partial');
   assert.equal(syncStatus(two, 2), 'complete');
   assert.equal(syncStatus(two, 1), 'mismatch');
+});
+
+// ── Lateness ─────────────────────────────────────────────────────
+// A tap lands after the line starts (reaction time), and every late tap used
+// to light its line late on the kiosk.
+
+test('a tap is pulled back by the reaction lead, never below zero', () => {
+  assert.equal(tapTime(10), 10 - TAP_LEAD);
+  assert.equal(tapTime(0.1), 0);
+});
+
+test('shift moves every start and end together', () => {
+  const out = shift([{ start: 1, end: 2 }, { start: 2, end: null }], -0.5);
+  assert.deepEqual(out, [{ start: 0.5, end: 1.5 }, { start: 1.5, end: null }]);
+});
+
+test('shift clamps at zero and opens an end that collapses onto its start', () => {
+  const out = shift([{ start: 0.05, end: 0.08 }], -0.1);
+  assert.deepEqual(out, [{ start: 0, end: null }]);
+});
+
+test('shift does not accumulate float noise over repeated nudges', () => {
+  let t = [{ start: 1, end: 2 }];
+  for (let i = 0; i < 3; i++) t = shift(t, -0.1);
+  assert.deepEqual(t, [{ start: 0.7, end: 1.7 }]);
+});
+
+test('activeLine follows the timings, with an open end running to the track end', () => {
+  const t = [{ start: 10, end: 20 }, { start: 20, end: null }];
+  assert.equal(activeLine(t, 2, 5, 60), -1);
+  assert.equal(activeLine(t, 2, 15, 60), 0);
+  assert.equal(activeLine(t, 2, 59, 60), 1);
+});
+
+test('activeLine splits evenly when the timings do not cover every line', () => {
+  assert.equal(activeLine([{ start: 10, end: 20 }], 3, 25, 30), 2);
 });

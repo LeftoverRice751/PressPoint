@@ -753,8 +753,9 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.classList.add("kiosk-idle-active");
       // quiet=true: no "Now playing" banner. Nobody asked for the attract
       // loop, so it should arrive without announcing itself. An editor's
-      // Pusher push still shows the banner.
-      window.__kioskPlaySrc(idleVideoSrc, idleVideoTitle, true);
+      // Pusher push still shows the banner. loop=true: replay until touched,
+      // rather than ending onto an unattended menu (see playSrc in kiosk.js).
+      window.__kioskPlaySrc(idleVideoSrc, idleVideoTitle, true, true);
     } else if (showNewsletterAttract()) {
       // No video flagged (or kiosk.js never loaded, so there is no player):
       // fall back to the newsletter. If even that host element is missing the

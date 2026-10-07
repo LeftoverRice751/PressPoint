@@ -8,6 +8,8 @@
  *
  * Idle: 60s with no input anywhere but the home pane returns to it, so the
  * terminal is never left sitting on one person's reading.
+ * Except while the hymn is playing: nobody touches the glass to watch it, so
+ * playback holds this timer and keeps the shell's attract countdown fed.
  */
 (function () {
   var app = document.querySelector('.about-app');
@@ -56,7 +58,19 @@
 
   function restartIdle() {
     stopIdle();
+    // A visitor watching the hymn is not touching anything, and a four-minute
+    // performance outlasts the 60s timeout; returning home mid-song pauses it
+    // (showPane above). The hymn's pause/ended handlers re-arm the timer.
+    if (hymnPlaying()) return;
     idleTimer = window.setTimeout(function () { showPane(HOME); }, IDLE_MS);
+  }
+
+  function hymnPlaying() {
+    var playing = false;
+    app.querySelectorAll('[data-hymn-media]').forEach(function (m) {
+      if (!m.paused && !m.ended) playing = true;
+    });
+    return playing;
   }
 
   function stopIdle() {
@@ -162,10 +176,9 @@
       if (totalEl) totalEl.textContent = fmt(media.duration);
     });
 
-    media.addEventListener('timeupdate', function () {
+    var shown = null;
+    function paintLines() {
       var d = media.duration;
-      if (fill && d) fill.style.width = (media.currentTime / d * 100) + '%';
-      if (elapsedEl) elapsedEl.textContent = fmt(media.currentTime);
       if (!lines.length || !d) return;
 
       var active = -1;
@@ -173,7 +186,59 @@
         var w = windowFor(i, d);
         if (media.currentTime >= w[0] && media.currentTime < w[1]) { active = i; break; }
       }
+      if (active === shown) return;
+      shown = active;
       lines.forEach(function (l, i) { l.classList.toggle('is-active', i === active); });
+    }
+
+    // The lines follow the clock every frame while playing. timeupdate alone
+    // fires only about every 250ms in Chromium, so a line used to light up to
+    // a quarter-second after it was sung, on top of any lateness in the
+    // recording. timeupdate still drives the progress bar, where that is fine.
+    var frame = null;
+    function tick() {
+      paintLines();
+      frame = media.paused || media.ended ? null : window.requestAnimationFrame(tick);
+    }
+    media.addEventListener('play', function () {
+      if (frame === null && window.requestAnimationFrame) frame = window.requestAnimationFrame(tick);
+    });
+    media.addEventListener('seeked', paintLines);
+
+    // Hold the shell's idle while the hymn plays. Its 30s countdown lives in
+    // the parent document (welcome-screen.js) and only sees the activity this
+    // page relays up (partials/kiosk-frame.html), so a visitor standing still
+    // to watch would get the attract screen dropped over the performance.
+    // A heartbeat rather than a hold/release pair: if this page is navigated
+    // away or reloaded mid-song the beats simply stop and the shell's normal
+    // countdown resumes — a "hold" message whose "release" never arrived
+    // would leave the kiosk unable to ever go idle.
+    var HEARTBEAT_MS = 10 * 1000;
+    var heartbeat = null;
+    function beat() {
+      if (window.__kioskFrame) window.__kioskFrame.post('activity');
+    }
+    function stopHeartbeat() {
+      if (heartbeat) window.clearInterval(heartbeat);
+      heartbeat = null;
+    }
+    function releaseIdle() {
+      stopHeartbeat();
+      if (app.dataset.view !== HOME) restartIdle();
+    }
+    media.addEventListener('play', function () {
+      stopIdle();
+      beat();
+      if (!heartbeat) heartbeat = window.setInterval(beat, HEARTBEAT_MS);
+    });
+    media.addEventListener('pause', releaseIdle);
+    media.addEventListener('ended', releaseIdle);
+
+    media.addEventListener('timeupdate', function () {
+      var d = media.duration;
+      if (fill && d) fill.style.width = (media.currentTime / d * 100) + '%';
+      if (elapsedEl) elapsedEl.textContent = fmt(media.currentTime);
+      paintLines();
     });
 
     media.addEventListener('play', function () {
@@ -191,6 +256,7 @@
     });
     media.addEventListener('ended', function () {
       lines.forEach(function (l) { l.classList.remove('is-active'); });
+      shown = -1;
       if (fill) fill.style.width = '0%';
       root.classList.remove('is-playing');
     });

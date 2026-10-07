@@ -12,7 +12,7 @@
 // it was never attached. Mission looked "stuck open" only because it is the one
 // panel rendered without `hidden`.
 import Quill from 'quill';
-import { mark, gap, back, syncStatus, splitLyricLines } from './hymn-sync.mjs';
+import { mark, gap, back, shift, tapTime, activeLine, syncStatus, splitLyricLines } from './hymn-sync.mjs';
 
 (function () {
   var TOOLBAR = [
@@ -222,6 +222,9 @@ import { mark, gap, back, syncStatus, splitLyricLines } from './hymn-sync.mjs';
         li.appendChild(time);
         list.appendChild(li);
       });
+      // The rows were just rebuilt; repaint the preview onto the new ones.
+      playing = -1;
+      if (typeof paintPlaying === 'function') paintPlaying();
     }
 
     function set(next) {
@@ -245,12 +248,46 @@ import { mark, gap, back, syncStatus, splitLyricLines } from './hymn-sync.mjs';
 
     function doMark() {
       if (timings.length >= lyricLines().length) return; // every line is timed
-      set(mark(timings, media.currentTime));
+      set(mark(timings, tapTime(media.currentTime)));
     }
     var markBtn = root.querySelector('[data-hymn-sync-mark]');
-    if (markBtn) markBtn.addEventListener('click', doMark);
+    if (markBtn) {
+      // Mark on press, not on click: click fires on release, another ~100ms
+      // after the tap that was already late. preventDefault keeps focus on the
+      // widget so Space still marks. Keyboard activation of the button has no
+      // pointerdown, so it arrives as a click with detail 0.
+      markBtn.addEventListener('pointerdown', function (ev) {
+        if (ev.button !== 0) return;
+        ev.preventDefault();
+        doMark();
+      });
+      markBtn.addEventListener('click', function (ev) { if (ev.detail === 0) doMark(); });
+    }
     var gapBtn = root.querySelector('[data-hymn-sync-gap]');
-    if (gapBtn) gapBtn.addEventListener('click', function () { set(gap(timings, media.currentTime)); });
+    if (gapBtn) gapBtn.addEventListener('click', function () { set(gap(timings, tapTime(media.currentTime))); });
+    var earlierBtn = root.querySelector('[data-hymn-sync-earlier]');
+    if (earlierBtn) earlierBtn.addEventListener('click', function () { if (timings.length) set(shift(timings, -0.1)); });
+    var laterBtn = root.querySelector('[data-hymn-sync-later]');
+    if (laterBtn) laterBtn.addEventListener('click', function () { if (timings.length) set(shift(timings, 0.1)); });
+
+    // Live preview: light the line being sung, by the same windows the kiosk
+    // uses, so a late or early recording is visible before it is saved. Read
+    // every frame rather than on timeupdate, which only fires ~4 times a second.
+    var playing = -1;
+    var frame = null;
+    function paintPlaying() {
+      var items = list.children;
+      var i = media.duration ? activeLine(timings, items.length, media.currentTime, media.duration) : -1;
+      if (i === playing) return;
+      playing = i;
+      for (var k = 0; k < items.length; k++) items[k].classList.toggle('is-playing', k === i);
+    }
+    function tick() {
+      paintPlaying();
+      frame = media.paused ? null : window.requestAnimationFrame(tick);
+    }
+    media.addEventListener('play', function () { if (frame === null) frame = window.requestAnimationFrame(tick); });
+    media.addEventListener('seeked', paintPlaying);
     var backBtn = root.querySelector('[data-hymn-sync-back]');
     if (backBtn) backBtn.addEventListener('click', function () {
       var r = back(timings);

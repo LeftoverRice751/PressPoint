@@ -27,7 +27,7 @@ function makeLine() {
   };
 }
 
-function boot({ timings, lineCount, duration }) {
+function boot({ timings, lineCount, duration, raf }) {
   const lines = Array.from({ length: lineCount }, () => {
     const l = makeLine();
     l.classList.owner = l;
@@ -55,13 +55,24 @@ function boot({ timings, lineCount, duration }) {
     },
     querySelector() { return { scrollTop: 0 }; },
   };
-  const window = { scrollTo() {}, setTimeout() { return 1; }, clearTimeout() {} };
+  const timers = [];
+  const intervals = [];
+  const posts = [];
+  const window = {
+    scrollTo() {},
+    setTimeout(fn, ms) { timers.push({ fn, ms }); return timers.length; },
+    clearTimeout(id) { if (timers[id - 1]) timers[id - 1].cleared = true; },
+    setInterval(fn, ms) { intervals.push({ fn, ms }); return intervals.length; },
+    clearInterval(id) { if (intervals[id - 1]) intervals[id - 1].cleared = true; },
+    requestAnimationFrame: raf,
+    __kioskFrame: { post(t) { posts.push(t); return true; } },
+  };
   const document = {
     querySelector(sel) { return sel === '.about-app' ? app : null; },
     addEventListener() {},
   };
   new Function('window', 'document', SOURCE)(window, document);
-  return { media, lines };
+  return { media, lines, app, timers, intervals, posts };
 }
 
 function activeIndex(lines) {
@@ -98,4 +109,68 @@ test('timings for a different number of lines are ignored whole', () => {
   assert.equal(activeIndex(lines), 0, 'even split lights line 1 from 0s');
   media.currentTime = 25; media.fire('timeupdate');
   assert.equal(activeIndex(lines), 2);
+});
+
+test('while playing, the highlight follows every frame, not just timeupdate', () => {
+  // timeupdate fires only ~4 times a second; waiting for it lit each line up
+  // to 250ms after it was sung.
+  const frames = [];
+  const { media, lines } = boot({
+    timings: [{ start: 10, end: 20 }, { start: 20, end: null }],
+    lineCount: 2, duration: 60,
+    raf: (fn) => { frames.push(fn); return frames.length; },
+  });
+  media.paused = false;
+  media.fire('play');
+  media.currentTime = 20.01;
+  frames.shift()();
+  assert.equal(activeIndex(lines), 1, 'lit on the next frame with no timeupdate');
+  assert.equal(frames.length, 1, 'keeps ticking while playing');
+  media.paused = true;
+  frames.shift()();
+  assert.equal(frames.length, 0, 'stops once paused');
+});
+
+// ── Idle while the hymn plays ─────────────────────────────────────
+// Nobody touches the glass to watch a four-minute hymn, so both idle timers
+// used to cut into it: this page's 60s return-home (which pauses the media)
+// and the shell's 30s attract screen, which only hears relayed activity.
+
+const live = (list) => list.filter((t) => !t.cleared);
+
+test('playing the hymn holds the page idle; pausing re-arms it', () => {
+  const { media, app, timers } = boot({ timings: [], lineCount: 2, duration: 60 });
+  app.dataset.view = 'hymn';
+  media.paused = false;
+  media.fire('play');
+  assert.equal(live(timers).length, 0, 'no return-home countdown mid-song');
+  media.paused = true;
+  media.fire('pause');
+  assert.equal(live(timers).length, 1);
+  assert.equal(live(timers)[0].ms, 60 * 1000);
+});
+
+test('the end of the hymn re-arms the page idle too', () => {
+  const { media, app, timers } = boot({ timings: [], lineCount: 2, duration: 60 });
+  app.dataset.view = 'hymn';
+  media.paused = false;
+  media.fire('play');
+  media.paused = true; media.ended = true;
+  media.fire('ended');
+  assert.equal(live(timers).length, 1);
+});
+
+test('playback keeps the shell fed with activity until it stops', () => {
+  const { media, app, intervals, posts } = boot({ timings: [], lineCount: 2, duration: 60 });
+  app.dataset.view = 'hymn';
+  media.paused = false;
+  media.fire('play');
+  assert.deepEqual(posts, ['activity'], 'one beat straight away');
+  assert.equal(live(intervals).length, 1);
+  assert.ok(live(intervals)[0].ms < 30 * 1000, 'beats faster than the shell\'s 30s countdown');
+  live(intervals)[0].fn();
+  assert.equal(posts.length, 2);
+  media.paused = true;
+  media.fire('pause');
+  assert.equal(live(intervals).length, 0, 'no beats once paused');
 });

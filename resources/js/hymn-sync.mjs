@@ -51,6 +51,49 @@ export function back(timings) {
   return { timings: out, seekTo: 0 };
 }
 
+// A tap is a reaction to hearing a line start, so it lands after the onset —
+// typically a quarter-second for someone listening and tapping along. Stored
+// raw, every line lit late on the kiosk. Pull each tap back by that much.
+export var TAP_LEAD = 0.25;
+
+export function tapTime(t) {
+  return Math.max(0, t - TAP_LEAD);
+}
+
+// Move the whole recording by `delta` seconds — the Earlier/Later nudge, so a
+// recording that is consistently off can be fixed without re-tapping every
+// line. Clamped at 0; an end that collapses onto its start opens instead,
+// the same rule AboutContent.sanitize_lyric_timings applies on save.
+export function shift(timings, delta) {
+  function move(v) { return Math.max(0, Math.round((v + delta) * 1000) / 1000); }
+  return timings.map(function (t) {
+    var start = move(t.start);
+    var end = typeof t.end === 'number' ? move(t.end) : null;
+    if (end !== null && end <= start) end = null;
+    return { start: start, end: end };
+  });
+}
+
+// Index of the line sung at `t`, or -1. Same windows as the kiosk's
+// windowFor() in about-lspu-kiosk.js (which cannot import this: its test
+// evaluates it as a plain script), so the editor's preview matches the glass.
+export function activeLine(timings, lineCount, t, duration) {
+  var timed = timings.length === lineCount;
+  for (var i = 0; i < lineCount; i++) {
+    var start, end;
+    if (timed && typeof timings[i].start === 'number') {
+      start = timings[i].start;
+      end = typeof timings[i].end === 'number' ? timings[i].end : duration;
+    } else {
+      var span = duration / lineCount;
+      start = span * i;
+      end = span * (i + 1);
+    }
+    if (t >= start && t < end) return i;
+  }
+  return -1;
+}
+
 // A recording only describes the lyrics it was made against. The kiosk
 // falls back to the even split when the counts differ, so tell the editor.
 export function isStale(timings, lineCount) {

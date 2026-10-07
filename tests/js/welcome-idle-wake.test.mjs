@@ -164,7 +164,7 @@ async function boot() {
     clearTimeout(id) { timers.delete(id); },
     setInterval: () => nextId++,
     clearInterval() {},
-    __kioskPlaySrc: (src, title, quiet) => played.push({ src, title, quiet }),
+    __kioskPlaySrc: (src, title, quiet, loop) => played.push({ src, title, quiet, loop }),
     __kioskCloseVideo: () => {},
   };
 
@@ -218,6 +218,18 @@ async function boot() {
     },
   };
 }
+
+test('the attract video is asked to loop until somebody touches the screen', async () => {
+  const k = await boot();
+  k.startAttract();
+
+  assert.equal(
+    k.played[0].loop, true,
+    'an unattended kiosk must keep replaying the idle video — when it ended '
+    + 'the player tore the stage down while the attract flag stayed latched, '
+    + 'leaving the menu on screen with no attract and a swallowed first tap',
+  );
+});
 
 test('the tap that wakes the kiosk does not open the card underneath', async () => {
   const k = await boot();

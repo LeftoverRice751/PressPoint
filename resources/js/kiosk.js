@@ -126,7 +126,14 @@ function initKiosk() {
 	// welcome screen's idle attract loop does not — nobody triggered it, so a
 	// green "Now playing" toast over the attract video is noise aimed at a
 	// visitor who never asked for it. Failure notices still fire either way.
-	function playSrc(src, title, quiet) {
+	//
+	// `loop` is the idle attract's too. Without it the 'ended' listener below
+	// closed the stage when the video finished, but the welcome screen still
+	// believed the attract was up — the menu sat there unattended with the
+	// first visitor's tap swallowed as a "wake". Native looping never fires
+	// 'ended', so the attract simply replays until somebody touches it. An
+	// editor's push sets it back to false and still closes when it finishes.
+	function playSrc(src, title, quiet, loop) {
 		if (!src) {
 			return;
 		}
@@ -143,6 +150,7 @@ function initKiosk() {
 
 		video.pause();
 		video.src = src;
+		video.loop = !!loop;
 		video.currentTime = 0;
 		video.muted = false;
 		video.volume = 1;
@@ -187,9 +195,9 @@ function initKiosk() {
 	// reuses this overlay + playback path so we don't duplicate state
 	// machines. We also expose showStage so the caller can reveal the
 	// stage before kicking off playback.
-	window.__kioskPlaySrc = function (src, title, quiet) {
+	window.__kioskPlaySrc = function (src, title, quiet, loop) {
 		showStage();
-		playSrc(src, title, quiet);
+		playSrc(src, title, quiet, loop);
 	};
 	window.__kioskCloseVideo = closeVideo;
 

@@ -666,6 +666,54 @@ body.kiosk-idle-active .kiosk-idle-cta {
   50%      { transform: scale(1.025); box-shadow: 0 14px 0 0 var(--kiosk-espresso); }
 }
 
+/* The idle video gets its own strip, and the CTA gets the one below it.
+
+   The attract videos are authored at exactly the terminal's 768x1024, so
+   object-fit: cover fills the screen edge to edge — and the band above, sitting
+   on top of that, landed squarely on the lower third, where the write-outs and
+   captions are. The video now ends where the band begins: nothing it says is
+   ever under the button, and the button is still a full-width touch target.
+
+   contain, not cover: the box is shorter than the frame now, and cover would
+   crop the very text this is trying to keep readable. The cost is a thin
+   pillarbox either side, filled by the overlay's own solid background.
+
+   Only the idle attract (#kiosk-idle-cta, under body.kiosk-idle-active) — an
+   editor's push still plays full-bleed with no button, and the newsletter
+   attract's "Touch to begin" shares the class but not this layout. */
+body.kiosk-idle-active {
+  --kiosk-idle-band-h: clamp(108px, 13vh, 156px);
+}
+
+body.kiosk-idle-active #kiosk-video-wrap {
+  bottom: var(--kiosk-idle-band-h);
+  height: auto;
+}
+
+body.kiosk-idle-active #kiosk-video {
+  object-fit: contain;
+}
+
+/* One solid frame around the video: the pillarbox shows the wrap's dark
+   background, so the strip under it matches instead of the overlay's maroon. */
+body.kiosk-idle-active #kiosk-video-overlay {
+  background: var(--kiosk-espresso);
+}
+
+body.kiosk-idle-active #kiosk-idle-cta {
+  /* Inset inside the strip with room underneath for the drop shadow and the
+     breathe's 2.5% swell, so neither creeps up over the video. */
+  top: auto;
+  bottom: clamp(16px, 2.2vh, 26px);
+  min-height: 0;
+  height: calc(var(--kiosk-idle-band-h) - 2 * clamp(16px, 2.2vh, 26px));
+  padding-block: 0;
+  /* Enters once and then holds still — no breathe, and no pulse dot in the
+     markup. With its own strip the band no longer competes with the video
+     for attention, so steady reads as a sign rather than an alarm. */
+  animation: kiosk-enter var(--kiosk-dur) var(--kiosk-ease) both;
+}
+
 /* The band still has to be findable without motion, so only the animation goes;
    the size, the colour and the pulse dot's colour carry it on their own. */
 @media (prefers-reduced-motion: reduce) {

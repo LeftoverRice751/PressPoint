@@ -559,6 +559,9 @@
                     Play the hymn and press <strong>Mark line</strong> (or the space bar)
                     the moment each line is sung. <strong>Gap</strong> ends a line without
                     starting the next — use it for the intro and the breaks between verses.
+                    Each mark is moved a quarter-second earlier to make up for reaction time.
+                    During playback the line being sung is highlighted. If every line lights
+                    late or early, use <strong>Earlier</strong> / <strong>Later</strong> to shift them all.
                   </p>
                   <div class="about-hymn-sync__transport">
                     <button type="button" class="ghost-button" data-hymn-sync-play>Play</button>
@@ -566,6 +569,8 @@
                     <button type="button" class="primary-button" data-hymn-sync-mark>Mark line</button>
                     <button type="button" class="ghost-button" data-hymn-sync-gap>Gap</button>
                     <button type="button" class="ghost-button" data-hymn-sync-back>Back one line</button>
+                    <button type="button" class="ghost-button" data-hymn-sync-earlier title="Shift every line 0.1 seconds earlier">Earlier 0.1s</button>
+                    <button type="button" class="ghost-button" data-hymn-sync-later title="Shift every line 0.1 seconds later">Later 0.1s</button>
                     <button type="button" class="ghost-button ghost-button--danger" data-hymn-sync-clear>Clear all</button>
                   </div>
                   {# One status line, reworded per state by about-lspu-editor.js. The

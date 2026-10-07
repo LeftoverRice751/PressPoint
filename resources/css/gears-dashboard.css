@@ -1630,6 +1630,18 @@ body {
     font-weight: 700;
 }
 
+/* The line being sung right now, during preview playback — what the kiosk
+   will light at this moment. Listed last so it wins over .is-next. */
+.about-hymn-sync__line.is-playing {
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 700;
+}
+
+.about-hymn-sync__line.is-playing .about-hymn-sync__time {
+    color: var(--accent-ink);
+}
+
 .about-hymn-sync__time {
     flex-shrink: 0;
     font-family: var(--font-mono, monospace);
