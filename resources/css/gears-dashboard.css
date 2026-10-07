@@ -1700,6 +1700,12 @@ body {
     }
 }
 
+/* The core-values repeater reuses the source row but has one field per row
+   (a single word), so it should not leave an empty second column. */
+.about-source__fields--single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .checkbox-field {
     display: flex;
     align-items: center;

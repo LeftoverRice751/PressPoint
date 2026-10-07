@@ -81,6 +81,36 @@ import { mark, gap, back, shift, tapTime, activeLine, syncStatus, splitLyricLine
       );
     }
 
+    // Values repeaters. Same present-but-empty rule as sources, and the same
+    // guard: only the Values form renders them, and the server reads a missing
+    // key as "leave it" but an empty list as "the editor removed every row".
+    if (form.querySelector('[data-group-values]')) {
+      meta.group_values = Array.prototype.map.call(
+        form.querySelectorAll('[data-group-values] [data-group-row]'),
+        function (row) {
+          var name = row.querySelector('.js-group-name');
+          var qualities = row.querySelector('.js-group-qualities');
+          return {
+            name: name ? name.value : '',
+            // Sent as typed; AboutContent._sanitize_group_values splits on commas.
+            qualities: qualities ? qualities.value : ''
+          };
+        }
+      );
+    }
+    if (form.querySelector('[data-core-values]')) {
+      meta.core_values = Array.prototype.map.call(
+        form.querySelectorAll('[data-core-values] .js-core-word'),
+        function (input) { return input.value; }
+      );
+      var preview = form.querySelector('[data-core-preview]');
+      if (preview) {
+        preview.textContent = meta.core_values.map(function (word) {
+          return word.trim().charAt(0).toUpperCase();
+        }).join('');
+      }
+    }
+
     hidden.value = JSON.stringify(meta);
   }
 
@@ -152,6 +182,8 @@ import { mark, gap, back, shift, tapTime, activeLine, syncStatus, splitLyricLine
     panel.querySelectorAll('[data-hotspot-row]').forEach(wireHotspotRemove);
     panel.querySelectorAll('[data-source-row] input').forEach(wireInput);
     panel.querySelectorAll('[data-source-row]').forEach(wireSourceRemove);
+    panel.querySelectorAll('[data-group-row] input, [data-core-row] input').forEach(wireInput);
+    panel.querySelectorAll('[data-group-row], [data-core-row]').forEach(wireValuesRemove);
     panel.querySelectorAll('[data-hymn-sync]').forEach(mountHymnSync);
     panel.querySelectorAll('form').forEach(serializeForm);
   }
@@ -427,6 +459,84 @@ import { mark, gap, back, shift, tapTime, activeLine, syncStatus, splitLyricLine
       wireSourceRemove(row);
       renumberSources(list);
       serializeForm(form);
+    });
+  });
+
+  // ── Values: group values + core values ───────────────────
+  //
+  // Two repeaters on the Values form, built like Sources above (and styled
+  // with its classes). Row numbers are decoration; order is what matters, and
+  // for the core values the order *is* the acrostic.
+  var VALUES_REPEATERS = {
+    group: {
+      list: '[data-group-values]',
+      row: 'data-group-row',
+      html:
+        '<span class="about-source__num"></span>' +
+        '<div class="about-source__fields">' +
+          '<label class="field"><span class="field__label">Value</span>' +
+            '<input type="text" class="field__input js-group-name" maxlength="40" ' +
+              'placeholder="Integrity"></label>' +
+          '<label class="field"><span class="field__label">Qualities</span>' +
+            '<input type="text" class="field__input js-group-qualities" maxlength="200" ' +
+              'placeholder="Transparency, leadership, discipline"></label>' +
+        '</div>' +
+        '<button type="button" class="ghost-button about-icon-button" data-remove-group>✕ Remove</button>'
+    },
+    core: {
+      list: '[data-core-values]',
+      row: 'data-core-row',
+      html:
+        '<span class="about-source__num"></span>' +
+        '<div class="about-source__fields about-source__fields--single">' +
+          '<label class="field"><span class="field__label">Word</span>' +
+            '<input type="text" class="field__input js-core-word" maxlength="40" ' +
+              'placeholder="Spirited"></label>' +
+        '</div>' +
+        '<button type="button" class="ghost-button about-icon-button" data-remove-core>✕ Remove</button>'
+    }
+  };
+
+  function renumberRows(list) {
+    if (!list) return;
+    Array.prototype.forEach.call(list.children, function (row, i) {
+      var num = row.querySelector('.about-source__num');
+      if (num) num.textContent = i + 1;
+    });
+  }
+
+  function wireValuesRemove(row) {
+    var btn = row.querySelector('[data-remove-group], [data-remove-core]');
+    if (!btn || btn.dataset.aboutBound) return;
+    btn.dataset.aboutBound = '1';
+    btn.addEventListener('click', function () {
+      var form = row.closest('form');
+      var list = row.parentElement;
+      row.remove();
+      renumberRows(list);
+      serializeForm(form);
+    });
+  }
+
+  Object.keys(VALUES_REPEATERS).forEach(function (kind) {
+    var spec = VALUES_REPEATERS[kind];
+    document.querySelectorAll('[data-add-' + kind + ']').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var form = btn.closest('form');
+        var list = form.querySelector(spec.list);
+        if (!list) return;
+        var row = document.createElement('div');
+        row.className = 'about-source';
+        row.setAttribute(spec.row, '');
+        row.innerHTML = spec.html;
+        list.appendChild(row);
+        row.querySelectorAll('input').forEach(wireInput);
+        wireValuesRemove(row);
+        renumberRows(list);
+        serializeForm(form);
+        var first = row.querySelector('input');
+        if (first) first.focus();
+      });
     });
   });
 

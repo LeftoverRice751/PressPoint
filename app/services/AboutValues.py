@@ -6,6 +6,11 @@ editor authors all of it as free Quill HTML in two `subsections` entries. Rather
 than add columns for a layout that only one screen uses, the shapes are derived
 here from the HTML the editor already writes.
 
+That was the plan; in practice the group values and the acrostic are now typed
+into their own repeater rows (stored on the row's `meta`) and resolve() reads
+those first. The parsers below remain for rows saved before the repeaters
+existed, and for the pledge, which is still free Quill text.
+
 Every parser degrades to None/[] instead of raising, and the template falls back
 to rendering the raw sanitized HTML when a parse comes back empty. So an editor
 who reformats the section gets a plainer pane, never a broken one or a 500.
@@ -139,3 +144,51 @@ def hymn_lines(html):
         return []
     normalised = re.sub(r"<br\s*/?>", "</p><p>", html, flags=re.I)
     return _blocks(normalised)
+
+
+def _letter_row(word):
+    """`Spirited` -> {"letter": "S", "rest": "pirited"} for the acrostic grid."""
+    return {"letter": word[:1].upper(), "rest": word[1:]}
+
+
+def resolve(meta, subsections):
+    """Everything the Values pane renders, from rows when we have them.
+
+    `meta` is the merged values meta (AboutContent.meta_for). Its
+    `group_values` / `core_values` are the editor's structured rows; a list,
+    even an empty one, is authoritative. None means the row predates the
+    repeaters, so the shapes are parsed out of the first Quill sub-block the
+    way they always were -- except that the acrostic no longer has to spell
+    STUDENTS to be shown, because hiding seven correct letters over one
+    mis-formatted eighth is how the block kept vanishing.
+
+    The pledge is the *last* sub-block once the rows exist: the old combined
+    "Group Values & Core Values" block becomes redundant, and an editor who
+    removes it must not promote the pledge into the core-values slot.
+    """
+    meta = meta or {}
+    subs = [s for s in (subsections or []) if isinstance(s, dict)]
+    stored_groups = meta.get("group_values")
+    stored_core = meta.get("core_values")
+    structured = isinstance(stored_groups, list) or isinstance(stored_core, list)
+
+    if structured:
+        core_html = ""
+        pledge_html = (subs[-1].get("body_html") or "") if subs else ""
+        groups = stored_groups if isinstance(stored_groups, list) else []
+        words = stored_core if isinstance(stored_core, list) else []
+        core_rows = [_letter_row(w) for w in words if w]
+    else:
+        core_html = (subs[0].get("body_html") or "") if len(subs) > 0 else ""
+        pledge_html = (subs[1].get("body_html") or "") if len(subs) > 1 else ""
+        groups = group_values(core_html)
+        core_rows = acrostic(core_html, "STUDENTS") or acrostic(core_html)
+
+    return {
+        "structured": structured,
+        "group_values": groups,
+        "core_acrostic": core_rows,
+        "core_words": [r["letter"] + r["rest"] for r in core_rows],
+        "core_html": core_html,
+        "pledge_html": pledge_html,
+    }

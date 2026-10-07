@@ -93,6 +93,12 @@ DEFAULT_META = {
         "hint": "Integrity, professionalism, innovation",
         "core_band": "Core values — LSPU develops",
         "pledge_label": "Performance pledge",
+        # None, not []: "never saved as rows" has to stay distinguishable from
+        # "the editor deleted every row". A None here sends the kiosk to the
+        # legacy HTML parse in AboutValues; a list -- even an empty one -- is
+        # rendered as given. See AboutValues.resolve().
+        "group_values": None,
+        "core_values": None,
         "sources": [],
     },
     "history": {
@@ -136,6 +142,12 @@ MAX_HOTSPOTS = 12
 #: Attribution rows per section. Eight is well past what any About pane cites
 #: and keeps the kiosk's footer from growing past the fold on a 768x1024 pane.
 MAX_SOURCES = 8
+#: Rows in the Values pane's two repeaters. The group-values strip is three
+#: columns wide on a 768px pane and the acrostic is one row per letter, so these
+#: are layout limits as much as payload ones.
+MAX_GROUP_VALUES = 6
+MAX_GROUP_QUALITIES = 6
+MAX_CORE_VALUES = 16
 # Hymn lyric lines the tap-to-sync widget can time. The longest school hymn
 # is a few dozen lines; the cap is against a runaway payload, not a real limit.
 MAX_LYRIC_LINES = 200
@@ -144,6 +156,9 @@ MAX_LYRIC_LINES = 200
 #: this is an allowlist and not a blocklist -- the kiosk renders these as real
 #: <a href>, so an unchecked scheme is stored XSS on a public terminal.
 SOURCE_PROTOCOLS = ("http", "https", "mailto")
+
+#: `meta` keys whose stored list wins even when empty (see meta_for).
+_LIST_META_KEYS = ("hotspots", "sources", "group_values", "core_values")
 
 
 class AboutContent:
@@ -324,6 +339,60 @@ class AboutContent:
         return out
 
     @staticmethod
+    def _sanitize_group_values(raw):
+        """`[{"name": "Integrity", "qualities": ["Transparency", ...]}, ...]`.
+
+        Qualities arrive either as a list or as the comma-separated string the
+        editor types into one box; both end up as a list of trimmed words. A row
+        needs a name to survive -- qualities with no heading over them would
+        render as an unlabelled column on the kiosk.
+        """
+        if not isinstance(raw, list):
+            return []
+        out = []
+        for entry in raw:
+            if not isinstance(entry, dict):
+                continue
+            name = AboutContent.sanitize_text(entry.get("name"), 40)
+            if not name:
+                continue
+            qualities = entry.get("qualities")
+            if isinstance(qualities, str):
+                qualities = qualities.split(",")
+            if not isinstance(qualities, list):
+                qualities = []
+            cleaned = [AboutContent.sanitize_text(q, 40) for q in qualities]
+            out.append({
+                "name": name,
+                "qualities": [q for q in cleaned if q][:MAX_GROUP_QUALITIES],
+            })
+            if len(out) >= MAX_GROUP_VALUES:
+                break
+        return out
+
+    @staticmethod
+    def _sanitize_core_values(raw):
+        """`["Spirited", "Transparent", ...]` -- one word per acrostic row.
+
+        Stored as the whole word, not letter + rest: the kiosk derives the big
+        letter from the first character, so the two can never disagree. That
+        disagreement is the bug this replaces -- the acrostic used to be parsed
+        out of bold/italic Quill markup, and retyping the last row as a bold
+        heading dropped the S of STUDENTS and blanked the whole block.
+        """
+        if not isinstance(raw, list):
+            return []
+        out = []
+        for entry in raw:
+            word = AboutContent.sanitize_text(entry if isinstance(entry, str) else "", 40)
+            if not word:
+                continue
+            out.append(word)
+            if len(out) >= MAX_CORE_VALUES:
+                break
+        return out
+
+    @staticmethod
     def sanitize_meta(slug, raw):
         """Whitelist `raw` against DEFAULT_META[slug] and clean every value.
 
@@ -344,6 +413,12 @@ class AboutContent:
             if key == "sources":
                 cleaned[key] = AboutContent._sanitize_sources(raw.get(key))
                 continue
+            if key == "group_values":
+                cleaned[key] = AboutContent._sanitize_group_values(raw.get(key))
+                continue
+            if key == "core_values":
+                cleaned[key] = AboutContent._sanitize_core_values(raw.get(key))
+                continue
             value = AboutContent.sanitize_text(raw.get(key), _META_MAX.get(key, 200))
             if value:
                 cleaned[key] = value
@@ -354,10 +429,10 @@ class AboutContent:
         """Defaults for `slug`, overridden by whatever the row stores.
 
         Empty values do not override: a cleared field falls back to the default
-        copy instead of leaving a blank strip on the kiosk. The two list keys —
-        `hotspots` and `sources` — are the exception: an editor who deletes
-        every callout, or every citation, means it, and there is no sensible
-        default copy to fall back to.
+        copy instead of leaving a blank strip on the kiosk. The list keys —
+        `hotspots`, `sources` and the two Values repeaters — are the exception:
+        an editor who deletes every callout, or every citation, means it, and
+        there is no sensible default copy to fall back to.
         """
         # deepcopy, not dict(): `hotspots` is a nested list, and a shallow copy
         # would hand every request the same one to mutate.
@@ -367,7 +442,7 @@ class AboutContent:
             for key, value in stored.items():
                 if key not in merged:
                     continue
-                if key in ("hotspots", "sources"):
+                if key in _LIST_META_KEYS:
                     if isinstance(value, list):
                         merged[key] = value
                 elif value:

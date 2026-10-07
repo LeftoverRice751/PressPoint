@@ -64,12 +64,12 @@ class AboutController(Controller):
         data = AboutContent.load_all()
         sections = data["sections"]
 
-        # AboutValues derives structured shapes from free Quill HTML; each degrades
-        # to empty and the template falls back to the raw HTML.
+        # Group/core values come from the editor's repeater rows; rows saved
+        # before those existed are still parsed out of the Quill HTML.
         values = sections.get("values")
-        value_subs = (values.subsections or []) if values else []
-        core_html = value_subs[0].get("body_html") if len(value_subs) > 0 else ""
-        pledge_html = value_subs[1].get("body_html") if len(value_subs) > 1 else ""
+        resolved = AboutValues.resolve(
+            data["meta"]["values"], (values.subsections or []) if values else []
+        )
 
         quality = sections.get("quality")
         statement, support = AboutValues.split_statement(
@@ -85,11 +85,11 @@ class AboutController(Controller):
                 "ordered_slugs": data["ordered_slugs"],
                 "milestones": data["milestones"],
                 "active_nav": "about",
-                "group_values": AboutValues.group_values(core_html),
-                "core_acrostic": AboutValues.acrostic(core_html, "STUDENTS"),
-                "pledge_lines": AboutValues.pledge_lines(pledge_html),
-                "core_html": core_html,
-                "pledge_html": pledge_html,
+                "group_values": resolved["group_values"],
+                "core_acrostic": resolved["core_acrostic"],
+                "pledge_lines": AboutValues.pledge_lines(resolved["pledge_html"]),
+                "core_html": resolved["core_html"],
+                "pledge_html": resolved["pledge_html"],
                 "quality_statement": statement,
                 "quality_support": support,
                 "hymn_lines": AboutValues.hymn_lines(hymn.body_html if hymn else ""),

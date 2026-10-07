@@ -264,6 +264,75 @@
                   <span class="field__hint">Sits beside the pledge, in the footer strip.</span>
                 </label>
               </div>
+              {# Group and core values are rows, not Quill text. The kiosk used to
+                 parse both out of one rich-text box by its bold/italic markup, so
+                 one toolbar click (the last S of STUDENTS retyped as a bold
+                 heading) silently blanked the whole Core Values block. Stored on
+                 `meta` via about-lspu-editor.js; pre-filled by
+                 AboutValues.resolve() so an older row opens with what the kiosk
+                 shows today. #}
+              {% set vrows = about_values_rows if about_values_rows is defined else {} %}
+              <div class="about-sources-block">
+                <h4 class="about-card__subheading">Group values</h4>
+                <p class="about-card__note">
+                  One column each on the kiosk’s strip. Separate the qualities
+                  with commas.
+                </p>
+                <div class="about-sources-list" data-group-values>
+                  {% for gv in vrows.group_values or [] %}
+                  <div class="about-source" data-group-row>
+                    <span class="about-source__num">{{ loop.index }}</span>
+                    <div class="about-source__fields">
+                      <label class="field">
+                        <span class="field__label">Value</span>
+                        <input type="text" class="field__input js-group-name"
+                               value="{{ gv.name }}" maxlength="40" placeholder="Integrity">
+                      </label>
+                      <label class="field">
+                        <span class="field__label">Qualities</span>
+                        <input type="text" class="field__input js-group-qualities"
+                               value="{{ gv.qualities | join(', ') }}" maxlength="200"
+                               placeholder="Transparency, leadership, discipline">
+                      </label>
+                    </div>
+                    <button type="button" class="ghost-button about-icon-button"
+                            data-remove-group>✕ Remove</button>
+                  </div>
+                  {% endfor %}
+                </div>
+                <button type="button" class="ghost-button" data-add-group>+ Add group value</button>
+              </div>
+              <div class="about-sources-block">
+                <h4 class="about-card__subheading">Core values</h4>
+                <p class="about-card__note">
+                  One word per box, in order. The kiosk sets each word’s first
+                  letter large, so together they spell the acrostic.
+                </p>
+                <div class="about-sources-list" data-core-values>
+                  {% for word in vrows.core_words or [] %}
+                  <div class="about-source" data-core-row>
+                    <span class="about-source__num">{{ loop.index }}</span>
+                    <div class="about-source__fields about-source__fields--single">
+                      <label class="field">
+                        <span class="field__label">Word</span>
+                        <input type="text" class="field__input js-core-word"
+                               value="{{ word }}" maxlength="40" placeholder="Spirited">
+                      </label>
+                    </div>
+                    <button type="button" class="ghost-button about-icon-button"
+                            data-remove-core>✕ Remove</button>
+                  </div>
+                  {% endfor %}
+                </div>
+                <p class="about-card__note">Spells: <strong data-core-preview>{% for word in vrows.core_words or [] %}{{ word[:1] | upper }}{% endfor %}</strong></p>
+                <button type="button" class="ghost-button" data-add-core>+ Add core value</button>
+              </div>
+              <h4 class="about-card__subheading">Pledge</h4>
+              <p class="about-card__note">
+                The kiosk prints the <strong>last</strong> sub-section below as the
+                pledge. An old “Group Values &amp; Core Values” text block is no
+                longer read once the rows above are saved, so it can be removed.
+              </p>
               <div class="about-subblocks" data-subblocks>
                 {% for sub in (section.subsections or [] if section else []) %}
                 <div class="about-subblock">

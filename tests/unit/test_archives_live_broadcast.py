@@ -52,9 +52,10 @@ class ArchivesLiveBroadcastTestCase(TestCase):
                 module, "ArchiveServices", return_value=services
             ), patch.object(module, "_sweep_archive_pages_in_background"), patch.object(
                 module, "Cache"
-            ), patch.object(
+            ) as cache, patch.object(
                 module.KioskBroadcast, "section_changed", side_effect=lambda s: order.append(s)
             ):
+                cache.forget.side_effect = lambda key: order.append("forget")
                 result = module.ArchivesController().store(
                     _ajax_request(
                         {"name": "Vol 1", "type": "Tabloid", "year_published": "2026", "file": upload}
@@ -64,7 +65,10 @@ class ArchivesLiveBroadcastTestCase(TestCase):
                 )
 
         self.assertTrue(result["ok"], result)
-        self.assertEqual(order, ["prewarm", "gears-archive"])
+        # Forget before broadcast, or the kiosk's re-fetch can read the cached
+        # shelf that does not list the new issue yet -- and stay on it for the
+        # cache's TTL, since the event that would refresh it is already spent.
+        self.assertEqual(order, ["prewarm", "forget", "gears-archive"])
 
     def test_a_rejected_upload_broadcasts_nothing(self):
         upload = Mock()
@@ -85,9 +89,12 @@ class ArchivesLiveBroadcastTestCase(TestCase):
 
         with patch.object(module.Archives, "find", return_value=archive), patch.object(
             module, "ArchiveServices", return_value=services
-        ), patch.object(module, "Cache"), patch.object(
+        ), patch.object(module, "Cache") as cache, patch.object(
             module.KioskBroadcast, "section_changed"
         ) as changed:
+            timeline = Mock()
+            timeline.attach_mock(cache.forget, "forget")
+            timeline.attach_mock(changed, "changed")
             result = module.ArchivesController().destroy(
                 _ajax_request(params={"id": "9"}), Mock(), _response()
             )
@@ -95,3 +102,7 @@ class ArchivesLiveBroadcastTestCase(TestCase):
         self.assertTrue(result["ok"], result)
         archive.delete.assert_called_once()
         changed.assert_called_once_with("gears-archive")
+        self.assertEqual(
+            [c[0] for c in timeline.mock_calls if c[0] in ("forget", "changed")],
+            ["forget", "changed"],
+        )

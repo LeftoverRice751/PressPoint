@@ -151,7 +151,7 @@ def issue_preview_context(stories):
     return {
         "blocks": group_news_slots(list(stories or [])),
         "news_editor": False,
-        "events": [],
+        "calendar_events": [],
         "issue_vol": None,
         "issue_no": None,
     }
@@ -176,7 +176,7 @@ def preview_context(story):
         # preview has no data for have to be explicitly empty rather than
         # undefined -- each one skips itself and the band numbering closes the
         # gap, leaving the story under review alone in the frame.
-        "events": [],
+        "calendar_events": [],
         "issue_vol": None,
         "issue_no": None,
     }

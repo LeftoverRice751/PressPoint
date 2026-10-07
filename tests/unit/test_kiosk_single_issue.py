@@ -43,7 +43,7 @@ def _render_page(**over):
     blocks["lead"] = [_Story(1)]
     context = {
         "blocks": blocks,
-        "events": [],
+        "calendar_events": [],
         "issue_vol": 1,
         "issue_no": 5,
         "news_items": [],

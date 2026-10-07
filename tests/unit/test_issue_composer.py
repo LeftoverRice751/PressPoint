@@ -54,7 +54,7 @@ class _Story:
 
 
 def _render(lead=None, briefs=(), essay=(), editorial=(), quotes=(), notice=(),
-            events=(), editor=True):
+            calendar_events=(), editor=True):
     """Render the partial the way its callers do: one `blocks` dict, every key
     present. group_news_slots() guarantees that shape, so a test that omits a
     block is still exercising a real context."""
@@ -70,7 +70,7 @@ def _render(lead=None, briefs=(), essay=(), editorial=(), quotes=(), notice=(),
         "kiosk/_issue",
         {
             "blocks": blocks,
-            "events": list(events),
+            "calendar_events": list(calendar_events),
             "issue_vol": 1,
             "issue_no": 5,
             "news_editor": editor,
@@ -239,7 +239,7 @@ class IssueSectionNumberingTestCase(TestCase):
             lead=_Story(1, layout_type="lead"),
             briefs=[_Story(2)],
             editorial=[_Story(9, layout_type="editorial")],
-            events=[{"title": "Parade", "chip": "SEP 15", "iso": "2026-09-15"}],
+            calendar_events=[{"title": "Parade", "chip": "SEP 15", "iso": "2026-09-15"}],
             essay=[_Story(i, layout_type="photo_essay", image=f"news/{i}.jpg") for i in (5, 6, 7)],
             editor=False,
         )

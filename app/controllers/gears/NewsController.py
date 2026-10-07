@@ -385,7 +385,7 @@ class NewsController(Controller):
                 "blocks": payload["blocks"],
                 "issue_vol": payload.get("issue_vol"),
                 "issue_no": payload.get("issue_no"),
-                "events": self._upcoming_events(),  # not cached on purpose
+                "calendar_events": self._upcoming_events(),  # not cached on purpose
                 "active_nav": "news",
             },
         )

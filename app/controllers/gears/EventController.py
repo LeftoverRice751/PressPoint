@@ -5,6 +5,7 @@ from masonite.request import Request
 from masonite.response import Response
 
 from app.events.NewEvent import NewEvent
+from app.services import KioskBroadcast
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.ArchiveServices import ArchiveServices
 from app.services.FileVerificationService import FileVerificationService
@@ -77,6 +78,13 @@ class EventController(Controller):
             NewEvent(created_event).fire()
         except Exception:
             pass
+
+        # The kiosk's calendar renders inside the latest-news embed
+        # (NewsController.show -> upcoming_events). It is not in NewsCache, so
+        # there is no server cache to forget -- but the terminal's service
+        # worker holds that embed stale-while-revalidate, and without this
+        # event a new event first showed up on the visit after next.
+        KioskBroadcast.section_changed("latest-news")
 
         if is_ajax:
             return json_success(response, payload={

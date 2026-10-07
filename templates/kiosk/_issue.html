@@ -425,13 +425,13 @@
      event CRUD into the News composer would put a second write path on someone
      else's pipeline. The Notice is its own block and is fully editable.
      Either half can stand alone. #}
-  {% if news_editor or events or notice %}
+  {% if news_editor or calendar_events or notice %}
   {{ band('Calendar', 'Calendar · Notice') }}
   <section class="issue-calendar{% if not (news_editor or notice) %} issue-calendar--wide{% endif %}" aria-label="Calendar">
     <div class="issue-calendar__dates">
-      {% if events %}
+      {% if calendar_events %}
       <ul class="issue-dates">
-        {% for event in events %}
+        {% for event in calendar_events %}
         <li class="issue-dates__row">
           <time class="issue-dates__chip" datetime="{{ event.iso }}">{{ event.chip }}</time>
           <span class="issue-dates__title">{{ event.title }}</span>
@@ -486,7 +486,7 @@
      content" is CMS vocabulary and never belongs on the kiosk. Suppressed in
      the editor, where every slot already shows its own assign button. #}
   {% if not news_editor and not main_story and not brief_rows and not essay_rows
-     and not quote_rows and not events and not editorial and not notice %}
+     and not quote_rows and not calendar_events and not editorial and not notice %}
   <div class="paper-empty">No stories have been published yet.</div>
   {% endif %}
 

@@ -19,7 +19,7 @@ from app.models.News import News
 from app.models.TourScenes import TourScenes
 from app.models.User import User
 from app.models.Video import Video
-from app.services import NewsCategories
+from app.services import AboutValues, NewsCategories
 from app.services.AboutContent import AboutContent
 from app.services.ArchiveServices import ArchiveServices
 from app.services.OrgBoardTree import build_org_board_organizations, organization_sort_key
@@ -318,7 +318,12 @@ def news_context(user_id=None):
         # hand kiosk/_issue.html the same context -- otherwise the calendar
         # would be missing on load and appear on the first live refresh, which
         # reads as a bug.
-        "events": upcoming_events(),
+        #
+        # NOT `events`: full_context() merges every section into one dict, and
+        # this ran after events_context(), so the Events panel rendered these
+        # three calendar dicts instead of its own rows until the first live
+        # refresh of that panel put the real list back.
+        "calendar_events": upcoming_events(),
         **issue_identity_of(issue),
         # The issue the composer is editing, for the top bar and the outline.
         "news_issue": issue_summary(issue),
@@ -392,7 +397,7 @@ def news_canvas_context(user_id=None):
         # composer renders the whole page, not just the slots, so without these
         # the editor would lay out an issue with its photo essay and calendar
         # missing -- the drift kiosk/_issue.html was extracted to end.
-        "events": news["events"],
+        "calendar_events": news["calendar_events"],
         "issue_vol": news["issue_vol"],
         "issue_no": news["issue_no"],
         # Kept so DashboardController.fragment() can still report a row
@@ -568,6 +573,7 @@ def org_board_context():
 
 def about_context():
     about_data = AboutContent.load_all()
+    values = about_data["sections"].get("values")
 
     return {
         "sections": about_data["sections"],
@@ -578,6 +584,13 @@ def about_context():
         # render the live default rather than an empty box.
         "about_meta": about_data["meta"],
         "about_page": about_data["page"],
+        # The Values repeaters pre-fill from the same resolver the kiosk uses, so
+        # a row saved before they existed opens with what the kiosk shows today
+        # and its first save migrates it.
+        "about_values_rows": AboutValues.resolve(
+            about_data["meta"]["values"],
+            (getattr(values, "subsections", None) or []) if values else [],
+        ),
     }
 
 
