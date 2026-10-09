@@ -54,6 +54,14 @@
 
   <div class="mobile-route__controls">
     <button type="button" class="mobile-route__control" id="mobile-route-recenter" aria-label="Recenter map">⌖</button>
+    <button type="button" class="mobile-route__control mobile-route__voice" id="mobile-route-voice"
+            aria-pressed="false" aria-label="Turn voice guidance on">
+      <svg class="mobile-route__voice-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/>
+        <path class="mobile-route__voice-waves" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path class="mobile-route__voice-mute" d="M16 9l5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
   </div>
 
   <div class="mobile-route__sheet" id="mobile-route-sheet">

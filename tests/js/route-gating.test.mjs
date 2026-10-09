@@ -13,10 +13,13 @@ import {
     ACCURACY_REJECT_M,
     OFF_ROUTE_PX,
     AUTO_ARRIVAL_MAX_ACCURACY_M,
+    AUTO_ARRIVAL_RADIUS_M,
     accuracyVerdict,
     exceedsWalkingSpeed,
     isOffRoute,
     canCountAsArrival,
+    arrivalTargetWgs84,
+    arrivalDistance,
 } from '../../resources/js/route-gating.mjs';
 
 test('a sharp GNSS fix is trusted completely', () => {
@@ -107,4 +110,43 @@ test('arrival never fires on an unmeasurable distance', () => {
     // _destination_wgs84 returns null for a location with no coordinates.
     assert.equal(canCountAsArrival(5, NaN, 10), false);
     assert.equal(canCountAsArrival(undefined, 5, 10), false);
+});
+
+// Auto-arrival never fired in the field: it measured to the building's map
+// pin, while the route ends at the walkway's door node -- up to ~17m away.
+
+test('arrival aims at the end of the walked route, not the map pin', () => {
+    const pin = [14.1, 121.1];
+    const route = [[14.0, 121.0], [14.05, 121.05], [14.09, 121.09]];
+    assert.deepEqual(arrivalTargetWgs84(route, pin), [14.09, 121.09]);
+});
+
+test('arrival falls back to the pin when there is no routed polyline', () => {
+    const pin = [14.1, 121.1];
+    assert.deepEqual(arrivalTargetWgs84(null, pin), pin);
+    assert.deepEqual(arrivalTargetWgs84([], pin), pin);
+    assert.deepEqual(arrivalTargetWgs84([[14.0, 121.0]], pin), pin);
+});
+
+test('arrival has no target when neither is usable', () => {
+    assert.equal(arrivalTargetWgs84(null, null), null);
+    assert.equal(arrivalTargetWgs84(null, [14.1]), null);
+});
+
+test('arrival distance takes whichever signal is closer', () => {
+    // Along-route is null whenever the fix didn't move enough to re-project.
+    assert.equal(arrivalDistance(12, 30), 12);
+    assert.equal(arrivalDistance(40, 9), 9);
+    assert.equal(arrivalDistance(null, 9), 9);
+    assert.equal(arrivalDistance(undefined, 9), 9);
+    assert.ok(Number.isNaN(arrivalDistance(null, NaN)));
+});
+
+test('the arrival gate is loose enough for GPS beside a building', () => {
+    // +/-15m and 10m was field-proven unreachable; these are the new bounds.
+    assert.equal(AUTO_ARRIVAL_RADIUS_M, 15);
+    assert.equal(AUTO_ARRIVAL_MAX_ACCURACY_M, 20);
+    assert.equal(canCountAsArrival(18, 14, AUTO_ARRIVAL_RADIUS_M), true);
+    assert.equal(canCountAsArrival(18, 16, AUTO_ARRIVAL_RADIUS_M), false);
+    assert.equal(canCountAsArrival(25, 5, AUTO_ARRIVAL_RADIUS_M), false);
 });

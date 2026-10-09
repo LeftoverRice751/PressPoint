@@ -294,6 +294,36 @@ html, body {
   transform: translateY(1px);
 }
 
+/* Voice guidance toggle: muted glyph while off, sound waves and the accent
+   fill while on, so its state reads at a glance mid-walk. */
+.mobile-route__voice {
+  display: grid;
+  place-items: center;
+}
+
+.mobile-route__voice-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.mobile-route__voice-waves {
+  display: none;
+}
+
+.mobile-route__voice[aria-pressed="true"] {
+  background: #FF6A00;
+  border-color: #FF6A00;
+  color: #24110D;
+}
+
+.mobile-route__voice[aria-pressed="true"] .mobile-route__voice-waves {
+  display: inline;
+}
+
+.mobile-route__voice[aria-pressed="true"] .mobile-route__voice-mute {
+  display: none;
+}
+
 /* ---- bottom sheet ---------------------------------------------------- */
 
 .mobile-route__sheet {

@@ -32,11 +32,17 @@ export const MAX_PLAUSIBLE_SPEED_M_PER_S = 4;
 export const SPEED_GATE_SLACK_M = 15;
 
 // A reading may only *end* the walk if its own error bar is at least this
-// tight. Wider than the arrival radius on purpose: 5-15m is ordinary outdoor
-// phone accuracy, and demanding better would mean auto-arrival never fires
-// near buildings. The job is to exclude 100m+ fallback fixes, not to demand
-// survey grade -- the manual "I've Arrived" button covers the rest.
-export const AUTO_ARRIVAL_MAX_ACCURACY_M = 15;
+// tight. The job is to exclude 100m+ fallback fixes, not to demand survey
+// grade -- the manual "I've Arrived" button covers the rest. It was 15, and
+// auto-arrival never fired in the field: right beside a building, where the
+// walk ends, 15-25m is what phones actually report. Still well under
+// ACCURACY_REJECT_M, and the 3-distinct-fix streak in mobile-route.js is
+// what stops one lucky reading from ending the walk.
+export const AUTO_ARRIVAL_MAX_ACCURACY_M = 20;
+
+// How close to the door counts as arrived. Was 10, measured to the map pin;
+// see arrivalTargetWgs84() for why that circle could be unreachable.
+export const AUTO_ARRIVAL_RADIUS_M = 15;
 
 /**
  * Classify a fix by its reported accuracy: 'good' | 'imprecise' | 'reject'.
@@ -93,4 +99,32 @@ export function canCountAsArrival(
     if (!Number.isFinite(accuracy) || accuracy > maxAccuracy) return false;
     if (!Number.isFinite(metresToDestination)) return false;
     return metresToDestination <= radiusM;
+}
+
+/**
+ * The [lat, lng] the walk is judged against: the last point of the routed
+ * polyline -- the walkway's door node -- when there is one, else the map pin.
+ * Measuring to the pin is why auto-arrival never fired: pins sit on the
+ * building, up to ~17m from where the walkway actually ends, so a 10m circle
+ * around one could be entirely inside the building.
+ */
+export function arrivalTargetWgs84(routeWgs84, pinWgs84) {
+    const isPoint = (p) => Array.isArray(p) && p.length === 2
+        && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+    if (Array.isArray(routeWgs84) && routeWgs84.length >= 2) {
+        const door = routeWgs84[routeWgs84.length - 1];
+        if (isPoint(door)) return door;
+    }
+    return isPoint(pinWgs84) ? pinWgs84 : null;
+}
+
+/**
+ * Distance used for arrival: the smaller of what's left along the route and
+ * the straight line to the target. Along-route is null whenever the fix
+ * didn't move far enough to re-project, which is exactly the case of
+ * someone standing at the door waiting for the walk to end.
+ */
+export function arrivalDistance(alongRouteM, straightLineM) {
+    const candidates = [alongRouteM, straightLineM].filter((v) => Number.isFinite(v));
+    return candidates.length ? Math.min(...candidates) : NaN;
 }

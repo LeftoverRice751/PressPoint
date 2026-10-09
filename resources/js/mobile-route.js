@@ -3,7 +3,18 @@ import {
     exceedsWalkingSpeed,
     isOffRoute,
     canCountAsArrival,
+    arrivalTargetWgs84,
+    arrivalDistance,
+    AUTO_ARRIVAL_RADIUS_M,
 } from './route-gating.mjs';
+import {
+    buildManeuvers,
+    bannerFor,
+    nextAnnouncement,
+    cumulativeFromWgs84,
+    cumulativeFromPixels,
+} from './route-maneuvers.mjs';
+import { createRouteVoice } from './route-voice.mjs';
 
 document.addEventListener('DOMContentLoaded', () => {
     const root = document.querySelector('.mobile-route');
@@ -22,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statusPill: document.getElementById('mobile-route-status'),
         instruction: document.getElementById('mobile-route-instruction'),
         recenter: document.getElementById('mobile-route-recenter'),
+        voice: document.getElementById('mobile-route-voice'),
         finishButton: document.getElementById('mobile-route-finish'),
         expiredNotice: document.getElementById('mobile-route-expired'),
         modal: document.getElementById('mobile-route-modal'),
@@ -36,13 +48,9 @@ document.addEventListener('DOMContentLoaded', () => {
         destinationLabel: document.getElementById('mobile-route-destination-label'),
     };
 
-    // Meters from the destination's real WGS84 point within which a single
-    // reading counts as "arrived" for the manual-adjacent coarse check;
-    // AUTO_ARRIVAL_* below is the stricter one that actually fires
-    // completeRoute automatically. Phone GPS is typically 5-15m accurate
-    // outdoors, worse near buildings, and the transform itself is a 4-point
-    // fit -- a tight radius would just make arrival never fire.
-    const AUTO_ARRIVAL_RADIUS_METERS = 10;
+    // The arrival radius and the accuracy a reading needs to count toward it
+    // live in ./route-gating.mjs (AUTO_ARRIVAL_RADIUS_M), measured to the
+    // walkway's door rather than the map pin -- see arrivalTargetWgs84().
     // Require this many consecutive close readings before auto-finishing,
     // so one noisy GPS fix near the destination doesn't end the walk early.
     const AUTO_ARRIVAL_STREAK = 3;
@@ -97,8 +105,13 @@ document.addEventListener('DOMContentLoaded', () => {
         watchId = null;
     };
 
+    // Off until the walker taps the speaker button; see ./route-voice.mjs.
+    // Created this early because showExpired() below releases its wake lock.
+    const voice = createRouteVoice();
+
     const showExpired = (message) => {
         stopTracking();
+        voice.release();
         if (message) {
             els.expiredNotice.textContent = message;
         }
@@ -260,6 +273,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // haversine-to-destination estimate.
     let fullRouteWgs84 = null;
     let totalRouteMetres = null;
+    // Metres from the start to each vertex of fullRoutePath, and the turns
+    // read off it (./route-maneuvers.mjs). The banner and the voice both
+    // read `maneuvers`, so the screen never says something the voice didn't.
+    let routeCumMetres = null;
+    let maneuvers = [];
 
     // Sum of haversine segment lengths over a WGS84 polyline.
     const routeLengthMeters = (wgs84Path) => {
@@ -319,6 +337,12 @@ document.addEventListener('DOMContentLoaded', () => {
         totalRouteMetres = fullRouteWgs84 ? routeLengthMeters(fullRouteWgs84) : null;
 
         if (!fullRoutePath || fullRoutePath.length < 2) return;
+
+        routeCumMetres = fullRouteWgs84
+            ? cumulativeFromWgs84(fullRouteWgs84)
+            : cumulativeFromPixels(fullRoutePath);
+        maneuvers = buildManeuvers(fullRoutePath, routeCumMetres);
+        setBanner(0);
 
         routeCasing = L.polyline(fullRoutePath, ROUTE_CASING_STYLE).addTo(map);
         routeFill = L.polyline(fullRoutePath, ROUTE_FILL_STYLE).addTo(map);
@@ -463,45 +487,35 @@ document.addEventListener('DOMContentLoaded', () => {
         projection ? [projection.point, ...path.slice(projection.segmentIndex + 1)] : path
     );
 
-    // --- turn-instruction synthesis ----------------------------------
+    // --- turn-by-turn ---------------------------------------------------
     //
     // There's no turn-by-turn data anywhere in the app -- MapWayfinderService
-    // only returns a shortest-path polyline. This approximates instructions
-    // from the geometry itself: the bearing change between the segment the
-    // user is on and the next one. In this layer space x is east-ish and y
-    // increases "up" (see CLAUDE.md's note on the 2.5D layer's y-down-negative
-    // convention -- less negative is further up/north), so a plain
-    // atan2(dy, dx) behaves like a standard math angle; only the sign of the
-    // turn matters here, not true compass heading.
-    const bearingDeg = (a, b) => {
-        const [ay, ax] = a;
-        const [by, bx] = b;
-        return Math.atan2(by - ay, bx - ax) * (180 / Math.PI);
+    // only returns a shortest-path polyline -- so ./route-maneuvers.mjs reads
+    // the turns off the geometry. This used to be done here per raw segment
+    // and recomputed on every fix, which was fine for a banner and useless
+    // for speech: it would have said "turn" at every digitising kink.
+
+    // Metres walked along the route at a projectOntoPath() result.
+    const metresAlongProjection = (projection) => {
+        const { segmentIndex, t } = projection;
+        const from = routeCumMetres[segmentIndex];
+        return from + (routeCumMetres[segmentIndex + 1] - from) * t;
     };
 
-    const normalizeAngle = (deg) => {
-        let d = deg % 360;
-        if (d > 180) d -= 360;
-        if (d < -180) d += 360;
-        return d;
-    };
-
-    const instructionFor = (path, segmentIndex) => {
-        if (!path || segmentIndex >= path.length - 2) {
-            return { text: 'Arrive at destination', arrow: '●' };
-        }
-        const current = bearingDeg(path[segmentIndex], path[segmentIndex + 1]);
-        const next = bearingDeg(path[segmentIndex + 1], path[segmentIndex + 2]);
-        const delta = normalizeAngle(next - current);
-        const abs = Math.abs(delta);
-        if (abs < 20) return { text: 'Continue straight', arrow: '↑' };
-        if (delta > 0) return abs < 100 ? { text: 'Turn left ahead', arrow: '↖' } : { text: 'Turn left', arrow: '←' };
-        return abs < 100 ? { text: 'Turn right ahead', arrow: '↗' } : { text: 'Turn right', arrow: '→' };
-    };
-
-    const setInstruction = (path, segmentIndex) => {
-        const { text, arrow } = instructionFor(path, segmentIndex);
+    const setBanner = (metresAlong) => {
+        const { text, arrow } = bannerFor(maneuvers, metresAlong);
         els.instruction.textContent = `${arrow}  ${text}`;
+    };
+
+    const spokenKeys = new Set();
+    const announceUpcoming = (metresAlong) => {
+        const said = nextAnnouncement(maneuvers, metresAlong, spokenKeys);
+        if (!said) return;
+        // Marked spoken even with the voice off: switching it on mid-walk
+        // should start from the next turn, not replay one already behind.
+        spokenKeys.add(said.key);
+        said.alsoKeys.forEach((key) => spokenKeys.add(key));
+        voice.speak(said.text, { interrupt: said.key.endsWith(':now') });
     };
 
     // --- live metrics: distance / ETA / arrival clock ------------------
@@ -544,7 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
         distanceReadings.push(metres);
         if (distanceReadings.length > 5) distanceReadings.shift();
 
-        if (metres <= AUTO_ARRIVAL_RADIUS_METERS) {
+        if (metres <= AUTO_ARRIVAL_RADIUS_M) {
             els.distance.textContent = '0';
             els.distanceUnit.textContent = 'Arriving';
         } else {
@@ -644,6 +658,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     let lastTrackedPoint = null;
+    // Whether the last fix that moved landed off the route; see handlePosition.
+    let offRoute = false;
     let arrived = false;
     let sessionData = null;
     let closeReadingStreak = 0;
@@ -688,7 +704,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const matrix = sessionData.geo_transform;
         let projection = null;
-        let offRoute = false;
         if (matrix && fullRoutePath && fullRoutePath.length >= 2) {
             const layerPoint = wgs84ToLayerPoint(matrix, latitude, longitude);
             if (layerPoint) {
@@ -705,11 +720,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     // thing that says whether the snap means anything:
                     // projectOntoPath() always returns *some* nearest point, so
                     // a fix right off the campus still trimmed the route.
-                    offRoute = !!candidate && isOffRoute(candidate.distSq);
+                    const nowOffRoute = !!candidate && isOffRoute(candidate.distSq);
+                    if (nowOffRoute && !offRoute) {
+                        voice.speak("You're off the path. Head back to the orange line.");
+                    }
+                    // Only a fix that moved may change this. It used to be
+                    // reset on every reading, so someone standing still off
+                    // the path flickered back to "tracking" -- harmless on
+                    // the pill, a repeated warning once it is spoken.
+                    offRoute = nowOffRoute;
                     if (candidate && !offRoute) {
                         projection = candidate;
                         updateRoutePath(trimPathFromProjection(fullRoutePath, projection));
-                        setInstruction(fullRoutePath, projection.segmentIndex);
+                        const metresAlong = metresAlongProjection(projection);
+                        setBanner(metresAlong);
+                        announceUpcoming(metresAlong);
                     }
                 }
             }
@@ -721,20 +746,23 @@ document.addEventListener('DOMContentLoaded', () => {
             setTrackingStatus(imprecise ? 'imprecise' : 'tracking');
         }
 
-        const destinationWgs84 = sessionData.destination && sessionData.destination.wgs84;
-        if (Array.isArray(destinationWgs84) && destinationWgs84.length === 2) {
-            const [destLat, destLng] = destinationWgs84;
-            const remaining = remainingMetersAlongRoute(projection, destinationWgs84)
-                ?? haversineMeters(latitude, longitude, destLat, destLng);
-            updateMetrics(remaining);
-
+        const destination = sessionData.destination || {};
+        // The door the route ends at, not the map pin: measuring to the pin
+        // is why auto-arrival never fired. See arrivalTargetWgs84().
+        const target = arrivalTargetWgs84(destination.route_wgs84, destination.wgs84);
+        if (target) {
+            const [destLat, destLng] = target;
             const straightLineDistance = haversineMeters(latitude, longitude, destLat, destLng);
-            // "Within 10m" reported by a fix that is itself only accurate to
+            const alongRoute = remainingMetersAlongRoute(projection, target);
+            updateMetrics(alongRoute ?? straightLineDistance);
+
+            // "Within 15m" reported by a fix that is itself only accurate to
             // +/-30m is not evidence of anything. Requiring the reading's own
-            // error bar to be tighter than the arrival radius is what stops
-            // the walk ending short of the building; the manual "I've Arrived"
-            // button covers the case where GPS never gets this good.
-            if (canCountAsArrival(precision, straightLineDistance, AUTO_ARRIVAL_RADIUS_METERS)) {
+            // error bar to be tight enough is what stops the walk ending short
+            // of the building; the manual "I've Arrived" button covers the
+            // case where GPS never gets this good.
+            const distance = arrivalDistance(alongRoute, straightLineDistance);
+            if (canCountAsArrival(precision, distance, AUTO_ARRIVAL_RADIUS_M)) {
                 if (fixAt !== lastArrivalFixAt) {
                     lastArrivalFixAt = fixAt;
                     closeReadingStreak += 1;
@@ -830,6 +858,12 @@ document.addEventListener('DOMContentLoaded', () => {
         els.finishButton.disabled = true;
 
         playArrivalChime();
+        // After the chime rather than over it. Interrupting, so a turn prompt
+        // still queued from the last few metres can't talk over the arrival.
+        setTimeout(() => {
+            voice.speak(`You have arrived at ${sessionData.destination.name}.`, { interrupt: true });
+            voice.release();
+        }, 600);
         const arrivedAt = new Date();
         const startedAtRaw = localStorage.getItem(STARTED_AT_KEY);
         const startedAt = startedAtRaw ? Number(startedAtRaw) : null;
@@ -946,6 +980,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 showExpired('Could not load your route. Check your connection and try again.');
             });
     };
+
+    // --- voice toggle --------------------------------------------------
+    const greeting = () => (sessionData
+        ? `Voice guidance on. Head toward ${sessionData.destination.name}.`
+        : 'Voice guidance on.');
+
+    const renderVoiceButton = () => {
+        const on = voice.isEnabled();
+        els.voice.setAttribute('aria-pressed', on ? 'true' : 'false');
+        els.voice.setAttribute('aria-label', on ? 'Turn voice guidance off' : 'Turn voice guidance on');
+    };
+
+    if (els.voice) {
+        if (voice.supported) {
+            renderVoiceButton();
+            els.voice.addEventListener('click', () => {
+                // Spoken inside the tap: that gesture is what lets iOS and
+                // Chrome speak at all.
+                voice.toggle(greeting());
+                renderVoiceButton();
+            });
+            // A preference remembered from an earlier visit can't speak until
+            // the page has had a gesture; the first tap anywhere unlocks it.
+            // Except the voice button itself: its own toggle() is that
+            // gesture, and priming first would greet and then mute at once.
+            document.addEventListener('pointerdown', (event) => {
+                if (!els.voice.contains(event.target)) voice.prime(greeting());
+            }, { once: true, capture: true });
+        } else {
+            els.voice.style.display = 'none';
+        }
+    }
 
     els.finishButton.addEventListener('click', () => completeRoute());
     els.recenter.addEventListener('click', () => {
