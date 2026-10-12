@@ -1,0 +1,63 @@
+/* Story Library print view: a published issue on tabloid paper.
+
+   The page renders kiosk/_issue.html unchanged; everything here only
+   adapts that kiosk layout to paper. Solid colors only. */
+
+@page {
+  size: 11in 17in;
+  margin: 0.5in;
+}
+
+.issue-print {
+  /* Browsers drop backgrounds when printing unless told otherwise, which
+     would print the masthead bands as white boxes. */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.issue-print__hint {
+  font: 14px/1.4 system-ui, sans-serif;
+  margin: 12px auto;
+  max-width: 10in;
+  padding: 8px 12px;
+  background: #fff4d6;
+  color: #3b2f00;
+  border: 1px solid #e0c56e;
+}
+
+.issue-print .paper-container {
+  max-width: 10in;
+  margin: 0 auto;
+}
+
+/* kiosk-news.js clamps the lead body and offers a reader overlay; neither
+   exists on paper, so print the lead in full and drop the dead button. */
+.issue-print .feature-story__copy,
+.issue-print .feature-story__copy.is-clamped {
+  max-height: none;
+  overflow: visible;
+}
+
+.issue-print .feature-story__more {
+  display: none;
+}
+
+@media print {
+  .issue-print__hint {
+    display: none;
+  }
+
+  /* A headline stranded at the foot of a page with its body overleaf. */
+  .issue-print .feature-story,
+  .issue-print .secondary-story,
+  .issue-print .issue-editorial,
+  .issue-print .issue-quote,
+  .issue-print .issue-notice,
+  .issue-print figure {
+    break-inside: avoid;
+  }
+
+  .issue-print .issue-band {
+    break-after: avoid;
+  }
+}

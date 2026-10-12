@@ -11,6 +11,9 @@ from config.database import DB
 from app.models.Issue import Issue
 from app.models.News import News
 from app.services import Issues, NewsCategories
+from app.services.DashboardContext import (
+    BLOCK_TYPES, group_news_slots, issue_identity_of, upcoming_events,
+)
 from app.services.ImageDerivatives import copy_image_and_variants, delete_image_and_variants
 
 
@@ -139,4 +142,45 @@ def duplicate(user_id, issue_id, discard=False):
         "issue_id": getattr(target, "id", None),
         "number": int(getattr(target, "number", 0) or 0),
         "story_count": len(stories),
+    }
+
+
+def print_context(issue, autoprint=False):
+    """Context for templates/gears/issue-print.html, which includes the
+    kiosk's own kiosk/_issue.html -- no second renderer.
+
+    Stories are projected through NewsController._news_item_to_dict, the
+    kiosk's projection (WebP variants, published_label, category name), so a
+    print cannot differ from what readers saw. Imported here, not at module
+    top: NewsController imports DashboardContext, which must not import back.
+    """
+    from masonite.facades import Storage as StorageFacade
+
+    from app.controllers.gears.NewsController import _news_item_to_dict
+
+    try:
+        disk = StorageFacade.disk("public")
+    except Exception:
+        disk = None
+    names = NewsCategories.names_by_id()
+
+    stories = [s for s in Issues.stories_of(issue) if Issues.is_visible(s)]
+    slots = group_news_slots(stories)
+    published = Issues.published_local(issue)
+
+    return {
+        "blocks": {
+            block: [_news_item_to_dict(item, disk, names) for item in slots[block]]
+            for block in BLOCK_TYPES
+        },
+        "news_editor": False,
+        # As of publication: a reprint months later must not show today's events.
+        "calendar_events": upcoming_events(as_of=published) if published else [],
+        **issue_identity_of(issue),
+        "issue_title": getattr(issue, "title", None) or "",
+        "issue_published_label": published.strftime("%b %d, %Y") if published else None,
+        "autoprint": bool(autoprint),
+        # Paper has no reader overlay, so every story prints its whole body
+        # rather than the kiosk's summary. Off everywhere else (see _issue.html).
+        "print_full_text": True,
     }
