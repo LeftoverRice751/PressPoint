@@ -20,9 +20,16 @@ def _story(id, status="published", **over):
     return Mock(**base)
 
 
+STATE = {"in_tx": False}
+
+
 @contextmanager
 def _no_tx():
-    yield
+    STATE["in_tx"] = True
+    try:
+        yield
+    finally:
+        STATE["in_tx"] = False
 
 
 class DuplicateTestCase(TestCase):
@@ -160,3 +167,25 @@ class DuplicateTestCase(TestCase):
                 L.duplicate(7, 1)
         rm.assert_called_once_with("news/new1.jpg")
         L.Issue.create.assert_not_called()
+
+    def test_failed_duplicate_keeps_the_discarded_draft(self):
+        self.current = Mock(id=40)
+        old = [Mock(), Mock()]
+        self.current_stories = old
+        seen = []
+        for m in old + [self.current]:
+            m.delete.side_effect = lambda: seen.append(STATE["in_tx"])
+        L.News.create.side_effect = RuntimeError("db down")
+        with self.assertRaises(RuntimeError):
+            L.duplicate(7, 1, discard=True)
+        self.assertEqual(seen, [True, True, True])
+
+    def test_cleanup_failure_does_not_mask_the_original_error(self):
+        self.stories[0].image = "news/a.jpg"
+        self.stories[1].image = "news/b.jpg"
+        L.News.create.side_effect = RuntimeError("db down")
+        with patch.object(L, "copy_image_and_variants", side_effect=["n1", "n2"]), \
+                patch.object(L, "delete_image_and_variants", side_effect=OSError("x")) as rm:
+            with self.assertRaises(RuntimeError):
+                L.duplicate(7, 1)
+        self.assertEqual(rm.call_count, 2)

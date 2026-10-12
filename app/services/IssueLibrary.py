@@ -50,30 +50,30 @@ def _source(user_id, issue_id):
 
 
 def _target_issue(user_id, discard):
-    """The open issue to fill, or None to create one.
+    """(issue to fill or None to create, open draft still to discard or None).
 
     Issues.current_for() treats the editor's newest unpublished issue as THE
     composer canvas, so a second one with stories would hide the first until
     the duplicate published. An empty open issue is reused instead of
-    creating another, which would burn a number and leave a gap in No."""
+    creating another, which would burn a number and leave a gap in No.
+
+    Nothing is deleted here: the discard runs inside duplicate()'s
+    transaction, so a failed image copy or insert cannot cost the editor
+    their in-progress canvas."""
     current = Issues.current_for(user_id)
     if current is None:
-        return None
+        return None, None
     existing = Issues.stories_of(current)
     if not existing:
-        return current
+        return current, None
     if not discard:
         raise DraftInProgress(len(existing))
-    # Soft deletes, like NewsController.destroy: files stay, rows restorable.
-    for story in existing:
-        story.delete()
-    current.delete()
-    return None
+    return None, (current, existing)
 
 
 def duplicate(user_id, issue_id, discard=False):
     source, stories = _source(user_id, issue_id)
-    target = _target_issue(user_id, discard)
+    target, discarded = _target_issue(user_id, discard)
 
     live_categories = NewsCategories.names_by_id()
     fallback_category = NewsCategories.default_category_id()
@@ -90,6 +90,14 @@ def duplicate(user_id, issue_id, discard=False):
                 images[getattr(s, "id", None)] = copy_image_and_variants(stored)
 
         with DB.transaction():
+            if discarded is not None:
+                # Soft deletes, like NewsController.destroy: files stay, rows
+                # restorable. Inside the transaction and after the copies so
+                # any failure rolls the old draft back untouched.
+                draft, draft_stories = discarded
+                for old in draft_stories:
+                    old.delete()
+                draft.delete()
             if target is None:
                 # No `published_at` key: it is a __dates__ column and the ORM
                 # turns None into now (see Issues.ensure_current_for).
@@ -119,7 +127,12 @@ def duplicate(user_id, issue_id, discard=False):
     except Exception:
         for path in images.values():
             if path:
-                delete_image_and_variants(path)
+                try:
+                    delete_image_and_variants(path)
+                except OSError:
+                    # One failed cleanup must neither mask the original
+                    # exception nor skip the remaining copies.
+                    pass
         raise
 
     return {
