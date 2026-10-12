@@ -410,7 +410,7 @@ def news_canvas_context(user_id=None):
 CALENDAR_LIMIT = 3
 
 
-def upcoming_events(limit=CALENDAR_LIMIT):
+def upcoming_events(limit=CALENDAR_LIMIT, as_of=None):
     """The next few events, for the issue's calendar block.
 
     Lives here rather than in NewsController because BOTH surfaces need it and
@@ -427,11 +427,16 @@ def upcoming_events(limit=CALENDAR_LIMIT):
     against a naive datetime.now() is right. (WelcomeController's flash ticker
     needs a +/-2 day margin for the opposite reason: it also measures against
     `created_at`, which comes back UTC-aware from pendulum.)
+
+    `as_of` (naive campus-local) moves the cutoff: the Story Library's print
+    view passes the issue's publish time so a reprint shows the calendar the
+    issue carried, not today's.
     """
+    cutoff = as_of or datetime.now()
     try:
         rows = (
             Events.where("is_archive", 0)
-            .where("event_date", ">=", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            .where("event_date", ">=", cutoff.strftime("%Y-%m-%d %H:%M:%S"))
             .order_by("event_date", "asc")
             .limit(limit)
             .get()
