@@ -20,6 +20,10 @@ Neither path relies on disk.get().
 
 from io import BytesIO
 import os
+import shutil
+import uuid
+
+from app.services.StorageRouter import absolute_path, is_safe_path
 
 try:
     from PIL import Image, ImageOps
@@ -137,3 +141,51 @@ def generate_variants(original_bytes, stored_path, disk):
     except Exception:
         # Corrupt/unsupported image, disk error, etc. — degrade to original.
         return
+
+
+def delete_image_and_variants(stored_path):
+    """Remove an uploaded news image and its .large/.thumb derivatives, safely.
+
+    Moved here from NewsController so the Story Library's duplicate can undo
+    its own copies with the same rule the controller uses on replace."""
+    if not stored_path:
+        return
+    for relative_path in [stored_path] + [
+        variant_relpath(stored_path, variant) for variant, _edge in VARIANTS
+    ]:
+        try:
+            full_path = absolute_path(relative_path)
+            if is_safe_path(relative_path) and os.path.isfile(full_path):
+                os.remove(full_path)
+        except OSError:
+            pass
+
+
+def copy_image_and_variants(stored_path):
+    """Copy an image and whichever derivatives exist to a fresh name in the
+    same folder. Returns the new relative path, or None when there is nothing
+    safe to copy -- a duplicate then simply has no photograph.
+
+    Files are copied, not shared, because a replaced image is deleted along
+    with its derivatives (delete_image_and_variants): two stories pointing at
+    one file would let an edit to one delete the other's picture."""
+    if not stored_path or not is_safe_path(stored_path):
+        return None
+    source = absolute_path(stored_path)
+    if not os.path.isfile(source):
+        return None
+
+    normalized = str(stored_path).replace("\\", "/")
+    folder, name = os.path.split(normalized)
+    _root, ext = os.path.splitext(name)
+    fresh = f"{uuid.uuid4().hex}{ext}"
+    new_path = f"{folder}/{fresh}" if folder else fresh
+    if not is_safe_path(new_path):
+        return None
+
+    shutil.copy2(source, absolute_path(new_path))
+    for variant, _edge in VARIANTS:
+        variant_source = absolute_path(variant_relpath(normalized, variant))
+        if os.path.isfile(variant_source):
+            shutil.copy2(variant_source, absolute_path(variant_relpath(new_path, variant)))
+    return new_path
