@@ -87,3 +87,37 @@ class PrintTemplateTestCase(TestCase):
             "calendar_events": [], "issue_vol": 1, "issue_no": 1,
         }).rendered_template
         self.assertNotIn("THE-END", html)
+
+    def _block_story(self, layout_type, body):
+        return {"id": 5, "title": "Piece", "description": body, "excerpt": "", "image": None,
+                "headline_font": None, "layout_type": layout_type}
+
+    def _render_kiosk(self, block, body):
+        from wsgi import application
+
+        return application.make("view").render("kiosk._issue", {
+            "blocks": {block: [self._block_story(block, body)]}, "news_editor": False,
+            "calendar_events": [], "issue_vol": 1, "issue_no": 1,
+        }).rendered_template
+
+    def test_editorial_prints_its_whole_body(self):
+        # The kiosk truncates an editorial at 320 characters.
+        body = "<p>" + ("word " * 120) + "EDITORIAL-END</p>"
+        html = self._render(blocks={"editorial": [self._block_story("editorial", body)]},
+                            print_full_text=True)
+        self.assertIn("EDITORIAL-END", html)
+
+    def test_kiosk_editorial_still_shows_the_summary(self):
+        body = "<p>" + ("word " * 120) + "EDITORIAL-END</p>"
+        self.assertNotIn("EDITORIAL-END", self._render_kiosk("editorial", body))
+
+    def test_notice_prints_its_whole_body(self):
+        # The kiosk truncates a notice at 200 characters.
+        body = "<p>" + ("word " * 120) + "NOTICE-END</p>"
+        html = self._render(blocks={"notice": [self._block_story("notice", body)]},
+                            print_full_text=True)
+        self.assertIn("NOTICE-END", html)
+
+    def test_kiosk_notice_still_shows_the_summary(self):
+        body = "<p>" + ("word " * 120) + "NOTICE-END</p>"
+        self.assertNotIn("NOTICE-END", self._render_kiosk("notice", body))
