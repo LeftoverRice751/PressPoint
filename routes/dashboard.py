@@ -62,6 +62,10 @@ ROUTES = [
     Route.post("/news/dashboard/@id/autosave", "gears.NewsController@autosave").name("news.autosave").middleware("auth"),
     Route.post("/news/dashboard/@id/unassign", "gears.NewsController@unassign").name("news.unassign").middleware("auth"),
     Route.delete("/news/dashboard/@id", "gears.NewsController@destroy").name("news.destroy").middleware("auth"),
+    # Story Library, Published tab. "auth" only: the controller scopes every
+    # lookup to issues.owner_id == the caller, so another editor's issue is a 404.
+    Route.get("/gears/issues/@id:int/print", "gears.IssueLibraryController@print_view").name("issues.print").middleware("auth"),
+    Route.post("/gears/issues/@id:int/duplicate", "gears.IssueLibraryController@duplicate").name("issues.duplicate").middleware("auth"),
     # News categories. "auth" only, DELIBERATELY: unlike the /gears/review/*
     # routes above, any signed-in editor may create, rename and delete a
     # category — and a delete cascades a soft-delete to every story in it,
