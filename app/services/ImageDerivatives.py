@@ -183,9 +183,15 @@ def copy_image_and_variants(stored_path):
     if not is_safe_path(new_path):
         return None
 
-    shutil.copy2(source, absolute_path(new_path))
-    for variant, _edge in VARIANTS:
-        variant_source = absolute_path(variant_relpath(normalized, variant))
-        if os.path.isfile(variant_source):
-            shutil.copy2(variant_source, absolute_path(variant_relpath(new_path, variant)))
+    # A failure partway would otherwise strand the copies already made: the
+    # caller only learns new_path from the return value, so clean up here.
+    try:
+        shutil.copy2(source, absolute_path(new_path))
+        for variant, _edge in VARIANTS:
+            variant_source = absolute_path(variant_relpath(normalized, variant))
+            if os.path.isfile(variant_source):
+                shutil.copy2(variant_source, absolute_path(variant_relpath(new_path, variant)))
+    except OSError:
+        delete_image_and_variants(new_path)
+        raise
     return new_path

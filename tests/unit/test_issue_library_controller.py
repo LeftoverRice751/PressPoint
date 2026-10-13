@@ -87,9 +87,11 @@ class PrintEndpointTestCase(TestCase):
         issue = Mock()
         with patch.object(C.Issues, "owned_issue", return_value=issue), patch.object(
             C.Issues, "stories_of", return_value=[Mock(status="published")]
-        ), patch.object(C.IssueLibrary, "print_context", return_value={"k": 1}) as pc:
+        ) as so, patch.object(C.IssueLibrary, "print_context", return_value={"k": 1}) as pc:
             C.IssueLibraryController().print_view(
                 view, _request(inputs={"autoprint": "1"}), response
             )
-        pc.assert_called_once_with(issue, autoprint=True)
+        # The rows loaded for the published check are handed on, not re-queried.
+        pc.assert_called_once_with(issue, autoprint=True, stories=so.return_value)
+        so.assert_called_once_with(issue)
         view.render.assert_called_once_with("gears/issue-print", {"k": 1})

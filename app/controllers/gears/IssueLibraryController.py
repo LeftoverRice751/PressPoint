@@ -82,7 +82,9 @@ class IssueLibraryController(Controller):
         issue = Issues.owned_issue(_user_id(request), _issue_id(request))
         # Published only: the open draft is printed from the composer, not
         # here, and an unpublished issue gets the same 404 as someone else's.
-        if issue is None or not any(Issues.is_visible(s) for s in Issues.stories_of(issue)):
+        stories = Issues.stories_of(issue) if issue is not None else []
+        if not any(Issues.is_visible(s) for s in stories):
             return response.view("Not found", status=404)
-        context = IssueLibrary.print_context(issue, autoprint=_truthy(request.input("autoprint")))
+        context = IssueLibrary.print_context(
+            issue, autoprint=_truthy(request.input("autoprint")), stories=stories)
         return view.render("gears/issue-print", context)

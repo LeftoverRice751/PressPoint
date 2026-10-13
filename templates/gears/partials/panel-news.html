@@ -423,11 +423,11 @@
           </div>
 
           <div class="news-library-drawer__tabs" role="tablist" aria-label="Story Library">
-            <button type="button" class="news-slot-choice is-active" role="tab" aria-selected="true" data-library-tab="issue">This issue</button>
-            <button type="button" class="news-slot-choice" role="tab" aria-selected="false" data-library-tab="published">Published newsletters</button>
+            <button type="button" class="news-slot-choice is-active" id="library-tab-issue" role="tab" aria-controls="library-pane-issue" aria-selected="true" data-library-tab="issue">This issue</button>
+            <button type="button" class="news-slot-choice" id="library-tab-published" role="tab" aria-controls="library-pane-published" aria-selected="false" data-library-tab="published">Published newsletters</button>
           </div>
 
-          <div data-library-pane="issue">
+          <div id="library-pane-issue" role="tabpanel" aria-labelledby="library-tab-issue" data-library-pane="issue">
           <div class="news-library-drawer__filters" role="group" aria-label="Filter stories">
             <button type="button" class="news-slot-choice is-active" data-news-library-filter="all" aria-pressed="true">All</button>
             <button type="button" class="news-slot-choice" data-news-library-filter="draft" aria-pressed="false">Drafts</button>
@@ -449,7 +449,7 @@
           </div>
           </div><!-- /[data-library-pane="issue"] -->
 
-          <div data-library-pane="published" hidden>
+          <div id="library-pane-published" role="tabpanel" aria-labelledby="library-tab-published" data-library-pane="published" hidden>
             {# Its own live section ("story-library", DashboardController.FRAGMENTS):
                news_stamp is per OPEN issue and never moves when an older issue of
                this editor's is approved. No data-section-count / data-section-content

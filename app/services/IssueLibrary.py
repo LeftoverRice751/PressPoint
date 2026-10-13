@@ -6,6 +6,7 @@ both exactly as the composer and kiosk already define them; nothing here adds
 a column or a second notion of either.
 """
 
+import html as html_module
 import re
 
 from config.database import DB
@@ -147,7 +148,7 @@ def duplicate(user_id, issue_id, discard=False):
     }
 
 
-def print_context(issue, autoprint=False):
+def print_context(issue, autoprint=False, stories=None):
     """Context for templates/gears/issue-print.html, which includes the
     kiosk's own kiosk/_issue.html -- no second renderer.
 
@@ -166,7 +167,11 @@ def print_context(issue, autoprint=False):
         disk = None
     names = NewsCategories.names_by_id()
 
-    stories = [s for s in Issues.stories_of(issue) if Issues.is_visible(s)]
+    # `stories` lets print_view pass the rows it already loaded for its
+    # published check, so a print runs the query once.
+    if stories is None:
+        stories = Issues.stories_of(issue)
+    stories = [s for s in stories if Issues.is_visible(s)]
     slots = group_news_slots(stories)
     published = Issues.published_local(issue)
 
@@ -193,7 +198,8 @@ _TAGS = re.compile(r"<[^>]+>")
 
 def _plain(html):
     """Headlines may carry Quill formatting spans; a row label wants text."""
-    return _TAGS.sub("", str(html or "")).strip()
+    # Entities too: a title is stored escaped, so `Q&amp;A` must read `Q&A`.
+    return html_module.unescape(_TAGS.sub("", str(html or ""))).strip()
 
 
 def library_rows(user_id):

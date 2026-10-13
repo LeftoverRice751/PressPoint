@@ -22,6 +22,13 @@ class LibraryRowsTestCase(TestCase):
             "published_label": "Jul 01, 2026", "story_count": 2,
         }])
 
+    def test_headline_decodes_entities(self):
+        lead = Mock(layout_type="lead", title="<b>Q&amp;A</b>")
+        issue = Mock(id=3, number=1, title="", published_at=None, created_at=None, stories=[lead])
+        with patch.object(IssueLibrary.Issues, "published_by", return_value=[issue]):
+            rows = IssueLibrary.library_rows(7)
+        self.assertEqual(rows[0]["headline"], "Q&A")
+
 
 class SectionRegistrationTestCase(TestCase):
     def test_registered_everywhere_a_section_must_be(self):
@@ -33,6 +40,51 @@ class SectionRegistrationTestCase(TestCase):
         # _stamp_for imports Issues lazily, so patch it where it lives.
         with patch("app.services.Issues.library_stamp", return_value="4:x") as stamp:
             self.assertEqual(DC.DashboardController._stamp_for("story-library", 7), "4:x")
+        stamp.assert_called_once_with(7)
+
+    def test_stamp_for_no_user_is_zero(self):
+        self.assertEqual(DC.DashboardController._stamp_for("story-library", None), "0:")
+
+    def test_fragment_builds_context_for_the_requesting_user(self):
+        builder = Mock(return_value={"library_issues": ["row"]})
+        template = "gears/partials/story-library-issues"
+        request = Mock()
+        request.user.return_value = Mock(id=7)
+        view = Mock()
+        view.render.return_value.rendered_template = "<p>html</p>"
+        with patch.dict(DC.FRAGMENTS, {"story-library": (builder, template, "library_issues")}), \
+                patch("app.services.Issues.library_stamp", return_value="1:x"), \
+                patch.object(DC, "json_success") as ok:
+            DC.DashboardController().fragment("story-library", view, request, Mock())
+        builder.assert_called_once_with(7)
+        view.render.assert_called_once_with(template, {"library_issues": ["row"]})
+        self.assertEqual(ok.call_args.kwargs["payload"]["stamp"], "1:x")
+        self.assertEqual(ok.call_args.kwargs["payload"]["count"], 1)
+
+    def test_stamps_poll_asks_for_the_requesting_users_library(self):
+        request = Mock()
+        request.user.return_value = Mock(id=7)
+        seen = []
+
+        def fake(name, user_id):
+            seen.append((name, user_id))
+            return "s"
+
+        with patch.object(DC.DashboardController, "_stamp_for", side_effect=fake), \
+                patch.object(DC.Notifications, "unread_count", return_value=0), \
+                patch.object(DC, "json_success"):
+            DC.DashboardController().stamps(request, Mock())
+        self.assertIn(("story-library", 7), seen)
+
+    def test_stamps_poll_calls_library_stamp_with_user_id(self):
+        request = Mock()
+        request.user.return_value = Mock(id=7)
+        with patch("app.services.Issues.library_stamp", return_value="4:x") as stamp, \
+                patch.object(DC, "_section_stamp", return_value="0:"), \
+                patch("app.services.Issues.current_for", return_value=None), \
+                patch.object(DC.Notifications, "unread_count", return_value=0), \
+                patch.object(DC, "json_success"):
+            DC.DashboardController().stamps(request, Mock())
         stamp.assert_called_once_with(7)
 
     def test_full_context_carries_library_issues(self):

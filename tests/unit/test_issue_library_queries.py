@@ -25,7 +25,8 @@ class PublishedByTestCase(TestCase):
         issue_q = Mock()
         issue_q.get.return_value = issues
         news_q = Mock()
-        news_q.order_by.return_value.get.return_value = stories
+        news_q.select.return_value.order_by.return_value.get.return_value = stories
+        self.news_q = news_q
         with patch.object(Issues.Issue, "where", return_value=issue_q) as iw, \
                 patch.object(Issues.News, "where_in", return_value=news_q) as nw:
             result = Issues.published_by(user_id)
@@ -37,6 +38,18 @@ class PublishedByTestCase(TestCase):
     def test_queries_only_the_callers_issues(self):
         _, iw, _ = self._run([], [])
         iw.assert_called_once_with("owner_id", 7)
+
+    def test_story_query_selects_only_the_columns_the_rows_read(self):
+        # No `description`: bodies are never needed to count and label rows.
+        self._run([_issue(1)], [])
+        self.news_q.select.assert_called_once_with(
+            "id", "issue_id", "status", "layout_type", "title")
+
+    def test_narrowed_select_keeps_the_soft_delete_filter(self):
+        sql = Issues.News.where_in("issue_id", [1]).select(
+            "id", "issue_id", "status", "layout_type", "title").to_sql()
+        self.assertIn("`news`.`deleted_at` IS NULL", sql)
+        self.assertNotIn("description", sql)
 
     def test_only_issues_with_a_visible_story_are_listed(self):
         a, b = _issue(1), _issue(2)

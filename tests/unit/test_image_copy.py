@@ -46,6 +46,25 @@ class ImageCopyTestCase(TestCase):
                 self.assertEqual(fh.read(), data)
         self.assertTrue(os.path.isfile(os.path.join(self.root, "news/a.jpg")))
 
+    def test_failed_variant_copy_removes_what_was_copied_and_raises(self):
+        self._write("news/f.jpg", b"orig")
+        self._write("news/f.large.webp", b"L")
+        self._write("news/f.thumb.webp", b"T")
+        real = D.shutil.copy2
+        calls = []
+
+        def flaky(src, dst):
+            calls.append(dst)
+            if len(calls) == 2:
+                raise OSError("disk full")
+            return real(src, dst)
+
+        with patch.object(D.shutil, "copy2", flaky):
+            with self.assertRaises(OSError):
+                D.copy_image_and_variants("news/f.jpg")
+        self.assertEqual(sorted(os.listdir(os.path.join(self.root, "news"))),
+                         ["f.jpg", "f.large.webp", "f.thumb.webp"])
+
     def test_missing_variants_are_skipped(self):
         self._write("news/b.png")
         new = D.copy_image_and_variants("news/b.png")

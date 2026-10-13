@@ -300,7 +300,13 @@ def published_by(user_id):
 
     Two queries, not one per issue: _issues_where_stories() calls stories_of()
     per issue, which is fine for the kiosk's handful of current issues and an
-    N+1 across an editor's whole back catalogue."""
+    N+1 across an editor's whole back catalogue.
+
+    The story query selects only the five columns library_rows() reads. It
+    used to hydrate every row whole, `description` HTML bodies included, just
+    to count and label them on each dashboard render and live refresh (the
+    same fix super_admin_stats() got). The SoftDeletes scope still adds
+    `deleted_at IS NULL` to a narrowed select."""
     if not user_id:
         return []
     owned = _owned(user_id)
@@ -308,7 +314,11 @@ def published_by(user_id):
         return []
     ids = [getattr(i, "id", None) for i in owned]
     try:
-        rows = list(News.where_in("issue_id", ids).order_by("id", "asc").get() or [])
+        rows = list(
+            News.where_in("issue_id", ids)
+            .select("id", "issue_id", "status", "layout_type", "title")
+            .order_by("id", "asc").get() or []
+        )
     except Exception:
         return []
 
