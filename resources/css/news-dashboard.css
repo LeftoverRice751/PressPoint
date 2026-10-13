@@ -3217,3 +3217,21 @@ a.ghost-button[data-news-preview] {
   gap: 8px;
   margin: 0 0 12px;
 }
+
+/* The panes sit between the flex-column panel (overflow: hidden) and the
+   filters/body that used to be its direct children. .news-library-drawer__body
+   is the scroller only while it has a flex parent to shrink against; inside a
+   plain div it grew to its content and the panel clipped it, so long lists
+   could not scroll. Each pane therefore carries the column through itself.
+   The [hidden] rule is needed because display: flex above beats the UA's
+   [hidden] { display: none }. */
+.news-library-drawer [data-library-pane] {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.news-library-drawer [data-library-pane][hidden] {
+    display: none;
+}

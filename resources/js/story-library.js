@@ -12,6 +12,10 @@
  * would go with them.
  */
 (function () {
+  // One duplicate at a time across all rows: two quick clicks on different
+  // rows' buttons would otherwise create two new drafts.
+  var busy = false;
+
   function init() {
     var drawer = document.querySelector('[data-news-library-drawer]');
     if (!drawer) return;
@@ -69,7 +73,8 @@
     function duplicate(button) {
       var row = button.closest('[data-library-issue]');
       var url = row && row.getAttribute('data-library-duplicate-url');
-      if (!url || button.disabled) return;
+      if (!url || button.disabled || busy) return;
+      busy = true;
       button.disabled = true;
 
       post(url, false).then(function (first) {
@@ -96,8 +101,14 @@
         fail(null);
       }).then(function () {
         button.disabled = false;
+        busy = false;
       });
     }
+
+    // The drawer is the <dialog> itself. Without this reset, an editor who
+    // visited Published and closed it would reopen onto Published (from the
+    // toolbar or an empty-slot placeholder) instead of the story list.
+    drawer.addEventListener('close', function () { show('issue'); });
 
     drawer.addEventListener('click', function (event) {
       var target = event.target;

@@ -30,7 +30,7 @@ class El {
   click() { (this.listeners.click || []).forEach((fn) => fn({ target: this, preventDefault() {} })); }
 }
 
-function boot({ responses, confirm = true }) {
+function boot({ responses, confirm = true, pendingFirst = false }) {
   const tabIssue = new El({ 'data-library-tab': 'issue' });
   const tabPub = new El({ 'data-library-tab': 'published' });
   const paneIssue = new El({ 'data-library-pane': 'issue' });
@@ -38,8 +38,11 @@ function boot({ responses, confirm = true }) {
   const row = new El({ 'data-library-duplicate-url': '/gears/issues/3/duplicate' });
   const dup = new El({ 'data-library-duplicate': '' });
   dup.row = row;
+  const dup2 = new El({ 'data-library-duplicate': '' });
+  dup2.row = row;
   const drawer = new El();
   const calls = [];
+  const pending = [];
   const asked = [];
   let assigned = null;
   const byAll = {
@@ -60,13 +63,16 @@ function boot({ responses, confirm = true }) {
   };
   const fetch = (url, opts) => {
     calls.push({ url, body: opts.body.toString() });
+    if (pendingFirst) return new Promise((res) => pending.push(res));
     const r = responses.shift();
     return Promise.resolve({ status: r.status, json: () => Promise.resolve(r.body) });
   };
   vm.runInNewContext(SOURCE, { window, document, fetch, URLSearchParams, Promise, console });
   return {
-    tabIssue, tabPub, paneIssue, panePub, dup, drawer, calls, asked,
+    tabIssue, tabPub, paneIssue, panePub, dup, dup2, drawer, calls, asked,
     get assigned() { return assigned; },
+    clickDup2: () => (drawer.listeners.click || []).forEach((fn) => fn({ target: dup2, preventDefault() {} })),
+    fireClose: () => (drawer.listeners.close || []).forEach((fn) => fn({})),
     clickDup: () => (drawer.listeners.click || []).forEach((fn) => fn({ target: dup, preventDefault() {} })),
   };
 }
@@ -115,4 +121,22 @@ test('cancelling the confirm posts nothing more', async () => {
   for (let i = 0; i < 6; i++) await tick();
   assert.equal(ui.calls.length, 1);
   assert.equal(ui.assigned, null);
+});
+
+test('closing the drawer resets to the issue pane', () => {
+  const ui = boot({ responses: [] });
+  ui.tabPub.click();
+  assert.equal(ui.paneIssue.hidden, true);
+  ui.fireClose();
+  assert.equal(ui.paneIssue.hidden, false);
+  assert.equal(ui.panePub.hidden, true);
+  assert.equal(ui.tabIssue.getAttribute('aria-selected'), 'true');
+});
+
+test('a second duplicate click while one is in flight posts nothing', async () => {
+  const ui = boot({ responses: [], pendingFirst: true });
+  ui.clickDup();
+  ui.clickDup2();
+  await tick();
+  assert.equal(ui.calls.length, 1);
 });
