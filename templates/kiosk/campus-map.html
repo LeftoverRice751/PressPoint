@@ -115,6 +115,9 @@
             <span class="building-pane__qr-pulse" aria-hidden="true"></span>
             LINK VALID FOR 30 MIN
           </p>
+          {# Filled by kiosk-map.js while the phone link is being minted, or
+             when it can't be — the route on screen is drawn either way. #}
+          <p class="building-pane__qr-status" data-qr-status role="status" hidden></p>
           <div class="building-pane__actions">
             <button type="button"
                     class="building-pane__action building-pane__action--secondary"

@@ -20,6 +20,9 @@
  * is restored. The route session token created on the server stays
  * alive on the user's phone for its full TTL even after a kiosk reset.
  */
+import { cumulativeFromPixels } from './route-maneuvers.mjs';
+import { partialPath, demoPhase, drawDurationFor } from './route-demo.mjs';
+
 document.addEventListener('DOMContentLoaded', () => {
     // ── 1. Constants + state ──────────────────────────────────────
 
@@ -73,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
         baseCenter: null,       // center the map settles at after the initial fit
         droneActive: false,     // true while a drone descent animation is in flight
         currentAnimation: 0,    // token so a newer drone call can cancel an older one
+        routeDemoToken: 0,      // same fence for the Show Route draw loop
         suppressNextMapClick: false, // set by featureclick; see the map click handler
     };
 
@@ -105,6 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         paneLng: document.getElementById('building-pane-lng'),
         showRoute: document.getElementById('show-route'),
         qrCanvas: document.getElementById('qr-canvas'),
+        qrStatus: document.querySelector('[data-qr-status]'),
         searchInput: document.getElementById('search-input'),
         searchClear: document.getElementById('search-clear'),
         keyboard: document.getElementById('keyboard'),
@@ -357,16 +362,26 @@ document.addEventListener('DOMContentLoaded', () => {
         doubleClickZoom: false,
     });
 
-    const routeStyle = {
-        color: '#ff5b13',
-        weight: 6,
-        opacity: 0.95,
-        dashArray: '12, 8',
-        lineCap: 'square',
-        lineJoin: 'miter',
+    // The phone page's three-stroke route (mobile-route.js), so the line a
+    // visitor watches here is the line their phone shows after the QR scan.
+    const ROUTE_CASING_STYLE = { color: '#24110D', weight: 11, opacity: 0.18, lineCap: 'round', lineJoin: 'round' };
+    const ROUTE_FILL_STYLE = { color: '#FF6A00', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round' };
+    const ROUTE_DASH_STYLE = { color: '#FFF3E6', weight: 2.5, opacity: 0.85, dashArray: '3 9', lineCap: 'round' };
+    // Full route held on screen between draws, so a late glance still sees it.
+    const ROUTE_HOLD_MS = 2600;
+
+    const prefersReducedMotion = () => Boolean(
+        window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    );
+
+    // Bumping the token is what stops a running demo: its frame loop checks
+    // it before every write, the same fence animateDrone uses.
+    const stopRouteDemo = () => {
+        state.routeDemoToken += 1;
     };
 
     const clearRouteLayer = () => {
+        stopRouteDemo();
         if (state.routeLayer) {
             map.removeLayer(state.routeLayer);
             state.routeLayer = null;
@@ -407,15 +422,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return [from, to];
     };
 
-    const showRouteLine = (location) => {
-        clearRouteLayer();
-
-        const path = buildRoutePath(location);
-        if (!path || path.length < 2) return;
-
-        state.routeLayer = L.polyline(path, routeStyle).addTo(map);
-        map.fitBounds(state.routeLayer.getBounds(), { padding: [48, 48] });
-    };
+    const buildWalkerIcon = () => L.divIcon({
+        className: 'kiosk-walker-marker',
+        html: `
+            <div class="kiosk-walker">
+                <span class="kiosk-walker__pulse"></span>
+                <span class="kiosk-walker__core"></span>
+            </div>
+        `,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+    });
 
     // "You are here" divIcon — pulses to anchor the user's mental map at the
     // start location (SSB). Placement lives on top of the 2.5D building.
@@ -569,7 +586,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const layerBounds = state.layer.getBounds();
     map.fitBounds(layerBounds, { padding: [48, 48] });
-    map.setMaxBounds(layerBounds.pad(0.5));
+    // A full campus-size margin, not half: the building pane covers the
+    // bottom ~320 px, and framing a route that starts at SSB (on the south
+    // edge) above it needs that much empty map below the campus. At pad(0.5)
+    // the clamp pulled "You are here" back down under the pane.
+    map.setMaxBounds(layerBounds.pad(1));
     state.baseZoom = map.getZoom();
     state.baseCenter = map.getCenter();
 
@@ -626,8 +647,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (token !== state.currentAnimation) return resolve();
                 const t = Math.min(1, (now - start) / durationMs);
                 const eased = easeOutCubic(t);
-                state.layer.setCameraDistance(fromDistance + (toDistance - fromDistance) * eased);
-                state.layer.setHeightScale(fromScale + (toScale - fromScale) * eased);
+                state.layer.setCamera({
+                    cameraDistance: fromDistance + (toDistance - fromDistance) * eased,
+                    heightScale: fromScale + (toScale - fromScale) * eased,
+                });
                 if (t < 1) {
                     requestAnimationFrame(tick);
                 } else {
@@ -671,6 +694,97 @@ document.addEventListener('DOMContentLoaded', () => {
             state.baseZoom = map.getZoom();
             state.baseCenter = map.getCenter();
         });
+    };
+
+    // ── 7c. Show Route demonstration ──────────────────────────────
+
+    // Draws the walkway from "You are here" to `location` with a walker dot
+    // at its tip, holds the full route, and repeats until clearRouteLayer().
+    //
+    // The camera moves ONCE, before the first draw. bumpIdleTimer listens to
+    // movestart/zoomstart, so a loop that re-framed the route every cycle
+    // would count as activity forever and the kiosk would never idle-reset.
+    const startRouteDemo = (location) => {
+        clearRouteLayer();
+
+        const path = buildRoutePath(location);
+        if (!path || path.length < 2) return;
+        const cum = cumulativeFromPixels(path, 1);
+        const total = cum[cum.length - 1];
+        const drawMs = drawDurationFor(total);
+
+        const casing = L.polyline([path[0]], ROUTE_CASING_STYLE);
+        const fill = L.polyline([path[0]], ROUTE_FILL_STYLE);
+        const dash = L.polyline(path, ROUTE_DASH_STYLE);
+        const walker = L.marker(path[0], { icon: buildWalkerIcon(), interactive: false, keyboard: false });
+        const group = L.layerGroup([casing, fill, walker]).addTo(map);
+        state.routeLayer = group;
+        const token = state.routeDemoToken;
+
+        // Frame the whole route in the strip of map that is actually visible.
+        // The map fills the stage; the map key overlays its top and the pane
+        // its bottom, so a symmetric fitBounds put a north-campus destination
+        // under the key bar. The extra 64 px on top clears the selected pin's
+        // name plate, which hangs above the destination.
+        const mapRect = dom.mapEl.getBoundingClientRect();
+        const key = dom.keyPins && dom.keyPins.closest('.map-key');
+        const topInset = key ? Math.max(0, key.getBoundingClientRect().bottom - mapRect.top) : 0;
+        const bottomInset = dom.pane
+            ? Math.max(0, mapRect.bottom - dom.pane.getBoundingClientRect().top)
+            : 0;
+        // Level the drone camera too: the close-up's taller extrusions would
+        // stand in front of the line.
+        state.droneActive = true;
+        map.flyToBounds(L.latLngBounds(path), {
+            duration: DRONE_RESET_MS / 1000,
+            paddingTopLeft: [48, topInset + 64],
+            paddingBottomRight: [48, bottomInset + 48],
+        });
+        animateDrone(
+            state.layer.options.cameraDistance,
+            DRONE_BASE_CAMERA_DISTANCE,
+            state.layer.options.heightScale,
+            DRONE_BASE_HEIGHT_SCALE,
+            DRONE_RESET_MS,
+        ).then(() => { state.droneActive = false; });
+
+        const showWhole = () => {
+            casing.setLatLngs(path);
+            fill.setLatLngs(path);
+            walker.setLatLng(path[path.length - 1]);
+            if (!group.hasLayer(dash)) {
+                group.addLayer(dash);
+                const el = dash.getElement && dash.getElement();
+                if (el) el.classList.add('kiosk-route-dash-anim');
+            }
+        };
+
+        if (prefersReducedMotion()) {
+            showWhole();
+            return;
+        }
+
+        let started = null;
+        const tick = (now) => {
+            if (token !== state.routeDemoToken) return;
+            if (started === null) started = now;
+            const { phase, progress } = demoPhase(now - started, { drawMs, holdMs: ROUTE_HOLD_MS });
+            if (phase === 'hold') {
+                showWhole();
+            } else {
+                if (group.hasLayer(dash)) group.removeLayer(dash);
+                const { points, tip } = partialPath(path, cum, total * progress);
+                casing.setLatLngs(points);
+                fill.setLatLngs(points);
+                walker.setLatLng(tip);
+            }
+            requestAnimationFrame(tick);
+        };
+        // Start drawing once the camera has arrived, so the first pass is
+        // seen whole rather than half-spent during the fly.
+        setTimeout(() => {
+            if (token === state.routeDemoToken) requestAnimationFrame(tick);
+        }, DRONE_RESET_MS);
     };
 
     // Tapping the map away from a marker closes any open pane. A tap that
@@ -765,6 +879,9 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.page.classList.remove('campus-map-page--pane-open');
         state.selected = null;
         setLabelledMarker(null);
+        // The route demo loops until stopped; closing the pane is where the
+        // visitor is done with it (the line used to linger until idle reset).
+        clearRouteLayer();
         resetDroneCamera();
     };
 
@@ -790,8 +907,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    const setQrStatus = (text, isError = false) => {
+        if (!dom.qrStatus) return;
+        dom.qrStatus.textContent = text || '';
+        dom.qrStatus.hidden = !text;
+        dom.qrStatus.classList.toggle('building-pane__qr-status--error', Boolean(isError));
+    };
+
     const onShowRoute = () => {
         if (!state.selected) return;
+        const destination = state.selected;
+
+        // The route is drawn from data already on the kiosk, before and
+        // regardless of the QR request. It used to wait for the session
+        // fetch, so a network or server hiccup left the visitor with no
+        // route at all.
+        startRouteDemo(destination);
+        dom.qrCanvas.innerHTML = '';
+        setQrStatus('Preparing phone link…');
+        showQrView();
+
+        const unavailable = () => {
+            if (state.selected !== destination) return;
+            setQrStatus('Phone link unavailable — follow the route on screen', true);
+        };
 
         fetch('/api/route-sessions', {
             method: 'POST',
@@ -803,17 +942,20 @@ document.addEventListener('DOMContentLoaded', () => {
         })
             .then((response) => response.json())
             .then((body) => {
+                // A late answer for a building the visitor has since left.
+                if (state.selected !== destination) return;
                 if (!body || !body.qr_url) {
                     console.error('Failed to create route session:', body);
+                    unavailable();
                     return;
                 }
-                // The walkway is already on screen from selectBuilding; the
-                // QR flow only needs to issue the token and swap the view.
                 renderQr(body.qr_url);
-                showQrView();
-                showRouteLine(state.selected);
+                setQrStatus('');
             })
-            .catch((error) => console.error('Route session request failed:', error));
+            .catch((error) => {
+                console.error('Route session request failed:', error);
+                unavailable();
+            });
     };
 
     dom.showRoute.addEventListener('click', onShowRoute);
@@ -921,12 +1063,12 @@ document.addEventListener('DOMContentLoaded', () => {
             </li>
         `).join('');
 
-        // The route line's colour lives in routeStyle, not in the stylesheet,
+        // The route line's colour lives in ROUTE_FILL_STYLE, not the stylesheet,
         // so it is pushed onto the swatch here. Retuning the polyline then
         // retunes its key entry; a hardcoded hex in the CSS would quietly
         // start describing a line that no longer looks like that.
         const routeSwatch = dom.keyMarks.querySelector('.map-key__swatch--route');
-        if (routeSwatch) routeSwatch.style.setProperty('--route-line', routeStyle.color);
+        if (routeSwatch) routeSwatch.style.setProperty('--route-line', ROUTE_FILL_STYLE.color);
     };
 
     // ── 11. Idle reset ────────────────────────────────────────────

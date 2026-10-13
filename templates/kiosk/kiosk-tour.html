@@ -61,7 +61,10 @@
 
   <div class="tour-viewport" aria-hidden="true">
     <div class="tour-frame">
-      <div id="pano" aria-hidden="true"></div>
+      {#- data-pano-capture versions every tile URL (?c=...) so the kiosk's
+          cache-first tile cache misses after a re-export. See
+          TourScenesCatalog.capture_stamp. #}
+      <div id="pano" aria-hidden="true" data-pano-capture="{{ pano_capture }}"></div>
     </div>
   </div>
 
@@ -269,6 +272,7 @@
   <script src="{{ asset_url('js/tour-charter.js') }}"></script>
   <script src="{{ asset_url('js/kiosk-archive-book.js') }}" defer></script>
   {% endif %}
+  <script src="{{ asset_url('js/tour-tile-warmup.js') }}"></script>
   <script src="{{ asset_url('js/kiosk-tour.js') }}"></script>
   {% include 'partials/kiosk-frame.html' %}
   {% include 'partials/kiosk-sw.html' %}

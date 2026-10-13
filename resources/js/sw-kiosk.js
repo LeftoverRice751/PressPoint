@@ -15,10 +15,7 @@
  * Four strategies, chosen by what is being asked for:
  *   - Bypass for anything that must never be stale: the no-store polls
  *     (/kiosk/flash-updates every 15s, /kiosk/idle-video, /kiosk/csrf), every
- *     non-GET (POST /api/route-sessions above all), and most of /pano/tiles/ —
- *     the panorama capture is ~360 MB and would blow the origin's storage
- *     quota on its own. The preview carve-out is the one exception; see
- *     PANO_PREVIEW below.
+ *     non-GET (POST /api/route-sessions above all).
  *   - Stale-while-revalidate for kiosk *documents*, for /api/locations and
  *     /api/tour-scenes (which change about once a semester and whose callers
  *     already degrade to []), and for the three editor-mutable /storage/ media
@@ -27,7 +24,8 @@
  *     build — see below), /pano/vendor/, /pano/img/, and /storage/Archives/
  *     (a published issue's rasterised pages never change). /storage/Archives/
  *     moved here out of sw-archives.js; see the note on registrations at the
- *     bottom.
+ *     bottom. /pano/tiles/ is cache-first too, in a cache of its own — see
+ *     PANO_CACHE.
  *
  * Documents were network-first until welcome.html gained its stage viewport,
  * for one reason: the markup carries a per-session CSRF token that the campus
@@ -66,14 +64,39 @@
  * surfaces (/m/archives, /m/route), which never load a kiosk page.
  */
 
-// v3: documents and editor-mutable media changed strategy (see the header), so
-// entries stored under the old rules have to go. v2 was the page-N.png ->
-// page-N.webp rename. The shell assets a bump also evicts are re-fetched once.
-const CACHE_NAME = 'pp-kiosk-v3';
+// v4: /pano/tiles/ moved to PANO_CACHE, so the ~20 MB of unstamped previews
+// v3 held here are dead weight. v3 was documents and editor-mutable media
+// changing strategy; v2 the page-N.png -> page-N.webp rename. The shell assets
+// a bump also evicts are re-fetched once.
+const CACHE_NAME = 'pp-kiosk-v4';
 
-// Never touched: must be live, or is far too large to hold.
+/*
+ * The whole panorama capture, ~360 MB across 205 scenes, held cache-first.
+ *
+ * This was bypassed outright (only the 205 preview.jpg were held) on the
+ * reading that it would blow the origin's quota. On this terminal it does
+ * not: the origin asks for persistent storage (partials/kiosk-sw.html), and a
+ * persisted origin's quota is a share of the disk, not of a browsing profile.
+ * What it did cost was every scene streaming in tile by tile on every visit.
+ * resources/js/tour-tile-warmup.mjs fills it in the background once a visitor
+ * starts the tour, and refuses to when the quota is short.
+ *
+ * A cache of its own, for two reasons:
+ *   - Bumping CACHE_NAME (a shell strategy change) must not throw away 360 MB
+ *     that has nothing to do with the shell. The activate handler only
+ *     deletes pp-kiosk-*.
+ *   - Tile paths are reused by a re-export, so kiosk-tour.js stamps every URL
+ *     with ?c=<capture> (TourScenesCatalog.capture_stamp); the cache key
+ *     changes with the capture, and tour-tile-warmup.mjs prunes the old one.
+ *     Nobody has to remember to bump anything when the tour is re-shot.
+ *
+ * Must match PANO_CACHE in tour-tile-warmup.mjs.
+ */
+const PANO_CACHE = 'pp-pano-v1';
+const PANO_TILES = '/pano/tiles/';
+
+// Never touched: must be live.
 const BYPASS_PREFIXES = [
-  '/pano/tiles/',
   '/kiosk/flash-updates',
   '/kiosk/idle-video',
   // The whole point of this endpoint is to be fresher than the document that
@@ -81,25 +104,6 @@ const BYPASS_PREFIXES = [
   // staleness it exists to remove.
   '/kiosk/csrf',
 ];
-
-/*
- * The one carve-out from the /pano/tiles/ bypass.
- *
- * The bypass is right about the capture as a whole — 362 MB across 205 scenes
- * — but the distribution is lopsided, and the interesting slice is tiny:
- *
- *     all 205 preview.jpg .......  20 MB
- *     one scene, level 1/ ......  228 KB
- *     one scene, level 2/ ......  704 KB
- *     everything .............   362 MB
- *
- * preview.jpg is the low-resolution cube Marzipano paints the instant you
- * enter a scene, before a single sharp tile has arrived. Holding all 205 of
- * them costs 5.5% of the capture and means every one of the 205 scene switches
- * paints immediately instead of showing a blank cube while tiles stream in.
- * The numbered level directories stay bypassed — that is where the 342 MB is.
- */
-const PANO_PREVIEW = /^\/pano\/tiles\/[^/]+\/preview\.jpg$/;
 
 // Effectively static JSON. Both callers already fall back to [] on failure.
 const REVALIDATE_PREFIXES = ['/api/locations', '/api/tour-scenes'];
@@ -212,12 +216,27 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   const sameOrigin = url.origin === self.location.origin;
 
-  // The preview carve-out is checked BEFORE the bypass, because
-  // '/pano/tiles/' is one of the bypass prefixes and would otherwise swallow
-  // it. See PANO_PREVIEW.
-  const isPanoPreview = sameOrigin && PANO_PREVIEW.test(url.pathname);
+  if (sameOrigin && startsWithAny(url.pathname, BYPASS_PREFIXES)) return;
 
-  if (!isPanoPreview && sameOrigin && startsWithAny(url.pathname, BYPASS_PREFIXES)) return;
+  if (sameOrigin && url.pathname.startsWith(PANO_TILES)) {
+    event.respondWith(
+      caches.open(PANO_CACHE).then(async (cache) => {
+        const cached = await cache.match(event.request, { ignoreVary: true });
+        if (cached) return cached;
+
+        const response = await fetch(event.request);
+        // status === 200 for the same reason as the asset handler below. The
+        // put is under waitUntil because the warm-up sweep is thousands of
+        // these back to back, and a worker reaped between respondWith and an
+        // unawaited put would silently drop the tile it just downloaded.
+        if (response.status === 200) {
+          event.waitUntil(cache.put(event.request, response.clone()).catch(() => {}));
+        }
+        return response;
+      })
+    );
+    return;
+  }
 
   /*
    * Documents: stale-while-revalidate. Serve the cached copy immediately and
@@ -297,7 +316,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (isPanoPreview || (sameOrigin && startsWithAny(url.pathname, ASSET_PREFIXES))) {
+  if (sameOrigin && startsWithAny(url.pathname, ASSET_PREFIXES)) {
     event.respondWith(
       caches.open(CACHE_NAME).then(async (cache) => {
         const cached = await cache.match(event.request, { ignoreVary: true });

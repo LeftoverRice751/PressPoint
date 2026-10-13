@@ -18,6 +18,14 @@ _DATA_JS_PATH = os.path.join(
     "data.js",
 )
 
+_TILES_ROOT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "storage",
+    "public",
+    "pano",
+    "tiles",
+)
+
 # data.js sometimes carries a leading /* ... */ block comment (editor notes
 # about hotspot fields) before the assignment — strip that first, then the
 # `window.APP_DATA = ` prefix, then a trailing `;`.
@@ -125,6 +133,29 @@ class TourScenesCatalog:
             )
 
         return catalog
+
+    @classmethod
+    def capture_stamp(cls):
+        """A version marker for the deployed tile set, or "" if there is none.
+
+        The kiosk's service worker holds every tile cache-first, and a
+        re-export reuses the same paths (/pano/tiles/0-jst-1/2/f/0/1.jpg), so
+        without a marker in the URL a terminal would show the old capture
+        forever. The Marzipano Tool regenerates every scene's preview.jpg on
+        export and rsync -a carries those mtimes to production, so the newest
+        one changes exactly when the capture does -- and a data.js edit that
+        only moves a hotspot does not cost a terminal a 360 MB re-download.
+        """
+        newest = 0
+        for scene in cls.all_scenes():
+            try:
+                mtime = os.path.getmtime(
+                    os.path.join(_TILES_ROOT, scene["scene_id"], "preview.jpg")
+                )
+            except OSError:
+                continue
+            newest = max(newest, int(mtime))
+        return str(newest) if newest else ""
 
     @classmethod
     def geometry(cls):

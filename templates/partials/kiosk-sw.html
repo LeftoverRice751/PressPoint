@@ -34,9 +34,9 @@
     // browser may evict all of it, without warning, whenever it decides the
     // origin is using too much. That is a reasonable default for a website and
     // a bad one for a wall-mounted terminal whose whole offline story is that
-    // cache — ~20 MB of panorama previews plus every rasterised archive page,
-    // rebuilt over hours of idle time, thrown away because a visitor opened a
-    // long issue. Granted silently on an installed/engaged origin; a refusal
+    // cache — the ~360 MB virtual tour capture plus every rasterised archive
+    // page, rebuilt over hours of idle time, thrown away because a visitor
+    // opened a long issue. Granted silently on an installed/engaged origin; a refusal
     // is simply today's behaviour, so nothing branches on the result.
     if (navigator.storage && navigator.storage.persist) {
       navigator.storage.persisted()
@@ -47,7 +47,8 @@
     // Mirrors ASSET_PREFIXES/REVALIDATE_PREFIXES in resources/js/sw-kiosk.js.
     // An allowlist, not a denylist: the resource-timing sweep below sees every
     // byte the page pulled, and on the 360 tour that is hundreds of panorama
-    // tiles the worker refuses to cache anyway.
+    // tiles the worker already stores in its own cache (PANO_CACHE) as they
+    // pass through.
     var SAME_OK = ['/assets/', '/pano/vendor/', '/pano/img/',
                    '/storage/Archives/', '/storage/Branding/',
                    '/storage/About/', '/storage/news/'];

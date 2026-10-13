@@ -15,10 +15,11 @@ Three things here are load-bearing and all fail silently if they rot:
     is no layout to hook and nothing structural stops one being forgotten. The
     sweep below is what catches that -- same idea as the sweep in
     test_asset_versioning.py.
-  * The bypass list has to keep holding /pano/tiles/ (~360 MB of panorama
-    imagery, which would blow the origin's storage quota by itself) and the two
-    no-store polls. A caching worker that swallowed those would be worse than
-    no worker at all.
+  * The bypass list has to keep holding the no-store polls. A caching worker
+    that swallowed those would be worse than no worker at all.
+  * /pano/tiles/ (~360 MB) is held, but in its own cache and keyed by a
+    capture stamp, so neither a shell CACHE_NAME bump nor a tour re-export can
+    go wrong with it.
   * The service worker must be mix.copy'd, not mix.js'd. Webpack's module
     wrapper turns a worker into a file that registers and then does nothing.
 """
@@ -48,9 +49,8 @@ _KIOSK_TEMPLATES = (
 
 #: Requests the worker must never answer from Cache Storage.
 _MUST_BYPASS = (
-    "/pano/tiles/",       # ~360 MB capture; quota suicide
     "/kiosk/flash-updates",  # polled every 15s, cache: no-store
-    "/kiosk/idle-video",     # cache: no-store
+    "/kiosk/idle-video",  # cache: no-store
     # The endpoint that exists precisely to be fresher than the cached document
     # that would otherwise have carried the token. Caching it restores the
     # staleness it was added to remove.
@@ -81,8 +81,8 @@ class KioskServiceWorkerTestCase(TestCase):
         missing = [
             name
             for name in _KIOSK_TEMPLATES
-            if "partials/kiosk-sw.html" not in
-            (_REPO_ROOT / "templates" / name).read_text(encoding="utf-8")
+            if "partials/kiosk-sw.html"
+            not in (_REPO_ROOT / "templates" / name).read_text(encoding="utf-8")
         ]
         self.assertEqual(
             [],
@@ -92,9 +92,7 @@ class KioskServiceWorkerTestCase(TestCase):
 
     def test_the_worker_never_caches_the_forbidden_requests(self):
         source = _SW.read_text(encoding="utf-8")
-        bypass = re.search(
-            r"const BYPASS_PREFIXES = \[(.*?)\];", source, re.DOTALL
-        )
+        bypass = re.search(r"const BYPASS_PREFIXES = \[(.*?)\];", source, re.DOTALL)
         self.assertIsNotNone(bypass, "BYPASS_PREFIXES list not found")
         for prefix in _MUST_BYPASS:
             self.assertIn(
@@ -124,7 +122,7 @@ class KioskServiceWorkerTestCase(TestCase):
 
         # 1. The strategy itself: cache before network in the navigation branch.
         nav = source.index("event.request.mode === 'navigate'")
-        branch = source[nav:nav + 1600]
+        branch = source[nav : nav + 1600]
         self.assertLess(
             branch.index("cache.match(event.request"),
             branch.index("fetch(event.request)"),
@@ -148,7 +146,7 @@ class KioskServiceWorkerTestCase(TestCase):
         controller = (
             _REPO_ROOT / "app" / "controllers" / "kiosk" / "WelcomeController.py"
         ).read_text(encoding="utf-8")
-        csrf_body = controller[controller.index("def csrf"):controller.index("def coming_soon")]
+        csrf_body = controller[controller.index("def csrf") : controller.index("def coming_soon")]
         self.assertIn('response.header("Cache-Control", "no-store")', csrf_body)
 
         # 3. The consumers: both POST call sites must fall back to it rather
@@ -186,22 +184,36 @@ class KioskServiceWorkerTestCase(TestCase):
         # of them that must not be re-fetched.
         self.assertIn("/storage/Archives/", assets.group(1))
 
-    def test_the_panorama_preview_carve_out_survives_the_bypass(self):
-        """/pano/tiles/ is bypassed wholesale (362 MB), but preview.jpg is the
-        low-resolution cube Marzipano paints the instant you enter a scene, and
-        all 205 of them together are only ~20 MB. The carve-out has to be
-        tested BEFORE the bypass or the prefix swallows it, which would look
-        exactly like it working while caching nothing."""
+    def test_panorama_tiles_live_in_their_own_cache(self):
+        """The whole capture is cache-first now (see PANO_CACHE in sw-kiosk.js),
+        so a re-shot tour would be pinned forever if the URLs did not change
+        with it, and a shell CACHE_NAME bump would throw away 360 MB if the
+        tiles shared the shell's cache. Both halves are checked here."""
         source = _SW.read_text(encoding="utf-8")
-        self.assertIn("PANO_PREVIEW", source)
 
-        carve_out = source.index("const isPanoPreview")
-        bypass_check = source.index("startsWithAny(url.pathname, BYPASS_PREFIXES)) return;")
-        self.assertLess(
-            carve_out,
-            bypass_check,
-            "the preview carve-out must be computed before the bypass returns",
+        bypass = re.search(r"const BYPASS_PREFIXES = \[(.*?)\];", source, re.S)
+        self.assertIsNotNone(bypass)
+        self.assertNotIn("/pano/tiles/", bypass.group(1))
+
+        pano_cache = re.search(r"const PANO_CACHE = '([^']+)';", source)
+        self.assertIsNotNone(pano_cache, "PANO_CACHE is gone from sw-kiosk.js")
+        self.assertFalse(
+            pano_cache.group(1).startswith("pp-kiosk-"),
+            "activate deletes every pp-kiosk-* but the current one; the tiles "
+            "must not be swept away by a shell bump",
         )
+
+        warmup = (_REPO_ROOT / "resources" / "js" / "tour-tile-warmup.mjs").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            f"export const PANO_CACHE = '{pano_cache.group(1)}';",
+            warmup,
+            "tour-tile-warmup.mjs checks a different cache than the worker fills",
+        )
+
+        tour = (_REPO_ROOT / "templates" / "kiosk" / "kiosk-tour.html").read_text(encoding="utf-8")
+        self.assertIn('data-pano-capture="{{ pano_capture }}"', tour)
 
     def test_the_worker_is_served_from_the_site_root_with_root_scope(self):
         """A worker's scope is capped at the directory it is served from, so
@@ -216,7 +228,7 @@ class KioskServiceWorkerTestCase(TestCase):
         controller = (
             _REPO_ROOT / "app" / "controllers" / "kiosk" / "WelcomeController.py"
         ).read_text(encoding="utf-8")
-        serve_sw = controller[controller.index("def serve_sw"):]
+        serve_sw = controller[controller.index("def serve_sw") :]
         self.assertIn('response.header("Service-Worker-Allowed", "/")', serve_sw)
         # Without no-store, nginx's `expires 7d` on /assets/ would pin browsers
         # to an old worker for up to a week after a deploy.
@@ -227,9 +239,7 @@ class KioskServiceWorkerTestCase(TestCase):
         run exactly one of them. The kiosk archives page moved to sw-kiosk.js
         (which absorbed the /storage/Archives/ block); /m/archives keeps
         sw-archives.js, and the partial unregisters the stale one."""
-        kiosk = (_REPO_ROOT / "resources" / "js" / "kiosk-archives.js").read_text(
-            encoding="utf-8"
-        )
+        kiosk = (_REPO_ROOT / "resources" / "js" / "kiosk-archives.js").read_text(encoding="utf-8")
         self.assertIn("register('/sw-kiosk.js'", kiosk)
         self.assertNotIn("register('/sw-archives.js'", kiosk)
 

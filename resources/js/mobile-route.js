@@ -211,8 +211,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (token !== animationToken) return resolve();
                 const t = Math.min(1, (now - start) / durationMs);
                 const eased = easeOutCubic(t);
-                layer.setCameraDistance(fromDistance + (toDistance - fromDistance) * eased);
-                layer.setHeightScale(fromScale + (toScale - fromScale) * eased);
+                layer.setCamera({
+                    cameraDistance: fromDistance + (toDistance - fromDistance) * eased,
+                    heightScale: fromScale + (toScale - fromScale) * eased,
+                });
                 if (t < 1) requestAnimationFrame(tick);
                 else resolve();
             };

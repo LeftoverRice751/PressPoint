@@ -162,6 +162,7 @@ class WelcomeController(Controller):
             {
                 "active_nav": "tour",
                 "tour_scenes": TourScenesCatalog.all_scenes(),
+                "pano_capture": TourScenesCatalog.capture_stamp(),
                 "charter": latest_charter_entry(),
                 "charter_model_url": CHARTER_MODEL_URL,
                 "charter_scene_id": CHARTER_SCENE_ID,

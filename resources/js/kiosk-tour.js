@@ -152,11 +152,19 @@ function initTour() {
   // We populate `window.__tourBridge` once scenes + switchScene exist so
   // the bridge can wire up the search overlay without reaching into the
   // initTour closure.
+  // ?c=<capture stamp> on every tile: sw-kiosk.js holds them cache-first, and
+  // a re-export reuses the same paths. See TourScenesCatalog.capture_stamp.
+  // window.TourTileWarmup comes from tour-tile-warmup.js; without it (an older
+  // cached template) the tour just runs unstamped and unwarmed, as it used to.
+  var tileWarmup = window.TourTileWarmup || null;
+  var panoCapture = (tileWarmup && panoElement && panoElement.getAttribute('data-pano-capture')) || '';
+  var tileQuery = tileWarmup ? tileWarmup.captureQuery(panoCapture) : '';
+
   var scenes = data.scenes.map(function(data) {
     var urlPrefix = "/pano/tiles";
     var source = Marzipano.ImageUrlSource.fromString(
-      urlPrefix + "/" + data.id + "/{z}/{f}/{y}/{x}.jpg",
-      { cubeMapPreviewUrl: urlPrefix + "/" + data.id + "/preview.jpg" });
+      urlPrefix + "/" + data.id + "/{z}/{f}/{y}/{x}.jpg" + tileQuery,
+      { cubeMapPreviewUrl: urlPrefix + "/" + data.id + "/preview.jpg" + tileQuery });
     var geometry = new Marzipano.CubeGeometry(data.levels);
 
     var limiter = Marzipano.RectilinearView.limit.traditional(data.faceSize, FOV_MIN, FOV_MAX);
@@ -1019,6 +1027,16 @@ function initTour() {
   // outside this function (see "The start gate" below), so by the time
   // initTour() runs the visitor has already asked for the tour.
   startTour();
+
+  // Now that a visitor has really asked for the tour (never on a carousel
+  // slide-past — see the start gate below), pull the rest of the capture into
+  // the tile cache so the next visit never streams a scene in tile by tile.
+  // Delayed so the opening scene's own tiles have the link to themselves.
+  if (panoCapture) {
+    setTimeout(function() {
+      tileWarmup.warmTourTiles(tileWarmup.tileUrlsForScenes(data.scenes, panoCapture), { capture: panoCapture });
+    }, 5000);
+  }
 }
 
 /* ── The start gate ─────────────────────────────────────────────────────

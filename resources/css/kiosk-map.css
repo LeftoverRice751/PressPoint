@@ -283,6 +283,54 @@ html, body {
     box-shadow: 0 8px 16px rgb(var(--brand-gold-rgb) / 0.4);
 }
 
+/* ── Route demonstration walker ───────────────────────────────────
+   Rides the tip of the route line while it draws (kiosk-map.js
+   startRouteDemo), then waits pulsing on the destination. Same dot as the
+   "You are here" core so the walker reads as the visitor setting off. */
+
+.kiosk-walker-marker { background: transparent; border: 0; }
+
+.kiosk-walker {
+    position: relative;
+    width: 0; height: 0;
+    pointer-events: none;
+}
+
+.kiosk-walker__core {
+    position: absolute;
+    left: -9px; top: -9px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--orange);
+    border: 3px solid var(--paper);
+    box-shadow: 0 0 0 2px var(--ink);
+}
+
+.kiosk-walker__pulse {
+    position: absolute;
+    left: -16px; top: -16px;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: rgb(var(--brand-gold-rgb) / 0.4);
+}
+
+/* Marching dashes once the route is fully drawn. Leaflet owns
+   stroke-dasharray (the dashArray option); CSS only moves the offset —
+   the same split mobile-route.css uses. */
+@media (prefers-reduced-motion: no-preference) {
+    .kiosk-walker__pulse {
+        animation: kiosk-here-pulse 1.6s ease-out infinite;
+    }
+
+    .kiosk-route-dash-anim {
+        animation: kiosk-route-dash-march 1.1s linear infinite;
+    }
+
+    @keyframes kiosk-route-dash-march {
+        to { stroke-dashoffset: -44; }
+    }
+}
+
 /* ── Pins (semantic by category) ────────────────────────────────── */
 
 .kiosk-pin-marker { background: transparent; border: 0; }
@@ -481,14 +529,14 @@ html, body {
     box-shadow: 0 0 0 2px var(--ink);
 }
 
-/* Colour is pushed in from routeStyle.color in kiosk-map.js so the key
-   cannot drift from the line it describes; the literal is only a fallback
-   for the pre-script paint. Dashes match the polyline's 12,8 dashArray. */
+/* Colour is pushed in from ROUTE_FILL_STYLE.color in kiosk-map.js so the
+   key cannot drift from the line it describes; the literal is only a
+   fallback for the pre-script paint. Solid, like the route's fill stroke. */
 .map-key__swatch--route {
     width: 22px;
     height: 0;
     flex-shrink: 0;
-    border-top: 4px dashed var(--route-line, #ff5b13);
+    border-top: 5px solid var(--route-line, #FF6A00);
 }
 
 /* ── Category dropdown (filter) ─────────────────────────────────── */
@@ -1128,6 +1176,22 @@ html, body {
     justify-content: center;
     gap: 0.65rem;
 }
+
+/* Phone-link state under the QR: "preparing" while the session is minted,
+   "unavailable" when it can't be. The route on the map is drawn either way. */
+.building-pane__qr-status {
+    margin: 0.6rem 0 0;
+    font-family: var(--mono-font);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    text-align: center;
+}
+
+.building-pane__qr-status[hidden] { display: none; }
+
+.building-pane__qr-status--error { color: var(--orange-deep); }
 
 .building-pane__qr-pulse {
     width: 10px;

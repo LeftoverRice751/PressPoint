@@ -147,6 +147,41 @@ class TourCatalogTestCase(TestCase):
 BACK, DOWN, FRONT, LEFT, RIGHT, UP = range(6)
 
 
+class TourCaptureStampTestCase(TestCase):
+    """capture_stamp() is the ?c= on every tile URL. The kiosk holds tiles
+    cache-first, so if it ever stopped changing with the capture, a re-shot
+    tour would never reach a terminal."""
+
+    def test_the_shipped_capture_has_a_stamp(self):
+        self.assertRegex(TourScenesCatalog.capture_stamp(), r"^\d+$")
+
+    def test_the_stamp_follows_the_newest_preview(self):
+        import os
+        import tempfile
+        from unittest import mock
+
+        from app.services import TourScenesCatalog as module
+
+        with tempfile.TemporaryDirectory() as root:
+            for scene_id, mtime in (("a", 1000), ("b", 2000)):
+                os.makedirs(os.path.join(root, scene_id))
+                path = os.path.join(root, scene_id, "preview.jpg")
+                open(path, "wb").close()
+                os.utime(path, (mtime, mtime))
+
+            scenes = [{"scene_id": "a"}, {"scene_id": "b"}, {"scene_id": "missing"}]
+            with mock.patch.object(module, "_TILES_ROOT", root), mock.patch.object(
+                TourScenesCatalog, "all_scenes", return_value=scenes
+            ):
+                self.assertEqual(TourScenesCatalog.capture_stamp(), "2000")
+
+    def test_no_tiles_means_no_stamp(self):
+        from unittest import mock
+
+        with mock.patch.object(TourScenesCatalog, "all_scenes", return_value=[]):
+            self.assertEqual(TourScenesCatalog.capture_stamp(), "")
+
+
 class TourPreviewFaceTestCase(TestCase):
     """The Tour Mapping thumbnails crop one band out of preview.jpg.
 
@@ -176,9 +211,7 @@ class TourPreviewFaceTestCase(TestCase):
         # building the panorama is of. A regression to a constant face fails
         # right here.
         opening = next(
-            scene
-            for scene in TourScenesCatalog.all_scenes()
-            if scene["scene_id"] == "0-jst-1"
+            scene for scene in TourScenesCatalog.all_scenes() if scene["scene_id"] == "0-jst-1"
         )
 
         self.assertAlmostEqual(opening["initial_view"]["yaw"], -1.9394217698135492)

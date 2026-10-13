@@ -64,6 +64,12 @@
       minLabelArea: 900, // only applies to labels longer than 2 characters
       interactive: true,
       pane: 'overlayPane',
+      // Share of the viewport drawn beyond each edge. Zoom animation CSS-scales
+      // the last frame, so a viewport-sized canvas shrank into a smaller box on
+      // zoom-out and the campus edges blinked out for 250ms. Leaflet's own
+      // Renderer pads (0.1) for the same reason; 0.5 still covers the screen
+      // after a full level out (scale 0.5).
+      padding: 0.5,
       // Feature ids (f.properties.id, as strings) to paint at full strength
       // while every other non-ground feature dims to `dimAlpha`. null/unset
       // means "no dimming" -- the kiosk's own usage never sets this, so its
@@ -103,7 +109,11 @@
       this._ctx = c.getContext('2d');
       map.getPane(this.options.pane).appendChild(c);
 
-      map.on('move zoom viewreset resize zoomend moveend', this._render, this);
+      // `move` alone covers every projection change: Leaflet's _move fires
+      // `zoom` then `move`, and `moveend` always follows a `move`. Listening
+      // to all of them re-projected every polygon two or three times a frame,
+      // which is what made pinch-zoom stutter.
+      map.on('move viewreset resize zoomend', this._render, this);
       if (map.options.zoomAnimation && L.Browser.any3d) map.on('zoomanim', this._animateZoom, this);
       if (this.options.interactive) {
         map.on('mousemove', this._onMove, this);
@@ -115,16 +125,24 @@
 
     onRemove: function (map) {
       L.DomUtil.remove(this._canvas);
-      map.off('move zoom viewreset resize zoomend moveend', this._render, this);
+      map.off('move viewreset resize zoomend', this._render, this);
       map.off('zoomanim', this._animateZoom, this);
       map.off('mousemove', this._onMove, this).off('click', this._onClick, this).off('mouseout', this._onOut, this);
       this._map = null;
     },
 
+    _padPx: function () {
+      const size = this._map.getSize(), p = this.options.padding || 0;
+      return L.point(Math.round(size.x * p), Math.round(size.y * p));
+    },
+
+    // Scale about the canvas's real top-left, which sits `padding` outside the
+    // viewport — not about the viewport's own corner.
     _animateZoom: function (e) {
-      const scale = this._map.getZoomScale(e.zoom, this._map.getZoom());
-      const off = this._map._latLngBoundsToNewLayerBounds(this._map.getBounds(), e.zoom, e.center).min;
-      L.DomUtil.setTransform(this._canvas, off, scale);
+      const map = this._map, pad = this._padPx();
+      const scale = map.getZoomScale(e.zoom, map.getZoom());
+      const corner = map.containerPointToLatLng([-pad.x, -pad.y]);
+      L.DomUtil.setTransform(this._canvas, map._latLngToNewLayerPoint(corner, e.zoom, e.center), scale);
     },
 
     // ---- projection ------------------------------------------------------
@@ -137,16 +155,26 @@
 
     _render: function () {
       if (!this._map) return;
-      const map = this._map, size = map.getSize(), dpr = window.devicePixelRatio || 1;
+      const map = this._map;
+      // During Leaflet's CSS zoom animation map.getZoom() still returns the OLD
+      // zoom, and this method resets the canvas transform to scale 1. A render
+      // in that window (a tap's mousemove, the drone tween) snapped the
+      // buildings back to the pre-zoom view while the pins kept zooming. The
+      // move/zoomend fired after the transition does the real redraw — the
+      // same rule Leaflet's Renderer follows.
+      if (map._animatingZoom) return;
+      const size = map.getSize(), dpr = window.devicePixelRatio || 1;
       const c = this._canvas, ctx = this._ctx;
+      const pad = this._padPx(), w = size.x + 2 * pad.x, h = size.y + 2 * pad.y;
 
-      if (c.width !== Math.round(size.x * dpr) || c.height !== Math.round(size.y * dpr)) {
-        c.width = Math.round(size.x * dpr); c.height = Math.round(size.y * dpr);
-        c.style.width = size.x + 'px'; c.style.height = size.y + 'px';
+      if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+        c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+        c.style.width = w + 'px'; c.style.height = h + 'px';
       }
-      L.DomUtil.setTransform(c, map.containerPointToLayerPoint([0, 0]), 1);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, size.x, size.y);
+      L.DomUtil.setTransform(c, map.containerPointToLayerPoint([-pad.x, -pad.y]), 1);
+      // Everything below still draws in container pixels; the pad is a translate.
+      ctx.setTransform(dpr, 0, 0, dpr, pad.x * dpr, pad.y * dpr);
+      ctx.clearRect(-pad.x, -pad.y, w, h);
 
       const unit = this._unitPx();
       const pivot = L.point(size.x / 2, size.y / 2);
@@ -162,7 +190,8 @@
         const rings = f.rings.map(r => r.map(ll => map.latLngToContainerPoint(ll)));
         // cheap cull
         const b = ringBounds(rings[0]);
-        if (b.maxX < -400 || b.minX > size.x + 400 || b.maxY < -400 || b.minY > size.y + 400) continue;
+        const mx = pad.x + 400, my = pad.y + 400;
+        if (b.maxX < -mx || b.minX > size.x + mx || b.maxY < -my || b.minY > size.y + my) continue;
         const k = camZ / Math.max(1, camZ - h);
         const lift = h * this.options.verticalLift;
         const roof = rings.map(r => r.map(p => L.point(pivot.x + (p.x - pivot.x) * k, pivot.y + (p.y - pivot.y) * k - lift)));
@@ -274,6 +303,19 @@
 
     _pick: function (e) {
       const p = e.containerPoint, ctx = this._ctx;
+      // isPointInPath transforms the path but not the point, so build the path
+      // in plain container space. Under the dpr/padding transform every tap
+      // missed by the pad (and by 2x on a HiDPI screen).
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      try {
+        return this._pickIn(ctx, p);
+      } finally {
+        ctx.restore();
+      }
+    },
+
+    _pickIn: function (ctx, p) {
       for (let i = this._hit.length - 1; i >= 0; i--) {
         const d = this._hit[i];
         // Never pick the ground. `_hit` is ordered ground-first, so walking it
@@ -317,6 +359,13 @@
 
     setCameraDistance: function (v) { this.options.cameraDistance = v; this._render(); return this; },
     setHeightScale: function (v) { this.options.heightScale = v; this._render(); return this; },
+    /** Both camera knobs, one render — the drone tween sets them every frame. */
+    setCamera: function (o) {
+      if (o.cameraDistance != null) this.options.cameraDistance = o.cameraDistance;
+      if (o.heightScale != null) this.options.heightScale = o.heightScale;
+      this._render();
+      return this;
+    },
 
     /** Dim every non-ground feature except the given ids (strings or
      * numbers, coerced to strings). Pass null/undefined to clear. */
