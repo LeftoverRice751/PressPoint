@@ -353,6 +353,14 @@ def news_context(user_id=None):
     }
 
 
+def story_library_context(user_id=None):
+    """The Story Library's Published tab: the signed-in editor's own past
+    newsletters. Imported lazily -- IssueLibrary imports this module."""
+    from app.services import IssueLibrary
+
+    return {"library_issues": IssueLibrary.library_rows(user_id) if user_id else []}
+
+
 def news_categories_context():
     """Context for the categories fragment.
 
@@ -889,6 +897,7 @@ def full_context(default_page="dashboard", user_id=None):
     context.update(overview_context())
     context.update(events_context())
     context.update(news_context(user_id))
+    context.update(story_library_context(user_id))
     context.update(archives_context())
     context.update(videos_context())
     context.update(locations_data)

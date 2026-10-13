@@ -22,6 +22,13 @@ FRAGMENTS = {
     # Composer canvas, same partial the kiosk renders. Fetched directly after a
     # drawer assignment, never by the 20s poll.
     "news-canvas": (DashboardContext.news_canvas_context, "kiosk/_issue", "news_items"),
+    # Story Library's Published tab. Its own section because news_stamp is per
+    # OPEN issue and never moves when an older issue of this editor's is approved.
+    "story-library": (
+        DashboardContext.story_library_context,
+        "gears/partials/story-library-issues",
+        "library_issues",
+    ),
     # Own section, not part of "news": a category rename touches zero news rows.
     "news-categories": (
         DashboardContext.news_categories_context,
@@ -55,6 +62,7 @@ STAMP_MODELS = {
     "videos": Video,
     "news": News,
     "news-canvas": News,
+    "story-library": News,  # stamp is user-scoped; see _stamp_for
     "news-categories": NewsCategory,  # a rename only bumps news_categories.updated_at
     "org-board-organizations": Organization,
     "review": News,  # submissions are News rows
@@ -76,7 +84,7 @@ def _user_id(request):
 
 
 # Sections whose context depends on who is asking (the editor's own issue).
-_USER_SCOPED_SECTIONS = {"news", "news-canvas"}
+_USER_SCOPED_SECTIONS = {"news", "news-canvas", "story-library"}
 
 
 class DashboardController(Controller):
@@ -130,6 +138,8 @@ class DashboardController(Controller):
         if section in _USER_SCOPED_SECTIONS:
             from app.services import Issues
 
+            if section == "story-library":
+                return Issues.library_stamp(user_id)
             issue = Issues.current_for(user_id) if user_id else None
             return Issues.stamp_for(issue) if issue else "0:"
         return _section_stamp(STAMP_MODELS[section])

@@ -6,6 +6,8 @@ both exactly as the composer and kiosk already define them; nothing here adds
 a column or a second notion of either.
 """
 
+import re
+
 from config.database import DB
 
 from app.models.Issue import Issue
@@ -184,3 +186,34 @@ def print_context(issue, autoprint=False):
         # rather than the kiosk's summary. Off everywhere else (see _issue.html).
         "print_full_text": True,
     }
+
+
+_TAGS = re.compile(r"<[^>]+>")
+
+
+def _plain(html):
+    """Headlines may carry Quill formatting spans; a row label wants text."""
+    return _TAGS.sub("", str(html or "")).strip()
+
+
+def library_rows(user_id):
+    """One dict per published issue for the Published tab. Plain dicts, not
+    models: the partial and the live fragment both render from these, and the
+    lead headline is worked out once here rather than in Jinja."""
+    rows = []
+    for issue in Issues.published_by(user_id):
+        stories = list(getattr(issue, "stories", []) or [])
+        lead = next((s for s in stories if getattr(s, "layout_type", None) == "lead"), None)
+        lead = lead or (stories[0] if stories else None)
+        published = Issues.published_local(issue)
+        identity = issue_identity_of(issue)
+        rows.append({
+            "id": getattr(issue, "id", None),
+            "number": int(getattr(issue, "number", 0) or 0),
+            "vol": identity["issue_vol"],
+            "title": getattr(issue, "title", None) or "",
+            "headline": _plain(getattr(lead, "title", "")) if lead else "",
+            "published_label": published.strftime("%b %d, %Y") if published else "",
+            "story_count": len(stories),
+        })
+    return rows
