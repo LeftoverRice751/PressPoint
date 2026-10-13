@@ -3209,3 +3209,11 @@ a.ghost-button[data-news-preview] {
     background: rgb(var(--brand-cream-rgb) / 0.08);
     box-shadow: inset 0 0 0 1px rgb(var(--brand-cream-rgb) / 0.3);
 }
+
+/* Story Library tabs: "This issue" vs "Published newsletters". Reuses the
+   .news-slot-choice pill; this only lays the pair out. */
+.news-library-drawer__tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 12px;
+}

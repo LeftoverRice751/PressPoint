@@ -422,6 +422,12 @@
             <button type="button" class="article-modal__close" data-news-library-close>Close</button>
           </div>
 
+          <div class="news-library-drawer__tabs" role="tablist" aria-label="Story Library">
+            <button type="button" class="news-slot-choice is-active" role="tab" aria-selected="true" data-library-tab="issue">This issue</button>
+            <button type="button" class="news-slot-choice" role="tab" aria-selected="false" data-library-tab="published">Published newsletters</button>
+          </div>
+
+          <div data-library-pane="issue">
           <div class="news-library-drawer__filters" role="group" aria-label="Filter stories">
             <button type="button" class="news-slot-choice is-active" data-news-library-filter="all" aria-pressed="true">All</button>
             <button type="button" class="news-slot-choice" data-news-library-filter="draft" aria-pressed="false">Drafts</button>
@@ -439,6 +445,22 @@
 
             <div class="news-story-library__grid news-library-drawer__grid" data-section-content data-live-target>
 {% include "gears/partials/news-slots.html" %}
+            </div>
+          </div>
+          </div><!-- /[data-library-pane="issue"] -->
+
+          <div data-library-pane="published" hidden>
+            {# Its own live section ("story-library", DashboardController.FRAGMENTS):
+               news_stamp is per OPEN issue and never moves when an older issue of
+               this editor's is approved. No data-section-count / data-section-content
+               here on purpose: the enclosing "news" panel's refresh stamps its own
+               count onto every [data-section-count] beneath it, and
+               syncEmptyStates() would then hide this list whenever the news count
+               is 0. The partial renders its own empty state. #}
+            <div class="news-library-drawer__body page-card" data-live-section="story-library">
+              <div data-live-target>
+{% include "gears/partials/story-library-issues.html" %}
+              </div>
             </div>
           </div>
         </div>
