@@ -96,6 +96,22 @@ class MiddlewareTest(TestCase):
         self.assertTrue(request.csp_nonce)
         self.assertIn(f"'nonce-{request.csp_nonce}'", response.headers[CSP_HEADER])
 
+    def test_after_forbids_mime_sniffing(self):
+        """Without nosniff a browser may read an upload's bytes and render it
+        as HTML on our origin -- the stored-XSS case described in
+        app/services/ImageUploads.py. Exact match on the name: the browser
+        ignores any spelling but this one."""
+        mw = SecurityHeadersMiddleware()
+        request, response = self._Req(), self._Resp()
+
+        mw.before(request, response)
+        returned = mw.after(request, response)
+
+        self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
+        # after() must hand back the request, or Pipeline.through() stops and
+        # every later middleware's after() is skipped (see Kernel.py).
+        self.assertIs(returned, request)
+
     def test_a_broken_response_never_takes_the_request_down(self):
         """A missing header is a lost defence-in-depth layer; an exception here
         would be a 500 on a public terminal."""
