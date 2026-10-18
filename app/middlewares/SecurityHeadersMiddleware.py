@@ -22,6 +22,12 @@ class SecurityHeadersMiddleware(Middleware):
             response.header("X-Content-Type-Options", "nosniff")
         except Exception:
             pass
+        # Belt to the CSP's frame-ancestors braces, for browsers that predate
+        # it. SAMEORIGIN, not DENY: the kiosk hub frames its own /kiosk/embed/*.
+        try:
+            response.header("X-Frame-Options", "SAMEORIGIN")
+        except Exception:
+            pass
         try:
             nonce = getattr(request, "csp_nonce", "") or ""
             response.header(CSP_HEADER, policy_for(nonce))

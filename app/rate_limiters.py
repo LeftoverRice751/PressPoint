@@ -15,23 +15,36 @@ class GuestAuthLimiter(Limiter):
     client — never everyone (a bare "throttle:5/minute" keys the counter globally
     and would let anyone lock the whole site out of logging in).
 
-    This deployment sits behind Cloudflare -> nginx, so REMOTE_ADDR is the local
-    socket, not the visitor. We prefer CF-Connecting-IP (set by Cloudflare and the
-    hardest to spoof), then fall back through the forwarded headers, and finally to
-    a constant so the key is never empty/None (which would crash the limiter).
+    This deployment sits behind Cloudflare -> nginx -> gunicorn's unix socket, so
+    REMOTE_ADDR is empty, not the visitor. The visitor's address arrives in
+    X-Real-IP, which nginx's proxy_params *overwrites* with $remote_addr after
+    the realip module has resolved CF-Connecting-IP -- and only for connections
+    from the local tunnel. That makes X-Real-IP the one header a client cannot
+    choose, so it is the only one read, and only when the connection itself came
+    from the proxy (TRUSTED_PROXY_ADDRS).
+
+    CF-Connecting-IP and X-Forwarded-For used to be read here directly. nginx
+    passes the former through untouched and appends to the latter, so a client
+    reaching the origin without Cloudflare could rotate either per request and
+    never be throttled (SECURITY.md W2, tests/unit/test_rate_limit_client_ip.py).
+    The key falls back to a constant so it is never empty/None, which would
+    crash the limiter.
     """
+
+    # The addresses nginx reaches the app from. "" is gunicorn on a unix socket
+    # (it reports the peer of an AF_UNIX connection as an empty string).
+    TRUSTED_PROXY_ADDRS = frozenset({"", "127.0.0.1", "::1"})
 
     def __init__(self, limit: str = "5/minute"):
         self.limit = limit
 
     def _client_ip(self, request) -> str:
-        forwarded = (request.header("X-Forwarded-For") or "").split(",")[0].strip()
-        return (
-            request.header("CF-Connecting-IP")
-            or forwarded
-            or request.environ.get("REMOTE_ADDR")
-            or "unknown"
-        )
+        remote = (request.environ.get("REMOTE_ADDR") or "").strip()
+        if remote in self.TRUSTED_PROXY_ADDRS:
+            real_ip = (request.header("X-Real-IP") or "").strip()
+            if real_ip:
+                return real_ip
+        return remote or "unknown"
 
     def allow(self, request):
         # Authenticated users aren't the brute-force surface here.

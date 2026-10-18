@@ -112,8 +112,8 @@ Severity is the effect on this deployment if the weakness were exploited.
 
 | # | Sev | Weakness | Where |
 |---|---|---|---|
-| W1 | 🔴 High | The CSP only reports and never blocks | `app/security_headers.py` |
-| W2 | 🔴 High | Rate-limit key can be spoofed with request headers | `app/rate_limiters.py`, nginx `location /` |
+| W1 | ✅ Fixed | ~~The CSP only reports and never blocks~~ | `app/security_headers.py` |
+| W2 | ✅ Fixed | ~~Rate-limit key can be spoofed with request headers~~ | `app/rate_limiters.py` |
 | W3 | 🟠 Med | Session tokens and OTP codes stored in plaintext | `users.remember_token`, `password_resets.token` |
 | W4 | 🟠 Med | Missing HSTS / Referrer-Policy / Permissions-Policy | `SecurityHeadersMiddleware`, nginx |
 | W5 | 🟠 Med | Production `.env` says `APP_ENV=dev` and holds unused secret slots | `.env` |
@@ -128,10 +128,30 @@ Severity is the effect on this deployment if the weakness were exploited.
 **W1 — The CSP is Report-Only.**
 - **Problem:** `REPORT_ONLY = True` sends `Content-Security-Policy-Report-Only`. The browser logs violations but blocks nothing. The nonce, `object-src 'none'` and `frame-ancestors 'self'` therefore protect nothing today. No `X-Frame-Options` header exists either, so the CMS can currently be framed by another site (clickjacking).
 - **Fix:** watch the console on the kiosk and the dashboard for a clean week, then set `REPORT_ONLY = False`. Until then, add `X-Frame-Options: SAMEORIGIN`.
+- **Status: fixed (2026-10-18).**
+  - **What changed:**
+    - `REPORT_ONLY = False`, so the policy is enforced.
+    - `SecurityHeadersMiddleware` sends `X-Frame-Options: SAMEORIGIN`.
+    - The un-nonced inline script in `gears/shell.html` and the speculation-rules block in `welcome.html` now carry the nonce. Chrome 155 rejected the latter despite `'inline-speculation-rules'`.
+    - `kiosk-tokens.css` self-hosts JetBrains Mono instead of `@import`ing Google Fonts, which the policy blocks.
+  - **How it was verified:** a headless crawl of all 19 public pages showed 0 violations. With enforcement on, these all still work:
+    - the tour starts
+    - the map draws
+    - the archive reader opens
+    - pdf.js still gets its blob worker and WebAssembly
+  - **What is now blocked:** an injected inline script no longer runs, and a cross-origin frame of `/login` is refused.
+  - **Tests:** `test_the_policy_is_enforced_not_report_only` and `test_after_forbids_cross_origin_framing`.
+  - **Not crawled:** the authenticated dashboard (no test account). Watch the browser console the first time you use each panel.
+  - **Rollback:** `REPORT_ONLY = True`.
 
 **W2 — The rate-limit key trusts client headers.**
 - **Problem:** `GuestAuthLimiter._client_ip()` reads `CF-Connecting-IP`, then `X-Forwarded-For`, straight from the request. nginx's `include proxy_params` forwards the client's own `CF-Connecting-IP` header unchanged. Cloudflare overwrites that header, so the tunnel path is safe. But anyone who reaches nginx **directly** (the campus LAN on port 80, or a misrouted DNS record) can send a new fake IP with every request and get **unlimited login and OTP guesses**. A 6-digit OTP falls in about 10⁶ attempts.
 - **Fix:** in nginx, set `proxy_set_header CF-Connecting-IP $remote_addr;` and `proxy_set_header X-Forwarded-For $remote_addr;` in both proxy locations. `$remote_addr` is already the real-IP-resolved address, so the client can no longer choose the key. Also firewall port 80 so only the local tunnel reaches it, e.g. bind `listen 127.0.0.1:80`.
+- **Status: fixed in the app (2026-10-18), with no nginx change needed.**
+  - **The new rule:** `_client_ip()` now reads only `X-Real-IP`, a header nginx's `proxy_params` *overwrites* with the realip-resolved `$remote_addr`. It reads it only when the connection came from the proxy (gunicorn's unix socket, or loopback). For any other connection the key is the socket address and every header is ignored. `CF-Connecting-IP` and `X-Forwarded-For` are never read.
+  - **Measured on a dev server:** before the fix, 8 of 8 logins were accepted with a rotating header. After it, a 429 comes back from the 6th attempt for a rotating `CF-Connecting-IP`, `X-Forwarded-For` or `X-Real-IP` sent directly from a LAN address.
+  - **Test:** `tests/unit/test_rate_limit_client_ip.py`.
+  - **Still worth doing:** firewalling port 80 to the tunnel, as defence in depth.
 
 **W3 — Session tokens and OTP codes are stored in plaintext.**
 - **Problem:** A session *is* `users.remember_token`, looked up by equality. A leaked database dump, backup or read-only SQL injection therefore gives a working session for every user, with no password cracking. `password_resets.token` holds live OTP codes the same way.
@@ -184,14 +204,14 @@ Severity is the effect on this deployment if the weakness were exploited.
 ## 4. Hardening roadmap
 
 ### Phase 1 — this week (config only, low risk)
-1. **W2:** override `CF-Connecting-IP` and `X-Forwarded-For` in nginx, and bind nginx to loopback or firewall port 80 (`ufw deny 80` from outside, allow the tunnel).
-2. **W4 and W1:** add HSTS, Referrer-Policy, Permissions-Policy and `X-Frame-Options`.
+1. ~~**W2:** fix the rate-limit key~~ (done in the app). Still bind nginx to loopback or firewall port 80 (`ufw deny 80` from outside, allow the tunnel).
+2. **W4:** add HSTS, Referrer-Policy and Permissions-Policy. (`X-Frame-Options` shipped with W1.)
 3. **W5:** fix `APP_ENV`, remove unused secrets, `chmod 600 .env`. Rotate `APP_KEY`, `DB_PASSWORD`, `MAIL_PASSWORD` and `PUSHER_SECRET` if `.env` has ever been copied off the server.
 4. **W9:** move the logs.
 5. **Cloudflare:** "Always Use HTTPS", minimum TLS 1.2, Bot Fight Mode, and a rate-limit rule on `POST /login` and `/forgot-password*` as a second layer behind the app's throttle.
 
 ### Phase 2 — this month (small code changes, each with a test)
-1. **W1:** after a clean week of reports, flip `REPORT_ONLY = False`. `tests/unit/test_security_headers.py` should assert the enforcing header name.
+1. ~~**W1:** enforce the CSP~~ (done 2026-10-18).
 2. **W3:** hash `remember_token` and OTP codes at rest. Compare with `hmac.compare_digest`.
 3. **W6:** add the CI security job and Dependabot.
 4. **W8 and W11:** per-route body limits, and a decision on who may lock the kiosk.

@@ -8,17 +8,18 @@ even if a future pdf.js upgrade changes a default, or if some other
 file-derived content finds its way into a page. Defence in depth, not a
 replacement for the reader's own settings.
 
-Rolled out as Content-Security-Policy-Report-Only first (see
-REPORT_ONLY below). The browser evaluates the policy and logs violations
-but blocks nothing, so a directive we got wrong shows up in the console
-instead of as a dead panel on a terminal in a hallway. Flip REPORT_ONLY to
-False to enforce.
+Rolled out as Content-Security-Policy-Report-Only first, then enforced
+(SECURITY.md W1) once a headless crawl of every public page came back clean.
+Report-Only blocked nothing, so until then the nonce, object-src 'none' and
+frame-ancestors were all advisory. If a directive turns out wrong on the
+terminal, flip REPORT_ONLY back to True to keep the panel alive while you fix
+it -- that is a rollback, not a resting state.
 """
 
 import secrets
 
 # Header name is chosen from this. Report-Only means "tell me, don't block".
-REPORT_ONLY = True
+REPORT_ONLY = False
 
 CSP_HEADER = (
     "Content-Security-Policy-Report-Only" if REPORT_ONLY else "Content-Security-Policy"
@@ -51,10 +52,12 @@ def _policy(nonce: str) -> str:
       StPageFlip all set element.style at runtime, and there is no nonce
       mechanism for that. Scripts are the surface worth locking down; a
       style injection cannot execute here.
-    - 'inline-speculation-rules' covers the <script type="speculationrules">
-      block in templates/welcome.html. A nonce cannot be used there (the
-      browser matches speculation rules against this token specifically), and
-      without it an enforcing policy silently drops the kiosk's prefetch.
+    - The <script type="speculationrules"> block in templates/welcome.html
+      carries the nonce. 'inline-speculation-rules' alone was meant to cover
+      it, but Chrome 155 still reported it as a script-src-elem violation
+      while a nonce was present in the policy; with the nonce it passes.
+      The keyword stays for browsers that honour it. Without one or the
+      other, an enforcing policy silently drops the kiosk's prefetch.
       The two <script type="application/json"> data blocks (org-board chart
       data, organization groups) need nothing: script-src does not apply to
       non-executable script types.

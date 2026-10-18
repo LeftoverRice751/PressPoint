@@ -485,7 +485,7 @@
        bypasses; see WelcomeController.csrf), so the documents are static,
        the worker serves them stale-while-revalidate, and this prefetch
        populates that cache for all six sections at no extra cost. -->
-  <script type="speculationrules">
+  <script type="speculationrules" nonce="{{ csp_nonce() }}">
   {
     "prefetch": [
       {

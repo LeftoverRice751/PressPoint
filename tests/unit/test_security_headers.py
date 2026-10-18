@@ -112,6 +112,32 @@ class MiddlewareTest(TestCase):
         # every later middleware's after() is skipped (see Kernel.py).
         self.assertIs(returned, request)
 
+    def test_the_policy_is_enforced_not_report_only(self):
+        """Report-Only blocks nothing: the nonce, object-src 'none' and
+        frame-ancestors were all advisory while it was on (SECURITY.md W1).
+        Pinned on the exact header name the browser enforces."""
+        mw = SecurityHeadersMiddleware()
+        request, response = self._Req(), self._Resp()
+
+        mw.before(request, response)
+        mw.after(request, response)
+
+        self.assertIn("Content-Security-Policy", response.headers)
+        self.assertNotIn("Content-Security-Policy-Report-Only", response.headers)
+
+    def test_after_forbids_cross_origin_framing(self):
+        """X-Frame-Options alongside frame-ancestors: a browser that predates
+        CSP framing rules still refuses to let another site frame the CMS
+        (clickjacking). SAMEORIGIN, not DENY -- the kiosk hub frames its own
+        /kiosk/embed/* pages."""
+        mw = SecurityHeadersMiddleware()
+        request, response = self._Req(), self._Resp()
+
+        mw.before(request, response)
+        mw.after(request, response)
+
+        self.assertEqual(response.headers.get("X-Frame-Options"), "SAMEORIGIN")
+
     def test_a_broken_response_never_takes_the_request_down(self):
         """A missing header is a lost defence-in-depth layer; an exception here
         would be a 500 on a public terminal."""

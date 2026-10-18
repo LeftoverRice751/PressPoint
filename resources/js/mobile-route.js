@@ -912,10 +912,6 @@ document.addEventListener('DOMContentLoaded', () => {
             sessionUrl,
             '/assets/fonts/SpaceGrotesk/space-grotesk-variable.woff2',
             '/assets/fonts/JetBrainsMono/jetbrains-mono-variable.woff2',
-            // kiosk-tokens.css (loaded by base.html on every page) @imports
-            // this on top of the self-hosted JetBrains Mono above -- listed
-            // here too so that @import's own fetch doesn't fail offline.
-            'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap',
         ]);
         document.querySelectorAll('link[rel="stylesheet"][href]').forEach((el) => urls.add(el.href));
         document.querySelectorAll('script[src]').forEach((el) => urls.add(el.src));

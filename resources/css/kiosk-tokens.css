@@ -1,4 +1,15 @@
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap");
+/* Self-hosted, not the Google Fonts @import this used to be: the CSP
+   (app/security_headers.py) allows styles and fonts from 'self' only, so once
+   it enforced, the import was refused and every --font-mono label fell back to
+   the system monospace. Same variable file mobile-route.css and
+   newsletter-type.css already declare; the browser fetches it once. */
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/fonts/JetBrainsMono/jetbrains-mono-variable.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
 
 /*
  * PressPoint design tokens — The Gears Publication '26–'27 branding.

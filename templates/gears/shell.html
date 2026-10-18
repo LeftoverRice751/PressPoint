@@ -49,8 +49,11 @@
    does not exist yet at this point. The try/catch is not defensive padding:
    localStorage THROWS on access in a private window and wherever site data is
    blocked, and an exception here would take the whole page down before any of
-   it rendered. #}
-<script>
+   it rendered.
+
+   The nonce is what lets this run once the CSP enforces (app/security_headers.py);
+   without it the rail silently forgets it was closed. #}
+<script nonce="{{ csp_nonce() }}">
   (function () {
     try {
       if (localStorage.getItem('gears:sidebar') === 'closed') {
