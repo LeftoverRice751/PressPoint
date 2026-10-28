@@ -56,6 +56,9 @@
    key is present and already truncated to capacity, so nothing here has to
    guard for a missing bucket or re-check a limit. #}
 {% set blocks = blocks if blocks is defined and blocks else {} %}
+{# Story Library print view only: paper has no reader overlay, so print the
+   whole body instead of the kiosk's summary. Undefined everywhere else. #}
+{% set print_full_text = print_full_text if print_full_text is defined else False %}
 {% set lead_rows = blocks.get('lead', []) %}
 {% set brief_rows = blocks.get('brief', []) %}
 {% set essay_rows = blocks.get('photo_essay', []) %}
@@ -275,6 +278,8 @@
           <summary class="news-inline-body__summary">Full article body</summary>
           <div class="issue-also__body" data-news-edit="body" data-placeholder="Write the full story…">{{ news.description | safe }}</div>
         </details>
+        {% elif print_full_text %}
+        <div class="issue-also__body">{{ news.description | safe }}</div>
         {% else %}
         <p class="issue-also__summary">
           {%- if news.excerpt %}{{ news.excerpt }}
@@ -376,6 +381,8 @@
           <summary class="news-inline-body__summary">Full article body</summary>
           <div class="issue-editorial__body" data-news-edit="body" data-placeholder="Full editorial text…">{{ editorial.description | safe }}</div>
         </details>
+        {% elif print_full_text %}
+        <div class="issue-editorial__body">{{ editorial.description | safe }}</div>
         {% else %}
         <p class="issue-editorial__copy">
           {%- if editorial.excerpt %}{{ editorial.excerpt }}
@@ -468,6 +475,8 @@
             <summary class="news-inline-body__summary">Full article body</summary>
             <div class="issue-notice__body" data-news-edit="body" data-placeholder="Full notice text…">{{ notice.description | safe }}</div>
           </details>
+          {% elif print_full_text %}
+          <div class="issue-notice__body">{{ notice.description | safe }}</div>
           {% else %}
           <p class="issue-notice__copy">
             {%- if notice.excerpt %}{{ notice.excerpt }}

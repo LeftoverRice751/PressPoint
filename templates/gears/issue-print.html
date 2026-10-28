@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ issue_title or ('Issue %02d' % issue_no if issue_no else 'Newsletter') }} | The Gears</title>
+  <link rel="icon" href="{{ site_logo() }}">
+  {# The same three sheets kiosk/news.html links for the issue; the headline
+     face (--nl-playfair) is declared in newsletter-type.css, not the tokens. #}
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/newsletter-type.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/issue-print.css') }}" />
+</head>
+<body class="newspaper-bg issue-print" data-autoprint="{{ '1' if autoprint else '0' }}">
+  <p class="issue-print__hint">Tabloid (11 × 17 in). Use your browser's Print → Save as PDF.</p>
+{% include "kiosk/_issue.html" %}
+  <script src="{{ asset_url('js/issue-print.js') }}" defer></script>
+</body>
+</html>

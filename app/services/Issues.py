@@ -233,6 +233,19 @@ def pending_issues():
     return found
 
 
+def _stamp_of(query):
+    """`count:max(updated_at)` off a News query -- the shape every stamp uses."""
+    try:
+        row = query.select_raw("COUNT(*) AS n, MAX(updated_at) AS m").first()
+        n = getattr(row, "n", None) if row is not None else None
+        m = getattr(row, "m", None) if row is not None else None
+        if isinstance(row, dict):
+            n, m = row.get("n"), row.get("m")
+        return f"{int(n or 0)}:{m or ''}"
+    except Exception:
+        return "0:"
+
+
 def stamp_for(issue):
     """`count:max(updated_at)` over THIS issue's stories -- the
     optimistic-concurrency token news.layout checks. Scoped to the issue so
@@ -241,16 +254,96 @@ def stamp_for(issue):
     issue_id = getattr(issue, "id", issue)
     if not issue_id:
         return "0:"
+    return _stamp_of(News.where("issue_id", issue_id))
+
+
+def is_visible(story):
+    """True when `story` is on the kiosk side of the review gate."""
+    return normalize_news_status(getattr(story, "status", None)) in VISIBLE_STATUSES
+
+
+def published_local(issue):
+    """The issue's publish moment as naive campus-local time, or None."""
+    return _campus_local(getattr(issue, "published_at", None))
+
+
+def owned_issue(user_id, issue_id):
+    """`issue_id` if `user_id` owns it, else None.
+
+    The owner is part of the WHERE, not checked after a plain find(): a guessed
+    id then gets the same None (404) as a missing one, so the endpoint cannot
+    be used to confirm another editor's issue exists."""
+    if not user_id or not issue_id:
+        return None
     try:
-        row = (
-            News.where("issue_id", issue_id)
-            .select_raw("COUNT(*) AS n, MAX(updated_at) AS m")
-            .first()
-        )
-        n = getattr(row, "n", None) if row is not None else None
-        m = getattr(row, "m", None) if row is not None else None
-        if isinstance(row, dict):
-            n, m = row.get("n"), row.get("m")
-        return f"{int(n or 0)}:{m or ''}"
+        return Issue.where("id", issue_id).where("owner_id", user_id).first()
     except Exception:
+        return None
+
+
+def _owned(user_id):
+    try:
+        return list(Issue.where("owner_id", user_id).get() or [])
+    except Exception:
+        return []
+
+
+def _library_sort_key(issue):
+    at = published_local(issue)
+    return (at is None, -(at.timestamp() if at else 0), -(getattr(issue, "id", 0) or 0))
+
+
+def published_by(user_id):
+    """The Story Library's Published tab: `user_id`'s issues with at least one
+    visible story, newest publication first, each with `.stories` set to its
+    visible stories (oldest first).
+
+    Two queries, not one per issue: _issues_where_stories() calls stories_of()
+    per issue, which is fine for the kiosk's handful of current issues and an
+    N+1 across an editor's whole back catalogue.
+
+    The story query selects only the five columns library_rows() reads. It
+    used to hydrate every row whole, `description` HTML bodies included, just
+    to count and label them on each dashboard render and live refresh (the
+    same fix super_admin_stats() got). The SoftDeletes scope still adds
+    `deleted_at IS NULL` to a narrowed select."""
+    if not user_id:
+        return []
+    owned = _owned(user_id)
+    if not owned:
+        return []
+    ids = [getattr(i, "id", None) for i in owned]
+    try:
+        rows = list(
+            News.where_in("issue_id", ids)
+            .select("id", "issue_id", "status", "layout_type", "title")
+            .order_by("id", "asc").get() or []
+        )
+    except Exception:
+        return []
+
+    by_issue = {}
+    for row in rows:
+        if is_visible(row):
+            by_issue.setdefault(getattr(row, "issue_id", None), []).append(row)
+
+    out = []
+    for issue in owned:
+        stories = by_issue.get(getattr(issue, "id", None))
+        if stories:
+            issue.stories = stories
+            out.append(issue)
+    out.sort(key=_library_sort_key)
+    return out
+
+
+def library_stamp(user_id):
+    """Change marker for the Published tab: every story in every issue this
+    editor owns. stamp_for is per OPEN issue, so it never moves when an
+    admin approves one of this editor's older issues -- this one does."""
+    if not user_id:
         return "0:"
+    ids = [getattr(i, "id", None) for i in _owned(user_id)]
+    if not ids:
+        return "0:"
+    return _stamp_of(News.where_in("issue_id", ids))

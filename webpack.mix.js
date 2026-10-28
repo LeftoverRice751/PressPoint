@@ -18,6 +18,8 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .js('resources/js/confirm-modal.js', 'storage/compiled/js')
   .js('resources/js/modal-behavior.js', 'storage/compiled/js')
   .js('resources/js/news-dashboard.js', 'storage/compiled/js')
+  .js('resources/js/story-library.js', 'storage/compiled/js')
+  .js('resources/js/issue-print.js', 'storage/compiled/js')
   .js('resources/js/review-queue.js', 'storage/compiled/js')
   .js('resources/js/tour-preview.js', 'storage/compiled/js')
   .js('resources/js/kiosk-archives.js', 'storage/compiled/js')
@@ -122,6 +124,9 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
     //
   ])
   .postCss('resources/css/newsletter-type.css', 'storage/compiled/css', [
+    //
+  ])
+  .postCss('resources/css/issue-print.css', 'storage/compiled/css', [
     //
   ])
   .postCss('resources/css/welcome-lock.css', 'storage/compiled/css', [

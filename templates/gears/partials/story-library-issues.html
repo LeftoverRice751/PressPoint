@@ -1,0 +1,38 @@
+{# Story Library, Published tab -- the signed-in editor's own past
+   newsletters (IssueLibrary.library_rows). Re-rendered as the
+   "story-library" live fragment, so it must render from `library_issues`
+   alone. The data-library-* hooks are story-library.js's read surface. #}
+{% if library_issues %}
+<table class="wp-posts-table story-library-issues">
+  <thead>
+    <tr>
+      <th scope="col" class="wp-posts-table__col-title">Newsletter</th>
+      <th scope="col">Stories</th>
+      <th scope="col">Published</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for issue in library_issues %}
+    {% set _print = route('issues.print', {'id': issue.id}, False) %}
+    <tr class="wp-posts-table__row" data-library-issue data-library-issue-id="{{ issue.id }}"
+        data-library-duplicate-url="{{ route('issues.duplicate', {'id': issue.id}, False) }}">
+      <td class="wp-posts-table__title-cell">
+        <div class="wp-posts-table__title">Vol. {{ issue.vol or 1 }} &middot; No. {{ '%02d' % issue.number }}{% if issue.title %} &middot; {{ issue.title }}{% endif %}</div>
+        {% if issue.headline %}<div class="wp-posts-table__excerpt">{{ issue.headline }}</div>{% endif %}
+        <div class="wp-posts-table__actions">
+          <a class="wp-row-action" href="{{ _print }}" target="_blank" rel="noopener" data-library-preview>Preview</a>
+          <span class="wp-row-action__sep" aria-hidden="true">|</span>
+          <button type="button" class="wp-row-action" data-library-duplicate>Duplicate as new draft</button>
+          <span class="wp-row-action__sep" aria-hidden="true">|</span>
+          <a class="wp-row-action" href="{{ _print }}?autoprint=1" target="_blank" rel="noopener" data-library-print>Print (PDF)</a>
+        </div>
+      </td>
+      <td>{{ issue.story_count }}</td>
+      <td class="wp-posts-table__date">{{ issue.published_label or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state empty-state--embedded">You haven't published a newsletter yet.</div>
+{% endif %}

@@ -29,8 +29,7 @@ from app.services.DashboardContext import (
     section_stamp,
     upcoming_events,
 )
-from app.services.ImageDerivatives import generate_variants, variant_path, variant_relpath
-from app.services.StorageRouter import absolute_path, is_safe_path
+from app.services.ImageDerivatives import delete_image_and_variants, generate_variants, variant_path
 
 
 # Authoritative font list: unknown ql-font-* classes are stripped on save.
@@ -231,19 +230,7 @@ def _current_user_id(request):
 
 def _delete_image_files(image_path):
     """Remove an uploaded news image and its .large/.thumb derivatives, safely."""
-    if not image_path:
-        return
-
-    candidates = [image_path] + [
-        variant_relpath(image_path, variant) for variant in ("large", "thumb")
-    ]
-    for relative_path in candidates:
-        try:
-            full_path = absolute_path(relative_path)
-            if is_safe_path(relative_path) and os.path.isfile(full_path):
-                os.remove(full_path)
-        except OSError:
-            pass
+    delete_image_and_variants(image_path)
 
 
 def _news_is_public(news_item):

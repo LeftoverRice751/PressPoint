@@ -1013,8 +1013,62 @@ def print_context(issue, autoprint=False):
         "issue_title": getattr(issue, "title", None) or "",
         "issue_published_label": published.strftime("%b %d, %Y") if published else None,
         "autoprint": bool(autoprint),
+        # Paper has no reader overlay, so every story prints its whole body
+        # rather than the kiosk's summary. Off everywhere else (see _issue.html).
+        "print_full_text": True,
     }
 ```
+
+- [ ] **Step 3b: Full text in print (user decision 2026-10-12)** — in `templates/kiosk/_issue.html`, the kiosk (non-editor) branches of the side story, editorial and notice render a truncated summary. Add a print branch to each, keyed on a flag that is undefined (falsy) on every other surface, so the kiosk, composer and review preview render exactly as before. Add near the other `{% set %}`s at the top:
+
+```jinja
+{# Story Library print view only: paper has no reader overlay, so print the
+   whole body instead of the kiosk's summary. Undefined everywhere else. #}
+{% set print_full_text = print_full_text if print_full_text is defined else False %}
+```
+
+Then turn each of the three `{% else %}` summary branches into `{% elif print_full_text %}` + the full body + `{% else %}` + the existing summary unchanged:
+
+```jinja
+        {% elif print_full_text %}
+        <div class="issue-also__body">{{ news.description | safe }}</div>
+        {% else %}
+```
+
+(side story, ~line 278), `<div class="issue-editorial__body">{{ editorial.description | safe }}</div>` (editorial, ~line 380), `<div class="issue-notice__body">{{ notice.description | safe }}</div>` (notice, ~line 474). No `data-news-edit` attributes on these: they are read-only.
+
+Add to `PrintContextTestCase`:
+
+```python
+    def test_print_turns_on_full_text(self):
+        ctx, _ = self._context([_story(1, "published", "lead")])
+        self.assertTrue(ctx["print_full_text"])
+```
+
+and to `PrintTemplateTestCase`:
+
+```python
+    def _brief(self, body):
+        return {"id": 2, "title": "Side", "description": body, "excerpt": "", "image": None,
+                "headline_font": None, "layout_type": "brief"}
+
+    def test_side_story_prints_its_whole_body(self):
+        long_body = "<p>" + ("word " * 80) + "THE-END</p>"
+        html = self._render(blocks={"brief": [self._brief(long_body)]}, print_full_text=True)
+        self.assertIn("THE-END", html)
+
+    def test_kiosk_still_shows_the_summary(self):
+        from wsgi import application
+
+        long_body = "<p>" + ("word " * 80) + "THE-END</p>"
+        html = application.make("view").render("kiosk._issue", {
+            "blocks": {"brief": [self._brief(long_body)]}, "news_editor": False,
+            "calendar_events": [], "issue_vol": 1, "issue_no": 1,
+        }).rendered_template
+        self.assertNotIn("THE-END", html)
+```
+
+Run `venv/bin/python -m pytest tests/unit/test_issue_composer.py tests/unit/test_kiosk_single_issue.py tests/unit/test_news_slots.py -q` as well: they render `_issue.html` and prove the kiosk and composer output did not move. Add `templates/kiosk/_issue.html` to this task's commit.
 
 - [ ] **Step 4: Create `templates/gears/issue-print.html`**
 
