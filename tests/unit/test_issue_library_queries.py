@@ -76,6 +76,22 @@ class PublishedByTestCase(TestCase):
         )
         self.assertEqual([i.id for i in result], [2, 1, 3])
 
+    def test_an_expired_issue_stays_in_its_editors_library(self):
+        # Expiry is computed by current_issues(), never written to a row, so an
+        # issue the kiosk has dropped must still be the author's to reprint or
+        # duplicate. Guards against anyone "tidying" the library to match the
+        # kiosk's daily cut.
+        now = datetime(2026, 10, 28, 12, 0)
+        expired = _issue(1, published_at=datetime(2026, 10, 24, 1, tzinfo=timezone.utc))
+        today = _issue(2, published_at=datetime(2026, 10, 28, 1, tzinfo=timezone.utc))
+        with patch.object(Issues, "published_issues", return_value=[today, expired]):
+            self.assertEqual([i.id for i in Issues.current_issues(now=now)], [2])
+
+        result, _, _ = self._run(
+            [expired, today], [_story(10, 1, "published"), _story(11, 2, "published")])
+        self.assertEqual([i.id for i in result], [2, 1])
+        self.assertEqual([s.id for s in result[1].stories], [10])
+
 
 class OwnedIssueTestCase(TestCase):
     def test_filters_on_id_and_owner(self):
