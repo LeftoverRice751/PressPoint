@@ -17,6 +17,7 @@
 
 import Quill from 'quill';
 import Sortable from 'sortablejs';
+import { safeImageUrl, cssUrl } from './safe-image-url.mjs';
 
 (function () {
   var root = document.querySelector('[data-dashboard-shell]');
@@ -818,7 +819,13 @@ import Sortable from 'sortablejs';
     var zone = activeArt ? region(activeArt, 'image') : null;
     if (!zone) return;
     if (objectUrl) { try { URL.revokeObjectURL(objectUrl); } catch (_) {} objectUrl = null; }
-    var url = typeof src === 'string' ? src : (objectUrl = URL.createObjectURL(src));
+    var url = safeImageUrl(typeof src === 'string' ? src : (objectUrl = URL.createObjectURL(src)));
+    // A refused value leaves the zone in its fallback state rather than
+    // half-applied (see safe-image-url.mjs for what is refused and why).
+    if (!url) {
+      if (objectUrl) { try { URL.revokeObjectURL(objectUrl); } catch (_) {} objectUrl = null; }
+      return;
+    }
     if (zone.tagName === 'IMG') {
       zone.src = url;
       // Fixed alongside the C2/I2 pass (fix round 1, minor): this branch
@@ -826,7 +833,7 @@ import Sortable from 'sortablejs';
       // with the "no photo" placeholder styling still applied on top of it.
       zone.classList.remove('feature-story__image--fallback', 'secondary-story__thumb--fallback');
     } else {
-      zone.style.backgroundImage = 'url("' + url + '")';
+      zone.style.backgroundImage = cssUrl(url);
       zone.style.backgroundSize = 'cover';
       zone.style.backgroundPosition = 'center';
       zone.classList.remove('feature-story__image--fallback', 'secondary-story__thumb--fallback');
@@ -899,6 +906,8 @@ import Sortable from 'sortablejs';
     var url = '';
     if (src && typeof src !== 'string') url = (featuredObjectUrl = URL.createObjectURL(src));
     else if (src) url = src;
+    // A refused URL falls through to the empty state below.
+    url = safeImageUrl(url);
 
     if (url) {
       featuredPreview.src = url;
