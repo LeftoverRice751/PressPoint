@@ -26,6 +26,26 @@ succeeded" would pass against the vulnerable code.
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
+from app.services import SessionTokens
+
+# config() needs the app booted, which these controller-level tests avoid; the
+# digest only has to be keyed consistently within the run.
+_KEY_PATCH = patch.object(SessionTokens, "_key", lambda: b"reset-test-key")
+
+
+def setUpModule():
+    _KEY_PATCH.start()
+
+
+def tearDownModule():
+    _KEY_PATCH.stop()
+
+
+def _stored(email, code):
+    """What password_resets.token -- and the session after verify_otp -- hold
+    for `code`: its keyed digest, never the six digits (SECURITY.md W3)."""
+    return SessionTokens.otp_digest(email, code)
+
 
 class FakeBuilder:
     """Records every statement the controller issues and replays canned rows.
@@ -116,8 +136,8 @@ def _response():
     return response
 
 
-def _row(email, token, expires_at="2099-01-01 00:00:00"):
-    return {"email": email, "token": token, "expires_at": expires_at}
+def _row(email, code, expires_at="2099-01-01 00:00:00"):
+    return {"email": email, "token": _stored(email, code), "expires_at": expires_at}
 
 
 class OtpAccountBindingTestCase(TestCase):
@@ -172,7 +192,7 @@ class OtpAccountBindingTestCase(TestCase):
         self._verify(builder, "123456", session)
 
         self.assertEqual(session.get("reset_email"), "victim@lspu.edu.ph")
-        self.assertEqual(session.get("reset_token"), "123456")
+        self.assertEqual(session.get("reset_token"), _stored("victim@lspu.edu.ph", "123456"))
 
     def test_flow_without_a_pending_email_is_rejected(self):
         """No session context means we cannot prove ownership, so there is
@@ -207,6 +227,51 @@ class OtpAccountBindingTestCase(TestCase):
         self.assertEqual(session.get("pending_reset_email"), "victim@lspu.edu.ph")
 
 
+class OtpAtRestTestCase(TestCase):
+    """The six digits exist in the email and nowhere else: not in the table,
+    not in the session, not in a URL."""
+
+    def test_store_writes_the_digest_and_mails_the_code(self):
+        from app.controllers.auth.PasswordResetController import PasswordResetController
+
+        builder = FakeBuilder()
+        request = _request({"email": "victim@lspu.edu.ph"}, session=FakeSession())
+        with patch(
+            "app.controllers.auth.PasswordResetController.application"
+        ) as app_mock, patch(
+            "app.controllers.auth.PasswordResetController.User"
+        ) as user_mock, patch(
+            "app.controllers.auth.PasswordResetController.Mail"
+        ), patch(
+            "app.controllers.auth.PasswordResetController.ResetPassword"
+        ) as mailable:
+            app_mock.make.return_value = builder
+            user_mock.all.return_value = [Mock(email="victim@lspu.edu.ph")]
+            PasswordResetController().store(Mock(), request, _response())
+
+        code = mailable.call_args.kwargs["token"]
+        self.assertRegex(code, r"^\d{6}$")
+        stored = builder.created[0]["token"]
+        self.assertNotEqual(stored, code)
+        self.assertEqual(stored, _stored("victim@lspu.edu.ph", code))
+
+    def test_verify_otp_never_sends_the_code_to_the_database(self):
+        builder = FakeBuilder([_row("victim@lspu.edu.ph", "123456")])
+        session = FakeSession({"pending_reset_email": "victim@lspu.edu.ph"})
+
+        OtpAccountBindingTestCase._verify(None, builder, "123456", session)
+
+        for _sql, bindings in builder.statements:
+            self.assertNotIn("123456", bindings)
+        self.assertNotEqual(session.get("reset_token"), "123456")
+
+    def test_change_password_form_does_not_carry_the_token_in_its_url(self):
+        import pathlib
+
+        template = pathlib.Path("templates/auth/change_password.html").read_text()
+        self.assertNotIn("'token': token", template)
+
+
 class PasswordWriteBindingTestCase(TestCase):
     """Bug #1 again, at the write: the UPDATE must target the verified account."""
 
@@ -229,7 +294,10 @@ class PasswordWriteBindingTestCase(TestCase):
     def test_reset_row_lookup_is_scoped_to_the_verified_email(self):
         builder = FakeBuilder([_row("victim@lspu.edu.ph", "123456")])
         session = FakeSession(
-            {"reset_token": "123456", "reset_email": "victim@lspu.edu.ph"}
+            {
+                "reset_token": _stored("victim@lspu.edu.ph", "123456"),
+                "reset_email": "victim@lspu.edu.ph",
+            }
         )
 
         self._store_password(
@@ -245,7 +313,10 @@ class PasswordWriteBindingTestCase(TestCase):
     def test_password_is_written_to_the_verified_account(self):
         builder = FakeBuilder([_row("victim@lspu.edu.ph", "123456")])
         session = FakeSession(
-            {"reset_token": "123456", "reset_email": "victim@lspu.edu.ph"}
+            {
+                "reset_token": _stored("victim@lspu.edu.ph", "123456"),
+                "reset_email": "victim@lspu.edu.ph",
+            }
         )
 
         self._store_password(
@@ -267,7 +338,10 @@ class PasswordPolicyBranchTestCase(TestCase):
 
         builder = FakeBuilder([_row("victim@lspu.edu.ph", "123456")])
         session = FakeSession(
-            {"reset_token": "123456", "reset_email": "victim@lspu.edu.ph"}
+            {
+                "reset_token": _stored("victim@lspu.edu.ph", "123456"),
+                "reset_email": "victim@lspu.edu.ph",
+            }
         )
         request = _request(inputs, session=session)
         with patch(

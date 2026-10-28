@@ -20,6 +20,32 @@ def _stub_kiosk_broadcast_delivery():
 
 
 @pytest.fixture(autouse=True)
+def _stub_audit_log_writes():
+    """Keep test actions out of the production audit trail.
+
+    On a dev box the suite runs against the live database (see CLAUDE.md), and
+    every controller test that approves a story or deletes a user now calls
+    AuditLog.record(). Unstubbed, each run would append fake rows to the real
+    audit_logs -- the one table whose whole value is that every row happened.
+    Stubbed at the write seam, so record()'s own logic still runs; tests that
+    assert on rows patch `_builder` themselves, which takes precedence.
+    """
+
+    class _Discard:
+        def new(self):
+            return self
+
+        def table(self, name):
+            return self
+
+        def create(self, payload):
+            return payload
+
+    with patch("app.services.AuditLog._builder", lambda: _Discard()):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _stub_issue_creation():
     """Keep the unit suite from creating issues for editors that do not exist.
 

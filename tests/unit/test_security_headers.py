@@ -138,6 +138,37 @@ class MiddlewareTest(TestCase):
 
         self.assertEqual(response.headers.get("X-Frame-Options"), "SAMEORIGIN")
 
+    def _headers_after_one_request(self):
+        mw = SecurityHeadersMiddleware()
+        request, response = self._Req(), self._Resp()
+        mw.before(request, response)
+        mw.after(request, response)
+        return response.headers
+
+    def test_hsts_is_sent_without_subdomains_or_preload(self):
+        """A year of HSTS, but not includeSubDomains/preload: nothing in this
+        repo knows what else lives under the zone, and preload is a one-way
+        door (SECURITY.md W4)."""
+        hsts = self._headers_after_one_request().get("Strict-Transport-Security")
+        self.assertEqual(hsts, "max-age=31536000")
+
+    def test_referrer_policy_keeps_paths_on_our_origin(self):
+        """Route-session and reset URLs carry tokens in the path; a full
+        Referer must never leave the origin."""
+        self.assertEqual(
+            self._headers_after_one_request().get("Referrer-Policy"),
+            "strict-origin-when-cross-origin",
+        )
+
+    def test_permissions_policy_denies_unused_and_keeps_what_the_site_uses(self):
+        policy = self._headers_after_one_request().get("Permissions-Policy") or ""
+        features = dict(part.strip().split("=", 1) for part in policy.split(",") if part.strip())
+        for unused in ("camera", "microphone", "payment", "usb"):
+            self.assertEqual(features.get(unused), "()", unused)
+        # mobile-route's GPS voice (route-voice.mjs) and the tour's fullscreen.
+        for used in ("geolocation", "screen-wake-lock", "fullscreen"):
+            self.assertEqual(features.get(used), "(self)", used)
+
     def test_a_broken_response_never_takes_the_request_down(self):
         """A missing header is a lost defence-in-depth layer; an exception here
         would be a 500 on a public terminal."""

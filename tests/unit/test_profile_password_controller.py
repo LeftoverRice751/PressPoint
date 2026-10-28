@@ -67,7 +67,10 @@ class ChangePasswordTestCase(TestCase):
     @patch("app.controllers.gears.ProfileController.PasswordChange")
     def test_success_reissues_this_tabs_cookie(self, MockService):
         def _apply(user, current, new, confirmation):
-            user.remember_token = "t2"
+            # The real service mints through User.set_remember_token, which
+            # stores the hash and leaves the plaintext on the instance.
+            user.__dict__["_plain_remember_token"] = "t2"
+            user.remember_token = "h1:hash-of-t2"
             return Result(True, emailed=True)
 
         MockService.apply.side_effect = _apply

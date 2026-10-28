@@ -14,7 +14,7 @@ from masonite.views import View
 
 from app.controllers.gears.NewsController import _NEWS_CACHE_KEY
 from app.models.News import News
-from app.services import KioskBroadcast, Notifications
+from app.services import AuditLog, KioskBroadcast, Notifications
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from config.database import DB
 
@@ -80,6 +80,14 @@ class ReviewController(Controller):
                 record.status = "draft"
                 record.rejection_reason = reason
             record.save()
+            AuditLog.record(
+                "news.approved" if approve else "news.rejected",
+                target_type="news",
+                target_id=getattr(record, "id", None),
+                details={"title": title} if approve else {"title": title, "reason": reason},
+                actor=actor,
+                request=request,
+            )
 
             Cache.forget(_NEWS_CACHE_KEY)
             KioskBroadcast.section_changed("latest-news")
@@ -165,6 +173,18 @@ class ReviewController(Controller):
                             issue.save()
                     except Exception:
                         pass
+
+            AuditLog.record(
+                "issue.approved" if approve else "issue.rejected",
+                target_type="issue",
+                target_id=issue_id,
+                details={
+                    "stories": [getattr(r, "id", None) for r in stories],
+                    **({} if approve else {"reason": reason}),
+                },
+                actor=actor,
+                request=request,
+            )
 
             Cache.forget(_NEWS_CACHE_KEY)
             KioskBroadcast.section_changed("latest-news")

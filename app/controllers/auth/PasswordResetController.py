@@ -7,6 +7,7 @@ from masonite.facades import Mail
 from masonite.facades import Hash
 from app.mailables.ResetPassword import ResetPassword
 from app.models.User import User
+from app.services import AuditLog, SessionTokens
 from masonite.configuration import config
 from wsgi import application
 import re
@@ -53,13 +54,16 @@ class PasswordResetController(Controller):
         reset_expiration = config("auth.guards.password_reset_expiration", 1440)
 
         application.make("builder").new().statement(
-            f"DELETE FROM {reset_table} WHERE email = %s",
+            # bandit B608: table name from config; values are bound.
+            f"DELETE FROM {reset_table} WHERE email = %s",  # nosec B608
             [email],
         )
 
         reset_payload = {
             "email": email,
-            "token": reset_token,
+            # The digest, not the code: the six digits go out in the email and
+            # are never stored (SessionTokens, SECURITY.md W3).
+            "token": SessionTokens.otp_digest(email, reset_token),
             "expires_at": pendulum.now()
             .add(minutes=reset_expiration)
             .to_datetime_string()
@@ -74,7 +78,8 @@ class PasswordResetController(Controller):
             Mail.mailable(ResetPassword(token=reset_token).to(email)).send()
         except Exception:
             application.make("builder").new().statement(
-                f"DELETE FROM {reset_table} WHERE email = %s",
+                # bandit B608: table name from config; values are bound.
+                f"DELETE FROM {reset_table} WHERE email = %s",  # nosec B608
                 [email],
             )
             return response.back().with_errors([
@@ -115,9 +120,11 @@ class PasswordResetController(Controller):
             ])
 
         reset_table = config("auth.guards.password_reset_table", "password_resets")
+        stored_token = SessionTokens.otp_digest(pending_email, otp)
         reset_records = application.make("builder").new().statement(
-            f"SELECT * FROM {reset_table} WHERE token = %s AND email = %s LIMIT 1",
-            [otp, pending_email],
+            # bandit B608: table name from config; values are bound.
+            f"SELECT * FROM {reset_table} WHERE token = %s AND email = %s LIMIT 1",  # nosec B608
+            [stored_token, pending_email],
         )
         reset_record = reset_records[0] if reset_records else None
 
@@ -127,12 +134,15 @@ class PasswordResetController(Controller):
         if self._is_reset_record_expired(reset_record):
             # Scoped to the email so a guessed token can't delete another account's reset.
             application.make("builder").new().statement(
-                f"DELETE FROM {reset_table} WHERE token = %s AND email = %s",
-                [otp, pending_email],
+                # bandit B608: table name from config; values are bound.
+                f"DELETE FROM {reset_table} WHERE token = %s AND email = %s",  # nosec B608
+                [stored_token, pending_email],
             )
             return response.back().with_errors(["OTP code has expired. Please request a new one."])
 
-        request.session.set("reset_token", otp)
+        # The stored digest, which is what store_changed_password() matches the
+        # row on; the code itself never reaches the (cookie-backed) session.
+        request.session.set("reset_token", stored_token)
         request.session.set("reset_email", reset_record["email"])
 
         return response.redirect(name="auth.change-password")
@@ -144,7 +154,10 @@ class PasswordResetController(Controller):
                 "Please verify your OTP first."
             ])
 
-        return view.render("auth.change_password", {"token": reset_token})
+        # No token in the template: the form used to carry it in its action
+        # URL, where it lands in history and access logs, yet the handler has
+        # always read it from the session.
+        return view.render("auth.change_password")
 
     def store_changed_password(self, auth: Auth, request: Request, response: Response):
         token = request.session.get("reset_token")
@@ -177,7 +190,8 @@ class PasswordResetController(Controller):
 
         reset_table = config("auth.guards.password_reset_table", "password_resets")
         reset_records = application.make("builder").new().statement(
-            f"SELECT * FROM {reset_table} WHERE token = %s AND email = %s LIMIT 1",
+            # bandit B608: table name from config; values are bound.
+            f"SELECT * FROM {reset_table} WHERE token = %s AND email = %s LIMIT 1",  # nosec B608
             [token, verified_email],
         )
         reset_record = reset_records[0] if reset_records else None
@@ -187,7 +201,8 @@ class PasswordResetController(Controller):
 
         if self._is_reset_record_expired(reset_record):
             application.make("builder").new().statement(
-                f"DELETE FROM {reset_table} WHERE token = %s AND email = %s",
+                # bandit B608: table name from config; values are bound.
+                f"DELETE FROM {reset_table} WHERE token = %s AND email = %s",  # nosec B608
                 [token, verified_email],
             )
             return response.back().with_errors(["Reset token has expired. Please request a new one."])
@@ -198,13 +213,17 @@ class PasswordResetController(Controller):
             [new_password, verified_email],
         )
         application.make("builder").new().statement(
-            f"DELETE FROM {reset_table} WHERE token = %s AND email = %s",
+            # bandit B608: table name from config; values are bound.
+            f"DELETE FROM {reset_table} WHERE token = %s AND email = %s",  # nosec B608
             [token, verified_email],
         )
 
         request.session.delete("reset_token")
         request.session.delete("reset_email")
         request.session.delete("pending_reset_email")
+        AuditLog.record(
+            "auth.password.reset", details={"email": verified_email}, request=request
+        )
 
         return response.redirect(name="auth.login").with_success([
             "Password Reset Successfully",

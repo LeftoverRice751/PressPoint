@@ -4,7 +4,7 @@ from masonite.request import Request
 from masonite.response import Response
 from masonite.facades import Hash
 from app.models.User import User
-from app.services import AdminConsole, Credentials, Notifications, ReviewQueue
+from app.services import AdminConsole, AuditLog, Credentials, Notifications, ReviewQueue
 from app.tab_slots import clear_slot_session, slot_cookie
 
 
@@ -55,11 +55,18 @@ class UserController(Controller):
 
         password = Credentials.generate_password()
 
-        User.create(
+        created = User.create(
             username=username,
             email=email,
             password=Hash.make(password),
             role="editor"
+        )
+        AuditLog.record(
+            "user.created",
+            target_type="user",
+            target_id=getattr(created, "id", None),
+            details={"username": username, "email": email, "role": "editor"},
+            request=request,
         )
 
         if not Credentials.send_credentials(email, username, password):
@@ -80,7 +87,15 @@ class UserController(Controller):
                 "Only editor accounts can be removed here.",
             ])
 
+        target = {"id": user.id, "username": getattr(user, "username", None)}
         user.delete()
+        AuditLog.record(
+            "user.deleted",
+            target_type="user",
+            target_id=target["id"],
+            details={"username": target["username"], "role": "editor"},
+            request=request,
+        )
 
         return response.redirect(name="users.view").with_success([
             "Editor account removed.",

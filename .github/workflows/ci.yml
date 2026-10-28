@@ -107,3 +107,36 @@ jobs:
       # entry, and any mix/node incompatibility, before it reaches a deploy.
       - name: Production build
         run: npm run prod
+
+  # SECURITY.md W6: known-vulnerable dependencies and risky code patterns.
+  # Same commands as `make audit`, which is also where every ignored advisory
+  # is listed with the reason it is ignored.
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # The makefile calls venv/bin/python; CI has no venv, so build one rather
+      # than special-casing the target.
+      - name: Install scanners
+        run: |
+          python -m venv venv
+          venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+          npm ci
+
+      - name: Audit
+        run: make audit

@@ -10,7 +10,7 @@ from masonite.controllers import Controller
 from masonite.request import Request
 from masonite.response import Response
 
-from app.services import PasswordChange, Profiles
+from app.services import AuditLog, PasswordChange, Profiles, SessionTokens
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.ImageUploads import save_uploaded_image
 from app.tab_slots import slot_cookie
@@ -159,9 +159,13 @@ class ProfileController(Controller):
         if not result.ok:
             return _err(result.errors)
 
+        AuditLog.record("profile.password.changed", actor=user, request=request)
+
+        # The plaintext of the token PasswordChange just minted on this very
+        # instance; the column only holds its hash (SessionTokens).
         response.cookie(
             slot_cookie("token", getattr(request, "tab_slot", 0)),
-            getattr(user, "remember_token", "") or "",
+            SessionTokens.plain_token(user),
         )
 
         message = "Password changed. Other devices have been signed out."

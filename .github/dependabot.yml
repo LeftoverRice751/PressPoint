@@ -1,0 +1,22 @@
+# SECURITY.md W6: weekly PRs for vulnerable or outdated dependencies.
+# requirements.txt is pinned on purpose (see its header: we subclass Masonite
+# internals), so review a masonite-framework bump against
+# app/middlewares/ThrottleRequestsMiddleware.py before merging it.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

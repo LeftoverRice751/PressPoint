@@ -4,7 +4,7 @@ from masonite.request import Request
 from masonite.response import Response
 from masonite.facades import Hash
 from app.models.User import User
-from app.services import Credentials, DashboardContext
+from app.services import AuditLog, Credentials, DashboardContext
 from app.tab_slots import clear_slot_session, slot_cookie
 
 
@@ -54,11 +54,18 @@ class SuperAdminController(Controller):
 
         password = Credentials.generate_password()
 
-        User.create(
+        created = User.create(
             username=username,
             email=email,
             password=Hash.make(password),
             role="admin",
+        )
+        AuditLog.record(
+            "user.created",
+            target_type="user",
+            target_id=getattr(created, "id", None),
+            details={"username": username, "email": email, "role": "admin"},
+            request=request,
         )
 
         if not Credentials.send_credentials(email, username, password):
@@ -97,6 +104,13 @@ class SuperAdminController(Controller):
 
         user.password = Hash.make(password)
         user.save()
+        AuditLog.record(
+            "user.password.reset",
+            target_type="user",
+            target_id=user.id,
+            details={"username": getattr(user, "username", None)},
+            request=request,
+        )
 
         return response.redirect(name="auth.super_admin").with_success([
             "New password sent to {}.".format(email),
@@ -112,7 +126,15 @@ class SuperAdminController(Controller):
             ])
 
         if user:
+            target = {"id": user.id, "username": getattr(user, "username", None), "role": _role_of(user)}
             user.delete()
+            AuditLog.record(
+                "user.deleted",
+                target_type="user",
+                target_id=target["id"],
+                details={"username": target["username"], "role": target["role"]},
+                request=request,
+            )
 
         return response.redirect(name="auth.super_admin")
 

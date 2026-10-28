@@ -1,0 +1,24 @@
+# PressPoint application logs (SECURITY.md W9). Install with:
+#
+#   sudo install -m 644 deploy/logrotate-presspoint /etc/logrotate.d/presspoint
+#   sudo logrotate --debug /etc/logrotate.d/presspoint     # dry run
+#
+# Covers gunicorn's access/error logs (lyn.sh) and the framework's
+# exceptions.log, which had grown unrotated to several MB.
+#
+# copytruncate, not a postrotate signal: gunicorn and Masonite both hold these
+# files open, and copytruncate needs no pid file. The cost is that a line
+# written during the copy can be lost, which is acceptable for these logs.
+# 30 days kept: enough to look back across a full incident.
+/home/leftoverrice/Downloads/presspoint/storage/framework/logs/*.log {
+    su leftoverrice leftoverrice
+    daily
+    rotate 30
+    maxsize 50M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    dateext
+}

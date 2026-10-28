@@ -6,7 +6,6 @@ venv
 # do not upload env
 .env
 .env.*
-!.env.testing
 # npm
 node_modules
 
@@ -15,3 +14,17 @@ node_modules
 
 # compiled assets
 storage/compiled
+
+# Never in an image: history, other checkouts, tooling state (SECURITY.md W10).
+.git
+.worktrees
+.claude
+.superpowers
+.github
+
+# Runtime state and bulk media. The 360 MB of panorama tiles are deployed by
+# rsync (CLAUDE.md, Virtual tour); logs, cache and the socket are per-host.
+storage/public/pano/tiles
+storage/framework/cache
+storage/framework/logs
+presspoint.sock

@@ -12,7 +12,9 @@ DRIVERS = {
         "sms_from": env("VONAGE_SMS_FROM", "+33000000000"),
     },
     "database": {
-        "connection": "sqlite",
+        # Unused -- app/services/Notifications.py writes the table directly --
+        # but it named a sqlite connection that no longer exists (W12).
+        "connection": "mysql",
         "table": "notifications",
     },
 }

@@ -4,7 +4,8 @@ from masonite.environment import env
 DRIVERS = {
     "default": env("QUEUE_DRIVER", "async"),
     "database": {
-        "connection": "sqlite",
+        # Unused (QUEUE_DRIVER is async), but it named the removed sqlite connection.
+        "connection": "mysql",
         "table": "jobs",
         "failed_table": "failed_jobs",
         "attempts": 3,

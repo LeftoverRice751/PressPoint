@@ -110,7 +110,8 @@ def save_uploaded_image(file, nas_subdir, prefix):
         target_path = os.path.join(target_dir, filename)
         with open(target_path, "wb") as fh:
             fh.write(content)
-        os.chmod(target_path, 0o664)
+        # bandit B103: NAS share, editors write over SMB.
+        os.chmod(target_path, 0o664)  # nosec B103
     finally:
         os.umask(old_mask)
 

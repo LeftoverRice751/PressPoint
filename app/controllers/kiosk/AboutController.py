@@ -353,7 +353,8 @@ class AboutController(Controller):
             os.makedirs(nas_dir, mode=0o775, exist_ok=True)
             with open(target, "wb") as fh:
                 fh.write(content)
-            os.chmod(target, 0o664)
+            # bandit B103: NAS share, editors write over SMB.
+            os.chmod(target, 0o664)  # nosec B103
         finally:
             os.umask(old_mask)
 
@@ -418,7 +419,8 @@ class AboutController(Controller):
             os.makedirs(nas_dir, mode=0o775, exist_ok=True)
             with open(target, "wb") as fh:
                 fh.write(content)
-            os.chmod(target, 0o664)
+            # bandit B103: NAS share, editors write over SMB.
+            os.chmod(target, 0o664)  # nosec B103
             _drop_stale_hymn_videos(nas_dir, filename)
         finally:
             os.umask(old_mask)

@@ -30,7 +30,7 @@
     "marzipano": "^0.10.2",
     "openseadragon": "^4.1.1",
     "page-flip": "^2.0.7",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.4.299",
     "quill": "^2.0.2",
     "sortablejs": "^1.15.7",
     "swiper": "^14.0.5"

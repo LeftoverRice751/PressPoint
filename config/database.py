@@ -9,13 +9,11 @@ The connections here don't determine the database but determine the "connection"
 They can be named whatever you want.
 """
 DATABASES = {
+    # MySQL is the only database this app runs on. A `sqlite` connection used to
+    # sit here, selected by .env.testing, and quietly pointed a misconfigured run
+    # at an empty masonite.sqlite3 (SECURITY.md W12); naming any other connection
+    # now fails at the first query instead.
     "default": env("DB_CONNECTION", "mysql"),
-    "sqlite": {
-        "driver": "sqlite",
-        "database": env("SQLITE_DB_DATABASE", "masonite.sqlite3"),
-        "prefix": "",
-        "log_queries": env("DB_LOG"),
-    },
     "mysql": {
         "driver": "mysql",
         "host": env("DB_HOST"),

@@ -6,7 +6,6 @@ venv
 # do not upload env
 .env
 .env.*
-!.env.testing
 # npm
 node_modules
 # package-lock.json is tracked on purpose: `npm ci` (and therefore a

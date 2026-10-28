@@ -21,14 +21,16 @@ PyMySQL==1.1.2
 # Archives: PyMuPDF imports as `fitz` (app/services/ArchiveServices.py).
 PyMuPDF==1.27.2.2
 
-# Image derivatives + uploads.
-pillow==11.0.0
+# Image derivatives + uploads. 12.3.0 for the 17 decoder advisories against
+# 11.0.0 (pip-audit, SECURITY.md W6) -- it parses every uploaded image.
+pillow==12.3.0
 
 # Magic-byte upload validation (app/services/FileVerificationService.py).
 python-magic==0.4.27
 
 # News body sanitisation on write (NewsController._sanitize_news_html).
-bleach==6.1.0
+# 6.4.0 for GHSA-gj48-438w-jh9v and GHSA-8rfp-98v4-mmr6: this is the XSS filter.
+bleach==6.4.0
 
 # Realtime broadcasts; resolved by name through config/broadcast.py, so it is
 # never imported directly and pip-freeze diffing will not flag it as missing.

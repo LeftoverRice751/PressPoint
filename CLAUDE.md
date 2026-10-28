@@ -17,7 +17,7 @@ All Python runs through the in-repo virtualenv (`venv/`); there is no activation
 
 ```bash
 venv/bin/python craft serve              # dev server, http://localhost:8000
-./lyn.sh                                 # production: gunicorn on presspoint.sock (5 worker processes)
+./lyn.sh                                 # production: gunicorn on presspoint.sock (5 worker processes); logs to storage/framework/logs/
 
 npm run watch                            # rebuild assets on change (laravel-mix)
 npm run prod                             # production build (adds version hashes)
@@ -40,15 +40,15 @@ venv/bin/python craft tinker             # python shell with the container loade
 
 **`craft serve` is single-threaded and must stay that way.** Masonite resolves `Response` as a container singleton, so `--threaded` (and gunicorn `--threads`/`gthread`) races on one shared response object. Concurrency comes from separate gunicorn *processes* only — see the comment block in `lyn.sh` before changing worker settings.
 
-**The `.env` in this repo is the production config** (`APP_ENV=production`, `APP_URL=https://presspoint-gears.me`, live MySQL `presspoint`). Any `craft migrate`/`seed:run` here writes to the real database. `masonite.sqlite3` at the repo root is an empty leftover — nothing uses it.
+**The `.env` in this repo is the production config** (mode 600, `APP_ENV=production` — so `craft migrate` needs `--force`, `APP_URL=https://presspoint-gears.me`, live MySQL `presspoint`). Any `craft migrate`/`seed:run` here writes to the real database. MySQL is the only configured connection: the old `sqlite` connection, `masonite.sqlite3` and `.env.testing` were removed (SECURITY.md W12), so there is no second database to fall into.
 
 Known current state of the suite: `pytest tests/unit/` is green at 335 passing, and `make lint` is green too — flake8 and black are in `requirements-dev.txt` now, and `setup.cfg` excludes `venv` (it only listed `.venv`, so linting used to walk all 85 installed packages and never finish).
 
-**The unit suite is not database-free.** Roughly a dozen tests render real dashboard templates and read `locations`/`news`/`users` through the ORM; on a dev box they pass because `.env` points at the live MySQL. They only need the *tables*, not rows — CI runs the whole suite against an empty database. Do not set `APP_ENV=testing` to get a test database: that makes Masonite load `.env.testing`, which pins `DB_CONNECTION=sqlite`, and the suite would silently run against an empty sqlite file instead.
+**The unit suite is not database-free.** Roughly a dozen tests render real dashboard templates and read `locations`/`news`/`users` through the ORM; on a dev box they pass because `.env` points at the live MySQL. They only need the *tables*, not rows — CI runs the whole suite against an empty database. There is no separate test database to switch to — `APP_ENV=testing` used to load a `.env.testing` that pinned an empty sqlite file; both are gone.
 
 **`databases/migrations/` cannot rebuild the schema, and `databases/schema.sql` can.** A fresh `craft migrate` stops 23 migrations in: several migrations are data backfills written against the database as it stood at the time (`2026_05_17_172930_fix_news_defaults_and_add_notifications` runs `UPDATE news SET status = ...` before any migration adds `news.status`), and some are misdated relative to the migration that creates the table they alter (`2026_05_12_..._add_sort_order_to_members_table` predates `2026_07_02_..._create_members_table`; it now returns early when the table is absent, which is correct because the later create declares `sort_order` itself). `schema.sql` is a structure-only dump of the live database, it is what CI loads, and it is the baseline for the squash migration that should eventually replace the history. Regenerate it after any schema change — the command is in its header. **Never commit data into it.**
 
-CI (`.github/workflows/ci.yml`) runs lint + the full pytest suite against a MySQL service loaded from `databases/schema.sql`, and separately `npm ci`, `npm run test:js` and `npm run prod` under Node 18. `make ci` runs the same checks locally. `package-lock.json` is tracked (it used to be gitignored, which made `npm ci` impossible); `storage/framework/cache/` and `storage/framework/logs/` are not (they used to be, so every rate-limit hit and logged exception showed up as a working-tree change).
+CI (`.github/workflows/ci.yml`) runs lint + the full pytest suite against a MySQL service loaded from `databases/schema.sql`, and separately `npm ci`, `npm run test:js` and `npm run prod` under Node 18. `make ci` runs the same checks locally. A third job, `security`, runs `make audit` (pip-audit, bandit, npm audit) — ignored advisories are listed with their reasons in the makefile. `package-lock.json` is tracked (it used to be gitignored, which made `npm ci` impossible); `storage/framework/cache/` and `storage/framework/logs/` are not (they used to be, so every rate-limit hit and logged exception showed up as a working-tree change).
 
 ## Architecture
 
@@ -72,7 +72,7 @@ Controllers are grouped by surface: `app/controllers/kiosk/` (the public touchsc
 
 `app/services/StorageRouter.py` is the single resolver. Paths whose first segment is in `NAS_FOLDERS` (`Archives`, `Videos`, `About`, `Branding`, `Profiles`) resolve to the GearsNAS Samba mount (`GEARSNAS_BASE`, default `/mnt/nas_storage/gears_data`); everything else resolves to `storage/framework/public`. Editors read/write the same NAS files over SMB, which is why `ArchiveServices` renders with a group-writable umask (0664/0775).
 
-In production **nginx serves both roots directly** (`deploy/nginx-presspoint.conf`) and only falls back to Python on a miss. The regex location there mirrors `NAS_FOLDERS` — **keep the two in sync**. `VideoController.serve_storage` is the Python fallback and reads ranges into memory, so it must not become the hot path again.
+nginx caps request bodies at 10M except for an exact-path allowlist of the big-upload routes (500M) — **a new upload route that takes videos or PDFs must be added to that location**, or it 413s. In production **nginx serves both roots directly** (`deploy/nginx-presspoint.conf`) and only falls back to Python on a miss. The regex location there mirrors `NAS_FOLDERS` — **keep the two in sync**. `VideoController.serve_storage` is the Python fallback and reads ranges into memory, so it must not become the hot path again.
 
 Always run DB- or user-supplied paths through `StorageRouter.is_safe_path()` before serving or deleting.
 
@@ -133,6 +133,10 @@ The review preview renders `kiosk/_news_slots.html` with `news_editor=False` and
 `notifications` (recreated after being dropped in `2026_08_23_120000`) is written directly through `app/services/Notifications.py`. **Masonite's notification package is deliberately unused** — its database driver in `config/notification.py` points at a `sqlite` connection on a MySQL app. The bell's unread count rides on the existing 20s `stamps` poll rather than a second timer.
 
 `users.full_name` / `users.avatar_path` back the profile menu in the dashboard hero (which is also where logout lives now — it moved out of the sidebar). Avatars go to `Profiles/` on the NAS via `ImageUploads.save_uploaded_image`. **`User.__fillable__` includes `role`**, so `ProfileController` assigns attributes one at a time; a mass assignment there is privilege escalation.
+
+**Sessions are hashed at rest.** `users.remember_token` holds `h1:` + HMAC-SHA256(APP_KEY, token) (`app/services/SessionTokens.py`); only the slot cookie holds the plaintext. `User.set_remember_token` is overridden, so Masonite's own `attempt()` stores the hash and the plaintext lives on the instance (`SessionTokens.plain_token(user)`) — `LoginController` reads it *before* its re-fetch, because a re-read user only knows the hash. Resolve a cookie with `SessionTokens.find_user()`, never `User.where("remember_token", ...)` (a test fails if one reappears); it upgrades pre-hash plaintext rows on use and refuses a value that is already a hash, so a copied row cannot be replayed. OTP codes are stored as `otp_digest(email, code)` the same way. Rotating `APP_KEY` signs everyone out.
+
+**Privileged actions are audited** through `app/services/AuditLog.py` into `audit_logs` (append-only, best-effort, never raises; IP from the same `client_ip()` as the throttle). New admin-level actions should call `AuditLog.record()`. `tests/unit/conftest.py` stubs its write seam so the suite, which runs against the live database here, never pollutes the real trail.
 
 Self-service password change is `POST /gears/profile/password` → `app/services/PasswordChange.py`. It refuses with **one** generic message whatever failed (current password wrong, policy, mismatch, same-as-current) so the endpoint cannot confirm a current password separately from the policy check; it has its own `password-change` throttle bucket for the same reason. Success rotates `remember_token` — sessions *are* that token — so every other tab and device signs out, and the controller re-issues this tab's slot cookie so the caller doesn't. The policy is Masonite's `strong` defaults (8+, **two** of each class), the same rule the OTP reset enforces; the dashboard meter mirrors those numbers, so change both or neither.
 

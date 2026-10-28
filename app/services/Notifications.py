@@ -5,9 +5,9 @@ editor who submitted the story is somewhere else entirely. A toast is shown to
 whoever is looking at the screen at that moment — which is the admin who just
 clicked Approve, not the person who needs to know.
 
-Why not masonite.notification: its database driver is configured against a
-`sqlite` connection (config/notification.py) while the app runs on MySQL, and
-nothing has ever exercised it. A row here is an insert; the package would be
+Why not masonite.notification: its database driver was configured against a
+`sqlite` connection (config/notification.py; repointed at mysql in SECURITY.md
+W12) and nothing has ever exercised it. A row here is an insert; the package would be
 more machinery than the flow needs and a second thing to keep configured.
 
 Every write here is best-effort in the same spirit as the Pusher broadcasts:

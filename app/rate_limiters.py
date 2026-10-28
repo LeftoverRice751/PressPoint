@@ -8,6 +8,26 @@ from masonite.rates.Limit import Limit
 from masonite.rates.limiters import Limiter
 
 
+# The addresses nginx reaches the app from. "" is gunicorn on a unix socket
+# (it reports the peer of an AF_UNIX connection as an empty string).
+TRUSTED_PROXY_ADDRS = frozenset({"", "127.0.0.1", "::1"})
+
+
+def client_ip(request) -> str:
+    """The visitor's address, as far as a client cannot choose it.
+
+    Shared by the throttle key below and the audit log (app/services/AuditLog.py),
+    which must not let an attacker write a chosen address into the record either.
+    See GuestAuthLimiter for why only X-Real-IP, and only from the proxy.
+    """
+    remote = (request.environ.get("REMOTE_ADDR") or "").strip()
+    if remote in TRUSTED_PROXY_ADDRS:
+        real_ip = (request.header("X-Real-IP") or "").strip()
+        if real_ip:
+            return real_ip
+    return remote or "unknown"
+
+
 class GuestAuthLimiter(Limiter):
     """Per-client throttle for guest auth endpoints (login, OTP).
 
@@ -31,20 +51,11 @@ class GuestAuthLimiter(Limiter):
     crash the limiter.
     """
 
-    # The addresses nginx reaches the app from. "" is gunicorn on a unix socket
-    # (it reports the peer of an AF_UNIX connection as an empty string).
-    TRUSTED_PROXY_ADDRS = frozenset({"", "127.0.0.1", "::1"})
-
     def __init__(self, limit: str = "5/minute"):
         self.limit = limit
 
     def _client_ip(self, request) -> str:
-        remote = (request.environ.get("REMOTE_ADDR") or "").strip()
-        if remote in self.TRUSTED_PROXY_ADDRS:
-            real_ip = (request.header("X-Real-IP") or "").strip()
-            if real_ip:
-                return real_ip
-        return remote or "unknown"
+        return client_ip(request)
 
     def allow(self, request):
         # Authenticated users aren't the brute-force surface here.

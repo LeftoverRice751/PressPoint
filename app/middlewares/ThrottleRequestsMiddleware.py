@@ -53,4 +53,8 @@ class ThrottleRequestsMiddleware(BaseThrottleMiddleware):
             return None
 
     def _cache_key(self, limit_string, limit):
-        return hashlib.md5(str(limit_string + limit.key).encode()).hexdigest()
+        # MD5 because it must reproduce the base class's own key byte for byte;
+        # it names a cache file, it protects nothing.
+        return hashlib.md5(
+            str(limit_string + limit.key).encode(), usedforsecurity=False
+        ).hexdigest()
