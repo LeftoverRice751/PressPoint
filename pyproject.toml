@@ -2,7 +2,7 @@
 line-length = 99
 target-version = ['py37']
 include = '\.pyi?$'
-exclude = '(\.git|\.venv|\.idea|templates|resources|storage|databases\/migrations|node_modules)'
+exclude = '(\.git|\.venv|venv|\.worktrees|\.idea|templates|resources|storage|databases\/migrations|node_modules)'
 
 [tool.pytest.ini_options]
 minversion = "6.0"

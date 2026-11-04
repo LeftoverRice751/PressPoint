@@ -23,7 +23,7 @@ PyMuPDF==1.27.2.2
 
 # Image derivatives + uploads. 12.3.0 for the 17 decoder advisories against
 # 11.0.0 (pip-audit, SECURITY.md W6) -- it parses every uploaded image.
-pillow==12.3.0
+pillow==13.0.0
 
 # Magic-byte upload validation (app/services/FileVerificationService.py).
 python-magic==0.4.27
@@ -35,9 +35,6 @@ bleach==6.4.0
 # Realtime broadcasts; resolved by name through config/broadcast.py, so it is
 # never imported directly and pip-freeze diffing will not flag it as missing.
 pusher==3.3.4
-
-# ROS bridge for the wayfinding IMU/GPS fusion (app/services/FusionServices.py).
-roslibpy==2.1.0
 
 # Datetime handling used directly in controllers and services, not only by
 # the framework.

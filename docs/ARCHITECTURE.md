@@ -177,7 +177,7 @@ the folder (`"gears.NewsController@store"`, `app.controllers.gears.NewsControlle
 | `Campus25dMapping`, `CampusGeoTransform`, `MapWayfinderService` | Pixel-space conversions and Dijkstra over `resources/geo/campus_graph.json`. |
 | `TourScenesCatalog` | Parses `resources/js/data.js` (Marzipano scene graph) for the tour drawer and search. |
 | `OrgBoardTree` | Builds the organisation/member tree; its node keys are a JSON contract with the kiosk template and the editor JS. |
-| `AjaxResponses`, `PublicUrl`, `AssetVersion`, `FusionServices` | Small helpers: JSON-or-redirect responses, `APP_URL`-based public URLs, cache-busting. |
+| `AjaxResponses`, `PublicUrl`, `AssetVersion` | Small helpers: JSON-or-redirect responses, `APP_URL`-based public URLs, cache-busting. |
 
 `AppProvider.register()` (not `boot()`) registers view filters and shared template values —
 `boot()` runs per request *after* the template has rendered.

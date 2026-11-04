@@ -43,10 +43,7 @@ serve:
 #                                 the stdlib ssl module. All three are fixed in
 #                                 cryptography>=49/50, which masonite-framework
 #                                 5.4.1 caps at <49; drop them on that upgrade.
-#   twisted GHSA-8pqf-f4m5-798g   IMAP4 server wildcard matching: unused. Twisted
-#                                 arrives only via roslibpy (FusionServices); no
-#                                 fixed release exists yet.
-PIP_AUDIT_IGNORES := PYSEC-2026-3552 PYSEC-2026-3553 PYSEC-2026-3554 GHSA-8pqf-f4m5-798g
+PIP_AUDIT_IGNORES := PYSEC-2026-3552 PYSEC-2026-3553 PYSEC-2026-3554
 
 audit:
 	$(PY) -m pip_audit -r requirements.txt -r requirements-dev.txt --progress-spinner off \
