@@ -4,6 +4,7 @@ Routes are admin-only, but every action re-checks the role so a dropped
 middleware cannot let an editor publish.
 """
 
+import hmac
 import traceback
 
 from masonite.controllers import Controller
@@ -20,6 +21,7 @@ from config.database import DB
 
 from app.services.ReviewQueue import (
     REVIEW_STATUS,
+    content_stamp,
     issue_preview_context,
     pending_stories,
     preview_context,
@@ -29,6 +31,18 @@ from app.services.ReviewQueue import (
 
 # Where an editor lands from the notification; there is no per-story deep link.
 _EDITOR_LINK = "/gears/dashboard?page=news"
+
+
+_STALE_PREVIEW = (
+    "This has changed since you previewed it, or it hasn't been previewed. "
+    "Open the preview and read it before approving."
+)
+
+
+def _matches_preview(request, stories):
+    """True when `review_stamp` is the stamp of exactly these stories as they are now."""
+    stamp = str(request.input("review_stamp") or "")
+    return bool(stamp) and hmac.compare_digest(stamp, content_stamp(stories))
 
 
 def _is_admin(user):
@@ -64,6 +78,9 @@ class ReviewController(Controller):
         if current != REVIEW_STATUS:
             # Already decided or withdrawn; refuse rather than overwrite another admin's call.
             return _err(["That story is no longer awaiting review."], status=409)
+
+        if approve and not _matches_preview(request, [record]):
+            return _err([_STALE_PREVIEW], status=409)
 
         reason = (request.input("reason") or "").strip()
         if not approve and not reason:
@@ -143,6 +160,9 @@ class ReviewController(Controller):
         if not stories:
             # Refuse rather than report success on nothing (double-click after a colleague).
             return _err(["Nothing is awaiting review."], status=409)
+
+        if approve and not _matches_preview(request, stories):
+            return _err([_STALE_PREVIEW], status=409)
 
         reason = (request.input("reason") or "").strip()
         if not approve and not reason:
@@ -259,7 +279,11 @@ class ReviewController(Controller):
         html = view.render("kiosk/_issue", issue_preview_context(stories)).rendered_template
         return json_success(
             response,
-            payload={"count": len(stories), "html": html},
+            payload={
+                "count": len(stories),
+                "html": html,
+                "review_stamp": content_stamp(stories),
+            },
         )
 
     def approve(self, request: Request, response: Response):
@@ -275,4 +299,11 @@ class ReviewController(Controller):
             return json_errors(response, ["Story not found."], status=404)
 
         html = view.render("kiosk/_issue", preview_context(record)).rendered_template
-        return json_success(response, payload={"id": getattr(record, "id", None), "html": html})
+        return json_success(
+            response,
+            payload={
+                "id": getattr(record, "id", None),
+                "html": html,
+                "review_stamp": content_stamp([record]),
+            },
+        )

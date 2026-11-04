@@ -30,6 +30,11 @@
     }
   }
 
+  // issue id -> stamp of the content its preview rendered. Kept here because the
+  // live poll replaces the cards. The server only publishes content matching the
+  // stamp sent back, so an approval is tied to the text the admin read.
+  var previewStamps = {};
+
   function cardOf(el) { return el.closest('[data-review-issue]'); }
   function issueIdOf(card) { return card && card.getAttribute('data-review-issue-id'); }
 
@@ -73,7 +78,10 @@
         'Content-Type': 'application/json'
       },
       credentials: 'same-origin',
-      body: JSON.stringify({ reason: reason || '' })
+      body: JSON.stringify({
+        reason: reason || '',
+        review_stamp: approve ? (previewStamps[id] || '') : ''
+      })
     })
       .then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
       .then(function (json) {
@@ -172,6 +180,7 @@
         }
         // Server-rendered markup from our own template, not user input.
         previewTarget.innerHTML = json.html;
+        previewStamps[id] = json.review_stamp || '';
         // Images in the partial change its height as they land; fit now for
         // the text, then again once the frame has painted.
         fitPreview();

@@ -1,4 +1,3 @@
-import json
 import os
 import traceback
 
@@ -11,6 +10,7 @@ from masonite.views import View
 from app.models.Organization import Organization
 from app.models.Member import Member
 from app.services.AjaxResponses import wants_json, json_success, json_errors
+from app.services.FileVerificationService import FileVerificationService
 from app.services.OrgBoardTree import (
     build_member_tree,
     build_org_board_organizations,
@@ -48,13 +48,6 @@ def _int_or_none(raw_value):
         return int(float(text))
     except (TypeError, ValueError):
         return None
-
-
-def _clamp_position(value):
-    """Fold canvas coordinates into the positive quadrant; the board is anchored at (0, 0)."""
-    if value is None:
-        return None
-    return max(0, value)
 
 
 def _normalize_uploaded_photo(photo_file):
@@ -167,6 +160,10 @@ class OrgBoardController(Controller):
         if file_extension not in ALLOWED_PHOTO_EXTENSIONS:
             return None, "Please upload a valid image file."
 
+        # The extension is only what the browser claimed.
+        if not FileVerificationService.verify_buffer(photo_file.get_content(), "photo"):
+            return None, "Please upload a valid image file."
+
         return storage.disk("public").put_file("org-board", photo_file), None
 
     def show(self, response: Response):
@@ -258,8 +255,6 @@ class OrgBoardController(Controller):
                 "parent_id": parent_id,
                 "photo_path": photo_path,
                 "sort_order": sort_order,
-                "pos_x": _clamp_position(_int_or_none(request.input("pos_x"))),
-                "pos_y": _clamp_position(_int_or_none(request.input("pos_y"))),
             })
 
             if is_ajax:
@@ -274,146 +269,48 @@ class OrgBoardController(Controller):
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return _err(["Could not save the member. Please try again."])
 
-    def move(self, request: Request, response: Response):
-        """Reparent a member (`parent_id`, empty = root) and/or pin canvas positions
-        (`pos_x`/`pos_y`, or a `positions` JSON batch)."""
-        positions_raw = (request.input("positions", "") or "").strip()
-        if positions_raw:
-            return self._move_positions(response, positions_raw)
+    def reorder(self, request: Request, response: Response):
+        """Swap a member with the sibling before or after them (`direction` =
+        "earlier" / "later"), then renumber that group 1..n.
 
+        Order is the one thing an editor arranges by hand now that the chart is
+        laid out from the hierarchy alone; the kiosk reads it straight from
+        `sort_order` through member_sort_key. Renumbering the whole group on
+        every swap, rather than trading two values, is what heals the duplicate
+        and gapped sort_orders older rows carry -- with two siblings both at 0 a
+        bare swap would change nothing and the button would appear dead.
+        """
         member_id = _int_or_none(request.input("member_id"))
-        if member_id is None:
-            return json_errors(response, ["Please choose a valid member."])
-
-        member = Member.find(member_id)
-        if not member:
-            return json_errors(response, ["Please choose a valid member."])
+        direction = (request.input("direction") or "").strip().lower()
+        if direction not in ("earlier", "later"):
+            return json_errors(response, ["Please choose to move the member earlier or later."])
 
         members = self._all_members()
-        branch_ids = self._branch_ids(members, member.id)
+        member = next((row for row in members if getattr(row, "id", None) == member_id), None)
+        if member_id is None or member is None:
+            return json_errors(response, ["Please choose a valid member."])
 
-        source_organization_id = getattr(member, "organization_id", None)
-        source_parent_id = getattr(member, "parent_id", None)
-        target_parent_id = source_parent_id
-        reparenting = request.input("parent_id", None) is not None
+        organization_id = getattr(member, "organization_id", None)
+        group = self._sibling_group(members, organization_id, getattr(member, "parent_id", None))
+        index = next(i for i, row in enumerate(group) if row is member)
+        target = index - 1 if direction == "earlier" else index + 1
 
-        if reparenting:
-            parent_id = _int_or_none(request.input("parent_id"))
+        if target < 0 or target >= len(group):
+            edge = "first" if direction == "earlier" else "last"
+            return json_errors(response, [f"{member.name} is already {edge}."])
 
-            if parent_id is None:
-                target_parent_id = None
-            else:
-                if parent_id in branch_ids:
-                    return json_errors(
-                        response,
-                        ["A member cannot report to itself or to one of its own subordinates."],
-                    )
-
-                parent_member = Member.find(parent_id)
-                if not parent_member:
-                    return json_errors(response, ["Please choose a valid supervisor."])
-
-                if getattr(parent_member, "organization_id", None) != source_organization_id:
-                    return json_errors(response, ["The supervisor must belong to the same organization."])
-
-                target_parent_id = parent_member.id
-
-        pos_x = _clamp_position(_int_or_none(request.input("pos_x")))
-        pos_y = _clamp_position(_int_or_none(request.input("pos_y")))
-        has_position = pos_x is not None and pos_y is not None
+        group[index], group[target] = group[target], group[index]
 
         try:
-            member.parent_id = target_parent_id
-            if has_position:
-                member.pos_x = pos_x
-                member.pos_y = pos_y
-
-            if target_parent_id != source_parent_id:
-                # Append to the new sibling group; on a free canvas x carries no ordering.
-                member.sort_order = self._next_sort_order(
-                    members, source_organization_id, target_parent_id
-                )
-
-            member.save()
-
-            if target_parent_id != source_parent_id:
-                source_group = self._sibling_group(
-                    members, source_organization_id, source_parent_id, excluded_ids=branch_ids
-                )
-                self._renumber_group(source_group)
-
-            return json_success(
-                response,
-                payload=self._organization_payload(source_organization_id),
-                messages=["Member moved."],
-            )
-        except Exception as exception:
-            traceback.print_exception(type(exception), exception, exception.__traceback__)
-            return json_errors(response, ["Could not move the member. Please try again."])
-
-    def _move_positions(self, response: Response, positions_raw):
-        """Pin a batch of cards in one request (subtree drags, first-open seeding)."""
-        try:
-            entries = json.loads(positions_raw)
-        except (TypeError, ValueError):
-            return json_errors(response, ["Could not read the new positions."])
-
-        if not isinstance(entries, list) or not entries:
-            return json_errors(response, ["Could not read the new positions."])
-
-        by_id = {}
-        for row in self._all_members():
-            by_id[getattr(row, "id", None)] = row
-
-        organization_id = None
-        updates = []
-
-        for entry in entries:
-            if not isinstance(entry, dict):
-                return json_errors(response, ["Could not read the new positions."])
-
-            member_id = _int_or_none(entry.get("member_id"))
-            pos_x = _clamp_position(_int_or_none(entry.get("pos_x")))
-            pos_y = _clamp_position(_int_or_none(entry.get("pos_y")))
-
-            if member_id is None or pos_x is None or pos_y is None:
-                return json_errors(response, ["Could not read the new positions."])
-
-            member = by_id.get(member_id)
-            if not member:
-                return json_errors(response, ["Please choose a valid member."])
-
-            # One organization per batch, or the returned payload is meaningless.
-            row_organization_id = getattr(member, "organization_id", None)
-            if organization_id is None:
-                organization_id = row_organization_id
-            elif row_organization_id != organization_id:
-                return json_errors(
-                    response, ["Every card in a move must belong to the same organization."]
-                )
-
-            updates.append((member, pos_x, pos_y))
-
-        try:
-            for member, pos_x, pos_y in updates:
-                unchanged = (
-                    getattr(member, "pos_x", None) == pos_x
-                    and getattr(member, "pos_y", None) == pos_y
-                )
-                if unchanged:
-                    continue
-                member.pos_x = pos_x
-                member.pos_y = pos_y
-                member.save()
-
+            self._renumber_group(group)
             return json_success(
                 response,
                 payload=self._organization_payload(organization_id),
-                messages=["Layout saved."],
+                messages=["Order updated."],
             )
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
-            return json_errors(response, ["Could not move the member. Please try again."])
+            return json_errors(response, ["Could not change the order. Please try again."])
 
     def update(self, request: Request, storage: Storage, response: Response):
         member_id = _int_or_none(request.input("member_id"))
@@ -477,12 +374,25 @@ class OrgBoardController(Controller):
         if photo_error:
             return json_errors(response, [photo_error])
 
+        source_parent_id = getattr(member, "parent_id", None)
+        changed_group = (
+            target_parent_id != source_parent_id
+            or target_organization_id != source_organization_id
+        )
+
         try:
             member.name = name
             member.position = position
             member.parent_id = target_parent_id
             if photo_path:
                 member.photo_path = photo_path
+            if changed_group:
+                # Joins the end of the new group; the order buttons move them
+                # from there. Keeping the old sort_order dropped them at some
+                # arbitrary place among strangers.
+                member.sort_order = self._next_sort_order(
+                    members, target_organization_id, target_parent_id
+                )
 
             if target_organization_id != source_organization_id:
                 # The whole branch follows; pinned positions are meaningless on the new canvas.
@@ -501,11 +411,20 @@ class OrgBoardController(Controller):
 
             member.save()
 
-            refreshed = self._all_members()
-            self._renumber_group(
-                self._sibling_group(refreshed, source_organization_id, getattr(member, "parent_id", None))
-            )
-            # The destination group is not re-ordered by position (see move()).
+            if changed_group:
+                # Close the gap in the group they left. This used to renumber the
+                # member's *new* group (it read parent_id after assigning it) and
+                # leave the old one gapped; drag-to-reparent went through move(),
+                # which got it right, so nobody saw it until the dialog became the
+                # only way to change a supervisor.
+                self._renumber_group(
+                    self._sibling_group(
+                        self._all_members(),
+                        source_organization_id,
+                        source_parent_id,
+                        excluded_ids=branch_ids,
+                    )
+                )
 
             payload = self._organization_payload(target_organization_id)
             payload["moved_organization"] = target_organization_id != source_organization_id
@@ -580,35 +499,6 @@ class OrgBoardController(Controller):
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return json_errors(response, ["Could not remove the member. Please try again."])
-
-    def reset_layout(self, request: Request, response: Response):
-        """Drop every hand-placed coordinate in an organization, back to auto-layout."""
-        organization_id = _int_or_none(request.input("organization_id"))
-        if organization_id is None:
-            return json_errors(response, ["Please choose a valid organization."])
-
-        organization = Organization.find(organization_id)
-        if not organization:
-            return json_errors(response, ["Please choose a valid organization."])
-
-        try:
-            for row in self._all_members():
-                if getattr(row, "organization_id", None) != organization.id:
-                    continue
-                if getattr(row, "pos_x", None) is None and getattr(row, "pos_y", None) is None:
-                    continue
-                row.pos_x = None
-                row.pos_y = None
-                row.save()
-
-            return json_success(
-                response,
-                payload=self._organization_payload(organization.id),
-                messages=["Layout reset."],
-            )
-        except Exception as exception:
-            traceback.print_exception(type(exception), exception, exception.__traceback__)
-            return json_errors(response, ["Could not reset the layout. Please try again."])
 
     # --- organizations ---------------------------------------------------
 

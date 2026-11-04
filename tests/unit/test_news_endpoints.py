@@ -1,3 +1,4 @@
+import pytest
 import os
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
@@ -10,6 +11,8 @@ from app.controllers.gears.NewsController import (
 )
 from app.services.StorageRouter import public_base
 from tests import TestCase
+
+pytestmark = pytest.mark.usefixtures("actor_may_change_any_story")
 
 
 def _mock_request(inputs=None, params=None, ajax=False):
@@ -856,7 +859,7 @@ class PerBlockRequirementsTestCase(TestCase):
     def test_a_photo_essay_entry_saves_with_a_photo_and_no_words(self):
         image = Mock()
         image.extension.return_value = ".jpg"
-        image.get_content.return_value = b"\xff\xd8\xff"
+        image.get_content.return_value = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00" + b"\x00" * 32
         storage = Mock()
         storage.disk.return_value.put_file.return_value = "news/x.jpg"
         controller = NewsController()

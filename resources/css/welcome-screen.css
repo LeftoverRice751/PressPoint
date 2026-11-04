@@ -555,6 +555,17 @@
   .feature-card {
     width: clamp(120px, 34vw, 170px);
   }
+
+  /* The bands are floored for the 1024px panel. On a ~740px phone the
+     masthead, a 190px carousel and the ticker took ~60% of the screen and left
+     Campus Map a 440px frame, so its building pane had to scroll. Cards this
+     narrow read fine at 150px tall; the masthead keeps its wordmark size and
+     only gives up air. Same token retune as the short-landscape block below. */
+  .wc-masthead { height: clamp(72px, 11vh, 96px); }
+  :root {
+    --wc-carousel-h: clamp(140px, 20vh, 170px);
+    --wc-nav-handle-h: 38px;
+  }
 }
 
 /* ── Short landscape ───────────────────────────────────────────────── */

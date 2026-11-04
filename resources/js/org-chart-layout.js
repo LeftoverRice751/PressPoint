@@ -2,9 +2,14 @@
  * Shared org-chart geometry.
  *
  * The dashboard editor and the public kiosk both run this module against the
- * same serialized member tree, so what an editor arranges is exactly what a
- * visitor sees. Nodes carrying pos_x/pos_y keep those coordinates; everything
- * else is placed by a tidy-tree pass.
+ * same serialized member tree, and both lay it out through kioskMetrics() with
+ * pins ignored, so the chart an editor sees is the chart a visitor sees. The
+ * hierarchy (parent_id) and sibling order (sort_order) are the only inputs.
+ *
+ * The pin machinery below (pos_x/pos_y, snap, stageSize, outlierPins) is from
+ * the free-placement canvas the editor used to be. The kiosk stopped honouring
+ * pins in 2026-09 and the editor followed, so no caller passes pins any more;
+ * it stays only until the pos_x/pos_y columns are dropped.
  *
  * Coordinates live in a *fixed* space whose origin is (0, 0) and which never
  * holds a negative value. That matters because the editor round-trips a
@@ -50,6 +55,36 @@
    * its body padding, over the rows the masthead and the dock leave behind.
    */
   var KIOSK_FRAME = { width: 740, height: 820 };
+
+  /**
+   * The card box and spacing the kiosk draws a chart with.
+   *
+   * These lived as literals in org-board.js while the kiosk was the only
+   * surface that laid out for the portrait panel. The editor now draws the
+   * same chart, and two copies of these numbers would let the editor's
+   * "what you see" quietly stop being the kiosk's -- which is how editors
+   * spent a month dragging cards the kiosk ignored. cardWidth/cardHeight must
+   * stay in step with .ob-chart__node in org-board.css and .ob-card-node in
+   * gears-dashboard.css; `pad` is what bounds() adds around the content.
+   *
+   * The gaps are generous on purpose: the space between two cards is what
+   * makes a reporting line readable at a glance, and the comb has vertical
+   * room to spend.
+   */
+  var KIOSK_CHART = { cardWidth: 560, cardHeight: 96, hGap: 24, vGap: 56, pad: 8 };
+
+  /** layout() options for a kiosk-shaped chart `frameWidth` pixels wide. */
+  function kioskMetrics(frameWidth, measure) {
+    return {
+      cardWidth: KIOSK_CHART.cardWidth,
+      cardHeight: KIOSK_CHART.cardHeight,
+      hGap: KIOSK_CHART.hGap,
+      vGap: KIOSK_CHART.vGap,
+      measure: measure,
+      ignorePins: true,
+      maxWidth: frameWidth - 2 * KIOSK_CHART.pad
+    };
+  }
 
   // Free-placed cards snap to this grid. It matches the dot-grid background of
   // .org-board-canvas (28px in gears-dashboard.css) so the snapping the editor
@@ -941,6 +976,8 @@
   global.OrgChart = {
     DEFAULTS: DEFAULTS,
     KIOSK_FRAME: KIOSK_FRAME,
+    KIOSK_CHART: KIOSK_CHART,
+    kioskMetrics: kioskMetrics,
     GRID: GRID,
     MIN_SCALE: MIN_SCALE,
     MAX_SCALE: MAX_SCALE,

@@ -190,16 +190,16 @@ class _SavableMember(_Member):
         self.deleted = True
 
 
-class CanvasPositionTestCase(TestCase):
-    """Free-form placement on the org board canvas.
+class SiblingOrderTestCase(TestCase):
+    """Order among siblings, the one thing an editor arranges by hand.
 
-    The canvas anchors at a fixed origin (0, 0): an origin derived from the
-    content's own bounding box shifts every card the moment a drag creates a
-    new leftmost one, so a dropped card did not stay where it was released.
-    Nothing may therefore persist a negative coordinate.
+    The dashboard used to be a free-placement canvas whose positions the kiosk
+    had stopped reading, and sort_order could not be set at all -- a member
+    simply sat where they were added. The editor now draws the kiosk's own
+    layout and orders a group with "Move earlier / later".
     """
 
-    def _controller_with_members(self, members):
+    def _controller(self, members):
         from app.controllers.gears.OrgBoardController import OrgBoardController
 
         controller = OrgBoardController()
@@ -210,104 +210,114 @@ class CanvasPositionTestCase(TestCase):
         }
         return controller
 
-    def test_clamp_position_folds_negatives_back_to_the_origin(self):
-        from app.controllers.gears.OrgBoardController import _clamp_position
-
-        self.assertEqual(_clamp_position(-1), 0)
-        self.assertEqual(_clamp_position(-4000), 0)
-        self.assertEqual(_clamp_position(0), 0)
-        self.assertEqual(_clamp_position(275), 275)
-
-    def test_clamp_position_leaves_a_missing_coordinate_alone(self):
-        """None means "no coordinate sent", which is not the same as zero."""
-        from app.controllers.gears.OrgBoardController import _clamp_position
-
-        self.assertIsNone(_clamp_position(None))
-
-    def test_a_batch_move_saves_every_card_it_is_given(self):
-        members = [
-            _SavableMember(id=1, organization_id=10, name="Ada"),
-            _SavableMember(id=2, organization_id=10, name="Grace"),
+    def _board(self):
+        """A chair with three officers, plus a lone root in another organization."""
+        return [
+            _SavableMember(1, 10, "Chair"),
+            _SavableMember(2, 10, "Ada", parent_id=1, sort_order=1),
+            _SavableMember(3, 10, "Grace", parent_id=1, sort_order=2),
+            _SavableMember(4, 10, "Hedy", parent_id=1, sort_order=3),
+            _SavableMember(5, 20, "Alan", sort_order=1),
         ]
-        controller = self._controller_with_members(members)
+
+    def _order(self, members, parent_id=1):
+        rows = [row for row in members if row.parent_id == parent_id and row.organization_id == 10]
+        return [row.name for row in sorted(rows, key=lambda row: row.sort_order)]
+
+    def test_moving_earlier_swaps_with_the_sibling_before(self):
+        members = self._board()
         response = _FakeResponse()
 
-        controller._move_positions(
-            response,
-            '[{"member_id": 1, "pos_x": 28, "pos_y": 56},'
-            ' {"member_id": 2, "pos_x": 84, "pos_y": 56}]',
-        )
+        self._controller(members).reorder(_FakeRequest(member_id=3, direction="earlier"), response)
 
-        self.assertTrue(response.body["ok"])
-        self.assertEqual((members[0].pos_x, members[0].pos_y), (28, 56))
-        self.assertEqual((members[1].pos_x, members[1].pos_y), (84, 56))
+        self.assertTrue(response.body["ok"], response.body)
+        self.assertEqual(self._order(members), ["Grace", "Ada", "Hedy"])
 
-    def test_a_batch_move_clamps_coordinates_to_the_origin(self):
-        members = [_SavableMember(id=1, organization_id=10, name="Ada")]
-        controller = self._controller_with_members(members)
-
-        controller._move_positions(
-            _FakeResponse(), '[{"member_id": 1, "pos_x": -60, "pos_y": -12}]'
-        )
-
-        self.assertEqual((members[0].pos_x, members[0].pos_y), (0, 0))
-
-    def test_a_card_already_at_the_position_is_not_re_saved(self):
-        """A subtree drag re-posts every descendant; unchanged rows must not write."""
-        members = [
-            _SavableMember(id=1, organization_id=10, name="Ada", pos_x=28, pos_y=56),
-            _SavableMember(id=2, organization_id=10, name="Grace", pos_x=0, pos_y=0),
-        ]
-        controller = self._controller_with_members(members)
-
-        controller._move_positions(
-            _FakeResponse(),
-            '[{"member_id": 1, "pos_x": 28, "pos_y": 56},'
-            ' {"member_id": 2, "pos_x": 84, "pos_y": 56}]',
-        )
-
-        self.assertEqual(members[0].saves, 0)
-        self.assertEqual(members[1].saves, 1)
-
-    def test_a_batch_may_not_straddle_organizations(self):
-        members = [
-            _SavableMember(id=1, organization_id=10, name="Ada"),
-            _SavableMember(id=2, organization_id=20, name="Alan"),
-        ]
-        controller = self._controller_with_members(members)
+    def test_moving_later_swaps_with_the_sibling_after(self):
+        members = self._board()
         response = _FakeResponse()
 
-        controller._move_positions(
-            response,
-            '[{"member_id": 1, "pos_x": 0, "pos_y": 0},'
-            ' {"member_id": 2, "pos_x": 28, "pos_y": 0}]',
-        )
+        self._controller(members).reorder(_FakeRequest(member_id=3, direction="later"), response)
 
-        self.assertFalse(response.body["ok"])
-        self.assertEqual(members[0].saves, 0)
-        self.assertEqual(members[1].saves, 0)
+        self.assertTrue(response.body["ok"], response.body)
+        self.assertEqual(self._order(members), ["Ada", "Hedy", "Grace"])
 
-    def test_a_batch_naming_an_unknown_member_is_refused_whole(self):
-        members = [_SavableMember(id=1, organization_id=10, name="Ada")]
-        controller = self._controller_with_members(members)
-        response = _FakeResponse()
+    def test_only_the_members_own_group_is_touched(self):
+        members = self._board()
 
-        controller._move_positions(
-            response,
-            '[{"member_id": 1, "pos_x": 28, "pos_y": 0},'
-            ' {"member_id": 999, "pos_x": 28, "pos_y": 0}]',
-        )
+        self._controller(members).reorder(_FakeRequest(member_id=3, direction="earlier"), _FakeResponse())
 
-        self.assertFalse(response.body["ok"])
-        self.assertEqual(members[0].saves, 0, "nothing is written until the batch validates")
+        self.assertEqual(members[0].saves, 0, "the chair is not in the officers' group")
+        self.assertEqual(members[4].saves, 0, "another organization is never renumbered")
+        self.assertEqual(members[3].saves, 0, "Hedy kept her place, so her row is not rewritten")
 
-    def test_malformed_position_payloads_are_rejected(self):
-        controller = self._controller_with_members([])
-
-        for payload in ["", "not json", "{}", "[]", '[{"member_id": 1}]', '["nope"]']:
+    def test_the_first_cannot_move_earlier_nor_the_last_later(self):
+        for member_id, direction in [(2, "earlier"), (4, "later")]:
+            members = self._board()
             response = _FakeResponse()
-            controller._move_positions(response, payload)
-            self.assertFalse(response.body["ok"], f"{payload!r} should be refused")
+
+            self._controller(members).reorder(
+                _FakeRequest(member_id=member_id, direction=direction), response
+            )
+
+            self.assertFalse(response.body["ok"], f"{member_id} {direction} should be refused")
+            self.assertEqual(self._order(members), ["Ada", "Grace", "Hedy"])
+            self.assertTrue(all(row.saves == 0 for row in members), "a refusal writes nothing")
+
+    def test_duplicate_sort_orders_are_healed_rather_than_swapped_in_place(self):
+        """Older rows are all sort_order 0. Trading two zeros would change
+        nothing and the button would look dead; renumbering the group fixes it."""
+        members = [
+            _SavableMember(1, 10, "Chair"),
+            _SavableMember(2, 10, "Ada", parent_id=1),
+            _SavableMember(3, 10, "Grace", parent_id=1),
+        ]
+
+        self._controller(members).reorder(_FakeRequest(member_id=3, direction="earlier"), _FakeResponse())
+
+        self.assertEqual((members[2].sort_order, members[1].sort_order), (1, 2))
+
+    def test_an_unknown_member_or_direction_is_refused(self):
+        for inputs in [
+            {"member_id": 999, "direction": "earlier"},
+            {"member_id": None, "direction": "earlier"},
+            {"member_id": 3, "direction": "sideways"},
+            {"member_id": 3},
+        ]:
+            response = _FakeResponse()
+            self._controller(self._board()).reorder(_FakeRequest(**inputs), response)
+            self.assertFalse(response.body["ok"], f"{inputs!r} should be refused")
+
+    def test_a_new_supervisor_puts_the_member_last_and_closes_the_gap_they_left(self):
+        """update() is now the only way to change a supervisor. It used to keep
+        the member's old sort_order in the new group and renumber the wrong one."""
+        from unittest.mock import patch
+        from app.controllers.gears import OrgBoardController as module
+
+        members = self._board() + [
+            _SavableMember(6, 10, "Vice", parent_id=1, sort_order=4),
+            _SavableMember(7, 10, "Mary", parent_id=6, sort_order=1),
+        ]
+        by_id = {row.id: row for row in members}
+        response = _FakeResponse()
+
+        with patch.object(module, "Member") as member_model:
+            member_model.find.side_effect = by_id.get
+            self._controller(members).update(
+                _FakeRequest(member_id=2, name="Ada", position="Officer", parent_id=6),
+                None,
+                response,
+            )
+
+        self.assertTrue(response.body["ok"], response.body)
+        self.assertEqual(by_id[2].parent_id, 6)
+        self.assertEqual(self._order(members, parent_id=6), ["Mary", "Ada"])
+        self.assertEqual(
+            [(row.name, row.sort_order) for row in sorted(
+                (row for row in members if row.parent_id == 1), key=lambda row: row.sort_order
+            )],
+            [("Grace", 1), ("Hedy", 2), ("Vice", 3)],
+        )
 
 
 class _FakeRequest:

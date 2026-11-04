@@ -56,6 +56,10 @@ class LoginController(Controller):
                 return response.redirect(name="users.view", query_params=query_params)
 
             # Credentials were correct but the role is empty or misspelled; say so.
+            # Also undo the sign-in above, or `auth` would accept this account.
+            SessionTokens.revoke(login)
+            request.remove_user()
+            response.delete_cookie(slot_cookie("token", slot))
             return response.redirect(name="auth.login").with_errors(
                 ["This account has no role assigned. An admin needs to set one "
                  "before you can sign in."]
@@ -71,6 +75,8 @@ class LoginController(Controller):
     def logout(self, request: Request, response: Response):
         # Only this tab's slot; the bare "token" cookie would sign every tab out.
         slot = getattr(request, "tab_slot", 0)
+        # The token is the session, so a copy of the cookie outlives its deletion.
+        SessionTokens.revoke(request.user())
         request.remove_user()
         response.delete_cookie(slot_cookie("token", slot))
         clear_slot_session(request, response, slot)

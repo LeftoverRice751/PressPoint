@@ -26,7 +26,23 @@ if not _logger.handlers:
     _logger.addHandler(_handler)
 
 
+GENERIC_ERROR = "Something went wrong. Please try again."
+
+
 class Handler(ExceptionHandler):
+    def _hide_details(self, exception):
+        """Masonite's production path answers an unexpected error with str(exception),
+        so a JSON caller could read a database error or a file path. It's still logged.
+        """
+        if self.application.is_debug() or self.application.has(
+            f"{exception.__class__.__name__}Handler"
+        ):
+            return
+        if hasattr(exception, "is_http_exception") or hasattr(exception, "get_response"):
+            return
+        exception.get_status = lambda: 500
+        exception.get_response = lambda: GENERIC_ERROR
+
     def handle(self, exception):
         _logger.error(
             "%s: %s\n%s",
@@ -34,4 +50,5 @@ class Handler(ExceptionHandler):
             exception,
             "".join(traceback.format_exception(type(exception), exception, exception.__traceback__)),
         )
+        self._hide_details(exception)
         return super().handle(exception)

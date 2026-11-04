@@ -35,7 +35,10 @@
    split that has no height to give. 72px is the narrowest strip that still
    clears the 64px touch floor with a one-word label inside it. */
 :root {
-  --about-rail-w: 72px;
+  /* In rem, not px: the labels inside are rem, and on a wide totem the root
+     size scales up (kiosk-nav.css). At a fixed 72px the larger labels broke
+     mid-word ("Missio / n"). 4.5rem is still exactly 72px at the panel. */
+  --about-rail-w: 4.5rem;
 }
 
 .about-frame {

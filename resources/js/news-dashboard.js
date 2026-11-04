@@ -4236,10 +4236,10 @@ import { safeImageUrl, cssUrl } from './safe-image-url.mjs';
           setAutosaveState('Saved ' + (json.saved_at || ''));
           return;
         }
-        // 409 = the story is live. Not a failure; the server is telling the
-        // editor that changing public text has to go through the reviewed path.
+        // 409 = the story is live or awaiting review. Not a failure; the server
+        // is telling the editor why this text can't change silently right now.
         setAutosaveState(json && json.__status === 409
-          ? 'Published — use Publish to update'
+          ? ((json.errors && json.errors[0]) || 'Not saved')
           : 'Not saved');
       })
       .catch(function () {

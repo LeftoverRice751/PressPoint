@@ -55,6 +55,17 @@ FRAGMENTS = {
     ),
 }
 
+_ADMIN_ONLY_SECTIONS = {"review", "admin-stats"}
+
+
+def _is_admin(request):
+    try:
+        user = request.user() if callable(getattr(request, "user", None)) else None
+    except Exception:
+        return False
+    return (getattr(user, "role", "") or "").strip().lower() == "admin"
+
+
 # section -> model to read the change stamp from. Every FRAGMENTS key needs one.
 STAMP_MODELS = {
     "events": Events,
@@ -117,6 +128,10 @@ class DashboardController(Controller):
         entry = FRAGMENTS.get(key)
         if not entry:
             return json_errors(response, ["Unknown dashboard section."], status=404)
+
+        # What the admin console polls. The queue names who has submitted what.
+        if key in _ADMIN_ONLY_SECTIONS and not _is_admin(request):
+            return json_errors(response, ["Only an admin can see this."], status=403)
 
         build_context, template, rows_key = entry
         user_id = _user_id(request)

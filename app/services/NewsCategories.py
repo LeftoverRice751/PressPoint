@@ -304,8 +304,26 @@ def restore_cascade(category_id):
     # Category first here, mirroring the delete's ordering rule: a partial
     # failure must never leave stories publicly visible under a category that
     # is still hidden.
-    NewsCategory.with_trashed().where("id", category_id).update({"deleted_at": None})
-    News.with_trashed().where("category_id", category_id).update({"deleted_at": None})
+    #
+    # ignore_mass_assignment because deleted_at isn't fillable on either model:
+    # the ORM dropped it, the UPDATE became empty and no SQL ran, so this reported
+    # success while restoring nothing. Soft delete skips the filter; this has to ask.
+    NewsCategory.with_trashed().where("id", category_id).update(
+        {"deleted_at": None}, ignore_mass_assignment=True
+    )
+    # Before the undelete, so a story is never live without an admin deciding again:
+    # it may have been deleted because it should not be up.
+    # Imported here because Issues reaches this module through DashboardContext.
+    from app.services import Issues
+
+    for story in _trashed_stories(category_id):
+        if Issues.is_visible(story):
+            News.with_trashed().where("id", story.id).update(
+                {"status": "review"}, ignore_mass_assignment=True
+            )
+    News.with_trashed().where("category_id", category_id).update(
+        {"deleted_at": None}, ignore_mass_assignment=True
+    )
 
     NewsCache.forget()
     KioskBroadcast.section_changed("latest-news")
@@ -315,6 +333,10 @@ def restore_cascade(category_id):
         "name": getattr(restored, "name", None),
         "restored_stories": affected,
     }
+
+
+def _trashed_stories(category_id):
+    return list(News.only_trashed().where("category_id", category_id).get() or [])
 
 
 def default_category_id():

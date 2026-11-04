@@ -24,6 +24,9 @@ this becomes "every review story in issue X" and nothing else about the shape
 has to change.
 """
 
+import hashlib
+import json
+
 from app.models.News import News
 from app.services import Issues
 from app.services.DashboardContext import (
@@ -90,6 +93,41 @@ def describe_issue(issue, stories):
         "blocks": counts,
         "authors": authors,
     }
+
+
+# Everything the kiosk draws from a story, including where it sits.
+_STAMPED_FIELDS = (
+    "title",
+    "description",
+    "image",
+    "layout_type",
+    "priority",
+    "category_id",
+    "source",
+    "location",
+    "dek",
+    "excerpt",
+    "headline_font",
+    "image_caption",
+    "image_credit",
+)
+
+
+def content_stamp(stories):
+    """A fingerprint of what these stories would show on the kiosk.
+
+    The preview returns it and approval must send it back, which ties the
+    decision to the text the admin read. Approving used to re-read the rows and
+    publish whatever they held by then. Content rather than updated_at because
+    that column has one-second resolution and isn't written by every path.
+    """
+    rows = sorted(stories or [], key=lambda story: getattr(story, "id", 0) or 0)
+    payload = [
+        [str(getattr(story, "id", ""))]
+        + [str(getattr(story, field, None)) for field in _STAMPED_FIELDS]
+        for story in rows
+    ]
+    return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
 
 
 def pending_issue(stories=None):

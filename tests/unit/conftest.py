@@ -8,9 +8,11 @@ broadcast patches `app.services.KioskBroadcast._deliver` (or
 `section_changed`) itself, which takes precedence over this fixture.
 """
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
+from masonite.cache.drivers.FileDriver import FileDriver
+from masonite.rates.RateLimiter import RateLimiter
 
 
 @pytest.fixture(autouse=True)
@@ -46,6 +48,32 @@ def _stub_audit_log_writes():
 
 
 @pytest.fixture(autouse=True)
+def _isolate_otp_attempts(tmp_path_factory):
+    """Keep wrong-code counts out of the production cache directory.
+
+    `.env` points the file cache at the directory the live workers share (see
+    CLAUDE.md), so a test submitting a wrong code would count against that
+    address for real. This is the real RateLimiter and file driver on a throwaway
+    directory, built on first use because few tests reach it.
+    """
+    built = []
+
+    def limiter():
+        if not built:
+            location = tmp_path_factory.mktemp("otp-attempts")
+            driver = FileDriver(None).set_options({"location": str(location)})
+            store = Mock()
+            store.store.return_value = driver
+            app = Mock()
+            app.make.return_value = store
+            built.append(RateLimiter(app))
+        return built[0]
+
+    with patch("app.services.OtpAttempts._limiter", limiter):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _stub_issue_creation():
     """Keep the unit suite from creating issues for editors that do not exist.
 
@@ -65,4 +93,22 @@ def _stub_issue_creation():
         "app.models.Issue.Issue.create",
         return_value=type("Issue", (), {"id": 1, "number": 1, "owner_id": 7})(),
     ):
+        yield
+
+
+@pytest.fixture
+def actor_may_change_any_story():
+    """For tests of what a write does, whose request doubles are nobody in particular.
+
+    Opt-in with `pytestmark`, so the ownership rule itself stays real in
+    test_news_ownership.py.
+    """
+    with patch("app.controllers.gears.NewsController._may_change_story", return_value=True):
+        yield
+
+
+@pytest.fixture
+def preview_already_read():
+    """For tests of what an approval does; test_news_ownership.py covers the stamp."""
+    with patch("app.controllers.gears.ReviewController._matches_preview", return_value=True):
         yield

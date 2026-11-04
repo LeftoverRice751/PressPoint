@@ -130,6 +130,15 @@
   background: transparent;
 }
 
+/* OpenSeadragon 4.1.1's ControlDock writes `style.position = 'relative'`
+   onto the element it is given — this mount — on every viewer it builds.
+   Relative ignores `inset` for sizing, so the mount collapsed to 0px tall
+   and the viewer drew nowhere: magnify opened onto an empty screen.
+   !important is the only thing that outranks an inline style. */
+.reader-mount--zoom:not([hidden]) {
+  position: absolute !important;
+}
+
 .reader-mount--zoom > div {
   width: 100%;
   height: 100%;
@@ -284,7 +293,8 @@
    pager's pill on the opposite corner so the two read as one strip. Only
    the book and scroll readers show it — the tabloid viewer pinches natively
    and the script hides it there. While magnified the Back pill is the way
-   out, so this one steps aside. */
+   out, so this one steps aside. Public page only: the kiosk partial omits
+   the button and magnifies on double-tap. */
 .reader-chrome__magnify {
   position: absolute;
   top: clamp(16px, 2.6vh, 28px);

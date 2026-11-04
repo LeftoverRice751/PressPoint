@@ -252,15 +252,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const archiveLoader = overlay.querySelector('[data-archive-loader]');
+  // Both halves are deferred, so each cancels the other's pending step.
+  // Magnify used to strand the loader over the page: DeepZoomAdapter.mount()
+  // resolves in a microtask when a server preview exists, so hideLoader() ran
+  // before showLoader()'s frame, which then re-added `is-visible` — and
+  // .kiosk-loader's `display: flex` beats `hidden`, so the opaque loader sat
+  // on top swallowing every tap, wheel and click, Back included.
+  let loaderShowFrame = 0;
+  let loaderHideTimer = 0;
   function showLoader() {
     if (!archiveLoader) return;
+    window.clearTimeout(loaderHideTimer);
     archiveLoader.hidden = false;
-    requestAnimationFrame(() => archiveLoader.classList.add('is-visible'));
+    cancelAnimationFrame(loaderShowFrame);
+    loaderShowFrame = requestAnimationFrame(() => archiveLoader.classList.add('is-visible'));
   }
   function hideLoader() {
     if (!archiveLoader) return;
+    cancelAnimationFrame(loaderShowFrame);
     archiveLoader.classList.remove('is-visible');
-    setTimeout(() => { archiveLoader.hidden = true; }, 220);
+    window.clearTimeout(loaderHideTimer);
+    loaderHideTimer = window.setTimeout(() => { archiveLoader.hidden = true; }, 220);
   }
 
   async function ensurePdfDoc() {
@@ -1879,7 +1891,8 @@ document.addEventListener('DOMContentLoaded', () => {
     state.adapter = adapter;
     state.activeMount = mount;
     // The magnifier is for readers that cannot zoom on their own; the
-    // tabloid viewer already pinches.
+    // tabloid viewer already pinches. Only the public page renders the
+    // button — the kiosk magnifies by double-tap alone.
     if (magnifyButton) magnifyButton.hidden = adapter === DeepZoomAdapter;
 
     [bookMount, zoomMount, scrollMount].forEach((el) => { if (el) el.hidden = true; });

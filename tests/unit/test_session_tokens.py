@@ -13,6 +13,7 @@ first time their owner makes a request, so nobody is signed out by the deploy.
 """
 
 from types import SimpleNamespace
+import time
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -76,18 +77,29 @@ class UserTokenTest(TestCase):
 class FindUserTest(TestCase):
     def test_hashed_row_is_found_by_its_plaintext(self):
         user = MagicMock()
-        rows = {SessionTokens.digest("tok"): user}
+        token = SessionTokens.new_token()
+        rows = {SessionTokens.digest(token): user}
         with patch.object(SessionTokens.User, "where", side_effect=_query(rows)):
-            self.assertIs(SessionTokens.find_user("tok"), user)
+            self.assertIs(SessionTokens.find_user(token), user)
         user.save.assert_not_called()
 
-    def test_legacy_plaintext_row_is_upgraded_on_use(self):
+    def test_a_token_stops_working_when_its_lifetime_ends(self):
+        user = MagicMock()
+        token = SessionTokens.new_token()
+        rows = {SessionTokens.digest(token): user}
+        issued = time.time()
+        with patch.object(SessionTokens.User, "where", side_effect=_query(rows)):
+            with patch("time.time", return_value=issued + 12 * 3600 - 60):
+                self.assertIs(SessionTokens.find_user(token), user)
+            with patch("time.time", return_value=issued + 12 * 3600 + 60):
+                self.assertIsNone(SessionTokens.find_user(token))
+
+    def test_plaintext_rows_no_longer_sign_anyone_in(self):
         user = MagicMock()
         rows = {"legacy-uuid": user}
         with patch.object(SessionTokens.User, "where", side_effect=_query(rows)):
-            self.assertIs(SessionTokens.find_user("legacy-uuid"), user)
-        self.assertEqual(user.remember_token, SessionTokens.digest("legacy-uuid"))
-        user.save.assert_called_once()
+            self.assertIsNone(SessionTokens.find_user("legacy-uuid"))
+        user.save.assert_not_called()
 
     def test_a_stolen_hash_cannot_be_replayed_as_a_cookie(self):
         """The whole point: a value copied out of the column must not log in."""
@@ -96,6 +108,18 @@ class FindUserTest(TestCase):
         rows = {stolen: user}
         with patch.object(SessionTokens.User, "where", side_effect=_query(rows)):
             self.assertIsNone(SessionTokens.find_user(stolen))
+
+    def test_changing_a_hashs_case_does_not_get_it_past_the_guard(self):
+        """remember_token is utf8mb4_unicode_ci, so MySQL matches any case."""
+        user = MagicMock()
+        stolen = SessionTokens.digest("tok")
+
+        def case_insensitive(column, value):
+            found = user if value.lower() == stolen.lower() else None
+            return SimpleNamespace(first=lambda: found)
+
+        with patch.object(SessionTokens.User, "where", side_effect=case_insensitive):
+            self.assertIsNone(SessionTokens.find_user(stolen.upper()))
 
     def test_unknown_and_empty_tokens_find_nobody(self):
         with patch.object(SessionTokens.User, "where", side_effect=_query({})):

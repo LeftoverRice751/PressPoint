@@ -128,11 +128,10 @@ class AppProvider(Provider):
         # cap is here to stop mail flooding — so they get their own, looser one.
         RateLimiter.register("password-reset", GuestAuthLimiter("10/minute"))
 
-        # Code verification stays tight and stands alone: `verify_otp` matches a
-        # token across the whole password_resets table rather than against the
-        # requesting email, so this endpoint IS the brute-force surface. Its own
-        # bucket means the full allowance is spent on guesses only — never on
-        # the two requests that bracket it.
+        # Code verification stays tight and stands alone, because this endpoint
+        # IS the brute-force surface. Its own bucket means the full allowance is
+        # spent on guesses only, never on the two requests that bracket it.
+        # OtpAttempts adds the per-account limit an IP throttle cannot give.
         RateLimiter.register("otp", GuestAuthLimiter("5/minute"))
 
         # Self-service password change (signed in, must supply the current
@@ -143,9 +142,13 @@ class AppProvider(Provider):
         # Public, unauthenticated route-session minting (QR handoff to a phone).
         # Looser than auth since it's not a credential-guessing surface, but still
         # per-client so a script can't mint unlimited tokens/emails.
-        RateLimiter.register("route-sessions", GuestAuthLimiter("10/minute"))
+        RateLimiter.register(
+            "route-sessions", GuestAuthLimiter("10/minute", exempt_signed_in=True)
+        )
 
         # Public archive page rendering — a cache miss triggers PyMuPDF
         # rasterization, so this exists to cap CPU spend from a scripted hit on
         # unwarmed pages, not to slow down normal kiosk reading.
-        RateLimiter.register("archive-pages", GuestAuthLimiter("30/minute"))
+        RateLimiter.register(
+            "archive-pages", GuestAuthLimiter("30/minute", exempt_signed_in=True)
+        )

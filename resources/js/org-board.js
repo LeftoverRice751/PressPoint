@@ -20,8 +20,8 @@
   //
   // OrgChart's `maxWidth` pass reflows a row too wide to fit into a hanging
   // comb, trading horizontal growth for the vertical room a portrait panel has
-  // spare. Editors keep their free-placement canvas; it just no longer decides
-  // where a card lands on the kiosk.
+  // spare. The dashboard editor now draws this same layout instead of a
+  // free-placement canvas, so what an editor sees is what lands here.
 
   /**
    * Padding bounds() adds around the content, on each side.
@@ -30,7 +30,7 @@
    * the leftover space already reads as margin, and every padded pixel is paid
    * for out of the scale the chart is rendered at.
    */
-  var BOX_PAD = 8;
+  var BOX_PAD = window.OrgChart ? window.OrgChart.KIOSK_CHART.pad : 8;
 
   /**
    * Floor for the width a chart is laid out against.
@@ -113,39 +113,24 @@
         : null;
     });
 
-    var chartMetrics = {};
-    Object.keys(window.OrgChart.DEFAULTS).forEach(function (key) {
-      chartMetrics[key] = window.OrgChart.DEFAULTS[key];
-    });
-    chartMetrics.measure = function (member) {
-      return sizes[String(member.id)] || null;
-    };
-
-    // cardWidth/cardHeight are the fallback box for a card that measured 0 -- a
-    // chart still inside a deck card the browser has not laid out yet -- and
-    // must stay in step with .ob-chart__node's min-width/min-height in
-    // org-board.css.
+    // The card box, the gaps and the comb width all come from
+    // OrgChart.kioskMetrics(), which the dashboard editor calls too -- the
+    // editor draws this exact chart, so the numbers must have one home.
+    // cardWidth/cardHeight there are the fallback box for a card that measured
+    // 0 (a chart still inside a deck card the browser has not laid out yet).
     //
-    // hGap/vGap used to be dead weight: every chart was fully pinned, because
-    // the editor's seedPositions() writes coordinates the first time an
-    // organization is opened, and applyPins then overwrote every x/y. Ignoring
-    // the pins puts the tidy-tree pass back in charge, so these are now the
-    // real spacing of the rendered board. They are generous on purpose -- the
-    // gap between two cards is what makes a reporting line readable at a
-    // glance, and the comb has vertical room to spend.
-    chartMetrics.cardWidth = 560;
-    chartMetrics.cardHeight = 96;
-    chartMetrics.hGap = 24;
-    chartMetrics.vGap = 56;
-
-    // Lay out against the width the chart really has. Two things follow: a row
-    // is hung into a comb exactly when it would not have fitted, and the
-    // resulting box is about one viewport wide, so fitScale lands near 1.0 --
-    // which means the font sizes in org-board.css are very nearly the pixel
-    // sizes a visitor reads, rather than being divided by an unknown fit.
+    // Lay out against the width the chart really has. A row is hung into a
+    // comb exactly when it would not have fitted, and the resulting box is
+    // about one viewport wide, so fitScale lands near 1.0 -- which means the
+    // font sizes in org-board.css are very nearly the pixel sizes a visitor
+    // reads, rather than being divided by an unknown fit.
     var frame = layoutWidth(chart);
-    chartMetrics.ignorePins = true;
-    chartMetrics.maxWidth = Math.max(frame - 2 * BOX_PAD, MIN_LAYOUT_WIDTH);
+    var chartMetrics = window.OrgChart.kioskMetrics(
+      Math.max(frame, MIN_LAYOUT_WIDTH + 2 * BOX_PAD),
+      function (member) {
+        return sizes[String(member.id)] || null;
+      }
+    );
 
     var placed = window.OrgChart.layout(members, chartMetrics);
     if (!placed.length) return;

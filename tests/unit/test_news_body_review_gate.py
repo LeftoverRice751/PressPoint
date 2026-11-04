@@ -17,10 +17,13 @@ on a public screen rather than stored XSS -- but the review workflow is exactly
 the control it defeats.
 """
 
+import pytest
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from app.controllers.gears.NewsController import NewsController
+
+pytestmark = pytest.mark.usefixtures("actor_may_change_any_story")
 
 
 def _request(role, story_id="5", description="<p>replacement text</p>"):

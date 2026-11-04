@@ -76,7 +76,7 @@ class VideoBroadcastTestCase(TestCase):
         video_file = Mock(
             name="campus-update.mp4",
             extension=lambda: ".mp4",
-            get_content=lambda: b"video-bytes",
+            get_content=lambda: b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom" + b"\x00" * 64,
         )
         request = Mock()
         request.input.side_effect = lambda key: {"title": "Campus Update", "video": video_file}.get(

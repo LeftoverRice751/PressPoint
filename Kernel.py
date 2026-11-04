@@ -6,14 +6,13 @@ from masonite.utils.structures import load
 from masonite.utils.location import base_path
 from masonite.middleware import (
     SessionMiddleware,
-    EncryptCookies,
     MaintenanceModeMiddleware,
 )
 from masonite.routes import Route
 from masonite.configuration.Configuration import Configuration
 from masonite.configuration import config
 
-from app.middlewares import VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware, DatabaseReconnectMiddleware, SuperAdminMiddleware, ThrottleRequestsMiddleware, TabSlotMiddleware, LoadSlotUserMiddleware, SecurityHeadersMiddleware
+from app.middlewares import EncryptCookies, VerifyCsrfToken, AuthenticationMiddleware, AdminMiddleware, DatabaseReconnectMiddleware, SuperAdminMiddleware, ThrottleRequestsMiddleware, TabSlotMiddleware, LoadSlotUserMiddleware, SecurityHeadersMiddleware
 
 
 class Kernel:

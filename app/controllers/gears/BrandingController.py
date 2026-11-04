@@ -10,7 +10,8 @@ from app.services.ImageUploads import save_uploaded_image
 
 
 def _editor_redirect(response: Response):
-    return response.redirect(name="gears.dashboard", query_params={"page": "branding"})
+    # The panel is on the admin console, and an editor can't reach these routes.
+    return response.redirect(name="users.view", query_params={"page": "branding"})
 
 
 class BrandingController(Controller):

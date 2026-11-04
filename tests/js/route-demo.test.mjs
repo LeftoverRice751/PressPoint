@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cumulativeFromPixels } from '../../resources/js/route-maneuvers.mjs';
-import { partialPath, demoPhase, drawDurationFor } from '../../resources/js/route-demo.mjs';
+import { partialPath, demoPhase, drawDurationFor, markerPresence } from '../../resources/js/route-demo.mjs';
 
 // An L: 100 px down, then 50 px across. [y, x] pairs, like location.route.
 const PATH = [[0, 0], [100, 0], [100, 50]];
@@ -74,4 +74,30 @@ test('drawDurationFor scales with length and clamps to 1.8-3.5s', () => {
   const mid = drawDurationFor(600);
   assert.ok(mid > 1800 && mid < 3500, `expected a scaled duration, got ${mid}`);
   assert.ok(drawDurationFor(700) > mid, 'a longer route should take longer');
+});
+
+const START = { isStart: true, categoryId: null };
+const ACADEMIC = { isStart: false, categoryId: 'academic' };
+const OFFICE = { isStart: false, categoryId: 'office' };
+
+test('markerPresence: with no route showing, nothing is muted', () => {
+    const opts = { activeCategory: 'all', routeFocusId: null };
+    assert.deepEqual(markerPresence(START, 1, opts), { onMap: true, muted: false });
+    assert.deepEqual(markerPresence(ACADEMIC, 2, opts), { onMap: true, muted: false });
+});
+
+test('markerPresence: a route mutes every pin but its start and destination', () => {
+    const opts = { activeCategory: 'all', routeFocusId: 2 };
+    assert.equal(markerPresence(START, 1, opts).muted, false);
+    assert.equal(markerPresence(ACADEMIC, 2, opts).muted, false);
+    assert.equal(markerPresence(OFFICE, 3, opts).muted, true);
+    // Muted pins stay on the map: faded, not removed.
+    assert.equal(markerPresence(OFFICE, 3, opts).onMap, true);
+});
+
+test('markerPresence: the category filter still decides what is on the map', () => {
+    const opts = { activeCategory: 'academic', routeFocusId: null };
+    assert.equal(markerPresence(ACADEMIC, 2, opts).onMap, true);
+    assert.equal(markerPresence(OFFICE, 3, opts).onMap, false);
+    assert.equal(markerPresence(START, 1, opts).onMap, true);
 });

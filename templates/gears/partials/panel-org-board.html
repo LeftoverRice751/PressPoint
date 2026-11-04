@@ -25,12 +25,12 @@
       {% endif %}{% endfor %}
     {% endmacro %}
 
-    <section class="gears-page" data-page-panel="org-board" id="panel-org-board" role="tabpanel" aria-labelledby="nav-org-board" data-live-section="org-board-organizations" data-hero-eyebrow="Content" data-hero-title="Organization board" data-hero-subtitle="Arrange each organization's chart on the canvas: drag a card onto another to nest it, or anywhere to position it freely." hidden>
+    <section class="gears-page" data-page-panel="org-board" id="panel-org-board" role="tabpanel" aria-labelledby="nav-org-board" data-live-section="org-board-organizations" data-hero-eyebrow="Content" data-hero-title="Organization board" data-hero-subtitle="Each organization's chart, drawn exactly as the kiosk shows it. Click a card to edit that member." hidden>
       <div class="section-head">
         <div>
           <p class="section-head__eyebrow">Content</p>
           <h2 class="section-head__title">Org Board</h2>
-          <p class="section-head__subtitle">The kiosk shows exactly the arrangement you build here.</p>
+          <p class="section-head__subtitle">This is the kiosk's own layout of the chart, built from who reports to whom.</p>
         </div>
         <div class="section-head__actions">
           <button type="button" class="primary-button" data-ob-member-modal-open{% if not org_board_organizations %} disabled{% endif %}>Add member</button>
@@ -53,11 +53,10 @@
         data-org-board-editor
         data-ob-data-url="{{ route('org-board.data', {}, False) }}"
         data-ob-store-url="{{ route('org-board.store', {}, False) }}"
-        data-ob-move-url="{{ route('org-board.move', {}, False) }}"
         data-ob-update-url="{{ route('org-board.update', {}, False) }}"
+        data-ob-reorder-url="{{ route('org-board.reorder', {}, False) }}"
         data-ob-photo-url="{{ route('org-board.photo', {}, False) }}"
         data-ob-delete-url="{{ route('org-board.destroy', {}, False) }}"
-        data-ob-reset-url="{{ route('org-board.reset-layout', {}, False) }}"
       >
         {% if org_board_organizations %}
           <div class="org-board-toolbar">
@@ -67,34 +66,17 @@
                 {{ organization_options(organization_groups) }}
               </select>
             </label>
-
-            <div class="org-board-toolbar__actions">
-              <button type="button" class="ghost-button" data-ob-zoom-out aria-label="Zoom out">&minus;</button>
-              <button type="button" class="ghost-button" data-ob-zoom-in aria-label="Zoom in">+</button>
-              <button type="button" class="ghost-button" data-ob-fit>Fit</button>
-              <button type="button" class="ghost-button" data-ob-reset-layout>Reset layout</button>
-              <span class="org-board-fit" data-ob-fit-readout role="status"></span>
-            </div>
           </div>
 
           <p class="org-board-hint">
-            Drag a card anywhere on the canvas to place it &mdash; its reports come with it, and it snaps to the grid.
-            Hold <kbd>Alt</kbd> to move one card on its own. Drag a card onto another to make them report to it.
-            Drop an image file onto a card to set that member&rsquo;s photo, or click a card to edit it.
-            The kiosk shows this arrangement exactly as you leave it, scaled to fit its portrait screen with
-            no scrolling and no zooming &mdash; so a compact chart reads larger there than a spread-out one.
-            The dashed rectangle is that screen: keep the cards inside it and the board renders at full size.
-            A card parked far away from the rest is dropped back into place on the kiosk rather than shrinking
-            the whole board for visitors; here it stays exactly where you put it, so you can find it and move it.
+            Click a card to change that member&rsquo;s name, position, photo, who they report to, or their
+            order among the people beside them. Use <strong>+</strong> on a card to add someone who reports
+            to that person, or drop an image file onto a card to set their photo. The kiosk lays the chart
+            out on its own to fit its portrait screen, so this is exactly what visitors see.
           </p>
 
           <div class="org-board-canvas" data-ob-canvas>
             <div class="org-board-stage" data-ob-stage>
-              {# The kiosk's screen, to scale, behind the cards. Sized from
-                 OrgChart.KIOSK_FRAME so the two can never drift apart. #}
-              <div class="org-board-frame" data-ob-frame aria-hidden="true">
-                <span class="org-board-frame__label">Kiosk screen</span>
-              </div>
               <svg class="org-board-edges" data-ob-edges xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
               <div class="org-board-cards" data-ob-cards></div>
             </div>
@@ -124,7 +106,7 @@
             <div>
               <h3 class="article-modal__title" id="org-board-member-modal-title"
                   data-ob-member-modal-title>Add member</h3>
-              <p class="article-modal__subtitle">Names and reporting lines here; drag cards on the canvas to arrange them.</p>
+              <p class="article-modal__subtitle">Saved when you press Save. Order changes apply right away.</p>
             </div>
             <button type="button" class="article-modal__close" data-ob-member-modal-close>Close</button>
           </div>
@@ -159,6 +141,19 @@
                 <span class="field__label">Reports to</span>
                 <select name="parent_id" id="org-board-member-parent" class="field__input field__input--select" data-ob-field="parent_id"></select>
               </label>
+
+              {# Editing only. Not a form field: each press posts to
+                 org-board.reorder on its own and the chart redraws behind the
+                 dialog, so the editor sees where the card went. #}
+              <div class="field org-board-order" data-ob-order hidden>
+                <span class="field__label">Order among the people beside them</span>
+                <div class="org-board-order__controls">
+                  <button type="button" class="ghost-button" data-ob-order-move="earlier">Move earlier</button>
+                  <span class="org-board-order__readout" data-ob-order-readout role="status"></span>
+                  <button type="button" class="ghost-button" data-ob-order-move="later">Move later</button>
+                </div>
+                <p class="org-board-order__hint" data-ob-order-hint></p>
+              </div>
 
               <div class="field">
                 <span class="field__label">Photo</span>

@@ -19,6 +19,7 @@ from app.models.Events import Events
 from app.models.News import News
 from app.services import Issues, KioskBroadcast, NewsCache, NewsCategories
 from app.services.KioskBroadcast import pusher_configured as _pusher_configured  # noqa: F401
+from app.services.FileVerificationService import FileVerificationService
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.DashboardContext import (
     issue_identity_of,
@@ -181,6 +182,10 @@ _NEWS_LAYOUT_TYPES = set(BLOCK_TYPES) | {"unassigned"}
 _NEWS_SLOT_CAPACITY = dict(BLOCK_CAPACITY)
 
 
+class _StoryNotEditable(Exception):
+    """A layout batch named a story this actor may not change (→ 404)."""
+
+
 class _LayoutConflict(Exception):
     """The canvas that produced this batch is behind the database (→ 409)."""
 
@@ -207,6 +212,36 @@ def _resolve_status_for_actor(status, request):
     if status in _PUBLISH_INTENT_STATUSES and not _actor_is_admin(request):
         return "review"
     return status
+
+
+def _may_change_story(request, record):
+    """An admin, the story's author, or the owner of the issue it sits in.
+
+    The composer has shown editors only their own issue since the per-editor
+    work, but that only scoped what they see: every write route still took any
+    id. A story with neither an author nor an issue is admin-only rather than
+    open to everyone.
+    """
+    if _actor_is_admin(request):
+        return True
+    user_id = _current_user_id(request)
+    if not user_id:
+        return False
+    if _int_or_none(getattr(record, "author_id", None)) == user_id:
+        return True
+    issue_id = _int_or_none(getattr(record, "issue_id", None))
+    return bool(issue_id and Issues.owned_issue(user_id, issue_id))
+
+
+def _is_locked_for_review(request, record):
+    """Autosave and body saves are silent, so they stop while an admin decides.
+
+    An explicit resubmit through store() stays possible, because the composer
+    posts every block on submit. It changes ReviewQueue.content_stamp(), so an
+    approval based on an older preview is refused.
+    """
+    status = _normalize_news_status(getattr(record, "status", None))
+    return status == "review" and not _actor_is_admin(request)
 
 
 def _int_or_none(value):
@@ -438,10 +473,16 @@ class NewsController(Controller):
 
         is_ajax = wants_json(request)
 
-        def _err(messages):
+        def _err(messages, status=422):
             if is_ajax:
-                return json_errors(response, messages)
+                return json_errors(response, messages, status=status)
             return response.back().with_errors(messages)
+
+        # Before the upload below, so a refused request leaves no orphaned file.
+        if article_id:
+            target = News.where("id", article_id).first()
+            if target and not _may_change_story(request, target):
+                return _err(["Article not found."], status=404)
 
         # Required fields depend on the block; check text content, since an empty
         # Quill editor still serialises to `<p><br></p>`.
@@ -499,6 +540,10 @@ class NewsController(Controller):
             file_extension = (image_file.extension() or "").lower()
 
             if file_extension not in allowed_extensions:
+                return _err(["Please upload a valid image file."])
+
+            # The extension is only what the browser claimed.
+            if not FileVerificationService.verify_buffer(image_file.get_content(), "photo"):
                 return _err(["Please upload a valid image file."])
 
         try:
@@ -659,6 +704,13 @@ class NewsController(Controller):
             # (unchanged) cache stays correct with no invalidation on the error path.
             updated_ids = []
             with DB.transaction():
+                # All or nothing: the composer sends a whole canvas, so one foreign
+                # id means this request is not what that composer would send.
+                for item_id, _, _ in updates:
+                    candidate = News.where("id", item_id).first()
+                    if candidate and not _may_change_story(request, candidate):
+                        raise _StoryNotEditable()
+
                 # Optimistic concurrency, scoped to the first item's issue. The composer
                 # sends its whole canvas on every drag, so a stale tab would otherwise
                 # silently overwrite another editor's work.
@@ -703,6 +755,8 @@ class NewsController(Controller):
                     messages=["Layout saved."],
                 )
             return response.redirect(name="gears.dashboard").with_success(["Layout saved."])
+        except _StoryNotEditable:
+            return _err(["Article not found."], status=404)
         except _LayoutConflict:
             # 409, not 422: the payload was fine, it just lost a race. The composer reloads.
             if is_ajax:
@@ -735,8 +789,11 @@ class NewsController(Controller):
             return response.back().with_errors(messages)
 
         record = News.where("id", request.param("id")).first()
-        if not record:
+        if not record or not _may_change_story(request, record):
             return _err(["Article not found."], status=404)
+
+        if _is_locked_for_review(request, record):
+            return _err(["This story is awaiting review, so it can't be edited now."], status=409)
 
         sanitized = _sanitize_news_html((request.input("description") or "").strip())
         if not _html_to_text(sanitized):
@@ -784,8 +841,11 @@ class NewsController(Controller):
             return response.back().with_errors(messages)
 
         record = News.where("id", request.param("id")).first()
-        if not record:
+        if not record or not _may_change_story(request, record):
             return _err(["Article not found."], status=404)
+
+        if _is_locked_for_review(request, record):
+            return _err(["Awaiting review, so this wasn't saved."], status=409)
 
         if _normalize_news_status(getattr(record, "status", None)) in _NEWS_VISIBLE_STATUSES:
             # 409: well-formed request, inapplicable state. The composer shows it as a hint.
@@ -835,7 +895,7 @@ class NewsController(Controller):
             return response.back().with_errors(messages)
 
         record = News.where("id", request.param("id")).first()
-        if not record:
+        if not record or not _may_change_story(request, record):
             return _err(["Article not found."], status=404)
 
         try:
@@ -865,7 +925,7 @@ class NewsController(Controller):
             return response.back().with_errors(messages)
 
         record = News.where("id", request.param("id")).first()
-        if not record:
+        if not record or not _may_change_story(request, record):
             return _err(["Article not found."])
 
         # Soft delete only: image files stay so a restored story still renders.

@@ -10,6 +10,7 @@ only *offers* "Submit for review" is not a gate — the form is just a form, and
 anyone signed in can post `status=published` to the same endpoint.
 """
 
+import pytest
 from unittest import TestCase
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
@@ -456,6 +457,8 @@ class IssuePreviewTestCase(TestCase):
 
 
 from tests import TestCase as _AppTestCase  # noqa: E402  (needs the container; the rest of this file does not)
+
+pytestmark = pytest.mark.usefixtures("actor_may_change_any_story", "preview_already_read")
 
 
 class IssueRoutesResolveTestCase(_AppTestCase):

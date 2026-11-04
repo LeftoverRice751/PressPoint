@@ -1,10 +1,8 @@
 {#
     Site branding: the logo shown across the kiosk and the dashboard.
 
-    Extracted from gears/dashboard.html, which had grown to 1,628 lines with
-    every panel of the CMS in one file. Rendered by dashboard.html in the same
-    order it always was; DashboardController.fragment() still re-renders the
-    smaller data partials (events-list, news-slots, archives-list, videos-list).
+    Admin-only: the logo appears on every page, including sign-in, so it's
+    rendered by gears/admin-console.html and its routes carry `admin`.
 #}
     <section class="gears-page" data-page-panel="branding" id="panel-branding" role="tabpanel" aria-labelledby="nav-branding" data-hero-eyebrow="System Tools" data-hero-title="Site logo" data-hero-subtitle="Upload the publication mark shown on the kiosk screens, this dashboard, and the sign-in pages." hidden>
       <div class="section-head">

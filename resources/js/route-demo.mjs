@@ -49,3 +49,16 @@ export function demoPhase(elapsedMs, { drawMs, holdMs }) {
 export function drawDurationFor(totalPx) {
     return Math.min(DRAW_MAX_MS, Math.max(DRAW_MIN_MS, DRAW_MIN_MS + totalPx * DRAW_MS_PER_PX));
 }
+
+/**
+ * Whether a pin belongs on the map (the category filter) and whether it is
+ * muted (a route is showing and the pin is neither its start nor its end).
+ * Leaflet puts every pin in markerPane, above the polylines in overlayPane,
+ * so an unmuted pin anywhere along the walkway sits on top of the line.
+ * "You are here" is never muted or filtered: it is where every route starts.
+ */
+export function markerPresence(meta, id, { activeCategory, routeFocusId }) {
+    const onMap = meta.isStart || activeCategory === 'all' || meta.categoryId === activeCategory;
+    const muted = routeFocusId !== null && !meta.isStart && id !== routeFocusId;
+    return { onMap, muted };
+}

@@ -329,7 +329,16 @@ html, body {
     @keyframes kiosk-route-dash-march {
         to { stroke-dashoffset: -44; }
     }
+
+    /* Pins fade rather than blink out when Show Route mutes them. */
+    #campus-map .leaflet-marker-icon {
+        transition: opacity 0.22s ease;
+    }
 }
+
+/* A pin faded behind an active route ignores taps, so a visitor aiming at
+   the line cannot swap the destination mid-route. */
+#campus-map .kiosk-marker--muted { pointer-events: none; }
 
 /* ── Pins (semantic by category) ────────────────────────────────── */
 
@@ -923,7 +932,17 @@ html, body {
     right: 0;
     bottom: 0;
     width: auto;
-    height: min(36vh, 320px);
+    /* Sized by its content, not min(36vh, 320px). The QR view is taller than
+       the info view, and at a fixed height on anything but the 768x1024 panel
+       its status line and DONE button were clipped under the stage's edge —
+       the visitor's only way out of the view. The map gives up the height
+       instead, down to a strip that still shows the route; past that the
+       pane scrolls rather than clip. kiosk-map.js frames the camera in what
+       is left (mapInsets). */
+    height: auto;
+    max-height: calc(100% - var(--map-min-visible, 140px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: var(--paper);
     border-top: 4px solid var(--ink);
     box-shadow: 0 -28px 60px rgb(var(--brand-maroon-rgb) / 0.28);
@@ -977,10 +996,9 @@ html, body {
     display: flex;
     flex-direction: row;
     align-items: center;
-    flex: 1;
+    flex: 0 0 auto;
     gap: 1.5rem;
     padding-top: 0.4rem;
-    min-height: 0;
 }
 
 .building-pane__view--hidden { display: none; }
@@ -993,8 +1011,9 @@ html, body {
     gap: 0.5rem;
     flex: 1 1 auto;
     min-width: 0;
-    min-height: 0;
-    overflow: hidden;
+    /* No overflow: hidden. The pane grows to fit the column now, so anything
+       this clipped was copy the visitor needed (a long building name). */
+    overflow-wrap: anywhere;
 }
 
 .building-pane__qr-canvas {
@@ -1374,3 +1393,143 @@ html, body {
 }
 
 /* Bottom back bar is now the shared .kiosk-back (kiosk-nav.css). */
+
+/* ── Narrow frames (phones, small portrait panels) ──────────────── */
+
+/* Everything above is laid out for the 768px panel. Below ~600px the
+   horizontal pane rows and the one-line key had no room left to give: the
+   info view squeezed the building name against a 290px button column, and
+   the key's labels ellipsised down to bare swatches. These rules re-stack
+   rather than shrink type, so nothing on the glass drops below its size. */
+@media (max-width: 600px) {
+    .building-pane {
+        padding: 1rem 1rem 1.1rem;
+    }
+
+    /* Info: name and coordinates on top, both actions side by side below. */
+    #building-pane-info {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.9rem;
+    }
+
+    #building-pane-info .building-pane__actions {
+        width: auto;
+        flex-direction: row;
+    }
+
+    #building-pane-info .building-pane__action {
+        flex: 1 1 0;
+        padding: 0.9rem 0.6rem;
+    }
+
+    /* Half-width buttons: one line, or SHOW ROUTE broke after its first word. */
+    .building-pane__action {
+        font-size: 1rem;
+        letter-spacing: 0.05em;
+        gap: 0.5rem;
+        white-space: nowrap;
+    }
+
+    .building-pane__action-arrow { font-size: 1.3rem; }
+
+    .building-pane__name {
+        margin: 0.3rem 0 0.6rem;
+        font-size: 1.5rem;
+    }
+
+    /* QR: keep the code beside the copy, but let it give up width. qrcodejs
+       draws at a fixed QR_SIZE_PX; scaling the bitmap down keeps every module
+       square, and 104px is still well inside a phone camera's reach. */
+    #building-pane-qr {
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .building-pane__qr-canvas {
+        padding: 0.5rem;
+        border-width: 3px;
+        box-shadow: 5px 5px 0 var(--orange);
+    }
+
+    .building-pane__qr-canvas img,
+    .building-pane__qr-canvas canvas {
+        width: clamp(104px, 28vw, 190px);
+        height: auto;
+    }
+
+    .building-pane__qr-help {
+        padding: 0.55rem 0.6rem;
+        letter-spacing: 0.08em;
+    }
+
+    #building-pane-qr .building-pane__actions { max-width: none; }
+
+    #building-pane-qr .building-pane__action { padding: 0.9rem 0.6rem; }
+
+    /* Key: the marks group wraps under the pins instead of competing with
+       them for one row, and the pins flow into as many columns as fit. */
+    .map-key {
+        gap: 0.6rem;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    .map-key__tab { font-size: 0.72rem; padding: 0.3rem 0.45rem; }
+
+    .map-key__groups {
+        flex-wrap: wrap;
+        row-gap: 0.45rem;
+    }
+
+    .map-key__list--pins {
+        flex: 1 1 100%;
+        grid-template-columns: repeat(auto-fill, minmax(7.25rem, 1fr));
+        grid-template-rows: none;
+        gap: 0.35rem 0.75rem;
+    }
+
+    .map-key__list--marks {
+        flex: 1 1 100%;
+        grid-template-rows: none;
+        grid-template-columns: repeat(2, auto);
+        justify-content: start;
+        gap: 0.35rem 1.25rem;
+        padding-left: 0;
+        padding-top: 0.45rem;
+        border-left: 0;
+        border-top: 2px solid var(--ink);
+    }
+
+    .map-key__label { font-size: 0.85rem; }
+}
+
+/* Phones: the tab is the one thing in the key a visitor doesn't need to read
+   the pins, and its ~55px is the difference between the pins sitting in three
+   columns and spilling onto a third row. Kept for screen readers. */
+@media (max-width: 480px) {
+    .map-key__tab {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .map-key__list--pins { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .map-key__label { font-size: 0.8rem; }
+
+    /* The prompt is the page's call to action; at 1.35rem it lost its last
+       two words on a 360px phone. */
+    .search-bar { min-height: 84px; padding: 0.7rem 1rem; gap: 0.7rem; }
+    .search-bar__icon { width: 36px; height: 36px; flex-basis: 36px; }
+    .search-bar__input { font-size: 1.15rem; }
+    .search-bar__input::placeholder { font-size: 0.95rem; letter-spacing: 0.03em; }
+}
+
+/* Short frames: the stage is all the map there is, so the pane may take
+   more of it before it scrolls. */
+@media (max-height: 760px) {
+    .building-pane { --map-min-visible: 96px; }
+}

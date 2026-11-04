@@ -15,10 +15,13 @@ Two independent protections are covered here:
   story that reads as "placed" in the composer but renders nowhere on the kiosk.
 """
 
+import pytest
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from app.controllers.gears.NewsController import NewsController
+
+pytestmark = pytest.mark.usefixtures("actor_may_change_any_story")
 
 
 def _mock_response():

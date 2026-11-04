@@ -108,6 +108,17 @@ body.kiosk-body {
   }
 }
 
+/* ── Large portrait panels ─────────────────────────────────────────── */
+/* The 860px cap is for a developer's landscape laptop. A portrait screen that
+   wide is kiosk hardware (1080x1920 signage totems), where the cap left every
+   section an 860px island between two dark bars. Portrait is the tell: no
+   desk to show, so the shell takes the glass. */
+@media (orientation: portrait) {
+  .kiosk-shell {
+    max-width: none;
+  }
+}
+
 /* ── Short landscape viewports ─────────────────────────────────────── */
 /* Give back one step of vertical padding and let the content row scroll.
    The back bar keeps its height; it is the way out. */

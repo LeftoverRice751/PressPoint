@@ -51,15 +51,18 @@ class GuestAuthLimiter(Limiter):
     crash the limiter.
     """
 
-    def __init__(self, limit: str = "5/minute"):
+    def __init__(self, limit: str = "5/minute", exempt_signed_in: bool = False):
         self.limit = limit
+        self.exempt_signed_in = exempt_signed_in
 
     def _client_ip(self, request) -> str:
         return client_ip(request)
 
     def allow(self, request):
-        # Authenticated users aren't the brute-force surface here.
-        if request.user():
+        # Opt-in, and only for buckets that cap public load. This used to apply
+        # to every bucket, so any signed-in session had unlimited guesses at
+        # another account's reset code and at its own current password.
+        if self.exempt_signed_in and request.user():
             return Limit.unlimited()
         return Limit.from_str(self.limit).by(self._client_ip(request))
 

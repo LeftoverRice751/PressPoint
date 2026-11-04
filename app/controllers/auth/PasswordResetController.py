@@ -7,7 +7,7 @@ from masonite.facades import Mail
 from masonite.facades import Hash
 from app.mailables.ResetPassword import ResetPassword
 from app.models.User import User
-from app.services import AuditLog, SessionTokens
+from app.services import AuditLog, OtpAttempts, SessionTokens
 from masonite.configuration import config
 from wsgi import application
 import re
@@ -22,7 +22,12 @@ class PasswordResetController(Controller):
             return True
 
         try:
-            return pendulum.now() > pendulum.parse(str(expires_at))
+            # store() writes local wall-clock time into a DATETIME column, so it
+            # must be read back as local. pendulum.parse() assumes UTC otherwise,
+            # which gave a 15-minute code 8 hours 15 minutes on an Asia/Manila host.
+            return pendulum.now() > pendulum.parse(
+                str(expires_at), tz=pendulum.local_timezone()
+            )
         except Exception:
             return True
 
@@ -46,8 +51,14 @@ class PasswordResetController(Controller):
             ),
             None,
         )
+        # An unknown address takes the same path to the same page, with no row and
+        # no mail, so this form cannot be used to list which addresses have accounts.
         if not editor:
-            return response.back().with_errors(["Could not find an account for that email."])
+            request.session.set("pending_reset_email", email)
+            return response.redirect(
+                name="auth.forgot-password.otp",
+                query_params={"email": email},
+            )
 
         reset_token = f"{secrets.randbelow(1000000):06d}"
         reset_table = config("auth.guards.password_reset_table", "password_resets")
@@ -85,7 +96,8 @@ class PasswordResetController(Controller):
             return response.back().with_errors([
                 "Could not send the OTP email. Please try again later."
             ])
-        # Held server-side so verify_otp() binds the code to this address (CWE-640).
+        # In an encrypted session cookie, so verify_otp() binds the code to this
+        # address (CWE-640) and a client cannot substitute another one.
         request.session.set("pending_reset_email", email)
 
         return response.redirect(
@@ -119,6 +131,13 @@ class PasswordResetController(Controller):
                 "Please request a new OTP code."
             ])
 
+        # Before the lookup, so the right code is refused too: an answer that
+        # differed for it would still let guessing continue past the limit.
+        if OtpAttempts.is_locked(pending_email):
+            return response.redirect(name="auth.forgot-password").with_errors([
+                "Too many incorrect codes. Please wait 15 minutes and request a new one."
+            ])
+
         reset_table = config("auth.guards.password_reset_table", "password_resets")
         stored_token = SessionTokens.otp_digest(pending_email, otp)
         reset_records = application.make("builder").new().statement(
@@ -129,6 +148,15 @@ class PasswordResetController(Controller):
         reset_record = reset_records[0] if reset_records else None
 
         if not reset_record:
+            if OtpAttempts.record_failure(pending_email) >= OtpAttempts.MAX_FAILURES:
+                application.make("builder").new().statement(
+                    # bandit B608: table name from config; values are bound.
+                    f"DELETE FROM {reset_table} WHERE email = %s",  # nosec B608
+                    [pending_email],
+                )
+                return response.redirect(name="auth.forgot-password").with_errors([
+                    "Too many incorrect codes. Please wait 15 minutes and request a new one."
+                ])
             return response.back().with_errors(["Invalid OTP code. Please try again."])
 
         if self._is_reset_record_expired(reset_record):
@@ -139,6 +167,8 @@ class PasswordResetController(Controller):
                 [stored_token, pending_email],
             )
             return response.back().with_errors(["OTP code has expired. Please request a new one."])
+
+        OtpAttempts.clear(pending_email)
 
         # The stored digest, which is what store_changed_password() matches the
         # row on; the code itself never reaches the (cookie-backed) session.
@@ -209,7 +239,9 @@ class PasswordResetController(Controller):
 
         new_password = Hash.make(raw_password)
         application.make("builder").new().statement(
-            "UPDATE users SET password = %s WHERE email = %s",
+            # Clearing the token ends every session: a reset is often because
+            # someone else got in.
+            "UPDATE users SET password = %s, remember_token = NULL WHERE email = %s",
             [new_password, verified_email],
         )
         application.make("builder").new().statement(

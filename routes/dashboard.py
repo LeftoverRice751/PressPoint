@@ -14,7 +14,6 @@ ROUTES = [
     Route.post("/archives/dashboard", "kiosk.ArchivesController@store").name("archives.store").middleware("auth"),
     Route.delete("/archives/dashboard/@id", "kiosk.ArchivesController@destroy").name("archives.destroy").middleware("auth"),
     Route.post("/events/dashboard", "gears.EventController@store").name("events.store").middleware("auth"),
-    Route.post("/events/dashboard/archive", "gears.EventController@extract_from_pdf").name("events.archive").middleware("auth"),
     # Editorial review. These are the first role-gated routes in this file —
     # everything else here is "auth" only, so any signed-in account reaches it.
     # Approving puts a story on a public campus screen, so it takes "admin".
@@ -84,11 +83,10 @@ ROUTES = [
     Route.get("/org-board/dashboard", "gears.OrgBoardController@show").name("org-board.show").middleware("auth"),
     Route.post("/org-board/dashboard", "gears.OrgBoardController@store").name("org-board.store").middleware("auth"),
     Route.get("/org-board/dashboard/data", "gears.OrgBoardController@data").name("org-board.data").middleware("auth"),
-    Route.post("/org-board/dashboard/move", "gears.OrgBoardController@move").name("org-board.move").middleware("auth"),
+    Route.post("/org-board/dashboard/reorder", "gears.OrgBoardController@reorder").name("org-board.reorder").middleware("auth"),
     Route.post("/org-board/dashboard/update", "gears.OrgBoardController@update").name("org-board.update").middleware("auth"),
     Route.post("/org-board/dashboard/photo", "gears.OrgBoardController@photo").name("org-board.photo").middleware("auth"),
     Route.post("/org-board/dashboard/delete", "gears.OrgBoardController@destroy").name("org-board.destroy").middleware("auth"),
-    Route.post("/org-board/dashboard/reset-layout", "gears.OrgBoardController@reset_layout").name("org-board.reset-layout").middleware("auth"),
     Route.post("/org-board/dashboard/organization", "gears.OrgBoardController@store_organization").name("org-board.organization.store").middleware("auth"),
     Route.post("/org-board/dashboard/organization/update", "gears.OrgBoardController@update_organization").name("org-board.organization.update").middleware("auth"),
     Route.post("/org-board/dashboard/organization/delete", "gears.OrgBoardController@destroy_organization").name("org-board.organization.destroy").middleware("auth"),
@@ -102,6 +100,6 @@ ROUTES = [
     Route.post("/gears/about-lspu/seal/upload", "kiosk.AboutController@upload_seal").middleware("auth"),
     Route.post("/gears/about-lspu/hymn/audio", "kiosk.AboutController@upload_hymn_audio").middleware("auth"),
     Route.post("/gears/about-lspu/hymn/video", "kiosk.AboutController@upload_hymn_video").middleware("auth"),
-    Route.post("/gears/branding/logo", "gears.BrandingController@upload").name("branding.logo.upload").middleware("auth"),
-    Route.post("/gears/branding/logo/restore", "gears.BrandingController@restore").name("branding.logo.restore").middleware("auth"),
+    Route.post("/gears/branding/logo", "gears.BrandingController@upload").name("branding.logo.upload").middleware("auth", "admin"),
+    Route.post("/gears/branding/logo/restore", "gears.BrandingController@restore").name("branding.logo.restore").middleware("auth", "admin"),
 ]

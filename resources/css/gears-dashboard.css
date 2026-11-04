@@ -2133,17 +2133,6 @@ body {
     gap: 0.75rem;
 }
 
-.org-board-toolbar__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-}
-
-.org-board-toolbar__actions .ghost-button {
-    padding: 0.5rem 0.8rem;
-    font-size: 0.82rem;
-}
-
 .field--inline {
     display: grid;
     gap: 0.3rem;
@@ -2157,28 +2146,17 @@ body {
     margin: 0;
 }
 
+/* The kiosk's own chart, scaled down to the panel's width (never up). The
+   height is set in JS from the scaled chart, so the panel grows with a long
+   organization instead of shrinking it further -- see fitToWidth() in
+   org-board-editor.js. min-height keeps the empty state from collapsing. */
 .org-board-canvas {
     position: relative;
     overflow: hidden;
-    height: clamp(420px, 62vh, 760px);
+    min-height: 220px;
     border: 1px solid var(--ink-rule);
     border-radius: var(--radius-sm);
     background-color: var(--ink-paper);
-    background-image:
-        linear-gradient(to right, var(--ink-rule) 1px, transparent 1px),
-        linear-gradient(to bottom, var(--ink-rule) 1px, transparent 1px);
-    background-size: 28px 28px;
-    cursor: grab;
-    touch-action: none;
-}
-
-.org-board-canvas.is-panning {
-    cursor: grabbing;
-}
-
-.org-board-canvas.is-drop-canvas {
-    outline: 2px dashed var(--ink-marigold);
-    outline-offset: -6px;
 }
 
 .org-board.is-loading .org-board-canvas {
@@ -2192,64 +2170,6 @@ body {
     transform-origin: 0 0;
 }
 
-/* The kiosk's own screen, to scale, behind the cards. This canvas is a wide
-   desktop strip and the kiosk is a 768x1024 portrait panel that scales a chart
-   to fit with no scrolling and no zoom, so an arrangement that felt roomy here
-   used to arrive there at ~0.46 with unreadable names. Sized in JS from
-   OrgChart.KIOSK_FRAME so the two can never drift apart. */
-.org-board-frame {
-    position: absolute;
-    top: 0;
-    left: 0;
-    border: 2px dashed var(--ink-rule-strong);
-    border-radius: var(--radius-sm);
-    background: var(--ink-paper);
-    pointer-events: none;
-    z-index: 0;
-}
-
-.org-board-frame__label {
-    position: absolute;
-    top: 0;
-    left: 0;
-    padding: 0.2rem 0.5rem;
-    background: var(--ink-rule-strong);
-    color: var(--ink-paper);
-    font-size: 0.62rem;
-    font-weight: 800;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-}
-
-/* Above the frame, so the chart is never painted behind it. */
-.org-board-edges,
-.org-board-cards {
-    z-index: 1;
-}
-
-.org-board-fit {
-    align-self: center;
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    color: var(--ink-muted);
-    white-space: nowrap;
-}
-
-/* --ink-oxblood is fill-only (see the note at the top of this file), so the
-   attention state reads in --accent-text rather than recolouring with a fill. */
-.org-board-fit.is-tight {
-    color: var(--accent-text);
-}
-
-/* A card outside the frame does not stop anything -- the editor must show the
-   board as it really is, or whoever can move the card never learns it is out
-   there. It only says which card is costing the kiosk its scale. */
-.ob-card-node.is-outside-frame {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent);
-}
-
 .org-board-edges {
     position: absolute;
     top: 0;
@@ -2258,10 +2178,11 @@ body {
     pointer-events: none;
 }
 
+/* 3px like .ob-chart__edge on the kiosk, so a reporting line reads the same. */
 .ob-edge {
     fill: none;
     stroke: var(--ink-rule-strong);
-    stroke-width: 2;
+    stroke-width: 3;
     stroke-linecap: square;
 }
 
@@ -2270,39 +2191,28 @@ body {
     inset: 0;
 }
 
-/* The card is sized by its contents: a long name or a long position widens it
-   (then wraps it) instead of being cut to an ellipsis, which hid exactly the
-   information an editor arranges the chart by. min-width/min-height are the
-   fixed box OrgChart.DEFAULTS still falls back to when a card cannot be
-   measured, so an unmeasured render looks identical to the old one; the layout
-   pass in org-board-editor.js measures the real box and spaces rows to it. */
+/* The kiosk's member card (.ob-chart__node in org-board.css), box for box:
+   the same 560px width, padding, border, avatar slot and type sizes. The
+   layout measures each card's height before placing it, so any difference
+   here -- a smaller font that wraps one line fewer -- would put this chart's
+   rows somewhere the kiosk's are not. Colours follow the dashboard theme;
+   geometry does not. Keep in step with OrgChart.KIOSK_CHART. */
 .ob-card-node {
-    position: absolute;
-    display: grid;
-    grid-template-columns: 44px minmax(0, 1fr);
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.6rem 0.7rem;
-    box-sizing: border-box;
-    width: max-content;
-    min-width: 200px;
-    max-width: 320px;
-    min-height: 96px;
-    border: 1px solid var(--ink-rule-strong);
-    border-radius: var(--radius-sm);
-    background: var(--ink-cream);
-    cursor: grab;
-    user-select: none;
-    /* Cards move under a Pointer Events drag, so the browser must not claim the
-       gesture for scrolling first — without this a touch drag on a tablet pans
-       the page instead of moving the card. */
-    touch-action: none;
-}
+    --ob-node-avatar: 48px;
 
-/* A member with no uploaded photo shows no avatar frame at all — the empty
-   bordered circle read as a broken image, so the card collapses to one column. */
-.ob-card-node--no-photo {
-    grid-template-columns: minmax(0, 1fr);
+    position: absolute;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: var(--ob-node-avatar) minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.7rem 0.9rem;
+    width: 560px;
+    min-height: 96px;
+    border: 2px solid var(--ink-rule-strong);
+    border-radius: 4px;
+    background: var(--ink-paper);
+    cursor: pointer;
 }
 
 .ob-card-node:hover {
@@ -2314,46 +2224,30 @@ body {
     outline-offset: 2px;
 }
 
-.ob-card-node.is-dragging {
-    /* The card now tracks the cursor rather than being redrawn on drop, so it
-       stays legible while it moves — it only lifts off the grid. */
-    opacity: 0.9;
-    cursor: grabbing;
-    box-shadow: 0 6px 0 var(--ink-rule-strong);
-}
-
 .ob-card-node.is-selected {
     border-color: var(--rule-strong);
     box-shadow: 0 0 0 2px var(--rule-strong);
 }
 
-/* There is no "pinned" badge any more: the editor seeds every card with its
-   own coordinates the first time a board is opened, so every card is
-   hand-placeable and a dot on all of them marked nothing. */
-
+/* A photo file is being dragged over this card. */
 .ob-card-node.is-drop-target {
     border-color: var(--ink-marigold);
     box-shadow: 0 0 0 3px var(--ink-marigold);
 }
 
-.ob-card-node.is-drop-blocked {
-    border-color: var(--ink-vermillion);
-    box-shadow: 0 0 0 3px var(--ink-vermillion);
-    cursor: not-allowed;
-}
-
 .ob-card-node__avatar {
     display: grid;
     place-items: center;
-    width: 44px;
-    height: 44px;
+    width: var(--ob-node-avatar);
+    height: var(--ob-node-avatar);
     overflow: hidden;
     border-radius: 50%;
-    border: 1px solid var(--ink-rule-strong);
-    background: var(--ink-paper);
+    border: 1px solid var(--ink-rule);
+    background: var(--ink-cream);
 }
 
 .ob-card-node__avatar img {
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -2362,34 +2256,95 @@ body {
 .ob-card-node__initials {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: 1.1rem;
+    font-size: 1.4rem;
     font-weight: 900;
+    letter-spacing: -0.02em;
 }
 
-/* Name and position are centred in their column so the two lines read as one
-   balanced block; left-ragged text under a wider name looked unfinished once
-   cards stopped being a uniform width. */
 .ob-card-node__body {
+    display: grid;
+    gap: 0.15rem;
     min-width: 0;
     text-align: center;
 }
 
 .ob-card-node__name {
     color: var(--ink-soot);
+    font-family: var(--font-display);
     font-weight: 800;
-    font-size: 0.92rem;
-    line-height: 1.25;
-    /* Wrap rather than ellipsise; `anywhere` so one unbroken token (a long
-       hyphen-free title) still yields instead of overflowing the border. */
+    font-size: 1.35rem;
+    line-height: 1.15;
     overflow-wrap: anywhere;
 }
 
 .ob-card-node__position {
     color: var(--ink-muted);
-    font-size: 0.78rem;
-    line-height: 1.3;
-    margin-top: 0.15rem;
+    font-size: 1.05rem;
+    font-weight: 500;
+    line-height: 1.25;
     overflow-wrap: anywhere;
+}
+
+/* "Add someone who reports to this person". Hung off the bottom edge with
+   absolute positioning so it adds nothing to the card's measured box -- the
+   layout must see exactly the card the kiosk draws. Shown on hover or focus so
+   a chart of forty does not read as forty buttons. */
+.ob-card-node__add {
+    position: absolute;
+    left: 50%;
+    bottom: -14px;
+    width: 28px;
+    height: 28px;
+    margin-left: -14px;
+    padding: 0;
+    border: 2px solid var(--ink-rule-strong);
+    border-radius: 50%;
+    background: var(--ink-paper);
+    color: var(--ink);
+    font-size: 1.1rem;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    z-index: 2;
+}
+
+.ob-card-node:hover .ob-card-node__add,
+.ob-card-node:focus-within .ob-card-node__add,
+.ob-card-node.is-selected .ob-card-node__add {
+    opacity: 1;
+}
+
+.ob-card-node__add:hover,
+.ob-card-node__add:focus-visible {
+    border-color: var(--ink-marigold);
+    outline: none;
+}
+
+/* Touch screens have no hover, so the button is simply always there. */
+@media (hover: none) {
+    .ob-card-node__add {
+        opacity: 1;
+    }
+}
+
+.org-board-order__controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.org-board-order__readout {
+    min-width: 4.5rem;
+    text-align: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.org-board-order__hint {
+    margin: 0.3rem 0 0;
+    color: var(--ink-muted);
+    font-size: 0.8rem;
 }
 
 .org-board-empty {

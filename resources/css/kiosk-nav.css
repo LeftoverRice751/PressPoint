@@ -84,3 +84,25 @@
 .kiosk-back__label {
   line-height: 1;
 }
+
+/* ── Type scale for panels wider than the design ───────────────────────
+ *
+ * Lives here because this is the one stylesheet every framed section loads
+ * (news, map, archives, tour, org board, About) and the CMS never does.
+ *
+ * Each section is set in rem for the 768px panel. On a 1080px totem the frame
+ * is 40% wider but the type stayed 16px-based, so pages read as small islands
+ * of copy in a lot of paper. The root size ramps from 16px at an 860px frame
+ * to 22px at 1080, so every rem on the page scales with the glass.
+ *
+ * Keyed on the frame's WIDTH alone, from 860px: that is kiosk-shell.css's cap
+ * on a landscape screen, so a laptop and the 768 panel never reach the ramp.
+ * Not on orientation — inside the shell this document is an iframe, and its
+ * orientation flips when the Menu drawer opens or folds, which would resize
+ * every word on the page under the visitor's finger.
+ */
+@media (min-width: 861px) {
+  html {
+    font-size: clamp(16px, calc(16px + (100vw - 860px) * 6 / 220), 22px);
+  }
+}

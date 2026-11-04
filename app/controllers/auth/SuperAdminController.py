@@ -4,7 +4,7 @@ from masonite.request import Request
 from masonite.response import Response
 from masonite.facades import Hash
 from app.models.User import User
-from app.services import AuditLog, Credentials, DashboardContext
+from app.services import AuditLog, Credentials, DashboardContext, SessionTokens
 from app.tab_slots import clear_slot_session, slot_cookie
 
 
@@ -103,6 +103,8 @@ class SuperAdminController(Controller):
             ])
 
         user.password = Hash.make(password)
+        # A reset is often because someone else got in, so end their session too.
+        user.set_remember_token()
         user.save()
         AuditLog.record(
             "user.password.reset",
@@ -141,6 +143,8 @@ class SuperAdminController(Controller):
     def logout(self, request: Request, response: Response):
         """Sign out this tab's slot only; remove_user() alone leaves the cookie behind."""
         slot = getattr(request, "tab_slot", 0)
+        # The token is the session, so a copy of the cookie outlives its deletion.
+        SessionTokens.revoke(request.user())
         request.remove_user()
         response.delete_cookie(slot_cookie("token", slot))
         clear_slot_session(request, response, slot)

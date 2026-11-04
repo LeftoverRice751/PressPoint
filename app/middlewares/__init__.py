@@ -1,4 +1,5 @@
 # flake8: noqa: F401
+from .EncryptCookies import EncryptCookies
 from .VerifyCsrfToken import VerifyCsrfToken
 from .AuthenticationMiddleware import AuthenticationMiddleware
 from .AdminMiddleware import AdminMiddleware

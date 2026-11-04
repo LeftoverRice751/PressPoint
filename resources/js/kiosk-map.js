@@ -21,7 +21,7 @@
  * alive on the user's phone for its full TTL even after a kiosk reset.
  */
 import { cumulativeFromPixels } from './route-maneuvers.mjs';
-import { partialPath, demoPhase, drawDurationFor } from './route-demo.mjs';
+import { partialPath, demoPhase, drawDurationFor, markerPresence } from './route-demo.mjs';
 
 document.addEventListener('DOMContentLoaded', () => {
     // ── 1. Constants + state ──────────────────────────────────────
@@ -72,6 +72,10 @@ document.addEventListener('DOMContentLoaded', () => {
         labelledId: null,       // the one pin currently showing its name plate
         layer: null,            // the L.campus25d() layer instance
         routeLayer: null,       // active route polyline overlay
+        // Destination of the route on screen, or null. While set, every other
+        // pin is faded: pins sit in markerPane above the line's overlayPane,
+        // so any pin the walkway passes would otherwise cover it.
+        routeFocusId: null,
         baseZoom: null,         // zoom the map settles at after the initial fit
         baseCenter: null,       // center the map settles at after the initial fit
         droneActive: false,     // true while a drone descent animation is in flight
@@ -369,6 +373,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const ROUTE_DASH_STYLE = { color: '#FFF3E6', weight: 2.5, opacity: 0.85, dashArray: '3 9', lineCap: 'round' };
     // Full route held on screen between draws, so a late glance still sees it.
     const ROUTE_HOLD_MS = 2600;
+    // Faint enough that the line reads through it, still enough to keep the
+    // campus recognisable around the route.
+    const ROUTE_MUTED_PIN_OPACITY = 0.15;
 
     const prefersReducedMotion = () => Boolean(
         window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -380,11 +387,17 @@ document.addEventListener('DOMContentLoaded', () => {
         state.routeDemoToken += 1;
     };
 
+    // Every way out of a route (another building, Close/Done, idle reset)
+    // comes through here, so this is the one place the faded pins return.
     const clearRouteLayer = () => {
         stopRouteDemo();
         if (state.routeLayer) {
             map.removeLayer(state.routeLayer);
             state.routeLayer = null;
+        }
+        if (state.routeFocusId !== null) {
+            state.routeFocusId = null;
+            applyMarkerVisibility();
         }
     };
 
@@ -545,20 +558,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // Show only the pins in the active category. The "You are here" marker is
-    // exempt on purpose — it is the user's anchor on the map and the origin of
-    // every route, so hiding it under a filter would leave them with no fixed
-    // point. Non-routable pins carry no category, so they show under "All".
-    const applyCategoryFilter = () => {
-        const showAll = state.activeCategory === 'all';
+    // Show only the pins in the active category, and while a route is on
+    // screen fade every pin but its start and destination. The "You are here"
+    // marker is exempt from both on purpose — it is the user's anchor on the
+    // map and the origin of every route, so hiding it would leave them with no
+    // fixed point. Non-routable pins carry no category, so they show under "All".
+    const applyMarkerVisibility = () => {
+        const opts = { activeCategory: state.activeCategory, routeFocusId: state.routeFocusId };
         state.markers.forEach((marker, id) => {
             const meta = state.markerMeta.get(id);
             if (!meta) return;
-            const visible = meta.isStart
-                || showAll
-                || meta.categoryId === state.activeCategory;
-            if (visible && !map.hasLayer(marker)) map.addLayer(marker);
-            else if (!visible && map.hasLayer(marker)) map.removeLayer(marker);
+            const { onMap, muted } = markerPresence(meta, id, opts);
+            if (onMap && !map.hasLayer(marker)) map.addLayer(marker);
+            else if (!onMap && map.hasLayer(marker)) map.removeLayer(marker);
+            // setOpacity rather than a class: Leaflet re-applies its opacity
+            // option on setIcon, which the name-plate swap calls.
+            marker.setOpacity(muted ? ROUTE_MUTED_PIN_OPACITY : 1);
+            // A faint pin must not take a tap, or a visitor aiming at the line
+            // would swap the destination mid-route. Re-applied on every call
+            // because a DivIcon resets its className when the pin is re-added.
+            const el = marker.getElement();
+            if (el) el.classList.toggle('kiosk-marker--muted', muted);
         });
     };
 
@@ -572,7 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 locations.forEach(addLocationMarker);
                 // Honour a category picked while this request was in flight.
-                applyCategoryFilter();
+                applyMarkerVisibility();
             })
             .catch((error) => console.error('Failed to load locations:', error));
 
@@ -661,11 +681,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // How much of the map's top and bottom edges sit under chrome: the map
+    // key above, the open building pane below. The pane is sized by its
+    // content (kiosk-map.css), so on a narrow or short frame it can cover
+    // half the stage — anything framed against the whole map lands under it.
+    // offsetHeight, not the pane's rect: while it slides in its rect is
+    // mid-transform, and the camera moves on that same frame.
+    const mapInsets = () => {
+        const mapRect = dom.mapEl.getBoundingClientRect();
+        const key = dom.keyPins && dom.keyPins.closest('.map-key');
+        const top = key ? Math.max(0, key.getBoundingClientRect().bottom - mapRect.top) : 0;
+        const paneOpen = dom.pane && !dom.pane.classList.contains('building-pane--hidden');
+        const bottom = paneOpen ? dom.pane.offsetHeight : 0;
+        return { top, bottom };
+    };
+
     const flyToWithDroneIn = (location) => {
-        const target = featureCenter(location.feature_id) || layerLatLng(location);
+        let target = featureCenter(location.feature_id) || layerLatLng(location);
         if (!target) return;
+        const zoom = state.baseZoom + DRONE_FOCUS_ZOOM_BUMP;
+        // flyTo has no padding option, so centre on a point shifted by half
+        // the covered strip: the building then sits in the middle of the map
+        // the visitor can still see, not behind the pane.
+        const { top, bottom } = mapInsets();
+        if (bottom !== top) {
+            target = map.unproject(map.project(target, zoom).add([0, (bottom - top) / 2]), zoom);
+        }
         state.droneActive = true;
-        map.flyTo(target, state.baseZoom + DRONE_FOCUS_ZOOM_BUMP, {
+        map.flyTo(target, zoom, {
             duration: DRONE_DESCENT_MS / 1000,
         });
         animateDrone(
@@ -709,6 +752,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const path = buildRoutePath(location);
         if (!path || path.length < 2) return;
+        // Only once there is a line to show, so pins never fade over nothing.
+        state.routeFocusId = location.id;
+        applyMarkerVisibility();
         const cum = cumulativeFromPixels(path, 1);
         const total = cum[cum.length - 1];
         const drawMs = drawDurationFor(total);
@@ -726,12 +772,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // its bottom, so a symmetric fitBounds put a north-campus destination
         // under the key bar. The extra 64 px on top clears the selected pin's
         // name plate, which hangs above the destination.
-        const mapRect = dom.mapEl.getBoundingClientRect();
-        const key = dom.keyPins && dom.keyPins.closest('.map-key');
-        const topInset = key ? Math.max(0, key.getBoundingClientRect().bottom - mapRect.top) : 0;
-        const bottomInset = dom.pane
-            ? Math.max(0, mapRect.bottom - dom.pane.getBoundingClientRect().top)
-            : 0;
+        const { top: topInset, bottom: bottomInset } = mapInsets();
         // Level the drone camera too: the close-up's taller extrusions would
         // stand in front of the line.
         state.droneActive = true;
@@ -855,14 +896,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         showInfoView();
 
+        // Opened before the camera moves: the descent frames the building in
+        // the map left visible above the pane, so it measures the pane first.
+        dom.pane.classList.remove('building-pane--hidden');
+        dom.pane.setAttribute('aria-hidden', 'false');
+
         // The drone descent is the wayfinding cue: fly the camera to the
         // building, tilt the 2.5D scene, taller extrusion — reads as the
         // camera dropping in from above so users see the target AND what
         // surrounds it.
         flyToWithDroneIn(location);
-
-        dom.pane.classList.remove('building-pane--hidden');
-        dom.pane.setAttribute('aria-hidden', 'false');
         dom.page.classList.remove('campus-map-page--suggestions-open');
 
         // Picking a building means search is done — clear the bottom dock
@@ -922,10 +965,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // regardless of the QR request. It used to wait for the session
         // fetch, so a network or server hiccup left the visitor with no
         // route at all.
-        startRouteDemo(destination);
+        //
+        // The QR view goes up first: it is taller than the info view, and
+        // startRouteDemo frames the walk in whatever map the pane leaves.
         dom.qrCanvas.innerHTML = '';
         setQrStatus('Preparing phone link…');
         showQrView();
+        startRouteDemo(destination);
 
         const unavailable = () => {
             if (state.selected !== destination) return;
@@ -996,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.dropdownTrigger.dataset.cat = cat.id;
 
         setDropdownOpen(false);
-        applyCategoryFilter();
+        applyMarkerVisibility();
         refreshSuggestions();
     };
 

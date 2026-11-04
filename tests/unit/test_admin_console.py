@@ -250,7 +250,20 @@ class ConsoleTemplateTestCase(TestCase):
     def test_account_forms_avoid_the_document_level_ajax_hijack(self):
         """gears-dashboard.js binds data-section-form / data-upload-form at
         document level and rewrites those submits into AJAX calls expecting a
-        dashboard-shaped response. These two forms post and redirect."""
+        dashboard-shaped response. These two forms post and redirect.
+
+        Only the editors panel: the branding panel's logo form is meant to go
+        through upload-meter.js."""
         html = self._render(users=[_user(3)])
-        self.assertNotIn("data-section-form", html)
-        self.assertNotIn("data-upload-form", html)
+        start = html.index('id="panel-editors"')
+        end = html.index('id="panel-branding"')
+        accounts = html[start:end]
+        self.assertNotIn("data-section-form", accounts)
+        self.assertNotIn("data-upload-form", accounts)
+
+    def test_the_logo_form_gets_the_script_and_styles_it_needs(self):
+        html = self._render(users=[_user(3)])
+        self.assertIn("data-upload-form", html)
+        self.assertIn("js/upload-meter.js", html)
+        self.assertIn("css/upload-meter.css", html)
+        self.assertIn("css/dropzone.css", html)

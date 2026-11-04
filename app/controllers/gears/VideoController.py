@@ -36,6 +36,9 @@ def _broadcast_play_video(src, title):
         return False
 
 
+VIDEO_HEADER_BYTES = 64 * 1024
+
+
 class VideoController(Controller):
     def _video_upload_rate_limit_key(self, request: Request):
         user = request.user() if callable(getattr(request, "user", None)) else None
@@ -230,6 +233,11 @@ class VideoController(Controller):
             return _err(["Please upload a valid video file."])
 
         if not FileVerificationService.verify_extension(video_file.extension(), "video"):
+            return _err(["Please upload a valid video file."])
+
+        # The container header is enough, and these files run to 500 MB.
+        header = video_file.get_content()[:VIDEO_HEADER_BYTES]
+        if not FileVerificationService.verify_buffer(header, "managed-video"):
             return _err(["Please upload a valid video file."])
 
         try:

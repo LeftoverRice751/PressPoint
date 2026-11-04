@@ -20,6 +20,7 @@ section the server announces but the service worker cannot evict reloads the
 frame onto the same stale-while-revalidate copy, which looks like no update.
 """
 
+import pytest
 import re
 from contextlib import contextmanager
 from pathlib import Path
@@ -37,6 +38,8 @@ from tests.unit.test_review_workflow import _request, _response
 from app.controllers.gears.NewsController import NewsController
 from app.controllers.gears.ReviewController import ReviewController
 from app.services import KioskBroadcast, NewsCache
+
+pytestmark = pytest.mark.usefixtures("actor_may_change_any_story", "preview_already_read")
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 

@@ -9,6 +9,7 @@ The request/response helpers are borrowed from the suites that already drive
 these endpoints, so a change to how they are mocked lands in one place.
 """
 
+import pytest
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
@@ -17,6 +18,8 @@ from app.controllers.gears.ReviewController import ReviewController
 from app.services import NewsCategories
 from tests.unit.test_news_endpoints import _mock_request, _mock_response, _where_side_effect
 from tests.unit.test_review_workflow import _request, _response
+
+pytestmark = pytest.mark.usefixtures("actor_may_change_any_story", "preview_already_read")
 
 
 class ReviewBroadcastTestCase(TestCase):

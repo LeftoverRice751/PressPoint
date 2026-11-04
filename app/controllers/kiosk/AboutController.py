@@ -338,6 +338,11 @@ class AboutController(Controller):
             if wants_json(request):
                 return json_errors(response, [err])
             return _editor_redirect(response).with_errors([err])
+        if not FileVerificationService.verify_audio(content):
+            err = "Upload must be an MP3, OGG, WAV, or M4A audio file."
+            if wants_json(request):
+                return json_errors(response, [err])
+            return _editor_redirect(response).with_errors([err])
         if len(content) > MAX_AUDIO_BYTES:
             err = "Audio file must be 20 MB or smaller."
             if wants_json(request):

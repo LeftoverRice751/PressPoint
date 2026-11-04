@@ -193,8 +193,10 @@ class ArchiveCardAttributesTestCase(TestCase):
         # ...and zero, not blank, when the sweep wrote no detail tier.
         self.assertIn('data-detail-pages="0"', self._render(detail_pages=0))
 
-    def test_reader_chrome_carries_the_magnify_control(self):
-        self.assertIn("data-reader-magnify", self._render())
+    def test_kiosk_reader_chrome_has_no_magnify_control(self):
+        # The kiosk magnifies by double-tap alone; the pill stays on the
+        # public page only (asserted in the mobile contract test below).
+        self.assertNotIn("data-reader-magnify", self._render())
 
     def test_mobile_card_and_chrome_carry_the_same_contract(self):
         # templates/mobile/archives.html is a deliberate copy of the overlay

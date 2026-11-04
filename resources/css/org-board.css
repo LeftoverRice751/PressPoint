@@ -636,3 +636,36 @@ body {
     max-width: none;
   }
 }
+
+/* ===== Narrow frames (phones, small portrait panels) =====
+ *
+ * A comb is one card wide plus INDENT (32px) per level, so with 560px cards
+ * the board needed ~600px of frame. Below that fitScale wanted less than its
+ * 0.85 MIN_SCALE floor, the floor won, and the chart only opens its VERTICAL
+ * axis -- so the right edge of every card (the end of each name and title)
+ * was clipped on a phone. The card width follows the frame instead: buildChart
+ * measures each card's offsetWidth before layout, so the comb is computed from
+ * this width and fitScale lands back near 1.0. The 96px is BOX_PAD on both
+ * sides plus two indents of depth, the deepest a real board goes here. */
+@media (max-width: 640px) {
+  .ob-chart__node {
+    --ob-node-avatar: 40px;
+    width: min(560px, calc(100vw - 96px));
+    gap: 0.6rem;
+    padding: 0.6rem 0.7rem;
+  }
+
+  .ob-chart__initials { font-size: 1.15rem; }
+  .ob-chart__name { font-size: 1.1rem; }
+  .ob-chart__position { font-size: 0.92rem; }
+
+  /* The hint is the board's only swipe affordance, so it wraps under the
+     title rather than running off the right edge. */
+  .ob-masthead {
+    flex-wrap: wrap;
+    row-gap: 0.15rem;
+  }
+
+  .ob-masthead__title { font-size: clamp(1.1rem, 5vw, 1.45rem); }
+  .ob-masthead__hint { white-space: normal; }
+}

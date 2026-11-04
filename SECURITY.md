@@ -59,17 +59,23 @@ Visitor ──HTTPS──▶ Cloudflare ──tunnel (cloudflared, same host)─
 - **Password hashing:** bcrypt (`HASHING_FUNCTION`).
 - **Sessions are per tab.** Each tab gets a "slot" cookie holding the user's `remember_token`, resolved by `app/middlewares/LoadSlotUserMiddleware.py` and `app/tab_slots.py`.
 - **Cookie flags.** Every cookie inherits `secure: True, samesite: Lax` from `config/session.py`. On top of that, Masonite's `Cookie` defaults are `HttpOnly` and encrypted (`EncryptCookies` in `Kernel.py`).
+- **Sessions end.** Logout, OTP reset and a superadmin reset all invalidate `remember_token`, and a token stops working 12 hours after login (`SessionTokens.SESSION_LIFETIME_SECONDS`). The issue time is inside the token, so the digest fails if it is altered.
+- **A cookie that fails decryption is dropped** (`app/middlewares/EncryptCookies.py`). Masonite's own middleware passes it through as plaintext. Session values, including reset state, live in these cookies, so encryption is what makes them trustworthy.
 - **Password change** (`app/services/PasswordChange.py`) rotates `remember_token`, which signs out every other device. It answers with one generic failure message, so it can't be used to test whether a guessed current password is right. Policy: Masonite `strong` (8+ characters, two of each character class).
 - **Generated passwords** use `secrets.token_urlsafe(16)` (`app/services/Credentials.py`). An email-change notice goes to **both** the old and the new address.
 - **OTP reset codes** come from `secrets.randbelow(10**6)`. A code is matched on **token and email together**, and it expires (`app/controllers/auth/PasswordResetController.py`).
 
 ### Authorization
 - **Route middleware:** `auth`, `admin` and `super_admin` (`app/middlewares/`). Role checks trim whitespace and ignore case.
+- **Editors change only their own stories.** Every write route in `NewsController` goes through `_may_change_story()`: admin, author, or owner of the story's issue. A refusal looks the same as a missing story.
+- **Approval is tied to the preview.** The preview returns `ReviewQueue.content_stamp()`, and approval must send it back and match the current content, or it gets a 409. Autosave and body saves stop while a story is in `review`.
 - **Editors cannot publish.** `NewsController._resolve_status_for_actor()` downgrades any publish status to `review` for a non-admin, server-side. `_normalize_news_status()` **fails closed**: an unknown or missing status becomes `draft`.
 - **Public visibility goes through one function**, `_news_is_public()`. It is used at all three public call sites, including `/kiosk/flash-updates`, and `tests/unit/test_flash_status_filter.py` guards it.
 - **Profile routes act only on the signed-in user.** There is no `/profile/@id` route. `ProfileController` assigns fields one at a time because `User.__fillable__` contains `role`.
 
 ### Brute-force protection
+- **Wrong reset codes are counted per account** (`app/services/OtpAttempts.py`): 5 in 15 minutes deletes the code and refuses further attempts, and requesting a new code does not reset the count. Someone hammering an address can delay that person's reset by up to 15 minutes. `/forgot-password` gives the same response for unknown addresses, though mail sending still makes a known address slightly slower.
+- **Signed-in users are throttled too.** Only `route-sessions` and `archive-pages` exempt them, with `exempt_signed_in=True`, because those buckets cap public load.
 - **Separate throttle buckets per client IP:** `auth` (5/min), `password-reset` (10/min), `otp` (5/min), `password-change`, `route-sessions` (`AppProvider.boot()`, `app/rate_limiters.py`).
 - **Stale attempt counters are expired** correctly (`expire_stale_attempts`), and counter updates are atomic across processes via `fcntl.flock` (`app/cache_drivers.py`). Tests: `tests/unit/test_auth_rate_limit_window.py` and `test_cache_locking.py`.
 
@@ -79,8 +85,8 @@ Visitor ──HTTPS──▶ Cloudflare ──tunnel (cloudflared, same host)─
 
 ### Content and file handling
 - **Story HTML is sanitised** with `bleach` against an allowlist of formatting tags only (`NewsController._sanitize_news_html`).
-- **Uploads are identified by magic bytes, not by filename** (`FileVerificationService`, `ImageUploads.read_upload`).
-- **Every path from the database or a user** passes `StorageRouter.is_safe_path()` before it is served or deleted.
+- **Uploads are identified by magic bytes, not by filename** (`FileVerificationService`, `ImageUploads.read_upload`). This covers news, org-board, video, audio, image and PDF uploads.
+- **Every path from a user or served from the database** passes `StorageRouter.is_safe_path()`. Known exception: `ArchivesController.destroy` and `ArchiveServices` delete by paths the app wrote itself. No request value reaches them.
 - **Kiosk video pushes accept local `/storage/` paths only** (`EditorialController._sanitize_video_src`).
 - **The PDF reader** runs pdf.js with annotations and XFA disabled.
 
@@ -124,6 +130,12 @@ Severity is the effect on this deployment if the weakness were exploited.
 | W10 | ✅ Fixed | ~~Container runs as root, binds `0.0.0.0`, uses `npm install`~~ | `Dockerfile` |
 | W11 | ✅ Fixed | ~~Any editor can lock or unlock the public kiosk~~ (kept, now audited and announced) | `routes/dashboard.py` |
 | W12 | ✅ Fixed | ~~Leftover sqlite config and file~~ | `config/notification.py`, `masonite.sqlite3` |
+| W13 | ✅ Fixed | ~~Signed-in users skipped the throttle; OTP expiry off by the UTC offset; no per-account limit on wrong codes~~ | `app/rate_limiters.py`, `PasswordResetController`, `app/services/OtpAttempts.py` |
+| W14 | ✅ Fixed | ~~Undecryptable cookies reached the app as plaintext; a case-changed hash passed the replay guard~~ | `app/middlewares/EncryptCookies.py`, `SessionTokens` |
+| W15 | ✅ Fixed | ~~Logout and password reset left the session token valid, with no lifetime limit~~ | `SessionTokens.revoke`, logout and reset paths |
+| W16 | ✅ Fixed | ~~An approval could publish text changed after the admin previewed it~~ | `ReviewQueue.content_stamp`, `ReviewController` |
+| W17 | ✅ Fixed | ~~Any editor could change or delete any story~~ | `NewsController._may_change_story` |
+| W18 | ✅ Fixed | ~~Uploads checked by extension only; raw error text in JSON 500s; blank-role accounts kept their cookie~~ | `FileVerificationService`, `app/exceptions/Handler.py`, `LoginController` |
 
 **W1 — The CSP is Report-Only.**
 - **Problem:** `REPORT_ONLY = True` sends `Content-Security-Policy-Report-Only`. The browser logs violations but blocks nothing. The nonce, `object-src 'none'` and `frame-ancestors 'self'` therefore protect nothing today. No `X-Frame-Options` header exists either, so the CMS can currently be framed by another site (clickjacking).
@@ -158,7 +170,7 @@ Severity is the effect on this deployment if the weakness were exploited.
 - **Fix:** store `sha256(token)` and look up by the hash. The cookie keeps the raw value. Do the same for OTP codes. On rollout, every user is logged out once.
 - **Status: fixed (2026-10-18).**
   - **What is stored:** `app/services/SessionTokens.py` stores `h1:` + HMAC-SHA256(APP_KEY, token). It is *keyed*, not a bare SHA-256, because a 6-digit OTP hashed without a key is reversed by trying all 10⁶ codes. `User.set_remember_token` is overridden, so Masonite's own `attempt()` writes the hash, and the plaintext exists only on the in-memory instance and in the encrypted cookie. Tokens are now `token_urlsafe(32)`, 256 bits; the old uuid4 had 122.
-  - **Rollout:** nobody was signed out. A plaintext row is accepted once, then rewritten as its hash. A value that is already a hash is never accepted as a cookie, so a copied row cannot be replayed.
+  - **Rollout:** nobody was signed out. A plaintext row was accepted once, then rewritten as its hash. That fallback was removed on 2026-11-04 (W14) because the column's case-insensitive collation let a case-changed hash through it. Plaintext rows no longer sign anyone in.
   - **OTP codes:** stored as `otp_digest(email, code)`. The session keeps the digest, and the change-password form no longer carries the code in its URL.
   - **Leftovers:** `scripts/purge_legacy_session_tokens.py` reports, or with `--apply` clears, rows never upgraded. On 2026-10-18 there were 4 sessions and 4 reset codes.
   - **Verified live:** login writes a hash; a hash copied from the column and replayed as a cookie goes to `/login`; a legacy plaintext session works and is upgraded.
@@ -220,7 +232,7 @@ Severity is the effect on this deployment if the weakness were exploited.
 - **Fix:** keep 500M only on the upload routes (`/archives/dashboard`, `/videos/dashboard`) and set about 2M everywhere else.
 - **Status: fixed in `deploy/nginx-presspoint.conf` (2026-10-26). Needs a reload of the live nginx to take effect.**
   - **Default:** 10M server-wide. The only uploads outside the allowlist are images, which the app caps at 4 MB.
-  - **Allowlist (500M):** one exact-path regex location for `/videos/dashboard`, `/archives/dashboard`, `/events/dashboard/archive` and `/gears/about-lspu/hymn/{audio,video}`.
+  - **Allowlist (500M):** one exact-path regex location for `/videos/dashboard`, `/archives/dashboard` and `/gears/about-lspu/hymn/{audio,video}`.
   - **Verified through a private nginx built from this file, in front of `lyn.sh`:**
     - 20 MB to `/login`, `/api/route-sessions` or the avatar upload → **413 from nginx**.
     - 120 MB video, 90 MB hymn video and 20 MB PDF → passed through, including with the `?u=` tab-slot query.
@@ -244,6 +256,15 @@ Severity is the effect on this deployment if the weakness were exploited.
   - **Upload validation fixed in containers:** `libmagic1` is installed. `python-magic` needs it, so upload validation could never have worked in this image.
   - **Port binding:** 0.0.0.0 stays, because it's the container's own interface. The Dockerfile says to publish it only as `-p 127.0.0.1:8000:8000`.
   - **Smaller build context:** `.dockerignore` now also excludes `.git`, `.worktrees`, the 360 MB of tiles, logs, cache and the socket.
+
+**W13 to W18 — editor and admin re-scan, 2026-11-04.**
+- **Decisions recorded with the owner:**
+  - Editors see each other's unpublished headlines and excerpts on the overview, never bodies. The review and stats fragments are admin-only.
+  - Branding is admin-only. Org board, tour mapping, About, video and events stay open to every editor, unreviewed.
+  - Category delete and restore stay open to every editor. Restored stories that were public return to `review`, not `published`.
+- **Deployment:** tokens issued before W15 carry no issue time, so everyone signs in once more. `review-queue.js` must be rebuilt in the same deploy, or admins cannot approve.
+- **Reset state stays in session cookies.** The plan was to move it server-side, but once W14 refuses undecryptable cookies a client can't forge those values, and a used or expired code's row is gone or refused anyway. Move it if that reasoning stops holding.
+- **Not yet tested end to end:** the forged-cookie fix needs confirming on a non-production copy by the owner or an authorized tester.
 
 **W11 — Kiosk lock is `auth` only.**
 - **Problem:** Any editor can blank the public screen, and nothing records who did it.

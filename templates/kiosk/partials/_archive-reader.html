@@ -29,13 +29,9 @@
       <span>{{ reader_back_label | default('Back to selection') }}</span>
     </button>
     <div class="reader-chrome__pager" data-reader-pager>&mdash;</div>
-    {#- Opens the current page in the tabloid's zoom viewer. Hidden for
-        tabloids themselves (they pinch natively); double-tapping a page does
-        the same thing, this is the discoverable route. #}
-    <button type="button" class="reader-chrome__magnify" data-reader-magnify hidden>
-      <span aria-hidden="true">&#8853;</span>
-      <span>Magnify</span>
-    </button>
+    {#- No Magnify pill on the kiosk: double-tapping a page opens the same
+        zoom viewer. Only the public page (mobile/archives.html) renders the
+        button; kiosk-archive-book.js treats it as optional. #}
     <div class="reader-chrome__nav" data-reader-nav hidden>
       <button type="button" class="reader-chrome__nav-btn reader-chrome__nav-btn--prev" data-reader-prev aria-label="Previous page">
         <span aria-hidden="true">&#8249;</span>
