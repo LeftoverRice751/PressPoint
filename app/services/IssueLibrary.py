@@ -13,9 +13,9 @@ from config.database import DB
 
 from app.models.Issue import Issue
 from app.models.News import News
-from app.services import Issues, NewsCategories
+from app.services import IssueCalendar, Issues, NewsCategories
 from app.services.DashboardContext import (
-    BLOCK_TYPES, group_news_slots, issue_identity_of, upcoming_events,
+    BLOCK_TYPES, group_news_slots, issue_identity_of,
 )
 from app.services.ImageDerivatives import copy_image_and_variants, delete_image_and_variants
 
@@ -130,6 +130,8 @@ def duplicate(user_id, issue_id, discard=False):
                     "issue_id": getattr(target, "id", None),
                 })
                 News.create(data)
+
+            IssueCalendar.copy_upcoming(getattr(source, "id", None), getattr(target, "id", None))
     except Exception:
         for path in images.values():
             if path:
@@ -181,8 +183,8 @@ def print_context(issue, autoprint=False, stories=None):
             for block in BLOCK_TYPES
         },
         "news_editor": False,
-        # As of publication: a reprint months later must not show today's events.
-        "calendar_events": upcoming_events(as_of=published) if published else [],
+        # What this issue chose, past dates included: a reprint must match what ran.
+        "calendar_events": IssueCalendar.events_for(issue),
         **issue_identity_of(issue),
         "issue_title": getattr(issue, "title", None) or "",
         "issue_published_label": published.strftime("%b %d, %Y") if published else None,

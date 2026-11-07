@@ -1,3 +1,5 @@
+import { offerDialog } from './issue-calendar-offer.mjs';
+
 (function () {
   var dashboardRoot = document.querySelector('[data-dashboard-shell]');
 
@@ -665,6 +667,50 @@
     });
   }
 
+  // A saved event is not on any newsletter yet. Ask, then tell the composer:
+  // this script doesn't own the canvas, and the two load independently.
+  function offerSavedEvent(payload) {
+    var dialog = offerDialog(payload.calendar_offer, payload.event && payload.event.title);
+    if (!dialog || !window.ConfirmModal) {
+      return;
+    }
+
+    window.ConfirmModal.ask(dialog).then(function (confirmed) {
+      if (!confirmed) {
+        return null;
+      }
+      if (dialog.kind === 'full') {
+        document.dispatchEvent(new CustomEvent('issue-calendar:manage'));
+        return null;
+      }
+
+      return fetch('/gears/issues/current/events/' + encodeURIComponent(payload.event.id), {
+        method: 'POST',
+        headers: {
+          'X-CSRF-TOKEN': token,
+          'X-Requested-With': 'XMLHttpRequest',
+          Accept: 'application/json'
+        },
+        credentials: 'same-origin'
+      })
+        .then(function (response) {
+          return response.json().catch(function () { return null; });
+        })
+        .then(function (result) {
+          // Refreshed either way: a refusal means this tab's picture was stale.
+          document.dispatchEvent(new CustomEvent('issue-calendar:changed'));
+          if (!result || !result.ok) {
+            var errors = (result && result.errors) || ['Could not add the event.'];
+            throw new Error(errors.join(' '));
+          }
+          notify('Added to your newsletter.');
+          switchPage('news');
+        });
+    }).catch(function (error) {
+      notify(error.message || 'Could not add the event.', { error: true });
+    });
+  }
+
   // Events save posts JSON and refreshes the table in place. The form keeps its
   // real action, so it still submits normally if this script never runs.
   var eventsForm = dashboardRoot.querySelector('[data-events-form]');
@@ -713,6 +759,8 @@
           if (window.DashboardLive) {
             window.DashboardLive.refresh('events');
           }
+
+          offerSavedEvent(payload);
         })
         .catch(function (error) {
           // Keep the modal open and show why, instead of flashing on a reload.

@@ -17,7 +17,7 @@ from config.database import DB
 from app.events.NewNews import NewNews
 from app.models.Events import Events
 from app.models.News import News
-from app.services import Issues, KioskBroadcast, NewsCache, NewsCategories
+from app.services import IssueCalendar, Issues, KioskBroadcast, NewsCache, NewsCategories
 from app.services.KioskBroadcast import pusher_configured as _pusher_configured  # noqa: F401
 from app.services.FileVerificationService import FileVerificationService
 from app.services.AjaxResponses import wants_json, json_success, json_errors
@@ -28,7 +28,6 @@ from app.services.DashboardContext import (
     group_news_slots,
     issue_identity,
     section_stamp,
-    upcoming_events,
 )
 from app.services.ImageDerivatives import delete_image_and_variants, generate_variants, variant_path
 
@@ -389,25 +388,25 @@ class NewsController(Controller):
             "issue_no": first["issue_no"] if first else None,
         }
 
-    def _upcoming_events(self):
-        """Calendar rows, shared with the composer via DashboardContext."""
-        return upcoming_events()
-
     def show(self, view: View):
         payload = Cache.remember(_NEWS_CACHE_KEY, lambda cache: cache.put(
             _NEWS_CACHE_KEY, self._build_news_payload(), seconds=_NEWS_CACHE_TTL
         ))
 
+        # `.get()` with fallback: a cache entry from before this key would KeyError.
+        issues = payload.get("issues") or []
+
         return view.render(
             "kiosk/news",
             {
-                # `.get()` with fallback: a cache entry from before this key would KeyError.
-                "issues": payload.get("issues") or [],
+                "issues": issues,
                 "news_items": payload["news_items"],
                 "blocks": payload["blocks"],
                 "issue_vol": payload.get("issue_vol"),
                 "issue_no": payload.get("issue_no"),
-                "calendar_events": self._upcoming_events(),  # not cached on purpose
+                # Read per request, not cached: past dates have to drop off on time.
+                "calendars": IssueCalendar.upcoming_by_issue([issue["id"] for issue in issues]),
+                "calendar_events": [],  # the empty-state slide has no issue to read from
                 "active_nav": "news",
             },
         )

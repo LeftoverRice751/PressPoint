@@ -1,0 +1,49 @@
+{# The composer's Calendar section: what this newsletter shows, and what can be
+   added to it. Clicks are handled by delegation in news-dashboard.js because a
+   refresh replaces these nodes.
+
+   No live-refresh target attribute on this partial, deliberately. dashboard-live.js
+   takes a panel's FIRST target, and the inspector comes before the news panel's
+   real one, so every news refresh would overwrite this. It is fetched directly
+   through the issue-calendar fragment instead. #}
+<div class="issue-calendar-manager" data-issue-calendar-manager tabindex="-1">
+  {% if calendar_events %}
+  <ul class="issue-calendar-manager__list">
+    {% for event in calendar_events %}
+    <li class="issue-calendar-manager__row">
+      <time class="issue-calendar-manager__chip" datetime="{{ event.iso }}">{{ event.chip }}</time>
+      <span class="issue-calendar-manager__title">{{ event.title }}</span>
+      {% if not calendar_locked %}
+      <button type="button" class="issue-calendar-manager__remove" data-calendar-remove="{{ event.id }}"
+              aria-label="Remove {{ event.title }} from this newsletter">Remove</button>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <p class="issue-field__hint">{{ calendar_events|length }} of {{ calendar_capacity }} dates chosen.</p>
+
+  {% if calendar_locked %}
+  <p class="issue-field__hint">This newsletter is in review, so its calendar is locked.</p>
+  {% else %}
+    {% if calendar_events|length < calendar_capacity %}
+      {% if calendar_choices %}
+      <label class="issue-field__label" for="issue-calendar-choice">Add an upcoming event</label>
+      <div class="issue-calendar-manager__add">
+        <select class="issue-field__input" id="issue-calendar-choice" data-calendar-choice>
+          {% for event in calendar_choices %}
+          {# `selected` on the first, or isBusy() in dashboard-live.js reads an untouched picker as mid-edit and the news panel stops refreshing. #}
+          <option value="{{ event.id }}"{% if loop.first %} selected{% endif %}>{{ event.chip }} &middot; {{ event.title }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="ghost-button" data-calendar-add>Add</button>
+      </div>
+      {% else %}
+      <p class="issue-field__hint">No other upcoming events to add.</p>
+      {% endif %}
+    {% else %}
+    <p class="issue-field__hint">The calendar is full. Remove a date to add another.</p>
+    {% endif %}
+    <button type="button" class="ghost-button ghost-button--full" data-events-modal-open>New event</button>
+  {% endif %}
+</div>

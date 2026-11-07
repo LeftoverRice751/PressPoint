@@ -3779,6 +3779,8 @@ import { safeImageUrl, cssUrl } from './safe-image-url.mjs';
   var issueStatusEl= root.querySelector('[data-news-issue-status]');
   var blockFields  = root.querySelector('[data-news-block-fields]');
   var issueFields  = root.querySelector('[data-news-issue-fields]');
+  // Keeps the slide-over open for the calendar, which has no block selected.
+  var calendarManagerOpen = false;
   var blockActions = root.querySelector('[data-news-block-actions]');
   var activeSlotTag= root.querySelector('[data-news-active-slot]');
   var propSection  = root.querySelector('[data-news-prop="location"]');
@@ -4118,7 +4120,10 @@ import { safeImageUrl, cssUrl } from './safe-image-url.mjs';
 
     // Below 1280px the inspector is a slide-over, so selecting a block has to
     // open it -- otherwise the fields an editor just asked for are off-screen.
-    if (inspectorEl && isNarrow()) inspectorEl.classList.toggle('is-open', hasBlock);
+    if (hasBlock) calendarManagerOpen = false;
+    if (inspectorEl && isNarrow()) {
+      inspectorEl.classList.toggle('is-open', hasBlock || calendarManagerOpen);
+    }
   }
 
   /* ── Selection painting ────────────────────────────── */
@@ -4145,6 +4150,124 @@ import { safeImageUrl, cssUrl } from './safe-image-url.mjs';
   });
   document.addEventListener('live:refreshed', function () {
     window.requestAnimationFrame(syncComposerUI);
+  });
+
+  /* ── The newsletter's calendar ─────────────────────── */
+
+  // Swaps only the calendar. refreshCanvasFragment() skips its swap while
+  // there are unpublished edits, which is exactly when an editor is adding
+  // dates, and it would rebuild every story to change one list.
+  function refreshIssueCalendar() {
+    return fetch('/gears/dashboard/fragment/issue-calendar', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+      credentials: 'same-origin'
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (json) {
+        if (!json || !json.ok) throw new Error('refresh failed');
+        var fresh = document.createElement('template');
+        fresh.innerHTML = json.html;
+        var hadFocus = document.activeElement &&
+          document.activeElement.closest('[data-issue-calendar-manager]');
+        ['[data-issue-calendar-dates]', '[data-issue-calendar-manager]'].forEach(function (selector) {
+          var current = root.querySelector(selector);
+          var replacement = fresh.content.querySelector(selector);
+          if (current && replacement) current.replaceWith(replacement);
+        });
+        if (hadFocus) {
+          var manager = root.querySelector('[data-issue-calendar-manager]');
+          if (manager) manager.focus({ preventScroll: true });
+        }
+        syncComposerUI();
+      })
+      .catch(function () {
+        toast('The calendar could not be refreshed — reload to see it.', true);
+      });
+  }
+
+  // The Calendar section only shows when no story is selected.
+  function openCalendarManager() {
+    if (window.switchPage) window.switchPage('news');
+    clearActiveStory();
+    calendarManagerOpen = true;
+    syncComposerUI();
+    var manager = root.querySelector('[data-issue-calendar-manager]');
+    if (manager) {
+      manager.scrollIntoView({ block: 'center' });
+      manager.focus({ preventScroll: true });
+    }
+  }
+
+  function closeCalendarManager() {
+    calendarManagerOpen = false;
+    syncInspector();
+  }
+
+  function changeCalendar(url, button) {
+    button.disabled = true;
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN': csrf,
+        'X-Requested-With': 'XMLHttpRequest',
+        Accept: 'application/json'
+      },
+      credentials: 'same-origin'
+    })
+      .then(function (response) {
+        return response.json().catch(function () { return null; });
+      })
+      .then(function (json) {
+        if (!json || !json.ok) {
+          var errors = (json && json.errors) || ['The calendar could not be changed.'];
+          toast(errors.join(' '), true);
+        }
+      })
+      .catch(function () {
+        toast('The calendar could not be changed.', true);
+      })
+      // Either way: a refusal means this tab's picture of the calendar was stale.
+      // It also replaces the disabled button.
+      .then(refreshIssueCalendar);
+  }
+
+  // Delegated, because every refresh replaces these nodes.
+  root.addEventListener('click', function (event) {
+    if (event.target.closest('[data-issue-calendar-manage]')) {
+      openCalendarManager();
+      return;
+    }
+    var remove = event.target.closest('[data-calendar-remove]');
+    if (remove) {
+      changeCalendar('/gears/issues/current/events/' +
+        encodeURIComponent(remove.getAttribute('data-calendar-remove')) + '/remove', remove);
+      return;
+    }
+    var add = event.target.closest('[data-calendar-add]');
+    if (add) {
+      var choice = root.querySelector('[data-calendar-choice]');
+      if (choice && choice.value) {
+        changeCalendar('/gears/issues/current/events/' + encodeURIComponent(choice.value), add);
+      }
+      return;
+    }
+    // Dialogs are left out: New event opens one over the manager.
+    if (calendarManagerOpen && !event.target.closest('[data-news-properties], dialog')) {
+      closeCalendarManager();
+    }
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && calendarManagerOpen && !document.querySelector('dialog[open]')) {
+      closeCalendarManager();
+    }
+  });
+
+  document.addEventListener('issue-calendar:changed', refreshIssueCalendar);
+  document.addEventListener('issue-calendar:manage', openCalendarManager);
+  // The picker lists every upcoming event, including another editor's new one.
+  document.addEventListener('live:refreshed', function (event) {
+    if (event.detail && event.detail.section === 'events') refreshIssueCalendar();
   });
 
   if (doneBtn) {

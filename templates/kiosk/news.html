@@ -46,6 +46,7 @@
       {% set issue_vol = issue.issue_vol %}
       {% set issue_title = issue.title %}
       {% set issue_published_label = issue.published_label %}
+      {% set calendar_events = calendars.get(issue.id, []) if calendars else [] %}
       <article class="swiper-slide news-slide news-slide--broadsheet" data-issue-id="{{ issue.id }}">
         {% include 'kiosk/_issue.html' %}
       </article>

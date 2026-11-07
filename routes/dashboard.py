@@ -65,6 +65,10 @@ ROUTES = [
     # lookup to issues.owner_id == the caller, so another editor's issue is a 404.
     Route.get("/gears/issues/@id:int/print", "gears.IssueLibraryController@print_view").name("issues.print").middleware("auth"),
     Route.post("/gears/issues/@id:int/duplicate", "gears.IssueLibraryController@duplicate").name("issues.duplicate").middleware("auth"),
+    # The open newsletter's calendar. "auth" only: the issue is always the
+    # caller's own, resolved from the session rather than named in the URL.
+    Route.post("/gears/issues/current/events/@event_id:int", "gears.IssueCalendarController@attach").name("issues.calendar.attach").middleware("auth"),
+    Route.post("/gears/issues/current/events/@event_id:int/remove", "gears.IssueCalendarController@remove").name("issues.calendar.remove").middleware("auth"),
     # News categories. "auth" only, DELIBERATELY: unlike the /gears/review/*
     # routes above, any signed-in editor may create, rename and delete a
     # category — and a delete cascades a soft-delete to every story in it,

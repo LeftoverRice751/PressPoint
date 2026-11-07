@@ -276,7 +276,7 @@ class ReviewController(Controller):
         if not stories:
             return json_errors(response, ["Nothing is awaiting review."], status=404)
 
-        html = view.render("kiosk/_issue", issue_preview_context(stories)).rendered_template
+        html = view.render("kiosk/_issue", issue_preview_context(stories, issue_id)).rendered_template
         return json_success(
             response,
             payload={

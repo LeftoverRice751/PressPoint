@@ -28,7 +28,7 @@ import hashlib
 import json
 
 from app.models.News import News
-from app.services import Issues
+from app.services import IssueCalendar, Issues
 from app.services.DashboardContext import (
     BLOCK_TYPES,
     author_names,
@@ -178,7 +178,7 @@ def review_context():
     }
 
 
-def issue_preview_context(stories):
+def issue_preview_context(stories, issue=None):
     """Render the whole pending issue through the kiosk's own partial, every
     block in its real place.
 
@@ -189,7 +189,9 @@ def issue_preview_context(stories):
     return {
         "blocks": group_news_slots(list(stories or [])),
         "news_editor": False,
-        "calendar_events": [],
+        # The real dates, so an admin is not approving a calendar they never saw.
+        # content_stamp() leaves it out because IssueCalendar locks it in review.
+        "calendar_events": IssueCalendar.events_for(issue),
         "issue_vol": None,
         "issue_no": None,
     }

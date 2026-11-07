@@ -288,7 +288,7 @@ def news_context(user_id=None):
     """
     # Imported here rather than at module top: Issues imports
     # normalize_news_status from this module, and the reverse would be a cycle.
-    from app.services import Issues
+    from app.services import IssueCalendar, Issues
 
     issue = Issues.current_for(user_id) if user_id else None
     news_items = Issues.stories_of(issue) if issue else []
@@ -323,7 +323,7 @@ def news_context(user_id=None):
         # this ran after events_context(), so the Events panel rendered these
         # three calendar dicts instead of its own rows until the first live
         # refresh of that panel put the real list back.
-        "calendar_events": upcoming_events(),
+        **IssueCalendar.manager_context(issue),
         **issue_identity_of(issue),
         # The issue the composer is editing, for the top bar and the outline.
         "news_issue": issue_summary(issue),
@@ -351,6 +351,15 @@ def news_context(user_id=None):
         # undefined `news_categories_json` in the partial's JSON block.
         **news_categories_context(),
     }
+
+
+def issue_calendar_context(user_id=None):
+    """Just the calendar, for swapping it in without touching the rest of the
+    canvas. `news_editor` because the dates partial is shared with the kiosk."""
+    from app.services import IssueCalendar, Issues
+
+    issue = Issues.current_for(user_id) if user_id else None
+    return {"news_editor": True, **IssueCalendar.manager_context(issue)}
 
 
 def story_library_context(user_id=None):
@@ -414,58 +423,51 @@ def news_canvas_context(user_id=None):
     }
 
 
-#: How many upcoming events the issue's calendar block shows.
-CALENDAR_LIMIT = 3
+#: How many events the composer's "add an event" picker lists.
+CALENDAR_CHOICES_LIMIT = 50
 
 
-def upcoming_events(limit=CALENDAR_LIMIT, as_of=None):
-    """The next few events, for the issue's calendar block.
+def calendar_row(row):
+    """One event as the issue's calendar block and the composer's picker read it."""
+    at = getattr(row, "event_date", None)
+    return {
+        "id": getattr(row, "id", None),
+        "title": getattr(row, "title", None),
+        # Pre-formatted for the same reason published_label is: Jinja
+        # cannot strftime, and the date chip wants "SEP 15".
+        "chip": at.strftime("%b %d").upper() if hasattr(at, "strftime") else "",
+        "iso": at.strftime("%Y-%m-%d") if hasattr(at, "strftime") else "",
+    }
 
-    Lives here rather than in NewsController because BOTH surfaces need it and
-    the import can only run one way: NewsController already imports from this
-    module, so the reverse would be a cycle.
 
-    Deliberately never cached alongside the news payload. EventController has
-    no reason to call NewsCache.forget() -- it writes no `news` rows -- so a
-    calendar living inside that cache would keep showing yesterday's list for
-    up to NewsCache.TTL after an editor added an event, and nobody would
-    connect the two.
+def upcoming_events(limit=CALENDAR_CHOICES_LIMIT):
+    """Events an editor can still choose for a newsletter, nearest first.
 
-    `events.event_date` is a naive local `datetime NOT NULL`, so comparing it
-    against a naive datetime.now() is right. (WelcomeController's flash ticker
-    needs a +/-2 day margin for the opposite reason: it also measures against
-    `created_at`, which comes back UTC-aware from pendulum.)
+    From the START of today, not from now: the Add Event form sends a date
+    only, so an event today is stored at 00:00 and comparing to the clock
+    dropped it the moment it was saved. `events.event_date` is a naive local
+    `datetime NOT NULL`, so a naive campus-local bound is right.
 
-    `as_of` (naive campus-local) moves the cutoff: the Story Library's print
-    view passes the issue's publish time so a reprint shows the calendar the
-    issue carried, not today's.
+    What a newsletter actually shows is its own choice; see IssueCalendar.
     """
-    cutoff = as_of or datetime.now()
+    # Imported here for the same cycle news_context() avoids.
+    from app.services import Issues
+
+    today = Issues.campus_now().strftime("%Y-%m-%d")
     try:
         rows = (
             Events.where("is_archive", 0)
-            .where("event_date", ">=", cutoff.strftime("%Y-%m-%d %H:%M:%S"))
+            .where("event_date", ">=", f"{today} 00:00:00")
             .order_by("event_date", "asc")
             .limit(limit)
             .get()
         )
     except Exception:
-        # The calendar is one block on a public screen. A DB hiccup here must
-        # not take the whole issue down with it -- the partial already skips
-        # the section when this is empty.
+        # The picker is one control on the composer. A DB hiccup here must not
+        # take the dashboard down with it.
         return []
 
-    events = []
-    for row in rows:
-        at = getattr(row, "event_date", None)
-        events.append({
-            "title": getattr(row, "title", None),
-            # Pre-formatted for the same reason published_label is: Jinja
-            # cannot strftime, and the date chip wants "SEP 15".
-            "chip": at.strftime("%b %d").upper() if hasattr(at, "strftime") else "",
-            "iso": at.strftime("%Y-%m-%d") if hasattr(at, "strftime") else "",
-        })
-    return events
+    return [calendar_row(row) for row in rows]
 
 
 def issue_summary(issue):

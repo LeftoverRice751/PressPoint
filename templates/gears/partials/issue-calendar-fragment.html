@@ -1,0 +1,5 @@
+{# Both halves of the calendar, in one response. news-dashboard.js swaps each into
+   place and leaves the rest of the canvas alone. One fragment rather than two
+   because stamps() computes every registered section on each 20s poll. #}
+{% include "kiosk/_issue_calendar_dates.html" %}
+{% include "gears/partials/issue-calendar-manager.html" %}

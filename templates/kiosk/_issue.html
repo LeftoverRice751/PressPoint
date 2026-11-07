@@ -46,7 +46,7 @@
      Lead story    layout_type = main        capacity 1
      Side stories  layout_type = secondary   capacity 4
      Editorial     layout_type = widget  #1  capacity 1
-     Calendar      events table, READ-ONLY   (managed in the Events panel)
+     Calendar      issue_events              (chosen in the composer's Calendar section)
      Notice        layout_type = widget  #2  capacity 1
 
    `widget` already had capacity 2, which is exactly what Editorial + Notice
@@ -427,32 +427,15 @@
   {% endif %}
 
   {# ── Calendar + Notice ────────────────────────────────────────────────────
-     Two different owners in one band. The calendar is READ-ONLY here: its rows
-     come from the `events` table, which the Events panel owns — duplicating
-     event CRUD into the News composer would put a second write path on someone
-     else's pipeline. The Notice is its own block and is fully editable.
-     Either half can stand alone. #}
+     Two different owners in one band. The calendar shows the events this
+     newsletter chose (issue_events); the events themselves still belong to the
+     Events panel, and the composer's Calendar section only chooses among them.
+     The Notice is its own block and is fully editable. Either half can stand
+     alone. #}
   {% if news_editor or calendar_events or notice %}
   {{ band('Calendar', 'Calendar · Notice') }}
   <section class="issue-calendar{% if not (news_editor or notice) %} issue-calendar--wide{% endif %}" aria-label="Calendar">
-    <div class="issue-calendar__dates">
-      {% if calendar_events %}
-      <ul class="issue-dates">
-        {% for event in calendar_events %}
-        <li class="issue-dates__row">
-          <time class="issue-dates__chip" datetime="{{ event.iso }}">{{ event.chip }}</time>
-          <span class="issue-dates__title">{{ event.title }}</span>
-        </li>
-        {% endfor %}
-      </ul>
-      {% elif news_editor %}
-      <p class="issue-calendar__empty">No upcoming events. Add them in the Events panel.</p>
-      {% endif %}
-      {% if news_editor %}
-      {# Read-only by design; the jump is the affordance instead of an editor. #}
-      <button type="button" class="issue-calendar__manage" data-page-link="events">Manage in Events &rarr;</button>
-      {% endif %}
-    </div>
+    {% include "kiosk/_issue_calendar_dates.html" %}
 
     {% if news_editor or notice %}
     <div class="issue-notice-slot paper-slot--notice"{% if news_editor %} data-news-slot="notice"{% endif %}>

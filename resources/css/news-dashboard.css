@@ -2974,6 +2974,76 @@ a.ghost-button[data-news-preview] {
     color: var(--ink-strong);
 }
 
+/* ── The newsletter's calendar ──────────────────────────────── */
+
+.issue-calendar-manager {
+    display: grid;
+    gap: 8px;
+}
+
+.issue-calendar-manager:focus {
+    outline: none;
+}
+
+.issue-calendar-manager__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 4px;
+}
+
+.issue-calendar-manager__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 8px;
+    background: var(--ink-cream);
+    border: 1px solid var(--ink-rule);
+    font-size: 11.5px;
+}
+
+.issue-calendar-manager__chip {
+    flex: none;
+    color: var(--ink-oxblood);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.issue-calendar-manager__title {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--ink-strong);
+}
+
+.issue-calendar-manager__remove {
+    flex: none;
+    padding: 2px 4px;
+    background: none;
+    border: 0;
+    color: var(--ink-oxblood);
+    font-size: 11px;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.issue-calendar-manager__remove:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+}
+
+.issue-calendar-manager__add {
+    display: flex;
+    gap: 6px;
+}
+
+.issue-calendar-manager__add .issue-field__input {
+    flex: 1;
+    min-width: 0;
+}
+
 /* ── Inspector footer + danger zone ─────────────────────────── */
 
 .issue-inspector__foot {

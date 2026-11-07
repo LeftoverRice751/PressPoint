@@ -14,19 +14,19 @@ Reads go to the configured database; only the tables are needed, not rows.
 
 from unittest.mock import patch
 
-from app.services import DashboardContext
+from app.services import DashboardContext, IssueCalendar
 from tests import TestCase
 
 
 class DashboardContextKeysTestCase(TestCase):
     def _full_context(self):
         rows = [object(), object()]
-        calendar = [{"title": "Parade", "chip": "SEP 15", "iso": "2026-09-15"}]
+        calendar = [{"id": 1, "title": "Parade", "chip": "SEP 15", "iso": "2026-09-15"}]
         with patch.object(
             DashboardContext,
             "events_context",
             return_value={"events": rows, "location_lookup": {}},
-        ), patch.object(DashboardContext, "upcoming_events", return_value=calendar):
+        ), patch.object(IssueCalendar, "events_for", return_value=calendar):
             return DashboardContext.full_context(), rows, calendar
 
     def test_events_panel_rows_survive_the_merge(self):
@@ -38,8 +38,8 @@ class DashboardContextKeysTestCase(TestCase):
         self.assertIs(context["calendar_events"], calendar)
 
     def test_canvas_fragment_carries_the_calendar(self):
-        calendar = [{"title": "Parade", "chip": "SEP 15", "iso": "2026-09-15"}]
-        with patch.object(DashboardContext, "upcoming_events", return_value=calendar):
+        calendar = [{"id": 1, "title": "Parade", "chip": "SEP 15", "iso": "2026-09-15"}]
+        with patch.object(IssueCalendar, "events_for", return_value=calendar):
             context = DashboardContext.news_canvas_context()
         self.assertIs(context["calendar_events"], calendar)
         self.assertNotIn("events", context)

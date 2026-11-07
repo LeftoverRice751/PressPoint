@@ -73,7 +73,7 @@ class SignedInPrintTestCase(_Pipeline):
                 patch.object(C.Issues, "stories_of",
                              return_value=stories if stories is not None else [_story()]), \
                 patch.object(L.NewsCategories, "names_by_id", return_value={}), \
-                patch.object(L, "upcoming_events", return_value=[]):
+                patch.object(L.IssueCalendar, "events_for", return_value=[]):
             response = self._signed_in().get(PRINT_URL, data)
         return response, owned
 

@@ -21,7 +21,7 @@ class PrintContextTestCase(TestCase):
         issue = Mock(id=3, number=12, title="Week <1>", published_at=published_at,
                      created_at=published_at)
         with patch.object(L.Issues, "stories_of", return_value=stories), \
-                patch.object(L, "upcoming_events", return_value=[]) as ev:
+                patch.object(L.IssueCalendar, "events_for", return_value=[]) as ev:
             ctx = L.print_context(issue)
         return ctx, ev
 
@@ -29,11 +29,6 @@ class PrintContextTestCase(TestCase):
         ctx, _ = self._context([_story(1, "published", "lead"), _story(2, "draft")])
         ids = [row["id"] for rows in ctx["blocks"].values() for row in rows]
         self.assertEqual(ids, [1])
-
-    def test_calendar_is_as_of_publication(self):
-        _, ev = self._context([_story(1, "published", "lead")])
-        # 01:00 UTC is 09:00 in Manila.
-        ev.assert_called_once_with(as_of=datetime(2026, 7, 1, 9, 0))
 
     def test_identity_and_label(self):
         ctx, _ = self._context([_story(1, "published", "lead")])

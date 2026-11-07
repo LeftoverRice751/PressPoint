@@ -55,6 +55,7 @@ class DuplicateTestCase(TestCase):
             patch.object(L.NewsCategories, "names_by_id", return_value={4: "Campus"}),
             patch.object(L.NewsCategories, "default_category_id", return_value=1),
             patch.object(L.DB, "transaction", _no_tx),
+            patch.object(L.IssueCalendar, "copy_upcoming"),
         ]
         self.mocks = [p.start() for p in patches]
         self._patches = patches

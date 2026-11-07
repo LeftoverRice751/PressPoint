@@ -1,0 +1,20 @@
+{# The dates half of the issue's calendar band. Its own partial so the composer
+   can swap just this after a calendar change: a full canvas refresh is skipped
+   while the editor has unpublished edits, which would leave a new date hidden. #}
+<div class="issue-calendar__dates"{% if news_editor %} data-issue-calendar-dates{% endif %}>
+  {% if calendar_events %}
+  <ul class="issue-dates">
+    {% for event in calendar_events %}
+    <li class="issue-dates__row">
+      <time class="issue-dates__chip" datetime="{{ event.iso }}">{{ event.chip }}</time>
+      <span class="issue-dates__title">{{ event.title }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif news_editor %}
+  <p class="issue-calendar__empty">No dates chosen for this newsletter yet.</p>
+  {% endif %}
+  {% if news_editor %}
+  <button type="button" class="issue-calendar__manage" data-issue-calendar-manage>Manage calendar &rarr;</button>
+  {% endif %}
+</div>

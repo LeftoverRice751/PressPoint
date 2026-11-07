@@ -29,6 +29,13 @@ FRAGMENTS = {
         "gears/partials/story-library-issues",
         "library_issues",
     ),
+    # Fetched directly after a calendar change, never by the 20s poll: no panel
+    # declares it as a live section.
+    "issue-calendar": (
+        DashboardContext.issue_calendar_context,
+        "gears/partials/issue-calendar-fragment",
+        "calendar_events",
+    ),
     # Own section, not part of "news": a category rename touches zero news rows.
     "news-categories": (
         DashboardContext.news_categories_context,
@@ -73,6 +80,7 @@ STAMP_MODELS = {
     "videos": Video,
     "news": News,
     "news-canvas": News,
+    "issue-calendar": News,  # stamp is user-scoped; see _stamp_for
     "story-library": News,  # stamp is user-scoped; see _stamp_for
     "news-categories": NewsCategory,  # a rename only bumps news_categories.updated_at
     "org-board-organizations": Organization,
@@ -95,7 +103,7 @@ def _user_id(request):
 
 
 # Sections whose context depends on who is asking (the editor's own issue).
-_USER_SCOPED_SECTIONS = {"news", "news-canvas", "story-library"}
+_USER_SCOPED_SECTIONS = {"news", "news-canvas", "issue-calendar", "story-library"}
 
 
 class DashboardController(Controller):
