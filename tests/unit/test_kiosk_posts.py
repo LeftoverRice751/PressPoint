@@ -39,10 +39,20 @@ def _post(pid, title="A headline", **over):
     return SimpleNamespace(**data)
 
 
-def _payload(posts):
+def _payload(posts, news_double=None):
     with patch("app.controllers.gears.NewsController.News") as news:
-        news.all.return_value = posts
-        return NewsController()._build_news_payload()
+        # Mimic the DB: NULL expires_at is excluded and the order is published_at
+        # desc; the doubles are handed back in the order the chain would return.
+        chain = news.where_not_null.return_value.order_by.return_value.order_by.return_value
+        chain.get.return_value = sorted(
+            [p for p in posts if p.expires_at is not None],
+            key=lambda p: p.published_at,
+            reverse=True,
+        )
+        out = NewsController()._build_news_payload()
+        if news_double is not None:
+            news_double.append(news)
+        return out
 
 
 def _render(posts):
@@ -130,6 +140,16 @@ class KioskPostsTestCase(TestCase):
         for marker in ("data-news-swiper", "data-news-pagination", "data-news-prev"):
             self.assertIn(marker, html)
         self.assertIn("post-card.css", html)
+
+    def test_published_post_without_expiry_is_not_on_the_kiosk_query(self):
+        """Legacy newsletter rows (expires_at NULL) are excluded in SQL."""
+        seen = []
+        _payload([_post(1, expires_at=None)], seen)
+        seen[0].where_not_null.assert_called_once_with("expires_at")
+        chain = seen[0].where_not_null.return_value
+        chain.order_by.assert_called_once_with("published_at", "desc")
+        chain.order_by.return_value.order_by.assert_called_once_with("id", "desc")
+        self.assertEqual(_payload([_post(1, expires_at=None)])["posts"], [])
 
     def test_cache_key_bumped(self):
         from app.services import NewsCache

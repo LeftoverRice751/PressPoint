@@ -253,16 +253,19 @@ class NewsController(Controller):
         except Exception:
             disk = None
 
-        floor = datetime.min.replace(tzinfo=timezone.utc)
-
-        def newest_key(item):
-            stamp = getattr(item, "published_at", None) or getattr(item, "created_at", None)
-            # Naive values are UTC (masonite-orm tags them without shifting); mixing naive
-            # and aware in one sort raises, so normalise first.
-            return Posts._aware_utc(stamp) if isinstance(stamp, datetime) else floor
-
-        live = [item for item in News.all() if _news_is_public(item)]
-        live.sort(key=newest_key, reverse=True)
+        # Ordered by the database, not News.all() + sorted(): see "Dashboard liveness"
+        # in CLAUDE.md. expires_at IS NOT NULL is in SQL on purpose: every post
+        # published through the photo-post flow stores an expiry, so a public row
+        # without one is a legacy newsletter story that would otherwise sit on the
+        # kiosk forever as a malformed card. Status aliases and aware-UTC expiry
+        # cannot be filtered safely in SQL, so _news_is_public still runs after.
+        rows = (
+            News.where_not_null("expires_at")
+            .order_by("published_at", "desc")
+            .order_by("id", "desc")
+            .get()
+        )
+        live = [item for item in (rows or []) if _news_is_public(item)]
         return {"posts": [Posts.card_context(item, disk) for item in live]}
 
     def show(self, view: View):

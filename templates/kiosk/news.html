@@ -24,7 +24,6 @@
     <div class="swiper-wrapper">
       {% for card in posts %}
       <div class="swiper-slide news-slide news-slide--post">
-        {% set post_editor = false %}
         {% include 'kiosk/_post_card.html' %}
       </div>
       {% else %}
