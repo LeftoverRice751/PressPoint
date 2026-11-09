@@ -54,45 +54,28 @@ def _story(story_id=1, title="Campus story", author_id=5, **overrides):
 
 
 class ReviewQueueTemplateTestCase(TestCase):
-    """The queue shows the ISSUE an editor submitted, as one card.
-
-    It used to render one card per story. An editor composes an issue as a
-    unit and submits it in one click; twelve cards for a full issue meant
-    twelve Approve clicks, each previewing its story as if it were the lead.
-    Now: one card, one preview of the whole issue, one Approve, one Send back.
-    """
+    """The queue lists one row per submitted post, each with its own Preview,
+    Approve and Send back."""
 
     def _render(self, stories=(), authors=None):
-        from app.services.ReviewQueue import pending_issue
+        from app.services.ReviewQueue import review_context
 
-        stories = list(stories)
         names = authors if authors is not None else {}
-        with patch("app.services.ReviewQueue.author_names", return_value=names):
-            issue = pending_issue(stories)
-        return View.render(
-            "gears/partials/review-queue",
-            {
-                "review_stories": stories,
-                "review_authors": names,
-                "review_count": len(stories),
-                "review_issue": issue,
-                # One entry per pending issue; a bare story list is one issue.
-                "review_issues": [dict(issue, id=1, number=1, title="")] if issue else [],
-            },
-        ).rendered_template
+        with patch("app.services.ReviewQueue.pending_stories", return_value=list(stories)), patch(
+            "app.services.ReviewQueue.author_names", return_value=names
+        ):
+            context = review_context()
+        return View.render("gears/partials/review-queue", context).rendered_template
 
-    def test_renders_one_card_for_the_whole_issue(self):
-        """Two submitted stories are two blocks of ONE issue, not two cards."""
+    def test_renders_one_row_per_post(self):
         html = self._render([_story(1), _story(2)])
-        # The card class, not the hook: `data-review-issue-id` contains
-        # `data-review-issue` as a substring and would count twice.
-        self.assertEqual(html.count("review-card--issue"), 1)
-        self.assertNotIn("data-review-item", html)
+        self.assertEqual(html.count("review-card--post"), 2)
+        self.assertNotIn("review-card--issue", html)
 
     def test_card_carries_the_hooks_the_queue_js_reads(self):
         html = self._render([_story(7)])
         for hook in (
-            "data-review-issue",
+            'data-review-post-id="7"',
             "data-review-preview",
             "data-review-approve",
             "data-review-reject",
@@ -100,35 +83,9 @@ class ReviewQueueTemplateTestCase(TestCase):
         ):
             self.assertIn(hook, html)
 
-    def test_card_says_how_many_blocks_the_issue_holds(self):
-        html = self._render([_story(1), _story(2), _story(3)])
-        self.assertIn("3 blocks", html)
-
-    def test_manifest_lists_each_filled_block_by_name(self):
-        """An admin should see that the lead is there and the notice is not
-        before opening the full preview."""
-        html = self._render([
-            _story(1, layout_type="lead"),
-            _story(2, layout_type="brief"),
-            _story(3, layout_type="brief"),
-        ])
-        self.assertIn("Lead story", html)
-        self.assertIn("Side stories", html)
-        self.assertNotIn("Notice</span>", html)
-
-    def test_shows_who_submitted_the_issue(self):
-        """The byline is the whole point of the attribution work — an admin
-        approving an issue has to know whose it is."""
+    def test_shows_who_submitted_the_post(self):
         html = self._render([_story(1, author_id=5)], authors={5: "Maria Santos"})
         self.assertIn("Maria Santos", html)
-
-    def test_names_each_author_once_when_several_wrote_the_issue(self):
-        html = self._render(
-            [_story(1, author_id=5), _story(2, author_id=5), _story(3, author_id=6)],
-            authors={5: "Maria Santos", 6: "Jose Cruz"},
-        )
-        self.assertEqual(html.count("Maria Santos"), 1)
-        self.assertIn("Jose Cruz", html)
 
     def test_survives_an_author_whose_account_was_deleted(self):
         """author_id is ON DELETE SET NULL, so this row genuinely occurs."""
@@ -138,7 +95,7 @@ class ReviewQueueTemplateTestCase(TestCase):
     def test_empty_queue_says_so(self):
         html = self._render([])
         self.assertIn("Nothing is waiting for review", html)
-        self.assertNotIn("data-review-issue", html)
+        self.assertNotIn("data-review-post-id", html)
 
     def test_reject_reason_box_exists(self):
         """A reason is required server-side; the UI has to be able to collect
@@ -146,6 +103,11 @@ class ReviewQueueTemplateTestCase(TestCase):
         html = self._render([_story(1)])
         self.assertIn("data-review-reject-form", html)
         self.assertIn("data-review-reject-confirm", html)
+
+    def test_the_preview_dialog_has_an_expiry_input(self):
+        html = View.render("gears/partials/review-preview-modal", {}).rendered_template
+        self.assertIn("data-review-expiry", html)
+        self.assertIn('type="datetime-local"', html)
 
 
 class AccountChromeTestCase(TestCase):

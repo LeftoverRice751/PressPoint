@@ -120,20 +120,6 @@ class ReviewOrderTestCase(TestCase):
             ReviewController().approve(_request(role="admin", params={"id": "11"}), _response())
         self.assertEqual(_timeline(parent), FORGET_THEN_BROADCAST)
 
-    def test_approve_issue(self):
-        rows = [Mock(id=i, status="review", author_id=5, issue_id=5) for i in (1, 2)]
-        for row in rows:
-            row.save = Mock()
-        issue = Mock(id=5)
-        issue.save = Mock()
-        with _ordered(self.MODULE) as parent, patch(
-            f"{self.MODULE}.review_stories_of", return_value=rows
-        ), patch("app.models.Issue.Issue.where") as where, patch(f"{self.MODULE}.Notifications"):
-            where.return_value.first.return_value = issue
-            ReviewController().approve_issue(_request(role="admin", params={"id": "5"}), _response())
-        # Once for the whole issue, not once per block.
-        self.assertEqual(_timeline(parent), FORGET_THEN_BROADCAST)
-
 
 class SectionDriftTestCase(TestCase):
     def test_server_sections_match_the_service_worker_evict_map(self):

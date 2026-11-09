@@ -17,19 +17,8 @@ ROUTES = [
     # Editorial review. These are the first role-gated routes in this file —
     # everything else here is "auth" only, so any signed-in account reaches it.
     # Approving puts a story on a public campus screen, so it takes "admin".
-    # The issue as a unit. An editor submits an issue in one click; these are
-    # the admin's matching single actions.
-    #
-    # The per-story routes below constrain `@id:int` so that the literal
-    # segment "issue" can never match them. Ordering was tried first and is
-    # NOT enough: Masonite's Route.routes is a class-level list, and on a
-    # re-boot (every app TestCase) the registration order is not preserved --
-    # "/gears/review/issue/approve" resolved to approve(id="issue") on the
-    # second boot and 404'd on News.where("id", "issue"). Verified through the
-    # real router in tests/unit/test_review_workflow.py.
-    Route.get("/gears/review/issue/@id:int/preview", "gears.ReviewController@preview_issue").name("review.issue.preview").middleware("auth", "admin"),
-    Route.post("/gears/review/issue/@id:int/approve", "gears.ReviewController@approve_issue").name("review.issue.approve").middleware("auth", "admin"),
-    Route.post("/gears/review/issue/@id:int/reject", "gears.ReviewController@reject_issue").name("review.issue.reject").middleware("auth", "admin"),
+    # `@id:int` so a literal segment can never match: the old newsletter's
+    # /gears/review/issue/* routes are gone and must 404, not reach approve(id="issue").
     Route.get("/gears/review/@id:int/preview", "gears.ReviewController@preview").name("review.preview").middleware("auth", "admin"),
     Route.post("/gears/review/@id:int/approve", "gears.ReviewController@approve").name("review.approve").middleware("auth", "admin"),
     Route.post("/gears/review/@id:int/reject", "gears.ReviewController@reject").name("review.reject").middleware("auth", "admin"),

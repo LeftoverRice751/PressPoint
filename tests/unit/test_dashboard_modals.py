@@ -149,8 +149,7 @@ class ModalLayoutContractTestCase(TestCase):
             "stats": {},
             "review_stories": [],
             "review_count": 0,
-            "review_issue": None,
-            "review_issues": [],
+            "review_posts": [],
         })
         return View.render("gears/admin-console", context).rendered_template
 

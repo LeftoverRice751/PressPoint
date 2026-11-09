@@ -124,7 +124,7 @@ def _news_is_public(news_item):
     # Expired posts leave the kiosk by themselves; no job has to flip their status.
     if Posts.is_expired(news_item):
         return False
-    status = _normalize_news_status(getattr(news_item, "status", None), default="approved")
+    status = _normalize_news_status(getattr(news_item, "status", None), default="draft")
     if status not in _NEWS_VISIBLE_STATUSES:
         return False
 

@@ -21,7 +21,6 @@ from app.controllers.gears.EventController import EventController
 from app.controllers.gears.IssueCalendarController import IssueCalendarController
 from app.services import IssueCalendar as IC
 from app.services import IssueLibrary as L
-from app.services.ReviewQueue import issue_preview_context
 
 REPO = Path(__file__).resolve().parents[2]
 ATTACH_URL = "/gears/issues/current/events/5"
@@ -144,15 +143,6 @@ class ReadSurfacesTestCase(TestCase):
             context = L.print_context(issue)
         events_for.assert_called_once_with(issue)
         self.assertEqual(context["calendar_events"], [ROW])
-
-    def test_review_preview_shows_the_issues_calendar(self):
-        with patch.object(IC, "events_for", return_value=[ROW]) as events_for:
-            context = issue_preview_context([], issue=3)
-        events_for.assert_called_once_with(3)
-        self.assertEqual(context["calendar_events"], [ROW])
-
-    def test_review_preview_without_an_issue_has_no_calendar(self):
-        self.assertEqual(issue_preview_context([])["calendar_events"], [])
 
     def test_the_kiosk_never_shows_editor_controls(self):
         html = _render(lead=_Story(1, layout_type="lead"), calendar_events=[ROW], editor=False)

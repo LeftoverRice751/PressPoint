@@ -11,7 +11,10 @@
 
 {% block head %}
 {{ super() }}
+<link rel="stylesheet" href="{{ asset_url('css/kiosk-tokens.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />
+{# The review preview renders kiosk/_post_card.html, which is styled by this. #}
+<link rel="stylesheet" href="{{ asset_url('css/post-card.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/admin-console.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/dropzone.css') }}" />
 <link rel="stylesheet" href="{{ asset_url('css/upload-meter.css') }}" />
@@ -70,7 +73,7 @@
     {# ── Review queue ────────────────────────────────────────────────────
        The whole route is admin-gated, so unlike on the old dashboard there is
        no is_admin wrapper here. #}
-    <section class="gears-page" data-page-panel="review" data-live-section="review" data-live-target="[data-review-queue-host]" id="panel-review" role="tabpanel" aria-labelledby="nav-review" data-hero-eyebrow="Editorial" data-hero-title="Issue awaiting review" data-hero-subtitle="Preview the whole issue exactly as the kiosk will print it, then publish it or send it back with one note." hidden>
+    <section class="gears-page" data-page-panel="review" data-live-section="review" data-live-target="[data-review-queue-host]" id="panel-review" role="tabpanel" aria-labelledby="nav-review" data-hero-eyebrow="Editorial" data-hero-title="Posts awaiting review" data-hero-subtitle="Preview each post exactly as the kiosk will show it, set when it expires, then publish it or send it back with a note." hidden>
       <div class="gears-panel">
         <div class="panel-header panel-header--compact">
           <div>

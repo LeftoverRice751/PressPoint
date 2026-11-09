@@ -182,18 +182,13 @@ class ContentStampTestCase(TestCase):
         base = content_stamp([_story()])
         for field, value in (
             ("title", "New"),
-            ("description", "<p>New</p>"),
+            ("description", "New body"),
             ("image", "news/b.jpg"),
-            ("layout_type", "lead"),
-            ("priority", 2),
-            ("dek", "New"),
-            ("excerpt", "New"),
-            ("source", "New"),
-            ("location", "New"),
-            ("image_caption", "New"),
-            ("image_credit", "New"),
-            ("headline_font", "New"),
-            ("category_id", 3),
+            ("kicker", "New"),
+            ("logo_path", "news/logo.png"),
+            ("image_crop", '{"x": 0.1, "y": 0.2, "zoom": 2}'),
+            ("source_lines", '[{"icon": "link", "text": "x"}]'),
+            ("expires_at", "2026-12-01 00:00:00"),
         ):
             self.assertNotEqual(content_stamp([_story(**{field: value})]), base, field)
 
@@ -208,89 +203,59 @@ class ContentStampTestCase(TestCase):
 
 
 class ApprovalMatchesThePreviewTestCase(TestCase):
-    def _approve_issue(self, stories, stamp):
+    def _approve(self, story, stamp):
         inputs = {} if stamp is None else {"review_stamp": stamp}
-        request = _request(ADMIN, "admin", inputs, {"id": 30})
-        response = _response()
-        with patch(f"{REVIEW}.review_stories_of", return_value=stories), patch(
-            f"{REVIEW}.Cache"
-        ), patch(f"{REVIEW}.KioskBroadcast"), patch(f"{REVIEW}.Notifications"), patch(
-            f"{REVIEW}.DB"
-        ), patch(
-            "app.models.Issue.Issue.where"
-        ):
-            ReviewController().approve_issue(request, response)
-        return response
+        request = _request(ADMIN, "admin", inputs, {"id": 11})
+        with patch(f"{REVIEW}.News.where", _where(story)), patch(f"{REVIEW}.Cache"), patch(
+            f"{REVIEW}.KioskBroadcast"
+        ), patch(f"{REVIEW}.Notifications"), patch(f"{REVIEW}.AuditLog"):
+            ReviewController().approve(request, _response())
 
     def test_approving_what_was_previewed_publishes_it(self):
         story = _story(status="review")
 
-        self._approve_issue([story], content_stamp([story]))
+        self._approve(story, content_stamp([story]))
 
         self.assertEqual(story.status, "published")
 
     def test_text_changed_after_the_preview_is_not_published(self):
         story = _story(status="review")
         previewed = content_stamp([story])
-        story.description = "<p>Changed after the admin read it</p>"
+        story.description = "Changed after the admin read it"
 
-        self._approve_issue([story], previewed)
+        self._approve(story, previewed)
 
         self.assertEqual(story.status, "review")
         story.save.assert_not_called()
 
-    def test_a_story_added_after_the_preview_is_not_published(self):
-        story = _story(status="review")
-        previewed = content_stamp([story])
-        late = _story(id=12, status="review")
-
-        self._approve_issue([story, late], previewed)
-
-        self.assertEqual(story.status, "review")
-        self.assertEqual(late.status, "review")
-
     def test_approving_without_a_preview_is_refused(self):
         story = _story(status="review")
 
-        self._approve_issue([story], None)
+        self._approve(story, None)
 
         self.assertEqual(story.status, "review")
 
     def test_rejecting_needs_no_preview(self):
         story = _story(status="review")
-        request = _request(ADMIN, "admin", {"reason": "Fix the headline"}, {"id": 30})
-        with patch(f"{REVIEW}.review_stories_of", return_value=[story]), patch(
-            f"{REVIEW}.Cache"
-        ), patch(f"{REVIEW}.KioskBroadcast"), patch(f"{REVIEW}.Notifications"), patch(
-            f"{REVIEW}.DB"
-        ):
-            ReviewController().reject_issue(request, _response())
+        request = _request(ADMIN, "admin", {"reason": "Fix the headline"}, {"id": 11})
+        with patch(f"{REVIEW}.News.where", _where(story)), patch(f"{REVIEW}.Cache"), patch(
+            f"{REVIEW}.KioskBroadcast"
+        ), patch(f"{REVIEW}.Notifications"), patch(f"{REVIEW}.AuditLog"):
+            ReviewController().reject(request, _response())
 
         self.assertEqual(story.status, "draft")
 
     def test_the_preview_hands_the_admin_the_stamp_of_what_it_rendered(self):
         story = _story(status="review")
-        request = _request(ADMIN, "admin", params={"id": 30})
+        request = _request(ADMIN, "admin", params={"id": 11})
         response = _response()
         view = Mock()
         view.render.return_value.rendered_template = "<div></div>"
-        with patch(f"{REVIEW}.review_stories_of", return_value=[story]), patch(
-            f"{REVIEW}.issue_preview_context", return_value={}
+        with patch(f"{REVIEW}.News.where", _where(story)), patch(
+            f"{REVIEW}.preview_context", return_value={}
         ):
-            ReviewController().preview_issue(request, response, view)
+            ReviewController().preview(view, request, response)
 
         body = response.json.call_args.args[0]
         body = json.loads(body) if isinstance(body, str) else body
         self.assertEqual(body["review_stamp"], content_stamp([story]))
-
-    def test_single_story_approval_is_bound_too(self):
-        story = _story(status="review")
-        previewed = content_stamp([story])
-        story.title = "Changed"
-        request = _request(ADMIN, "admin", {"review_stamp": previewed}, {"id": 11})
-        with patch(f"{REVIEW}.News.where", _where(story)), patch(f"{REVIEW}.Cache"), patch(
-            f"{REVIEW}.KioskBroadcast"
-        ), patch(f"{REVIEW}.Notifications"):
-            ReviewController().approve(request, _response())
-
-        self.assertEqual(story.status, "review")
