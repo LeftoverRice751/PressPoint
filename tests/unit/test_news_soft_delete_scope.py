@@ -141,14 +141,14 @@ class NewsCategoryScopeTestCase(TestCase):
         self.assertIn("name_key", sql)
 
 
-class DestroyLeavesFilesAloneTestCase(TestCase):
-    def test_delete_image_files_is_not_called_by_destroy(self):
-        """Pinned separately from the filesystem test in test_news_endpoints:
-        that one proves the files survive, this one proves the CALL is gone,
-        so a refactor cannot reintroduce it behind a no-op guard."""
+class DestroyIsAHardDeleteTestCase(TestCase):
+    def test_destroy_force_deletes_and_cleans_up_files(self):
+        """Posts have no restore UI, so a soft-deleted row would strand its photo
+        and logo on the NAS forever. destroy() therefore removes the row for real
+        and the files with it."""
         from app.controllers.gears.NewsController import NewsController
 
-        controller = NewsController()
-        source = controller.destroy.__code__.co_names
+        names = NewsController.destroy.__code__.co_names
 
-        self.assertNotIn("_delete_image_files", source)
+        self.assertIn("force_delete", names)
+        self.assertIn("_delete_image_files", names)

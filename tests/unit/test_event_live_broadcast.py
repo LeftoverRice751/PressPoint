@@ -11,7 +11,7 @@ editor's new event first appeared on the visit after next.
 from unittest.mock import Mock, patch
 
 from tests import TestCase
-from tests.unit.test_news_endpoints import _mock_request, _mock_response
+from tests.unit.news_doubles import _mock_request, _mock_response
 
 from app.controllers.gears.EventController import EventController
 

@@ -123,44 +123,36 @@ class PrivilegeTestCase(TestCase):
         the UI does not bypass it."""
         controller = NewsController()
         inputs = {
-            "title": "Sneaky",
-            "description": "<p>Body</p>",
-            "layout_type": "brief",
+            "headline": "Sneaky",
+            "body": "Body",
             "status": "published",
-            "priority": "3",
-            "article_id": "",
-            "category_id": "1",
-            "image": None,
-            "published_at": "",
+            "id": "",
+            # A submission needs a photo, or it is refused before the gate matters.
+            "image": Mock(extension=lambda: ".jpg", get_content=lambda: b"x"),
         }
         request = Mock()
         request.input.side_effect = lambda key, default="": inputs.get(key, default)
         request.header.return_value = None
         request.user.return_value = Mock(id=9, role="editor")
+        storage = Mock()
+        storage.disk.return_value.put_file.return_value = "news/x.jpg"
 
         with patch(
             "app.controllers.gears.NewsController.News.create",
             return_value=Mock(id=1, image=None),
         ) as create_mock, patch(
             "app.controllers.gears.NewsController.NewNews"
-        ), patch("app.controllers.gears.NewsController.Cache"):
-            controller.store(request, Mock(), _response())
+        ), patch("app.controllers.gears.NewsController.Cache"), patch(
+            "app.controllers.gears.NewsController.FileVerificationService.verify_buffer",
+            return_value=True,
+        ), patch("app.controllers.gears.NewsController.generate_variants"):
+            controller.store(request, storage, _response())
 
         self.assertEqual(create_mock.call_args.kwargs["status"], "review")
 
     def test_store_records_the_author(self):
         controller = NewsController()
-        inputs = {
-            "title": "Attributed",
-            "description": "<p>Body</p>",
-            "layout_type": "brief",
-            "status": "draft",
-            "priority": "1",
-            "article_id": "",
-            "category_id": "1",
-            "image": None,
-            "published_at": "",
-        }
+        inputs = {"headline": "Attributed", "body": "Body", "status": "draft", "id": "", "image": None}
         request = Mock()
         request.input.side_effect = lambda key, default="": inputs.get(key, default)
         request.header.return_value = None

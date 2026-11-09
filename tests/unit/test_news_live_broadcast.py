@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 from app.controllers.gears.NewsController import NewsController
 from app.controllers.gears.ReviewController import ReviewController
 from app.services import NewsCategories
-from tests.unit.test_news_endpoints import _mock_request, _mock_response, _where_side_effect
+from tests.unit.news_doubles import _mock_request, _mock_response, _where_side_effect
 from tests.unit.test_review_workflow import _request, _response
 
 pytestmark = pytest.mark.usefixtures("actor_may_change_any_story", "preview_already_read")
@@ -67,20 +67,25 @@ class ReviewBroadcastTestCase(TestCase):
 
 class NewsControllerBroadcastTestCase(TestCase):
     def test_destroy_broadcasts_latest_news(self):
-        record = Mock(id=42, image=None)
-        record.delete = Mock()
+        record = Mock(id=42, image=None, logo_path=None)
         request = _mock_request(params={"id": "42"})
         response = _mock_response()
+        queries = []
 
-        with patch(
-            "app.controllers.gears.NewsController.News.where",
-            side_effect=_where_side_effect({42: record}),
-        ), patch("app.controllers.gears.NewsController.Cache"), patch(
+        def where(field, value):
+            query = _where_side_effect({42: record})(field, value)
+            queries.append(query)
+            return query
+
+        with patch("app.controllers.gears.NewsController.News.where", side_effect=where), patch(
+            "app.controllers.gears.NewsController.Cache"
+        ), patch(
             "app.controllers.gears.NewsController.KioskBroadcast.section_changed"
         ) as changed:
             NewsController().destroy(request, response)
 
-        self.assertTrue(record.delete.called)
+        # Posts are hard-deleted, so the row goes through force_delete on the query.
+        self.assertTrue(any(q.force_delete.called for q in queries))
         changed.assert_called_once_with("latest-news")
 
 

@@ -52,14 +52,6 @@ ROUTES = [
     # wildcard would swallow it.
     Route.post("/gears/notifications/@id/read", "gears.NotificationController@read").name("notifications.read").middleware("auth"),
     Route.post("/news/dashboard", "gears.NewsController@store").name("news.store").middleware("auth"),
-    Route.post("/news/dashboard/layout", "gears.NewsController@layout").name("news.layout").middleware("auth"),
-    Route.post("/news/dashboard/@id/body", "gears.NewsController@body").name("news.body").middleware("auth"),
-    # The composer's debounced draft save. Separate from news.store on purpose:
-    # it writes text only, never `status`, and refuses outright on a story that
-    # is already public -- see NewsController.autosave for why it declines
-    # rather than re-gating like news.body does.
-    Route.post("/news/dashboard/@id/autosave", "gears.NewsController@autosave").name("news.autosave").middleware("auth"),
-    Route.post("/news/dashboard/@id/unassign", "gears.NewsController@unassign").name("news.unassign").middleware("auth"),
     Route.delete("/news/dashboard/@id", "gears.NewsController@destroy").name("news.destroy").middleware("auth"),
     # Story Library, Published tab. "auth" only: the controller scopes every
     # lookup to issues.owner_id == the caller, so another editor's issue is a 404.

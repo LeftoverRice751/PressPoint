@@ -13,9 +13,7 @@ then sit on them for up to NewsCache.TTL (300s), because the one event that
 was meant to refresh it has already been spent. Nothing errors; the kiosk is
 just five minutes late. So every site is pinned to forget-then-broadcast.
 
-Also pinned: autosave never broadcasts (a draft is not public, and the
-composer autosaves continuously -- each one would yank the terminal), and the
-server's SECTIONS and sw-kiosk.js's EVICT_SECTIONS name the same sections. A
+Also pinned: the server's SECTIONS and sw-kiosk.js's EVICT_SECTIONS name the same sections. A
 section the server announces but the service worker cannot evict reloads the
 frame onto the same stale-while-revalidate copy, which looks like no update.
 """
@@ -27,7 +25,7 @@ from pathlib import Path
 from unittest.mock import Mock, call, patch
 
 from tests import TestCase
-from tests.unit.test_news_endpoints import (
+from tests.unit.news_doubles import (
     _mock_actor_request,
     _mock_request,
     _mock_response,
@@ -77,52 +75,15 @@ class NewsWriteOrderTestCase(TestCase):
         return record
 
     def test_store(self):
-        inputs = {
-            "title": "Live story",
-            "description": "<p>Body</p>",
-            "layout_type": "main",
-            "status": "published",
-            "priority": "1",
-            "category_id": "1",
-        }
+        inputs = {"headline": "Live story", "body": "Body", "status": "published"}
         with _ordered(self.MODULE) as parent, patch(
-            f"{self.MODULE}.NewsCategories.find_live", return_value=Mock(id=1, name="Campus")
-        ), patch(f"{self.MODULE}.News.create", return_value=Mock(id=200, image=None)), patch(
-            f"{self.MODULE}.NewNews"
-        ):
+            f"{self.MODULE}.News.create", return_value=Mock(id=200, image=None)
+        ), patch(f"{self.MODULE}.NewNews"):
             NewsController().store(_mock_actor_request(inputs, role="admin"), Mock(), _mock_response())
         self.assertEqual(_timeline(parent), FORGET_THEN_BROADCAST)
 
-    def test_layout(self):
-        record = self._record(id=1, layout_type="brief", priority=5, status="published")
-        items = [{"id": 1, "layout_type": "lead", "priority": 0}]
-        request = _mock_request(inputs={"__all__": {"items": items}})
-        request.all.return_value = {"items": items}
-        with _ordered(self.MODULE) as parent, patch(
-            f"{self.MODULE}.News.where", side_effect=_where_side_effect({1: record})
-        ):
-            NewsController().layout(request, _mock_response())
-        self.assertEqual(_timeline(parent), FORGET_THEN_BROADCAST)
-
-    def test_body(self):
-        record = self._record(id=7, description="old", status="draft")
-        request = _mock_request(inputs={"description": "<p>New</p>"}, params={"id": "7"})
-        with _ordered(self.MODULE) as parent, patch(
-            f"{self.MODULE}.News.where", side_effect=_where_side_effect({7: record})
-        ):
-            NewsController().body(request, _mock_response())
-        self.assertEqual(_timeline(parent), FORGET_THEN_BROADCAST)
-
-    def test_unassign(self):
-        record = self._record(id=3, layout_type="secondary", status="published")
-        with _ordered(self.MODULE) as parent, patch(
-            f"{self.MODULE}.News.where", side_effect=_where_side_effect({3: record})
-        ):
-            NewsController().unassign(_mock_request(params={"id": "3"}), _mock_response())
-        self.assertEqual(_timeline(parent), FORGET_THEN_BROADCAST)
-
     def test_destroy(self):
-        record = self._record(id=42, image=None)
+        record = self._record(id=42, image=None, logo_path=None)
         with _ordered(self.MODULE) as parent, patch(
             f"{self.MODULE}.News.where", side_effect=_where_side_effect({42: record})
         ):
@@ -134,16 +95,6 @@ class NewsWriteOrderTestCase(TestCase):
             f"{self.MODULE}.News.where", side_effect=_where_side_effect({})
         ):
             NewsController().destroy(_mock_request(params={"id": "404"}), _mock_response())
-        self.assertEqual(_timeline(parent), [])
-
-    def test_autosave_never_reaches_the_kiosk(self):
-        record = self._record(id=9, status="draft", title="", description="")
-        request = _mock_request(inputs={"title": "WIP", "description": "<p>half</p>"}, params={"id": "9"})
-        with _ordered(self.MODULE) as parent, patch(
-            f"{self.MODULE}.News.where", side_effect=_where_side_effect({9: record})
-        ):
-            NewsController().autosave(request, _mock_response())
-        record.save.assert_called_once()  # it did save -- it just told nobody
         self.assertEqual(_timeline(parent), [])
 
 

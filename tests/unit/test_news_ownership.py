@@ -63,6 +63,11 @@ def _story(status="draft", author_id=AUTHOR, issue_id=30, **fields):
         headline_font=None,
         image_caption=None,
         image_credit=None,
+        logo_path=None,
+        kicker=None,
+        image_crop=None,
+        source_lines=None,
+        expires_at=None,
     )
     for name, value in fields.items():
         setattr(record, name, value)
@@ -82,20 +87,23 @@ def _owned_issue(user_id, issue_id):
 class _WritePathCase(TestCase):
     def run_route(self, method, record, request):
         response = _response()
-        with patch(f"{NEWS}.News.where", _where(record)), patch(f"{NEWS}.Cache"), patch(
+        where = _where(record)
+        with patch(f"{NEWS}.News.where", where), patch(f"{NEWS}.Cache"), patch(
             f"{NEWS}.KioskBroadcast"
-        ), patch(f"{NEWS}.Issues.owned_issue", side_effect=_owned_issue):
+        ), patch(f"{NEWS}.Issues.owned_issue", side_effect=_owned_issue), patch(
+            f"{NEWS}.delete_image_and_variants"
+        ):
             getattr(NewsController(), method)(request, response)
+        # destroy hard-deletes through the query, not the record.
+        self.query = where.return_value
         return response
+
+    def wrote(self, record):
+        return bool(record.save.called or self.query.force_delete.called)
 
 
 class StoryOwnershipTestCase(_WritePathCase):
-    ROUTES = (
-        ("body", {"description": "<p>Replaced</p>"}),
-        ("autosave", {"title": "Replaced", "description": "<p>Replaced</p>"}),
-        ("unassign", {}),
-        ("destroy", {}),
-    )
+    ROUTES = (("destroy", {}),)
 
     def _attempt(self, method, inputs, user_id, role="editor"):
         record = _story()
@@ -106,69 +114,53 @@ class StoryOwnershipTestCase(_WritePathCase):
     def test_another_editor_cannot_use_any_write_route(self):
         for method, inputs in self.ROUTES:
             record = self._attempt(method, inputs, STRANGER)
-            record.save.assert_not_called()
-            record.delete.assert_not_called()
+            self.assertFalse(self.wrote(record), method)
 
     def test_the_author_can_use_every_write_route(self):
         for method, inputs in self.ROUTES:
             record = self._attempt(method, inputs, AUTHOR)
-            self.assertTrue(record.save.called or record.delete.called, method)
+            self.assertTrue(self.wrote(record), method)
 
     def test_the_issue_owner_can_use_every_write_route(self):
         for method, inputs in self.ROUTES:
             record = self._attempt(method, inputs, OWNER)
-            self.assertTrue(record.save.called or record.delete.called, method)
+            self.assertTrue(self.wrote(record), method)
 
     def test_an_admin_can_use_every_write_route(self):
         for method, inputs in self.ROUTES:
             record = self._attempt(method, inputs, ADMIN, role="admin")
-            self.assertTrue(record.save.called or record.delete.called, method)
+            self.assertTrue(self.wrote(record), method)
 
     def test_a_story_with_no_author_or_issue_is_admin_only(self):
         record = _story(author_id=None, issue_id=None)
-        self.run_route("unassign", record, _request(AUTHOR, params={"id": 11}))
-        record.save.assert_not_called()
+        self.run_route("destroy", record, _request(AUTHOR, params={"id": 11}))
+        self.assertFalse(self.wrote(record))
 
     def test_refusal_looks_the_same_as_a_missing_story(self):
         """A guessed id must not confirm that another editor's story exists."""
-        refused = self.run_route("unassign", _story(), _request(STRANGER, params={"id": 11}))
-        missing = self.run_route("unassign", None, _request(STRANGER, params={"id": 11}))
+        refused = self.run_route("destroy", _story(), _request(STRANGER, params={"id": 11}))
+        missing = self.run_route("destroy", None, _request(STRANGER, params={"id": 11}))
 
         self.assertEqual(refused.json.call_args, missing.json.call_args)
 
     def _store(self, user_id, record):
         request = _request(
             user_id,
-            inputs={
-                "article_id": "11",
-                "title": "Replaced",
-                "description": "<p>Replaced</p>",
-                "category_id": "2",
-                "layout_type": "brief",
-                "status": "draft",
-                "remove_image": "1",
-            },
+            inputs={"id": "11", "headline": "Replaced", "body": "Replaced", "status": "draft"},
         )
-        storage = Mock()
         response = _response()
+        storage = Mock()
         with patch(f"{NEWS}.News.where", _where(record)), patch(f"{NEWS}.Cache"), patch(
             f"{NEWS}.KioskBroadcast"
-        ), patch(f"{NEWS}.Issues.owned_issue", side_effect=_owned_issue), patch(
-            f"{NEWS}.NewsCategories.find_live", return_value=Mock()
-        ), patch(
-            f"{NEWS}.NewNews"
-        ), patch(
-            f"{NEWS}._delete_image_files"
-        ) as delete_files:
+        ), patch(f"{NEWS}.Issues.owned_issue", side_effect=_owned_issue), patch(f"{NEWS}.NewNews"):
             NewsController().store(request, storage, response)
-        return delete_files
+        return response
 
     def test_another_editor_cannot_overwrite_a_story_through_store(self):
         record = _story()
-        delete_files = self._store(STRANGER, record)
+        self._store(STRANGER, record)
 
         record.save.assert_not_called()
-        delete_files.assert_not_called()
         self.assertEqual(record.title, "Campus story")
 
     def test_the_author_can_overwrite_a_story_through_store(self):
@@ -178,60 +170,11 @@ class StoryOwnershipTestCase(_WritePathCase):
         record.save.assert_called_once()
         self.assertEqual(record.title, "Replaced")
 
-    def _layout(self, user_id, record):
-        request = _request(
-            user_id,
-            all_payload={"items": [{"id": 11, "layout_type": "lead", "priority": 1}]},
-        )
-        with patch(f"{NEWS}.DB"):
-            self.run_route("layout", record, request)
-
-    def test_another_editor_cannot_move_a_story(self):
+    def test_the_issue_owner_can_overwrite_a_story_through_store(self):
         record = _story()
-        self._layout(STRANGER, record)
+        self._store(OWNER, record)
 
-        record.save.assert_not_called()
-        self.assertEqual(record.layout_type, "brief")
-
-    def test_the_author_can_move_a_story(self):
-        record = _story()
-        with patch(f"{NEWS}.News.where") as where:
-            query = where.return_value
-            query.first.return_value = record
-            query.where.return_value.count.return_value = 0
-            query.count.return_value = 0
-            request = _request(
-                AUTHOR,
-                all_payload={"items": [{"id": 11, "layout_type": "lead", "priority": 1}]},
-            )
-            with patch(f"{NEWS}.DB"), patch(f"{NEWS}.Cache"), patch(
-                f"{NEWS}.KioskBroadcast"
-            ), patch(f"{NEWS}.Issues.stamp_for", return_value="1:x"):
-                NewsController().layout(request, _response())
-
-        self.assertEqual(record.layout_type, "lead")
-
-
-class SilentEditsDuringReviewTestCase(_WritePathCase):
-    def test_autosave_cannot_change_a_story_awaiting_review(self):
-        record = _story(status="review")
-        request = _request(
-            AUTHOR, inputs={"title": "Swapped", "description": "<p>x</p>"}, params={"id": 11}
-        )
-
-        self.run_route("autosave", record, request)
-
-        record.save.assert_not_called()
-        self.assertEqual(record.title, "Campus story")
-
-    def test_body_save_cannot_change_a_story_awaiting_review(self):
-        record = _story(status="review")
-        request = _request(AUTHOR, inputs={"description": "<p>Swapped</p>"}, params={"id": 11})
-
-        self.run_route("body", record, request)
-
-        record.save.assert_not_called()
-        self.assertEqual(record.description, "<p>Body</p>")
+        record.save.assert_called_once()
 
 
 class ContentStampTestCase(TestCase):

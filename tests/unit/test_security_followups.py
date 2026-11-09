@@ -327,17 +327,9 @@ class NewsAndHymnUploadsTestCase(TestCase):
 
         storage = Mock()
         request = _request(
-            {
-                "title": "Story",
-                "description": "<p>Body</p>",
-                "category_id": "2",
-                "layout_type": "brief",
-                "image": upload,
-            }
+            {"headline": "Story", "body": "Body", "image": upload}
         )
-        with patch(f"{module}.NewsCategories.find_live", return_value=Mock()), patch(
-            f"{module}.News"
-        ), patch(f"{module}.Cache"), patch(f"{module}.KioskBroadcast"), patch(
+        with patch(f"{module}.News"), patch(f"{module}.Cache"), patch(f"{module}.KioskBroadcast"), patch(
             f"{module}.NewNews"
         ), patch(
             f"{module}.generate_variants"

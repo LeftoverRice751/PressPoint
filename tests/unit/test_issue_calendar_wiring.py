@@ -15,7 +15,7 @@ from tests import TestCase
 from tests.unit.test_issue_composer import _render, _Story
 from tests.unit.test_issue_library_http import _Pipeline
 from tests.unit.test_kiosk_single_issue import _render_page
-from tests.unit.test_news_endpoints import _mock_request, _mock_response
+from tests.unit.news_doubles import _mock_request, _mock_response
 
 from app.controllers.gears import DashboardController as Dash
 from app.controllers.gears.EventController import EventController
