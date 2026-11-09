@@ -1,0 +1,38 @@
+"""Schema contract for single photo posts (additive columns on `news`)."""
+
+import re
+import unittest
+from pathlib import Path
+
+from app.models.News import News
+
+SCHEMA = Path(__file__).resolve().parents[2] / "databases" / "schema.sql"
+
+
+def _news_block():
+    text = SCHEMA.read_text()
+    match = re.search(r"CREATE TABLE `news` \((.*?)\n\) ENGINE", text, re.S)
+    assert match, "news CREATE TABLE not found in schema.sql"
+    return match.group(1)
+
+
+class PostSchemaTestCase(unittest.TestCase):
+    def test_schema_declares_post_columns(self):
+        block = _news_block()
+        for fragment in (
+            "`kicker` varchar(80)",
+            "`logo_path` varchar(255)",
+            "`image_crop` text",
+            "`source_lines` text",
+            "`expires_at` datetime",
+        ):
+            self.assertIn(fragment, block)
+
+    def test_category_id_is_nullable(self):
+        line = [ln for ln in _news_block().splitlines() if "`category_id` int" in ln][0]
+        self.assertNotIn("NOT NULL", line)
+
+    def test_news_model_fillable_has_post_fields(self):
+        for name in ("kicker", "logo_path", "image_crop", "source_lines", "expires_at"):
+            self.assertIn(name, News.__fillable__)
+        self.assertIn("expires_at", News.__dates__)

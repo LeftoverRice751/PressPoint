@@ -30,7 +30,7 @@ class News(Model, SoftDeletesMixin):
     # Hydrate deleted_at as a datetime rather than a raw driver value --
     # get_dates() is __dates__ + [created_at, updated_at], so without this the
     # restore prompt cannot format it.
-    __dates__ = ["deleted_at"]
+    __dates__ = ["deleted_at", "expires_at"]
 
     #: NOTE: `deleted_at` is deliberately NOT fillable. Mass-assigning it would
     #: make delete and undelete reachable from any form post -- the same class
@@ -73,5 +73,12 @@ class News(Model, SoftDeletesMixin):
         # issue (Issues.ensure_current_for); never changed by a save, since a
         # story does not move between newsletters.
         "issue_id",
-        ]
+        # Photo-post fields. `expires_at` is aware-UTC (editor input is campus
+        # local); the rest are plain text, `image_crop`/`source_lines` JSON.
+        "kicker",
+        "logo_path",
+        "image_crop",
+        "source_lines",
+        "expires_at",
+    ]
     pass
