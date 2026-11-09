@@ -11,9 +11,9 @@ class News(Model, SoftDeletesMixin):
     `News.where(...)`, `News.all()`, `News.count()` and even
     `News.select_raw(...)` compiles with `WHERE news.deleted_at IS NULL`
     appended -- the scope runs inside to_sql()/to_qmark(), after the whole
-    builder chain, so nothing you chain can bypass it. That is what lets a
-    category delete hide its stories from the kiosk, the review queue and the
-    admin counters without touching any of those twelve read sites.
+    builder chain, so nothing you chain can bypass it. Legacy newsletter rows
+    soft-deleted by the old category delete stay hidden from every read site.
+    Photo posts are hard-deleted (NewsController.destroy uses force_delete).
 
     The inverse is the thing to remember: a surface that wants tombstones
     (a restore prompt, a trash panel) MUST say `.with_trashed()` /
@@ -40,39 +40,15 @@ class News(Model, SoftDeletesMixin):
         "description",
         "image",
         "published_at",
-        "source",
-        "location",
-        "layout_type",
-        "priority",
         "status",
-        "dek",
-        "image_caption",
-        "image_credit",
-        "excerpt",
-        # Slug for the per-story furniture font (NULL = the brand face).
-        # Validated against NEWSLETTER_FONTS in NewsController.
-        "headline_font",
         # Who wrote it, and who touched it last. Both users.id, both nullable
         # (ON DELETE SET NULL) so removing a staff account never removes their
-        # stories. `author_id` is set once on create; `updated_by_id` is
-        # rewritten by every save, including a drag on the layout endpoint.
+        # posts. `author_id` is set once on create; `updated_by_id` is
+        # rewritten by every save.
         "author_id",
         "updated_by_id",
-        # Why an admin sent this story back. Set on reject, cleared on
-        # resubmit. Column already existed in MySQL, left over from the
-        # abandoned chief-editor flow -- this is the first code to read it.
+        # Why an admin sent this post back. Set on reject, cleared on resubmit.
         "rejection_reason",
-        # The story's subject classification -- news_categories.id, NOT NULL.
-        # Distinct from `layout_type` (where it sits on the front page) and
-        # `status` (how far through review it is): this is what it is about.
-        # NewsController.store() validates it against a LIVE category, because
-        # pointing a story at a soft-deleted one blanks its kiosk label.
-        "category_id",
-        # Which newsletter this story belongs to -- issues.id, nullable
-        # (ON DELETE SET NULL). Set once on create from the author's open
-        # issue (Issues.ensure_current_for); never changed by a save, since a
-        # story does not move between newsletters.
-        "issue_id",
         # Photo-post fields. `expires_at` is aware-UTC (editor input is campus
         # local); the rest are plain text, `image_crop`/`source_lines` JSON.
         "kicker",

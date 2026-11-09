@@ -13,8 +13,6 @@ from zoneinfo import ZoneInfo
 from app.services import Branding
 from app.services.ImageDerivatives import variant_path
 
-# Defined here, not imported from app.services.Issues: that module is deleted
-# when the newsletter is retired, and Posts must outlive it.
 CAMPUS_TZ = ZoneInfo("Asia/Manila")
 
 DEFAULT_EXPIRY_DAYS = 7
@@ -105,7 +103,7 @@ def parse_source_lines(raw):
 
 def _aware_utc(value):
     # masonite-orm tags naive datetimes as UTC without shifting them (see
-    # CLAUDE.md, "Issues expire"), so a naive value here is already UTC.
+    # CLAUDE.md, "Photo posts"), so a naive value here is already UTC.
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
@@ -166,7 +164,7 @@ def crop_style(crop):
     return f"object-position:{x} {y};transform:scale({zoom});transform-origin:{x} {y}"
 
 
-def _local_label(value, fmt):
+def local_label(value, fmt):
     if not isinstance(value, datetime):
         return None
     return _aware_utc(value).astimezone(CAMPUS_TZ).strftime(fmt)
@@ -192,6 +190,6 @@ def card_context(post, disk=None):
         "logo_url": logo,
         "source_lines": parse_source_lines(getattr(post, "source_lines", None)),
         "status": getattr(post, "status", None),
-        "expires_label": _local_label(getattr(post, "expires_at", None), "%b %d, %Y %I:%M %p"),
-        "published_label": _local_label(published, "%b %d, %Y"),
+        "expires_label": local_label(getattr(post, "expires_at", None), "%b %d, %Y %I:%M %p"),
+        "published_label": local_label(published, "%b %d, %Y"),
     }

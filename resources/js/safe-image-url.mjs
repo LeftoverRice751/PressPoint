@@ -2,9 +2,8 @@
  * Allowlist for image URLs the post editor writes into img.src
  * (post-editor-photo.mjs: the photo, the logo and the site-logo fallback).
  *
- * Written for the retired newsletter composer, where the stored path arrived
- * via a library card's data attribute,
- * and getAttribute() returns it with the template's |e escaping already
+ * Written for a stored path that arrives via a library card's data attribute,
+ * where getAttribute() returns it with the template's |e escaping already
  * decoded — so a `"` in news.image reached `url("…")` verbatim and could
  * close it and append declarations. Every legitimate value here is either a
  * same-origin path (/storage/…) or a blob: preview of a file the editor just

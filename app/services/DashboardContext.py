@@ -8,7 +8,6 @@ always received.
 """
 
 import random
-from datetime import datetime
 from types import SimpleNamespace
 
 from app.models.Archives import Archives
@@ -20,7 +19,7 @@ from app.models.News import News
 from app.models.TourScenes import TourScenes
 from app.models.User import User
 from app.models.Video import Video
-from app.services import AboutValues, NewsCategories
+from app.services import AboutValues, Posts
 from app.services.AboutContent import AboutContent
 from app.services.ArchiveServices import ArchiveServices
 from app.services.OrgBoardTree import build_org_board_organizations, organization_sort_key
@@ -185,8 +184,6 @@ def post_editor_context(user_id=None):
     job, from the library row's JSON. `user_id` is unused today and accepted so the
     builder has the same shape as post_library_context().
     """
-    from app.services import Posts
-
     return {
         "post_editor_card": Posts.card_context(SimpleNamespace()),
         "post_source_icons": Posts.SOURCE_ICONS,
@@ -207,53 +204,6 @@ def post_library_context(user_id=None):
     from app.services import PostLibrary
 
     return {"post_library": PostLibrary.library_rows(user_id) if user_id else []}
-
-
-#: How many events the composer's "add an event" picker lists.
-CALENDAR_CHOICES_LIMIT = 50
-
-
-def calendar_row(row):
-    """One event as the issue's calendar block and the composer's picker read it."""
-    at = getattr(row, "event_date", None)
-    return {
-        "id": getattr(row, "id", None),
-        "title": getattr(row, "title", None),
-        # Pre-formatted for the same reason published_label is: Jinja
-        # cannot strftime, and the date chip wants "SEP 15".
-        "chip": at.strftime("%b %d").upper() if hasattr(at, "strftime") else "",
-        "iso": at.strftime("%Y-%m-%d") if hasattr(at, "strftime") else "",
-    }
-
-
-def upcoming_events(limit=CALENDAR_CHOICES_LIMIT):
-    """Events an editor can still choose for a newsletter, nearest first.
-
-    From the START of today, not from now: the Add Event form sends a date
-    only, so an event today is stored at 00:00 and comparing to the clock
-    dropped it the moment it was saved. `events.event_date` is a naive local
-    `datetime NOT NULL`, so a naive campus-local bound is right.
-
-    What a newsletter actually shows is its own choice; see IssueCalendar.
-    """
-    # Imported here: Issues imports normalize_news_status from this module.
-    from app.services import Issues
-
-    today = Issues.campus_now().strftime("%Y-%m-%d")
-    try:
-        rows = (
-            Events.where("is_archive", 0)
-            .where("event_date", ">=", f"{today} 00:00:00")
-            .order_by("event_date", "asc")
-            .limit(limit)
-            .get()
-        )
-    except Exception:
-        # The picker is one control on the composer. A DB hiccup here must not
-        # take the dashboard down with it.
-        return []
-
-    return [calendar_row(row) for row in rows]
 
 
 def locations_context():
@@ -379,85 +329,37 @@ def tour_context():
     }
 
 
-#: How many stories the "Recent Newsletters" panel lists.
+#: How many posts the "Recent Posts" panel lists.
 OVERVIEW_RECENT_LIMIT = 5
 
-#: How many story titles each row of "Newsletters by Category" previews.
-OVERVIEW_CATEGORY_PREVIEW = 3
-
 #: The columns the overview renders. Selected explicitly so the query never
-#: hydrates `description` -- the full Quill HTML body -- for a panel that
-#: shows a title, a status pill and a one-line excerpt.
-_OVERVIEW_COLUMNS = [
-    "id", "title", "status", "category_id", "issue_id", "published_at", "excerpt", "dek",
-]
+#: hydrates the image/crop/source columns a title-and-status list does not show.
+_OVERVIEW_COLUMNS = ["id", "title", "status", "published_at", "description"]
 
 
-def _published_label(value):
-    """`value` as a campus-local "Sep 15, 2026", or "" when unset.
-
-    Goes through Issues' campus-zone conversion rather than strftime on the
-    raw value: the ORM hands `published_at` back UTC-aware, and a 23:50 UTC
-    approval is already the next day in Manila.
-    """
-    from app.services import Issues
-
-    local = Issues._campus_local(value)
-    return local.strftime("%b %d, %Y") if local else ""
-
-
-def _overview_story(row, issue_published_at):
-    """A plain dict for the overview partial -- title, folded status, category
-    id, a display-ready date and a one-line summary.
+def _overview_post(row):
+    """A plain dict for the overview partial -- headline, folded status, a
+    campus-local date and a one-line summary.
 
     Plain dicts rather than models because the template used to print
     `published_at` raw, which for an ORM datetime is a full ISO timestamp with
     offset; the panel wants a date an editor can read at a glance.
-
-    The date is the story's own `published_at` when set, else its ISSUE's.
-    Since review went issue-based, approval stamps `issues.published_at`
-    (ReviewController) and leaves the story's column NULL -- so without the
-    fallback every published story here read "Not set".
     """
-    published_at = getattr(row, "published_at", None)
-    if published_at is None:
-        published_at = issue_published_at.get(getattr(row, "issue_id", None))
-
     return {
         "id": getattr(row, "id", None),
-        "title": getattr(row, "title", None) or "Untitled story",
+        "title": getattr(row, "title", None) or "Untitled post",
         "status": normalize_news_status(getattr(row, "status", None)),
-        "category_id": getattr(row, "category_id", None),
-        "published_at": _published_label(published_at),
-        "excerpt": getattr(row, "excerpt", None) or getattr(row, "dek", None) or "",
+        "published_at": Posts.local_label(getattr(row, "published_at", None), "%b %d, %Y") or "",
+        "excerpt": getattr(row, "description", None) or "",
     }
 
 
-def _issue_published_dates(rows):
-    """{issues.id: published_at} for the issues these stories belong to.
+def _overview_posts():
+    """Every live post, newest first, as _overview_post() dicts.
 
-    One where_in rather than a lookup per story, same shape as author_names().
-    """
-    from app.models.Issue import Issue
-
-    wanted = {getattr(row, "issue_id", None) for row in rows} - {None}
-    if not wanted:
-        return {}
-    try:
-        issues = Issue.select("id", "published_at").where_in("id", list(wanted)).get() or []
-    except Exception:
-        return {}
-    return {getattr(i, "id", None): getattr(i, "published_at", None) for i in issues}
-
-
-def _overview_stories():
-    """Every live story, newest first, as _overview_story() dicts.
-
-    Whole table on purpose: the category panel needs every story's
-    category_id to group and to size the progress bars, and the table is
-    tens of rows. What it must NOT do is load the bodies -- hence the column
-    list. The soft-delete scope on News hides deleted stories here the same
-    way it does on the kiosk.
+    Whole table on purpose: the stat cards count it, and it is tens of rows. The
+    soft-delete scope on News hides legacy deleted rows here the way it does on
+    the kiosk.
     """
     try:
         rows = News.select(*_OVERVIEW_COLUMNS).order_by("id", "desc").get() or []
@@ -465,66 +367,23 @@ def _overview_stories():
         # Same failure posture as the rest of this module: a broken query
         # renders an empty panel rather than taking the dashboard down.
         return []
-    issue_dates = _issue_published_dates(rows)
-    return [_overview_story(row, issue_dates) for row in rows]
+    return [_overview_post(row) for row in rows]
 
 
 def overview_context():
-    """The Dashboard tab: the three stat cards, "Newsletters by Category" and
-    "Recent Newsletters".
+    """The Dashboard tab: the stat cards and "Recent Posts".
 
-    All of it reads `news` + `news_categories` -- the tables the composer and
-    the kiosk actually run on. This used to read the legacy `Posts` /
-    `Categories` tables, which nothing has written since the composer
-    replaced them, so both panels rendered "No data available" forever while
-    the kiosk was showing seventeen published stories.
+    Reads `news`, the table the post editor and the kiosk run on.
     """
-    stories = _overview_stories()
-    total = len(stories)
-
-    # Category rows in the same order the composer's picker lists them
-    # (NewsCategories.live() is name-ascending). Grouping is done here rather
-    # than with one GROUP BY because each row also previews its first few
-    # titles, which an aggregate cannot return.
-    by_category = {}
-    for story in stories:
-        by_category.setdefault(story["category_id"], []).append(story)
-
-    category_rows = []
-    for category in NewsCategories.live():
-        items = by_category.pop(getattr(category, "id", None), [])
-        category_rows.append(
-            {
-                "name": getattr(category, "name", None) or "Untitled category",
-                "count": len(items),
-                "percent": round((len(items) / total) * 100) if total else 0,
-                "items": items[:OVERVIEW_CATEGORY_PREVIEW],
-            }
-        )
-
-    # A story whose category was soft-deleted still counts -- the story is
-    # live, only its label is gone. Folded into one trailing row rather than
-    # dropped, so the row counts add up to the "Total News" card.
-    orphaned = [story for items in by_category.values() for story in items]
-    if orphaned:
-        category_rows.append(
-            {
-                "name": "Uncategorized",
-                "count": len(orphaned),
-                "percent": round((len(orphaned) / total) * 100) if total else 0,
-                "items": orphaned[:OVERVIEW_CATEGORY_PREVIEW],
-            }
-        )
+    posts = _overview_posts()
 
     # The two stat cards count the whole table, not any one editor's posts.
     # Same status folding as super_admin_stats(), so the two dashboards agree.
-    published_news = sum(1 for story in stories if story["status"] == "published")
+    published_news = sum(1 for post in posts if post["status"] == "published")
 
     return {
-        "recent_articles": stories[:OVERVIEW_RECENT_LIMIT],
-        "article_groups": category_rows,
-        "category_lookup": NewsCategories.names_by_id(),
-        "total_news": total,
+        "recent_articles": posts[:OVERVIEW_RECENT_LIMIT],
+        "total_news": len(posts),
         "published_news": published_news,
     }
 
@@ -575,14 +434,8 @@ def grouped_counts(model, column):
 def super_admin_stats():
     """Organization-wide counts for the super admin dashboard.
 
-    News counts read `News` -- the table the composer and the kiosk front page
-    actually run on -- not `Posts`, which is what `overview_context()`'s older
-    "Total News" cards count. That mismatch is pre-existing on the editor
-    dashboard and deliberately left alone here; these numbers are meant to be
-    the true org-wide figures.
-
-    Events come from `Events` -- the model `events_context()` renders -- not
-    from `Posts`, which is a legacy table `overview_context()` still reads.
+    News counts read `News`, the table the post editor and the kiosk run on.
+    Events come from `Events`, the model `events_context()` renders.
 
     Nothing on this page renders a row, so every figure here is a SQL
     aggregate. This used to be three `Model.all()` calls folded in Python,

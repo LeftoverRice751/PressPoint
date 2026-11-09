@@ -43,7 +43,6 @@ def _story(story_id=1, title="Campus story", author_id=5, **overrides):
         "id": story_id,
         "title": title,
         "author_id": author_id,
-        "layout_type": "brief",
         "status": "review",
         "description": "<p>The body of the story.</p>",
         "excerpt": "",

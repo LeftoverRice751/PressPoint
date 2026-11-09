@@ -15,7 +15,6 @@ from unittest.mock import Mock, patch
 
 from app.controllers.gears.NewsController import NewsController
 from app.controllers.gears.ReviewController import ReviewController
-from app.services import NewsCategories
 from tests.unit.news_doubles import _mock_request, _mock_response, _where_side_effect
 from tests.unit.test_review_workflow import _request, _response
 
@@ -86,21 +85,4 @@ class NewsControllerBroadcastTestCase(TestCase):
 
         # Posts are hard-deleted, so the row goes through force_delete on the query.
         self.assertTrue(any(q.force_delete.called for q in queries))
-        changed.assert_called_once_with("latest-news")
-
-
-class CategoryBroadcastTestCase(TestCase):
-    def test_rename_broadcasts_latest_news(self):
-        # A rename changes a label the kiosk prints while touching zero news
-        # rows -- the same reason NewsCategories invalidates the news cache.
-        category = Mock(id=3, name="Sports")
-        with patch.object(NewsCategories, "find_live", return_value=category), patch.object(
-            NewsCategories, "story_count", return_value=0
-        ), patch.object(NewsCategories, "NewsCategory") as model, patch.object(
-            NewsCategories.NewsCache, "forget"
-        ), patch.object(NewsCategories.KioskBroadcast, "section_changed") as changed:
-            model.with_trashed.return_value.where.return_value.first.return_value = None
-            outcome, _ = NewsCategories.rename(3, "Campus Sports")
-
-        self.assertEqual(outcome, "renamed")
         changed.assert_called_once_with("latest-news")

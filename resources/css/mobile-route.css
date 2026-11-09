@@ -12,8 +12,8 @@
  * Grotesk (UI) and JetBrains Mono (all numerics/labels), substituted for
  * Geist/Geist Mono: those aren't vendored in this repo and everything here
  * is self-hosted rather than pulled from a font CDN, matching the kiosk's
- * offline-friendly asset setup. Both substitutes are already vendored for
- * the newsroom composer (see resources/css/newsletter-type.css).
+ * offline-friendly asset setup. Both substitutes are vendored under
+ * resources/fonts/.
  */
 
 @font-face {

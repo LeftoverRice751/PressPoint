@@ -1,4 +1,4 @@
-"""Request/response doubles shared by the news and issue-calendar suites.
+"""Request/response doubles shared by the news suites.
 
 They lived in test_news_endpoints.py, which was deleted with the block composer;
 every other suite that borrowed them imports from here instead.
@@ -37,23 +37,9 @@ def _mock_response():
 
 
 def _where_side_effect(records):
-    """Fake for News.where covering the two query shapes layout() issues.
-
-    `where("id", n).first()` looks a record up. `where("layout_type", slot).count()`
-    is the slot-capacity guard, and it counts the records this fake holds so a
-    test that sets up two mains actually trips the cap rather than comparing a
-    bare Mock against an int.
-    """
+    """Fake for News.where: `where("id", n).first()` looks a record up."""
     def _side_effect(field, value):
         query = Mock()
-
-        if field == "layout_type":
-            query.count.return_value = sum(
-                1
-                for record in records.values()
-                if getattr(record, "layout_type", None) == value
-            )
-            return query
 
         # ids may arrive as int or str depending on caller
         candidates = [value]

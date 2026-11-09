@@ -6,7 +6,7 @@
 
 {% block head %}
 {{ super() }}
-{# Kept although the newsletter composer it styled is gone: its `* { box-sizing:
+{# Kept although the page it was written for is gone: its `* { box-sizing:
    border-box }` and body margin reset are the only global ones the dashboard
    loads, and every panel's layout was built on them. #}
 <link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />

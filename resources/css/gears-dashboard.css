@@ -85,9 +85,9 @@ body {
     display: grid;
     /* One value, not two grid declarations. Collapsing the rail sets
        --rail-w: 0 and the main column takes the space back on its own -- which
-       is the entire point of the control: the News composer is three columns
-       inside that space and was rendering its newsletter at the narrowest tier
-       with 280px sitting unused beside it. */
+       is the entire point of the control: the post editor is two columns
+       inside that space and would render at its narrowest tier with 280px
+       sitting unused beside it. */
     --rail-w: 280px;
     grid-template-columns: var(--rail-w) minmax(0, 1fr);
     background: var(--ink-cream);
@@ -621,7 +621,6 @@ body {
 }
 
 /* LISTS */
-.category-list,
 .recent-list,
 .article-grid,
 .location-grid,
@@ -630,7 +629,6 @@ body {
     gap: 0.85rem;
 }
 
-.category-row,
 .recent-item,
 .article-card,
 .location-card,
@@ -642,21 +640,13 @@ body {
     box-shadow: none;
 }
 
-.category-row,
 .recent-item,
 .article-card,
 .location-card {
     padding: 1rem 1.1rem;
 }
 
-.category-row--empty {
-    display: grid;
-    place-items: center;
-    min-height: 120px;
-    color: var(--ink-muted);
-}
 
-.category-row__header,
 .recent-item__topline,
 .article-card__header,
 .location-card__header {
@@ -666,7 +656,6 @@ body {
     gap: 0.75rem;
 }
 
-.category-row__name,
 .recent-item__title,
 .article-card__title,
 .location-card__name,
@@ -680,7 +669,6 @@ body {
     line-height: 1.2;
 }
 
-.category-row__meta,
 .recent-item__meta,
 .article-card__meta,
 .location-card__type,
@@ -691,7 +679,6 @@ body {
     font-size: 0.86rem;
 }
 
-.category-row__badge,
 .status-pill {
     display: inline-flex;
     align-items: center;
@@ -705,10 +692,6 @@ body {
     text-transform: uppercase;
 }
 
-.category-row__badge {
-    background: var(--ink-marigold);
-    color: var(--accent-ink);
-}
 
 .status-pill--published {
     background: var(--ink-marigold);
@@ -727,54 +710,12 @@ body {
     border: 1px solid var(--rule-strong);
 }
 
-.progress-track {
-    width: 100%;
-    height: 0.45rem;
-    margin: 0.9rem 0 0.85rem;
-    overflow: hidden;
-    border-radius: 2px;
-    background: var(--ink-cream);
-    border: 1px solid var(--ink-rule);
-}
 
-.progress-fill {
-    display: block;
-    width: calc(var(--progress, 0) * 1%);
-    height: 100%;
-    background: var(--ink-marigold);
-    transition: width 0.28s ease;
-}
 
-.mini-list {
-    display: grid;
-    gap: 0.4rem;
-}
 
-.mini-list__item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.6rem 0.85rem;
-    border-radius: var(--radius-sm);
-    background: var(--ink-cream);
-    color: var(--ink-soot);
-    font-size: 0.88rem;
-}
 
-.mini-list__item--muted {
-    color: var(--ink-muted);
-}
 
-.mini-list__title {
-    font-weight: 600;
-}
 
-.mini-list__detail {
-    color: var(--ink-muted);
-    text-transform: capitalize;
-    font-size: 0.82rem;
-}
 
 .recent-item__meta,
 .article-card__meta {

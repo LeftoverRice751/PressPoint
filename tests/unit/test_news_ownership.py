@@ -1,7 +1,6 @@
 """An editor changes their own stories; an admin approves only what they read.
 
-The per-editor issue work scoped what the composer SHOWS and left the write paths
-as they were, so every route still took any story id from any editor.
+Every write route used to take any story id from any editor.
 
 Separately, approval re-read the rows and published them, with nothing tying the
 decision to the preview. Text changed after the admin read it went out unread.
@@ -19,7 +18,6 @@ NEWS = "app.controllers.gears.NewsController"
 REVIEW = "app.controllers.gears.ReviewController"
 
 AUTHOR = 5
-OWNER = 6
 STRANGER = 7
 ADMIN = 8
 
@@ -44,25 +42,14 @@ def _response():
     return response
 
 
-def _story(status="draft", author_id=AUTHOR, issue_id=30, **fields):
+def _story(status="draft", author_id=AUTHOR, **fields):
     record = Mock(
         id=11,
         status=status,
         author_id=author_id,
-        issue_id=issue_id,
         title="Campus story",
         description="<p>Body</p>",
         image="news/a.jpg",
-        layout_type="brief",
-        priority=1,
-        category_id=2,
-        source=None,
-        location=None,
-        dek=None,
-        excerpt=None,
-        headline_font=None,
-        image_caption=None,
-        image_credit=None,
         logo_path=None,
         kicker=None,
         image_crop=None,
@@ -80,17 +67,13 @@ def _where(record):
     return Mock(return_value=query)
 
 
-def _owned_issue(user_id, issue_id):
-    return Mock(id=issue_id) if user_id == OWNER and issue_id == 30 else None
-
-
 class _WritePathCase(TestCase):
     def run_route(self, method, record, request):
         response = _response()
         where = _where(record)
         with patch(f"{NEWS}.News.where", where), patch(f"{NEWS}.Cache"), patch(
             f"{NEWS}.KioskBroadcast"
-        ), patch(f"{NEWS}.Issues.owned_issue", side_effect=_owned_issue), patch(
+        ), patch(
             f"{NEWS}.delete_image_and_variants"
         ):
             getattr(NewsController(), method)(request, response)
@@ -121,18 +104,13 @@ class StoryOwnershipTestCase(_WritePathCase):
             record = self._attempt(method, inputs, AUTHOR)
             self.assertTrue(self.wrote(record), method)
 
-    def test_the_issue_owner_can_use_every_write_route(self):
-        for method, inputs in self.ROUTES:
-            record = self._attempt(method, inputs, OWNER)
-            self.assertTrue(self.wrote(record), method)
-
     def test_an_admin_can_use_every_write_route(self):
         for method, inputs in self.ROUTES:
             record = self._attempt(method, inputs, ADMIN, role="admin")
             self.assertTrue(self.wrote(record), method)
 
-    def test_a_story_with_no_author_or_issue_is_admin_only(self):
-        record = _story(author_id=None, issue_id=None)
+    def test_a_post_with_no_author_is_admin_only(self):
+        record = _story(author_id=None)
         self.run_route("destroy", record, _request(AUTHOR, params={"id": 11}))
         self.assertFalse(self.wrote(record))
 
@@ -152,7 +130,7 @@ class StoryOwnershipTestCase(_WritePathCase):
         storage = Mock()
         with patch(f"{NEWS}.News.where", _where(record)), patch(f"{NEWS}.Cache"), patch(
             f"{NEWS}.KioskBroadcast"
-        ), patch(f"{NEWS}.Issues.owned_issue", side_effect=_owned_issue):
+        ):
             NewsController().store(request, storage, response)
         return response
 
@@ -169,12 +147,6 @@ class StoryOwnershipTestCase(_WritePathCase):
 
         record.save.assert_called_once()
         self.assertEqual(record.title, "Replaced")
-
-    def test_the_issue_owner_can_overwrite_a_story_through_store(self):
-        record = _story()
-        self._store(OWNER, record)
-
-        record.save.assert_called_once()
 
 
 class ContentStampTestCase(TestCase):

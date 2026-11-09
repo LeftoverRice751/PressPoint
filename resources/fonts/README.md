@@ -32,8 +32,8 @@ forbids what the kiosk does with a font:
 Serving any of them from `/assets/fonts/` is public web redistribution. That is
 why the composer's palette was built from open-licensed faces instead. If the
 publication later buys proper **webfont** licences, drop those files in here and
-add the slug to the four places listed at the top of
-`resources/css/newsletter-type.css`.
+declare it with an @font-face in the stylesheet that uses it. (The newsletter
+composer that listed these in `newsletter-type.css` has been removed.)
 
 ## Current state
 

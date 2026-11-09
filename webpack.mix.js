@@ -125,9 +125,6 @@ mix.js('resources/js/app.js', 'storage/compiled/js')
   .postCss('resources/css/post-card.css', 'storage/compiled/css', [
     //
   ])
-  .postCss('resources/css/newsletter-type.css', 'storage/compiled/css', [
-    //
-  ])
   .postCss('resources/css/welcome-lock.css', 'storage/compiled/css', [
     //
   ])

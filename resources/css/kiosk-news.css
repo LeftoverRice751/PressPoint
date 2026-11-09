@@ -740,8 +740,7 @@ body.newspaper-bg .feature-story__copy {
        WITHOUT re-declaring the layout. */
     --issue-width: min(100%, clamp(720px, 90vw, 1100px));
     width: var(--issue-width);
-    /* --nl-playfair lives in newsletter-type.css; the Georgia fallback covers
-       any surface that loads this sheet without it. */
+    /* Georgia: the sheet that used to define --nl-playfair is gone. */
     --issue-display: var(--nl-playfair, Georgia, serif);
     --issue-bar: var(--brand-maroon-deep);
     /* Named once because the masthead has to negate exactly this to bleed to

@@ -16,17 +16,15 @@ from masonite.views import View
 from app.models.News import News
 from app.services import (
     ImageUploads,
-    Issues,
     KioskBroadcast,
     NewsCache,
-    NewsCategories,
     PostLibrary,
     Posts,
 )
 from app.services.KioskBroadcast import pusher_configured as _pusher_configured  # noqa: F401
 from app.services.FileVerificationService import FileVerificationService
 from app.services.AjaxResponses import wants_json, json_success, json_errors
-from app.services.ImageDerivatives import delete_image_and_variants, generate_variants, variant_path
+from app.services.ImageDerivatives import delete_image_and_variants, generate_variants
 
 
 def _html_to_text(html):
@@ -79,26 +77,18 @@ def _resolve_status_for_actor(status, request):
 
 
 def _may_change_story(request, record):
-    """An admin, the story's author, or the owner of the issue it sits in.
-
-    The composer has shown editors only their own issue since the per-editor
-    work, but that only scoped what they see: every write route still took any
-    id. A story with neither an author nor an issue is admin-only rather than
-    open to everyone.
-    """
+    """An admin or the post's author. A post with no author is admin-only rather
+    than open to everyone (legacy newsletter rows predate `author_id`)."""
     if _actor_is_admin(request):
         return True
     user_id = _current_user_id(request)
     if not user_id:
         return False
-    if _int_or_none(getattr(record, "author_id", None)) == user_id:
-        return True
-    issue_id = _int_or_none(getattr(record, "issue_id", None))
-    return bool(issue_id and Issues.owned_issue(user_id, issue_id))
+    return _int_or_none(getattr(record, "author_id", None)) == user_id
 
 
 def _int_or_none(value):
-    """A real integer id, or None (test Mocks are truthy, so `if issue_id` is not enough)."""
+    """A real integer id, or None (test Mocks are truthy, so `if author_id` is not enough)."""
     if isinstance(value, bool):
         return None
     try:
@@ -141,45 +131,10 @@ def _news_is_public(news_item):
 
 
 # Kiosk index is read every 30s per device and written rarely, so it is cached and
-# invalidated on write. Key lives in NewsCache so category writes can invalidate too;
-# these aliases stay because tests patch them.
+# invalidated on write. Key lives in NewsCache; these aliases stay because tests
+# patch them.
 _NEWS_CACHE_KEY = NewsCache.KEY
 _NEWS_CACHE_TTL = NewsCache.TTL
-
-
-def _news_item_to_dict(item, disk=None, category_names=None):
-    """JSON-safe projection of a News row (the file cache driver json.dumps values)."""
-    published_at = getattr(item, "published_at", None)
-    fallback_at = published_at or getattr(item, "created_at", None)
-    image = getattr(item, "image", None)
-    # Resolve WebP variants once here, behind the cache; falls back to the original.
-    image_large = variant_path(image, "large", disk) if (image and disk) else image
-    image_thumb = variant_path(image, "thumb", disk) if (image and disk) else image
-    category_id = getattr(item, "category_id", None)
-    return {
-        "id": getattr(item, "id", None),
-        "category_id": category_id,
-        "category": (category_names or {}).get(category_id),
-        "title": getattr(item, "title", None),
-        "description": getattr(item, "description", None),
-        "image": image,
-        "image_large": image_large,
-        "image_thumb": image_thumb,
-        "source": getattr(item, "source", None),
-        "location": getattr(item, "location", None),
-        "dek": getattr(item, "dek", None),
-        "excerpt": getattr(item, "excerpt", None),
-        "image_caption": getattr(item, "image_caption", None),
-        "image_credit": getattr(item, "image_credit", None),
-        "layout_type": getattr(item, "layout_type", None),
-        "headline_font": getattr(item, "headline_font", None),
-        "priority": getattr(item, "priority", None),
-        "status": getattr(item, "status", None),
-        "published_at": published_at.isoformat() if hasattr(published_at, "isoformat") else None,
-        # Pre-formatted: Jinja can't strftime an ISO string and the cache can't hold a datetime.
-        "published_label": fallback_at.strftime("%b %d, %Y") if hasattr(fallback_at, "strftime") else None,
-        "published_iso": fallback_at.strftime("%Y-%m-%d") if hasattr(fallback_at, "strftime") else None,
-    }
 
 
 def _build_flash_payload(news_item):
