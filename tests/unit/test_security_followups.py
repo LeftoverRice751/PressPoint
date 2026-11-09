@@ -330,8 +330,6 @@ class NewsAndHymnUploadsTestCase(TestCase):
             {"headline": "Story", "body": "Body", "image": upload}
         )
         with patch(f"{module}.News"), patch(f"{module}.Cache"), patch(f"{module}.KioskBroadcast"), patch(
-            f"{module}.NewNews"
-        ), patch(
             f"{module}.generate_variants"
         ):
             NewsController().store(request, storage, Mock())

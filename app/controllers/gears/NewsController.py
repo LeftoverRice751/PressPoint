@@ -13,7 +13,6 @@ from masonite.request import Request
 from masonite.response import Response
 from masonite.views import View
 
-from app.events.NewNews import NewNews
 from app.models.News import News
 from app.services import (
     ImageUploads,
@@ -200,6 +199,7 @@ def _build_flash_payload(news_item):
 # Logos land beside the other site branding on the NAS. Deletion is confined to this
 # folder so a tampered logo_path can never point the cleanup at another branding file.
 LOGO_FOLDER = "Branding/posts"
+MAX_PHOTO_BYTES = 8 * 1024 * 1024
 
 
 def _delete_logo_file(logo_path):
@@ -329,7 +329,7 @@ class NewsController(Controller):
                 return json_errors(response, messages, status=status)
             return response.back().with_errors(messages)
 
-        post_id = (request.input("id") or "").strip() if request.input("id") else ""
+        post_id = str(request.input("id") or "").strip()
         existing = None
         # Before any upload below, so a refused request leaves no orphaned file.
         if post_id:
@@ -341,10 +341,6 @@ class NewsController(Controller):
         kicker = Posts.clean_text(request.input("kicker"), Posts.KICKER_MAX)
         headline = Posts.clean_text(request.input("headline"), Posts.HEADLINE_MAX)
         body = Posts.clean_text(request.input("body"), Posts.BODY_MAX, keep_newlines=True)
-        # `title` is NOT NULL and the Story Library lists by it.
-        if not headline:
-            return _err(["Add a headline."])
-
         # Fail closed (a missing status must not publish), then the server-side gate.
         status = _resolve_status_for_actor(
             _normalize_news_status(request.input("status"), default="draft"), request
@@ -366,12 +362,20 @@ class NewsController(Controller):
             }:
                 return _err(["Please upload a valid image file."])
             # The extension is only what the browser claimed.
-            if not FileVerificationService.verify_buffer(image_file.get_content(), "photo"):
+            photo_bytes = image_file.get_content()
+            if not FileVerificationService.verify_buffer(photo_bytes, "photo"):
                 return _err(["Please upload a valid image file."])
+            # Under nginx's 10M body cap, so this JSON 422 wins over its HTML 413.
+            if len(photo_bytes) > MAX_PHOTO_BYTES:
+                return _err(["Photo is too large (max 8 MB)"])
 
-        has_photo = bool(image_file) or bool(existing and getattr(existing, "image", None))
-        if status == "review" and not has_photo:
-            return _err(["Add a photo before submitting"])
+        # Drafts may be half-written (an empty title satisfies NOT NULL); anything
+        # headed for review or the kiosk, by an admin too, needs its headline and photo.
+        if status == "review" or status in _PUBLISH_INTENT_STATUSES:
+            if not headline:
+                return _err(["Add a headline."])
+            if not (image_file or (existing and getattr(existing, "image", None))):
+                return _err(["Add a photo before submitting"])
 
         logo_file = _first_upload(request.input("logo"))
         remove_logo = _truthy(request.input("remove_logo"))
@@ -405,9 +409,22 @@ class NewsController(Controller):
             logo_path = new_logo or (None if remove_logo else old_logo)
             now = datetime.now(timezone.utc)
             publishing = status in _PUBLISH_INTENT_STATUSES
-            if publishing and expires_at is None:
-                # Unset at approval means a week from now, stored so it is visible.
-                expires_at = Posts.default_expiry(now)
+            clear_expiry = False
+            current_expiry = getattr(existing, "expires_at", None) if existing else None
+            if not isinstance(current_expiry, datetime):
+                current_expiry = None
+            if expires_at is None:
+                if current_expiry is not None and (
+                    publishing or (existing is not None and _news_is_public(existing))
+                ):
+                    # A blank field is "no change" for a live post; resetting it would
+                    # silently move the end date.
+                    pass
+                elif publishing:
+                    # Unset at approval means a week from now, stored so it is visible.
+                    expires_at = Posts.default_expiry(now)
+                else:
+                    clear_expiry = current_expiry is not None
 
             if existing:
                 existing.title = headline
@@ -415,7 +432,12 @@ class NewsController(Controller):
                 existing.kicker = kicker or None
                 existing.image_crop = crop
                 existing.source_lines = source_lines
-                existing.expires_at = expires_at
+                # masonite-orm turns None into *now* for a __dates__ column (the
+                # setter and cast_values both call get_new_datetime_string), which
+                # would store the save time and expire the post at birth. So None is
+                # never assigned; a real clear is a separate NULL write below.
+                if expires_at is not None:
+                    existing.expires_at = expires_at
                 existing.logo_path = logo_path
                 # Whatever the editor asked for applies, so saving a live post as a
                 # draft or resubmission takes it off the kiosk until re-approved.
@@ -430,6 +452,9 @@ class NewsController(Controller):
                 if new_image is not None:
                     existing.image = new_image
                 existing.save()
+                if clear_expiry:
+                    # cast=False binds a real None (checked via to_qmark), unlike save().
+                    News.where("id", existing.id).update({"expires_at": None}, cast=False)
                 saved = existing
             else:
                 fields = dict(
@@ -440,13 +465,15 @@ class NewsController(Controller):
                     logo_path=logo_path,
                     image_crop=crop,
                     source_lines=source_lines,
-                    expires_at=expires_at,
                     status=status,
                     author_id=actor_id,  # set once; updated_by_id moves on later edits
                     updated_by_id=actor_id,
                 )
                 if publishing:
                     fields["published_at"] = now
+                if expires_at is not None:
+                    # Omitted when unset: create() would turn None into now (see above).
+                    fields["expires_at"] = expires_at
                 saved = News.create(**fields)
         except Exception as exception:
             traceback.print_exception(type(exception), exception, exception.__traceback__)
@@ -461,11 +488,6 @@ class NewsController(Controller):
             _delete_image_files(old_image)
         if old_logo and old_logo != logo_path:
             _delete_logo_file(old_logo)
-
-        try:
-            NewNews(saved).fire()
-        except Exception:
-            pass
 
         Cache.forget(_NEWS_CACHE_KEY)
         # Forgetting the cache and telling the kiosk are the same fact; always do both.

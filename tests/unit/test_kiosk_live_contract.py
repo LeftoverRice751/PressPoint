@@ -76,10 +76,17 @@ class NewsWriteOrderTestCase(TestCase):
 
     def test_store(self):
         inputs = {"headline": "Live story", "body": "Body", "status": "published"}
+        inputs["image"] = Mock(extension=lambda: ".jpg", get_content=lambda: b"x")
+        storage = Mock()
+        storage.disk.return_value.put_file.return_value = "news/x.jpg"
         with _ordered(self.MODULE) as parent, patch(
             f"{self.MODULE}.News.create", return_value=Mock(id=200, image=None)
-        ), patch(f"{self.MODULE}.NewNews"):
-            NewsController().store(_mock_actor_request(inputs, role="admin"), Mock(), _mock_response())
+        ), patch(f"{self.MODULE}.FileVerificationService.verify_buffer", return_value=True), patch(
+            f"{self.MODULE}.generate_variants"
+        ):
+            NewsController().store(
+                _mock_actor_request(inputs, role="admin"), storage, _mock_response()
+            )
         self.assertEqual(_timeline(parent), FORGET_THEN_BROADCAST)
 
     def test_destroy(self):

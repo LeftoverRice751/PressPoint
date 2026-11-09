@@ -140,9 +140,7 @@ class PrivilegeTestCase(TestCase):
         with patch(
             "app.controllers.gears.NewsController.News.create",
             return_value=Mock(id=1, image=None),
-        ) as create_mock, patch(
-            "app.controllers.gears.NewsController.NewNews"
-        ), patch("app.controllers.gears.NewsController.Cache"), patch(
+        ) as create_mock, patch("app.controllers.gears.NewsController.Cache"), patch(
             "app.controllers.gears.NewsController.FileVerificationService.verify_buffer",
             return_value=True,
         ), patch("app.controllers.gears.NewsController.generate_variants"):
@@ -161,9 +159,7 @@ class PrivilegeTestCase(TestCase):
         with patch(
             "app.controllers.gears.NewsController.News.create",
             return_value=Mock(id=1, image=None),
-        ) as create_mock, patch(
-            "app.controllers.gears.NewsController.NewNews"
-        ), patch("app.controllers.gears.NewsController.Cache"):
+        ) as create_mock, patch("app.controllers.gears.NewsController.Cache"):
             controller.store(request, Mock(), _response())
 
         self.assertEqual(create_mock.call_args.kwargs["author_id"], 33)

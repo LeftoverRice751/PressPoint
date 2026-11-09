@@ -67,8 +67,6 @@ class _StoreCase(TestCase):
         with patch(f"{NEWS}.News.where") as where, patch(f"{NEWS}.News.create") as create, patch(
             f"{NEWS}.Cache"
         ) as cache, patch(f"{NEWS}.KioskBroadcast.section_changed") as changed, patch(
-            f"{NEWS}.NewNews"
-        ), patch(
             f"{NEWS}.FileVerificationService.verify_buffer", return_value=True
         ), patch(
             f"{NEWS}.generate_variants"
@@ -83,7 +81,7 @@ class _StoreCase(TestCase):
             where.return_value.first.return_value = existing
             create.return_value = Mock(id=99, image=None, logo_path=None)
             NewsController().store(request, storage, response)
-        self.create, self.cache, self.changed = create, cache, changed
+        self.create, self.cache, self.changed, self.where = create, cache, changed, where
         self.save_logo, self.delete_image, self.delete_variants = (
             save_logo,
             delete_image,
@@ -135,9 +133,36 @@ class StoreStatusTestCase(_StoreCase):
         self.store(_request(headline="H"))
         self.assertEqual(self.create.call_args.kwargs["status"], "draft")
 
-    def test_headline_is_required(self):
-        response = self.store(_request(headline="   "))
+    def test_headline_is_required_to_submit(self):
+        response = self.store(_request(headline="   ", status="review", image=_upload()))
         self.assertEqual(self.code(response), 422)
+        self.assertEqual(self.body(response)["errors"], ["Add a headline."])
+
+    def test_a_draft_may_have_no_headline(self):
+        response = self.store(_request(headline="", status="draft"))
+        self.assertTrue(self.body(response)["ok"])
+        self.assertEqual(self.create.call_args.kwargs["title"], "")
+
+    def test_admin_publish_needs_photo_and_headline_too(self):
+        response = self.store(_request(role="admin", headline="H", status="published"))
+        self.assertEqual(self.body(response)["errors"], ["Add a photo before submitting"])
+        response = self.store(
+            _request(role="admin", headline="", status="published", image=_upload())
+        )
+        self.assertEqual(self.body(response)["errors"], ["Add a headline."])
+        self.create.assert_not_called()
+
+    def test_oversize_photo_refused_before_any_write(self):
+        big = _upload()
+        big.get_content = lambda: b"x" * (8 * 1024 * 1024 + 1)
+        response = self.store(_request(headline="H", image=big))
+        self.assertEqual(self.code(response), 422)
+        self.assertEqual(self.body(response)["errors"], ["Photo is too large (max 8 MB)"])
+        self.storage.disk.return_value.put_file.assert_not_called()
+
+    def test_a_non_string_id_does_not_crash(self):
+        response = self.store(_request(id=11, headline="H"), existing=_existing())
+        self.assertTrue(self.body(response)["ok"])
 
     def test_response_carries_the_card(self):
         response = self.store(_request(headline="H"))
@@ -169,6 +194,51 @@ class StoreExpiryTestCase(_StoreCase):
         stored = self.create.call_args.kwargs["expires_at"]
         delta = stored - datetime.now(timezone.utc)
         self.assertAlmostEqual(delta.total_seconds(), 7 * 86400, delta=60)
+
+
+class ExpiryNullTrapTestCase(_StoreCase):
+    def test_masonite_turns_none_into_now_for_a_dates_column(self):
+        # The trap itself: a None handed to a __dates__ column becomes the current
+        # time, so assigning/creating with expires_at=None expires the post at birth.
+        from app.models.News import News
+
+        self.assertIsNotNone(News().cast_values({"expires_at": None})["expires_at"])
+
+    def test_create_omits_expires_at_when_unset(self):
+        self.store(_request(headline="H", status="draft"))
+        self.assertNotIn("expires_at", self.create.call_args.kwargs)
+
+    def test_update_never_assigns_none(self):
+        record = _existing(expires_at=None)
+        self.store(_request(id="11", headline="H", status="draft"), existing=record)
+        self.assertIsNone(record.expires_at)  # untouched, not "now"
+
+    def test_blank_field_clears_a_stale_expiry_with_a_real_null(self):
+        old = datetime.now(timezone.utc) + timedelta(days=2)
+        record = _existing(status="draft", expires_at=old)
+        self.store(_request(id="11", headline="H", status="draft"), existing=record)
+        self.where.return_value.update.assert_called_once_with({"expires_at": None}, cast=False)
+        self.assertEqual(record.expires_at, old)  # the model setter was not used
+
+    def test_the_clear_call_binds_a_real_none(self):
+        from app.models.News import News
+
+        builder = News.where("id", 5).update({"expires_at": None}, cast=False, dry=True)
+        builder.to_qmark()
+        self.assertIsNone(builder._bindings[0])
+
+    def test_blank_field_keeps_the_end_date_of_a_live_post(self):
+        old = datetime.now(timezone.utc) + timedelta(days=2)
+        record = _existing(status="published", expires_at=old)
+        self.store(_request(id="11", headline="H", status="draft"), existing=record)
+        self.where.return_value.update.assert_not_called()
+        self.assertEqual(record.expires_at, old)
+
+    def test_a_new_date_replaces_the_old_one(self):
+        old = datetime.now(timezone.utc) + timedelta(days=2)
+        record = _existing(status="published", expires_at=old)
+        self.store(_request(id="11", headline="H", expires_at=_future(9)), existing=record)
+        self.assertGreater(record.expires_at, old)
 
 
 class StoreEditTestCase(_StoreCase):
@@ -230,9 +300,7 @@ class StoreCropAndSourcesTestCase(_StoreCase):
         self.store(_request(headline="H", image_crop=crop, source_lines=lines))
         fields = self.create.call_args.kwargs
         self.assertEqual(json.loads(fields["image_crop"]), {"x": 1.0, "y": 0.0, "zoom": 4.0})
-        self.assertEqual(
-            json.loads(fields["source_lines"]), [{"icon": "link", "text": "/gears"}]
-        )
+        self.assertEqual(json.loads(fields["source_lines"]), [{"icon": "link", "text": "/gears"}])
 
     def test_text_is_capped_and_markup_free_of_control_chars(self):
         self.store(_request(headline="x" * 500, kicker="k" * 500, body="y" * 900))
@@ -327,12 +395,22 @@ class ExpiryVisibilityTestCase(TestCase):
 
         gone = datetime.now(timezone.utc) - timedelta(minutes=1)
         expired = Mock(
-            id=1, status="published", title="Old", description="x", expires_at=gone,
-            published_at=None, created_at=datetime.now() - timedelta(hours=1),
+            id=1,
+            status="published",
+            title="Old",
+            description="x",
+            expires_at=gone,
+            published_at=None,
+            created_at=datetime.now() - timedelta(hours=1),
         )
         live = Mock(
-            id=2, status="published", title="New", description="y", expires_at=None,
-            published_at=None, created_at=datetime.now() - timedelta(hours=1),
+            id=2,
+            status="published",
+            title="New",
+            description="y",
+            expires_at=None,
+            published_at=None,
+            created_at=datetime.now() - timedelta(hours=1),
         )
         with patch("app.controllers.kiosk.WelcomeController.News") as news, patch(
             "app.controllers.kiosk.WelcomeController.Events"

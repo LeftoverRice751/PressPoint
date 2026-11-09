@@ -152,7 +152,7 @@ class StoryOwnershipTestCase(_WritePathCase):
         storage = Mock()
         with patch(f"{NEWS}.News.where", _where(record)), patch(f"{NEWS}.Cache"), patch(
             f"{NEWS}.KioskBroadcast"
-        ), patch(f"{NEWS}.Issues.owned_issue", side_effect=_owned_issue), patch(f"{NEWS}.NewNews"):
+        ), patch(f"{NEWS}.Issues.owned_issue", side_effect=_owned_issue):
             NewsController().store(request, storage, response)
         return response
 
