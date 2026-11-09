@@ -16,7 +16,6 @@ from masonite.views import View
 from app.models.News import News
 from app.services import (
     ImageUploads,
-    IssueCalendar,
     Issues,
     KioskBroadcast,
     NewsCache,
@@ -26,7 +25,6 @@ from app.services import (
 from app.services.KioskBroadcast import pusher_configured as _pusher_configured  # noqa: F401
 from app.services.FileVerificationService import FileVerificationService
 from app.services.AjaxResponses import wants_json, json_success, json_errors
-from app.services.DashboardContext import BLOCK_TYPES, group_news_slots, issue_identity_of
 from app.services.ImageDerivatives import delete_image_and_variants, generate_variants, variant_path
 
 
@@ -244,73 +242,40 @@ def _truthy(value):
 
 class NewsController(Controller):
     def _build_news_payload(self):
-        """Every current issue, newest first, each with its own blocks (one kiosk slide per issue).
+        """Every live photo post, newest published first, as card_context dicts.
 
-        Filtering runs on Model instances; dict conversion happens last, because
-        getattr() on a dict always returns the default.
+        Filtering runs on Model instances (so _news_is_public sees real attributes and
+        expiry); projection to dicts happens last, because the file cache driver
+        json.dumps its values.
         """
         try:
             disk = StorageFacade.disk("public")
         except Exception:
             disk = None
-        category_names = NewsCategories.names_by_id()
 
-        def project(item):
-            return _news_item_to_dict(item, disk, category_names)
+        floor = datetime.min.replace(tzinfo=timezone.utc)
 
-        issues = []
-        # current_issues(), not published_issues(): an issue leaves the kiosk at 08:00 next day.
-        for issue in Issues.current_issues():
-            stories = [item for item in getattr(issue, "stories", []) if _news_is_public(item)]
-            if not stories:
-                continue
-            slots = group_news_slots(stories)
-            identity = issue_identity_of(issue)
-            issues.append({
-                "id": getattr(issue, "id", None),
-                "number": int(getattr(issue, "number", 0) or 0),
-                "title": getattr(issue, "title", None) or "",
-                "published_label": (
-                    issue.published_at.strftime("%b %d, %Y")
-                    if hasattr(getattr(issue, "published_at", None), "strftime") else None
-                ),
-                "blocks": {
-                    block: [project(item) for item in slots[block]] for block in BLOCK_TYPES
-                },
-                "issue_vol": identity["issue_vol"],
-                "issue_no": identity["issue_no"],
-                "news_items": [project(item) for item in stories],
-            })
+        def newest_key(item):
+            stamp = getattr(item, "published_at", None) or getattr(item, "created_at", None)
+            # Naive values are UTC (masonite-orm tags them without shifting); mixing naive
+            # and aware in one sort raises, so normalise first.
+            return Posts._aware_utc(stamp) if isinstance(stamp, datetime) else floor
 
-        # Newest issue also exposed flat for readers of the old top-level keys.
-        first = issues[0] if issues else None
-        return {
-            "issues": issues,
-            "news_items": first["news_items"] if first else [],
-            "blocks": first["blocks"] if first else {block: [] for block in BLOCK_TYPES},
-            "issue_vol": first["issue_vol"] if first else None,
-            "issue_no": first["issue_no"] if first else None,
-        }
+        live = [item for item in News.all() if _news_is_public(item)]
+        live.sort(key=newest_key, reverse=True)
+        return {"posts": [Posts.card_context(item, disk) for item in live]}
 
     def show(self, view: View):
         payload = Cache.remember(_NEWS_CACHE_KEY, lambda cache: cache.put(
             _NEWS_CACHE_KEY, self._build_news_payload(), seconds=_NEWS_CACHE_TTL
         ))
 
-        # `.get()` with fallback: a cache entry from before this key would KeyError.
-        issues = payload.get("issues") or []
-
         return view.render(
             "kiosk/news",
             {
-                "issues": issues,
-                "news_items": payload["news_items"],
-                "blocks": payload["blocks"],
-                "issue_vol": payload.get("issue_vol"),
-                "issue_no": payload.get("issue_no"),
-                # Read per request, not cached: past dates have to drop off on time.
-                "calendars": IssueCalendar.upcoming_by_issue([issue["id"] for issue in issues]),
-                "calendar_events": [],  # the empty-state slide has no issue to read from
+                "posts": payload.get("posts") or [],
+                "empty_heading": Posts.EMPTY_HEADING,
+                "empty_line": Posts.EMPTY_LINE,
                 "active_nav": "news",
             },
         )

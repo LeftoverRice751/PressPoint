@@ -12,49 +12,25 @@
      unlinked path that silently shadows the real stylesheet. #}
   <link rel="stylesheet" href="{{ asset_url('css/swiper-bundle.min.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-news.css') }}" />
-  {# Required, not optional, for the issue: the headline face (--nl-playfair)
-     is declared here, not in kiosk-tokens.css. #}
-  <link rel="stylesheet" href="{{ asset_url('css/newsletter-type.css') }}" />
+  <link rel="stylesheet" href="{{ asset_url('css/post-card.css') }}" />
   <link rel="stylesheet" href="{{ asset_url('css/kiosk-nav.css') }}" />
 </head>
 <body class="newspaper-bg">
-  {% set main_story = main_news if main_news else featured_news %}
-  {% set secondary_stories = secondary_news if secondary_news else (news_items[1:5] if news_items|length > 1 else []) %}
-
-  {# ── Carousel ─────────────────────────────────────────────────────────────
-     Slide 1 is the issue: masthead, numbered sections, colophon. Slides 2..N
-     are every other approved story, one per slide, each labelled with its
-     category — so nothing approved is unreachable just because it did not fit
-     in the seven slots.
-
-     The Swiper wrapper lives HERE rather than inside the issue markup because
-     kiosk-news.js binds to it by data attribute and owns horizontal drags for
-     the whole page. #}
+  {# One square card per live post, newest first. The Swiper wrapper lives here
+     because kiosk-news.js binds to it by data attribute and owns horizontal
+     drags for the page. With a single post (or the empty card) the navigation
+     hides itself. #}
   <div class="swiper news-swiper" data-news-swiper>
     <div class="swiper-wrapper">
-      {# One slide per PUBLISHED ISSUE, newest first. This is the multi-issue
-         carousel: editors each compose their own newsletter, and every one an
-         admin has approved becomes a page the reader can swipe to. With one
-         published issue there is one slide and the navigation hides itself.
-
-         Each slide renders kiosk/_issue.html -- the same partial the composer
-         canvas renders -- with THAT issue's blocks, so what the editor laid
-         out and what the terminal prints cannot drift apart. #}
-      {% for issue in issues %}
-      {% set blocks = issue.blocks %}
-      {% set issue_no = issue.issue_no %}
-      {% set issue_vol = issue.issue_vol %}
-      {% set issue_title = issue.title %}
-      {% set issue_published_label = issue.published_label %}
-      {% set calendar_events = calendars.get(issue.id, []) if calendars else [] %}
-      <article class="swiper-slide news-slide news-slide--broadsheet" data-issue-id="{{ issue.id }}">
-        {% include 'kiosk/_issue.html' %}
-      </article>
+      {% for card in posts %}
+      <div class="swiper-slide news-slide news-slide--post">
+        {% set post_editor = false %}
+        {% include 'kiosk/_post_card.html' %}
+      </div>
       {% else %}
-      {# Nothing published yet. One slide, the partial's own empty state. #}
-      <article class="swiper-slide news-slide news-slide--broadsheet">
-        {% include 'kiosk/_issue.html' %}
-      </article>
+      <div class="swiper-slide news-slide news-slide--post">
+        {% include 'kiosk/_post_empty.html' %}
+      </div>
       {% endfor %}
     </div>
 
@@ -67,22 +43,6 @@
     <button type="button" class="news-swiper__arrow" data-news-prev aria-label="Previous story">&lsaquo;</button>
     <button type="button" class="news-swiper__arrow" data-news-next aria-label="Next story">&rsaquo;</button>
   </div>
-
-  {# Reader overlay — populated from the lead story by kiosk-news.js when the
-     front-page copy is clamped. Inert markup until then. #}
-  <div class="news-reader" id="news-reader" role="dialog" aria-modal="true" aria-labelledby="news-reader-title" hidden>
-    <div class="news-reader__head">
-      <span class="news-reader__kicker" data-reader-kicker></span>
-      <h2 class="news-reader__title" id="news-reader-title" data-reader-title></h2>
-      <div class="news-reader__meta" data-reader-meta></div>
-    </div>
-    <div class="news-reader__body" data-reader-body></div>
-    <button type="button" class="news-reader__close" data-reader-close>
-      <span class="news-reader__close-icon" aria-hidden="true">&times;</span>
-      <span class="news-reader__close-label">Close</span>
-    </button>
-  </div>
-
 
   <script src="{{ asset_url('js/kiosk-news.js') }}"></script>
   {% include 'partials/kiosk-frame.html' %}

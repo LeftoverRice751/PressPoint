@@ -1610,3 +1610,12 @@ body.newspaper-bg .news-swiper__pagination .swiper-pagination-bullet-active {
 .issue-notice-wrap {
     min-width: 0;
 }
+
+/* ── Post slides ───────────────────────────────────────────────────────────
+   One square card per slide, centred in the 768px viewport. The card itself is
+   sized by post-card.css; the slide only gives it room and centres it. */
+body.newspaper-bg .news-slide--post {
+    display: flex;
+    justify-content: center;
+    padding: var(--kiosk-s-3) 0;
+}

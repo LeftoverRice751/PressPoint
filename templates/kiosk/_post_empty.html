@@ -1,0 +1,10 @@
+{#- Shown when no post is live. Same square footprint as a card so the page
+    does not jump when the first post lands. Vars: empty_heading, empty_line. -#}
+<article class="post-card post-card--empty" data-post-empty>
+  <div class="post-card__panel">
+    <span class="post-card__shape post-card__shape--a" aria-hidden="true"></span>
+    <span class="post-card__shape post-card__shape--c" aria-hidden="true"></span>
+    <h2 class="post-card__headline">{{ empty_heading }}</h2>
+    <p class="post-card__body">{{ empty_line }}</p>
+  </div>
+</article>

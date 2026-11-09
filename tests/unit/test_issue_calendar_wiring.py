@@ -14,7 +14,6 @@ from unittest.mock import Mock, patch
 from tests import TestCase
 from tests.unit.test_issue_composer import _render, _Story
 from tests.unit.test_issue_library_http import _Pipeline
-from tests.unit.test_kiosk_single_issue import _render_page
 from tests.unit.news_doubles import _mock_request, _mock_response
 
 from app.controllers.gears import DashboardController as Dash
@@ -164,51 +163,6 @@ class ReadSurfacesTestCase(TestCase):
         html = _render(lead=_Story(1, layout_type="lead"), calendar_events=[ROW], editor=True)
         self.assertIn("data-issue-calendar-manage", html)
         self.assertNotIn('data-page-link="events"', html)
-
-    def test_each_kiosk_slide_shows_its_own_calendar(self):
-        def issue(issue_id):
-            blocks = {b: [] for b in ("brief", "photo_essay", "editorial", "quote", "notice")}
-            blocks["lead"] = [_Story(issue_id, layout_type="lead")]
-            return {
-                "id": issue_id,
-                "number": issue_id,
-                "title": "",
-                "published_label": None,
-                "blocks": blocks,
-                "issue_vol": 1,
-                "issue_no": issue_id,
-                "news_items": [],
-            }
-
-        html = _render_page(
-            issues=[issue(3), issue(4)],
-            calendars={
-                3: [dict(ROW, title="Only on three")],
-                4: [dict(ROW, title="Only on four")],
-            },
-        )
-        three, four = html.split('data-issue-id="3"')[1].split('data-issue-id="4"')
-        self.assertIn("Only on three", three)
-        self.assertNotIn("Only on four", three)
-        self.assertIn("Only on four", four)
-        self.assertNotIn("Only on three", four)
-
-
-class KioskShowTestCase(TestCase):
-    def test_show_builds_calendars_from_the_cached_issue_ids(self):
-        from app.controllers.gears import NewsController as N
-
-        view = Mock()
-        payload = {"issues": [{"id": 3}, {"id": 4}], "news_items": [], "blocks": {}}
-        with patch.object(N.Cache, "remember", return_value=payload), patch.object(
-            IC, "upcoming_by_issue", return_value={3: [ROW], 4: []}
-        ) as upcoming:
-            N.NewsController().show(view)
-        upcoming.assert_called_once_with([3, 4])
-        context = view.render.call_args.args[1]
-        self.assertEqual(context["calendars"], {3: [ROW], 4: []})
-        # The empty-state slide has no issue to read one from.
-        self.assertEqual(context["calendar_events"], [])
 
 
 class FragmentTestCase(TestCase):
