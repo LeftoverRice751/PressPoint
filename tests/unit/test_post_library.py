@@ -171,6 +171,10 @@ class DuplicateEndpointTestCase(TestCase):
         payload = ok.call_args.kwargs["payload"]
         self.assertEqual(payload["id"], 99)
         self.assertEqual(payload["card"]["headline"], "Post 99")
+        # Enough for the editor to open the copy without its library row.
+        for key in ("crop", "expires_input", "custom_logo", "rejection_reason"):
+            self.assertIn(key, payload["card"])
+        self.assertEqual(payload["card"]["state"], "draft")
 
     def test_not_yours_is_the_same_404_as_missing(self):
         with patch(f"{NEWS}.PostLibrary.duplicate", side_effect=LookupError), patch(

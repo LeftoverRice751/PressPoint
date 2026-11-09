@@ -78,6 +78,11 @@ class EditorRenderTestCase(TestCase):
             "data-post-logo-input",
             "data-post-sources",
             "data-post-zoom",
+            'data-post-counter="kicker"',
+            'data-post-counter="headline"',
+            'data-post-counter="body"',
+            "data-post-photo-pick",
+            "data-post-logo-pick",
             'data-live-section="post-library"',
         ):
             self.assertIn(hook, html, hook)
@@ -267,3 +272,11 @@ class LibraryRowsEditorFieldsTestCase(TestCase):
 
     def test_rows_are_json_safe(self):
         json.dumps(self._rows(self._post()))
+
+
+class PickerKeyboardTestCase(TestCase):
+    def test_the_pickers_are_buttons_not_labels(self):
+        html = _render_dashboard()
+        self.assertRegex(html, r'<button type="button"[^>]*data-post-photo-pick')
+        self.assertRegex(html, r'<button type="button"[^>]*data-post-logo-pick')
+        self.assertNotIn('<label class="post-editor__chip"', html)

@@ -509,7 +509,16 @@ class NewsController(Controller):
                 disk = None
             return json_success(
                 response,
-                payload={"id": getattr(copy, "id", None), "card": Posts.card_context(copy, disk)},
+                # The editor fields ride along so the editor can open the copy from this
+                # response alone when its library refresh is skipped (a poll in flight).
+                payload={
+                    "id": getattr(copy, "id", None),
+                    "card": {
+                        **Posts.card_context(copy, disk),
+                        **PostLibrary.editor_fields(copy),
+                        "state": "draft",
+                    },
+                },
                 messages=["Post duplicated as a draft."],
             )
         return response.redirect(name="gears.dashboard", query_params={"page": "news"}).with_success(

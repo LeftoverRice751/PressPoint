@@ -13,7 +13,7 @@
 
 import { serialize, defaults } from './post-sources.mjs';
 import { expiryLabel, campusInputNow, usableExpiry } from './post-editor-fields.mjs';
-import { createPhotoController, createLogoController } from './post-editor-photo.mjs';
+import { createPhotoController, createLogoController, storagePhotoUrl } from './post-editor-photo.mjs';
 import { wireTextFields } from './post-editor-text.mjs';
 import { createSourcesEditor } from './post-editor-sources.mjs';
 
@@ -90,6 +90,7 @@ import { createSourcesEditor } from './post-editor-sources.mjs';
   var photo = createPhotoController({
     stage: stage,
     input: root.querySelector('[data-post-photo-input]'),
+    pickButton: root.querySelector('[data-post-photo-pick]'),
     zoomInput: root.querySelector('[data-post-zoom]'),
     hint: root.querySelector('[data-post-photo-hint]'),
     onChange: markDirty,
@@ -99,6 +100,7 @@ import { createSourcesEditor } from './post-editor-sources.mjs';
   var logo = createLogoController({
     card: card,
     input: root.querySelector('[data-post-logo-input]'),
+    pickButton: root.querySelector('[data-post-logo-pick]'),
     resetButton: root.querySelector('[data-post-logo-reset]'),
     siteLogo: siteLogo,
     onChange: markDirty,
@@ -172,7 +174,7 @@ import { createSourcesEditor } from './post-editor-sources.mjs';
     ['kicker', 'headline', 'body'].forEach(function (name) {
       text.set(name, row[name]);
     });
-    photo.load(row.image_large ? '/storage/' + row.image_large : null, row.crop);
+    photo.load(storagePhotoUrl(row.image_large), row.crop);
     logo.load(row.logo_url, row.custom_logo);
     sources.set(row.source_lines);
     state.expires = usableExpiry(row.expires_input || '', campusInputNow());
@@ -315,7 +317,7 @@ import { createSourcesEditor } from './post-editor-sources.mjs';
       var savedCard = payload.card || {};
       state.id = String(payload.id || state.id);
       state.status = payload.status === 'review' ? 'review' : 'draft';
-      photo.saved(savedCard.image_large ? '/storage/' + savedCard.image_large : null);
+      photo.saved(storagePhotoUrl(savedCard.image_large));
       logo.saved(savedCard.logo_url);
       // The server took a live post off the kiosk (it is draft or review now),
       // and a resubmission cleared the rejection.
@@ -345,13 +347,15 @@ import { createSourcesEditor } from './post-editor-sources.mjs';
         }
         notify('Duplicated as a new draft.');
         var id = String(payload.id);
-        // Open the copy from its refreshed library row, which carries the
-        // editor fields the duplicate response's card does not. state.id is not
+        // Open the copy from its refreshed library row when there is one. state.id is not
         // pointed at the copy first: if the refresh failed, a save would write
         // whatever the editor holds over the copy.
         refreshLibrary().then(function () {
-          var data = rowData(id);
-          if (data) load(data);
+          // refresh() resolves false without fetching while a poll is in flight,
+          // so the row may not be there yet; the response's card carries the same
+          // editor fields (NewsController.duplicate), and the next poll lists it.
+          var data = rowData(id) || Object.assign({}, payload.card || {}, { id: id, state: 'draft' });
+          load(data);
         });
       });
     });

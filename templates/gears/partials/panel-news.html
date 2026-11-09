@@ -58,11 +58,14 @@
               <span class="post-editor__photo-hint-sub">or click to choose one &middot; JPG, PNG, GIF or WebP up to 8 MB</span>
             </label>
             <div class="post-editor__logo-tools">
-              <label class="post-editor__chip" for="post-logo-input">Change logo</label>
+              <button type="button" class="post-editor__chip" data-post-logo-pick>Change logo</button>
               <button type="button" class="post-editor__chip" data-post-logo-reset hidden>Use site logo</button>
             </div>
           </div>
 
+          {# Out of the tab order on purpose: the "Choose photo" / "Change logo"
+             buttons open them with input.click(), so keyboard users reach the
+             pickers through a real, focusable control. #}
           <input type="file" id="post-photo-input" class="post-editor__file" accept="image/jpeg,image/png,image/gif,image/webp" data-post-photo-input tabindex="-1">
           <input type="file" id="post-logo-input" class="post-editor__file" accept="image/jpeg,image/png,image/gif,image/webp" data-post-logo-input tabindex="-1">
 
@@ -71,8 +74,9 @@
               <span>Zoom</span>
               <input type="range" min="1" max="4" step="0.01" value="1" data-post-zoom disabled>
             </label>
-            <label class="ghost-button" for="post-photo-input" data-post-photo-replace>Choose photo</label>
+            <button type="button" class="ghost-button" data-post-photo-pick>Choose photo</button>
             <span class="post-editor__counters">
+              <span>Event title <span data-post-counter="kicker">0 / {{ post_limits.kicker }}</span></span>
               <span>Headline <span data-post-counter="headline">0 / {{ post_limits.headline }}</span></span>
               <span>Story <span data-post-counter="body">0 / {{ post_limits.body }}</span></span>
             </span>

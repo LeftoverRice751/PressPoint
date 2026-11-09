@@ -40,10 +40,6 @@
     if (window.DashboardLive && window.DashboardLive.refresh) {
       window.DashboardLive.refresh('review');
     }
-    // The composer's Story Library shows status, so it is stale now too.
-    if (window.DashboardLive && window.DashboardLive.refresh) {
-      window.DashboardLive.refresh('news');
-    }
   }
 
   // The sidebar badge is the admin's only signal that work is waiting, so it

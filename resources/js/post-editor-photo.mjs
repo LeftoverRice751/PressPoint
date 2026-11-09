@@ -12,6 +12,7 @@
 
 import { DEFAULT_CROP, clampCrop, panBy, zoomBy, toStyle } from './post-crop.mjs';
 import { PHOTO_MAX_BYTES, PHOTO_TOO_LARGE } from './post-editor-fields.mjs';
+import { safeImageUrl } from './safe-image-url.mjs';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 export const INVALID_IMAGE = 'Please upload a valid image file.';
@@ -23,11 +24,38 @@ export function photoProblem(file) {
   return '';
 }
 
+/*
+ * Every server-supplied src goes through safeImageUrl before it reaches img.src:
+ * the row JSON and the save response are data, and a stored value of
+ * `javascript:`/`data:`/off-site must render as "no image", never load.
+ */
+
+/** A post's stored photo path (e.g. "news/a.large.webp") as a same-origin URL, or ''. */
+export function storagePhotoUrl(path) {
+  if (typeof path !== 'string' || !path) return '';
+  // A relative storage path never carries a scheme, a leading slash or a backslash;
+  // refusing them here keeps "/storage/" from laundering one into a same-origin path.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(path) || path[0] === '/' || path.indexOf('\\') !== -1) {
+    return '';
+  }
+  return safeImageUrl('/storage/' + path);
+}
+
+/** The logo to show: the post's own if it passes, else the site logo if THAT passes, else ''. */
+export function resolveLogoUrl(src, siteLogo) {
+  return safeImageUrl(src) || safeImageUrl(siteLogo) || '';
+}
+
+function setSrc(img, src) {
+  if (src) img.src = src;
+  else img.removeAttribute('src');
+}
+
 function firstFile(list) {
   return list && list.length ? list[0] : null;
 }
 
-export function createPhotoController({ stage, input, zoomInput, hint, onChange, onError }) {
+export function createPhotoController({ stage, input, pickButton, zoomInput, hint, onChange, onError }) {
   const frame = stage.querySelector('.post-card__photo');
   let img = frame.querySelector('img');
   let crop = { ...DEFAULT_CROP };
@@ -44,7 +72,8 @@ export function createPhotoController({ stage, input, zoomInput, hint, onChange,
     zoomInput.value = String(crop.zoom);
   }
 
-  function show(src) {
+  function show(rawSrc) {
+    const src = safeImageUrl(rawSrc);
     if (!src) {
       if (img) img.remove();
       img = null;
@@ -86,6 +115,10 @@ export function createPhotoController({ stage, input, zoomInput, hint, onChange,
     apply();
     onChange();
   }
+
+  // A real button, so the picker is reachable from the keyboard; the file input
+  // itself stays out of the tab order (it is visually hidden).
+  if (pickButton) pickButton.addEventListener('click', () => input.click());
 
   input.addEventListener('change', () => {
     accept(firstFile(input.files));
@@ -165,7 +198,7 @@ export function createPhotoController({ stage, input, zoomInput, hint, onChange,
   });
 
   return {
-    /** Show a saved post's photo (or none) with its stored framing. */
+    /** Show a saved post's photo (or none) with its stored framing. `src` is a URL. */
     load(src, savedCrop) {
       revoke();
       file = null;
@@ -191,8 +224,9 @@ export function createPhotoController({ stage, input, zoomInput, hint, onChange,
  * the post, or a newly picked file. "Use site logo" on a stored custom logo has
  * to tell the server (remove_logo=1); on a just-picked one it only drops the file.
  */
-export function createLogoController({ card, input, resetButton, siteLogo, onChange, onError }) {
+export function createLogoController({ card, input, pickButton, resetButton, siteLogo, onChange, onError }) {
   const logo = card.querySelector('.post-card__logo');
+  if (pickButton) pickButton.addEventListener('click', () => input.click());
   let file = null;
   let objectUrl = null;
   let storedCustom = false;
@@ -227,7 +261,7 @@ export function createLogoController({ card, input, resetButton, siteLogo, onCha
     revoke();
     file = null;
     removeStored = storedCustom;
-    logo.src = siteLogo;
+    setSrc(logo, resolveLogoUrl('', siteLogo));
     sync();
     onChange();
   });
@@ -238,13 +272,14 @@ export function createLogoController({ card, input, resetButton, siteLogo, onCha
       file = null;
       storedCustom = Boolean(custom);
       removeStored = false;
-      logo.src = src || siteLogo;
+      setSrc(logo, resolveLogoUrl(src, siteLogo));
       sync();
     },
     saved(src) {
-      storedCustom = Boolean(src) && src !== siteLogo;
+      const safe = safeImageUrl(src);
+      storedCustom = Boolean(safe) && safe !== siteLogo;
       removeStored = false;
-      if (file && src) logo.src = src;
+      if (file) setSrc(logo, resolveLogoUrl(safe, siteLogo));
       file = null;
       revoke();
       sync();

@@ -53,11 +53,9 @@ def section_stamp(model):
     Creates and updates advance `max(updated_at)`; deletes change the count.
     Both are SQL aggregates, so polling never loads the rows themselves.
 
-    Lives here rather than in DashboardController because it has two callers
-    now: the 20s liveness poll, and NewsController.layout, which uses it as an
-    optimistic-concurrency token so a stale composer tab cannot overwrite
-    another editor's front page. Importing the controller from the controller
-    would be a cycle; both already import this module.
+    Table-wide. A section whose rows belong to one user stamps its own subset
+    instead (PostLibrary.library_stamp for `post-library`), so another editor's
+    save does not refresh it.
     """
     try:
         count = model.count()
@@ -518,11 +516,8 @@ def overview_context():
             }
         )
 
-    # The two stat cards. Not news_context()'s `news_count`: that one is
-    # scoped to the signed-in editor's own open issue since the composer
-    # became per-editor, so on the overview it read 0 for anyone without a
-    # draft in progress. Same status folding as super_admin_stats(), so the
-    # two dashboards agree.
+    # The two stat cards count the whole table, not any one editor's posts.
+    # Same status folding as super_admin_stats(), so the two dashboards agree.
     published_news = sum(1 for story in stories if story["status"] == "published")
 
     return {
