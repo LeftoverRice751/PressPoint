@@ -5,6 +5,7 @@ NewsController._news_is_public, imported lazily because NewsController imports
 this module.
 """
 
+import json
 from datetime import datetime
 
 from masonite.facades import Storage as StorageFacade
@@ -137,8 +138,13 @@ def duplicate(user_id, post_id):
             kicker=getattr(source, "kicker", None),
             image=image,
             logo_path=logo,
-            image_crop=getattr(source, "image_crop", None),
-            source_lines=getattr(source, "source_lines", None),
+            # Normalised like NewsController.store, never copied as NULL: a
+            # duplicate of a legacy newsletter story would otherwise have no crop,
+            # sources or expiry and match scripts/purge_newsletters.py's legacy rule.
+            image_crop=json.dumps(Posts.parse_crop(getattr(source, "image_crop", None))),
+            source_lines=json.dumps(
+                Posts.parse_source_lines(getattr(source, "source_lines", None))
+            ),
             status="draft",
             author_id=user_id,
             updated_by_id=user_id,

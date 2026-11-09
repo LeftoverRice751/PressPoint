@@ -6,10 +6,12 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
+import json
+
 import pytest
 
 from app.controllers.gears.NewsController import NewsController
-from app.services import PostLibrary
+from app.services import PostLibrary, Posts
 
 LIB = "app.services.PostLibrary"
 NEWS = "app.controllers.gears.NewsController"
@@ -90,6 +92,14 @@ class DuplicateTestCase(TestCase):
                 self.news, self.copier, self.deleter = news, copier, deleter
         return result
 
+    def test_duplicate_of_a_legacy_story_carries_crop_and_sources(self):
+        # NULL crop + NULL sources + NULL expiry is exactly what
+        # scripts/purge_newsletters.py treats as a legacy newsletter row.
+        self._run(_post(5, image_crop=None, source_lines=None))
+        fields = self.news.create.call_args.kwargs
+        self.assertEqual(json.loads(fields["image_crop"]), Posts.DEFAULT_CROP)
+        self.assertEqual(json.loads(fields["source_lines"]), Posts.DEFAULT_SOURCE_LINES)
+
     def test_copies_to_fresh_files_and_makes_a_draft_without_dates(self):
         source = _post(
             5, "published", logo_path="Branding/posts/l.png", expires_at=_future(),
@@ -104,8 +114,12 @@ class DuplicateTestCase(TestCase):
         self.assertEqual(fields["author_id"], 7)
         self.assertEqual(fields["title"], "Post 5")
         self.assertEqual(fields["kicker"], "K")
-        self.assertEqual(fields["image_crop"], '{"x":0.1}')
-        self.assertEqual(fields["source_lines"], '[{"icon":"link","text":"a"}]')
+        self.assertEqual(
+            json.loads(fields["image_crop"]), {"x": 0.1, "y": 0.5, "zoom": 1.0}
+        )
+        self.assertEqual(
+            json.loads(fields["source_lines"]), [{"icon": "link", "text": "a"}]
+        )
         # masonite-orm turns None into now() for a dates column: keys must be absent.
         for key in ("expires_at", "published_at", "rejection_reason"):
             self.assertNotIn(key, fields)

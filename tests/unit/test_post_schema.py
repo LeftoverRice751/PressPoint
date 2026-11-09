@@ -28,9 +28,14 @@ class PostSchemaTestCase(unittest.TestCase):
         ):
             self.assertIn(fragment, block)
 
-    def test_category_id_is_nullable(self):
-        line = [ln for ln in _news_block().splitlines() if "`category_id` int" in ln][0]
-        self.assertNotIn("NOT NULL", line)
+    def test_newsletter_columns_are_gone(self):
+        # Dropped by 2026_11_09_000200_drop_newsletter_schema; nothing may write them.
+        block = _news_block()
+        for name in ("issue_id", "layout_type", "priority", "category_id"):
+            self.assertNotIn(f"`{name}`", block)
+        text = SCHEMA.read_text()
+        for table in ("issues", "issue_events", "news_categories"):
+            self.assertNotIn(f"CREATE TABLE `{table}`", text)
 
     def test_news_model_fillable_has_post_fields(self):
         for name in ("kicker", "logo_path", "image_crop", "source_lines", "expires_at"):
