@@ -13,7 +13,6 @@ from unittest.mock import Mock, patch
 
 from tests import TestCase
 from tests.unit.test_issue_composer import _render, _Story
-from tests.unit.test_issue_library_http import _Pipeline
 from tests.unit.news_doubles import _mock_request, _mock_response
 
 from app.controllers.gears import DashboardController as Dash
@@ -21,11 +20,30 @@ from app.controllers.gears.EventController import EventController
 from app.controllers.gears.IssueCalendarController import IssueCalendarController
 from app.services import IssueCalendar as IC
 from app.services import IssueLibrary as L
+from app.services import SessionTokens
 
 REPO = Path(__file__).resolve().parents[2]
 ATTACH_URL = "/gears/issues/current/events/5"
 REMOVE_URL = "/gears/issues/current/events/5/remove"
 ROW = {"id": 1, "title": "Parade", "chip": "SEP 15", "iso": "2026-09-15"}
+
+
+class _Pipeline(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = Mock(id=7, role="editor")
+        self.user.get_primary_key_value.return_value = 7
+
+    def _signed_in(self):
+        """Resolve the slot-0 token cookie to self.user without the users table.
+        Patched at SessionTokens.find_user, the one seam LoadSlotUserMiddleware
+        resolves a cookie through, so no hashed-token lookup hits the live database."""
+        patcher = patch.object(SessionTokens, "find_user", return_value=self.user)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return self.withCookies({"token": "test-token"})
+
+
 SUMMARY = {"issue_no": 12, "count": 1, "capacity": 3, "full": False}
 
 

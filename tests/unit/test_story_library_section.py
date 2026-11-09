@@ -108,8 +108,7 @@ class PartialTestCase(TestCase):
             "published_label": "Jul 01, 2026", "story_count": 2,
         }])
         self.assertIn("Week &#34;&lt;1&gt;&#34;", html)
-        self.assertIn("/gears/issues/3/print", html)
-        self.assertIn("/gears/issues/3/duplicate", html)
+        self.assertNotIn("/print", html)
 
     def test_empty_state(self):
         self.assertIn("haven't published a newsletter yet", self._render([]))

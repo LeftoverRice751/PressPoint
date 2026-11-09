@@ -42,10 +42,9 @@ ROUTES = [
     Route.post("/gears/notifications/@id/read", "gears.NotificationController@read").name("notifications.read").middleware("auth"),
     Route.post("/news/dashboard", "gears.NewsController@store").name("news.store").middleware("auth"),
     Route.delete("/news/dashboard/@id", "gears.NewsController@destroy").name("news.destroy").middleware("auth"),
-    # Story Library, Published tab. "auth" only: the controller scopes every
-    # lookup to issues.owner_id == the caller, so another editor's issue is a 404.
-    Route.get("/gears/issues/@id:int/print", "gears.IssueLibraryController@print_view").name("issues.print").middleware("auth"),
-    Route.post("/gears/issues/@id:int/duplicate", "gears.IssueLibraryController@duplicate").name("issues.duplicate").middleware("auth"),
+    # Copies one of the caller's own posts into a new draft. "auth" only: PostLibrary
+    # answers 404 for a post that is not theirs.
+    Route.post("/news/dashboard/@id:int/duplicate", "gears.NewsController@duplicate").name("news.duplicate").middleware("auth"),
     # The open newsletter's calendar. "auth" only: the issue is always the
     # caller's own, resolved from the session rather than named in the URL.
     Route.post("/gears/issues/current/events/@event_id:int", "gears.IssueCalendarController@attach").name("issues.calendar.attach").middleware("auth"),

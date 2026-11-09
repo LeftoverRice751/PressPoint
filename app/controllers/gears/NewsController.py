@@ -20,6 +20,7 @@ from app.services import (
     KioskBroadcast,
     NewsCache,
     NewsCategories,
+    PostLibrary,
     Posts,
 )
 from app.services.KioskBroadcast import pusher_configured as _pusher_configured  # noqa: F401
@@ -476,6 +477,44 @@ class NewsController(Controller):
                 messages=["Post saved."],
             )
         return response.redirect(name="gears.dashboard").with_success(["Post saved."])
+
+    def duplicate(self, request: Request, response: Response):
+        """Copy one of the caller's own posts into a new draft (ownership in PostLibrary)."""
+        is_ajax = wants_json(request)
+        try:
+            post_id = int(request.param("id"))
+        except (TypeError, ValueError):
+            post_id = None
+
+        def _err(messages, status=422):
+            if is_ajax:
+                return json_errors(response, messages, status=status)
+            return response.back().with_errors(messages)
+
+        if post_id is None:
+            return _err(["Article not found."], status=404)
+        try:
+            copy = PostLibrary.duplicate(_current_user_id(request), post_id)
+        except LookupError:
+            return _err(["Article not found."], status=404)
+        except Exception as exception:
+            traceback.print_exception(type(exception), exception, exception.__traceback__)
+            return _err(["Could not duplicate the post. Please try again."], status=500)
+
+        # A draft is never public, so the kiosk cache and broadcast stay untouched.
+        if is_ajax:
+            try:
+                disk = StorageFacade.disk("public")
+            except Exception:
+                disk = None
+            return json_success(
+                response,
+                payload={"id": getattr(copy, "id", None), "card": Posts.card_context(copy, disk)},
+                messages=["Post duplicated as a draft."],
+            )
+        return response.redirect(name="gears.dashboard", query_params={"page": "news"}).with_success(
+            ["Post duplicated as a draft."]
+        )
 
     def destroy(self, request: Request, response: Response):
         is_ajax = wants_json(request)
