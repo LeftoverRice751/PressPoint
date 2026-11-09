@@ -6,11 +6,10 @@ from masonite.views import View
 from app.models.Archives import Archives
 from app.models.Events import Events
 from app.models.News import News
-from app.models.NewsCategory import NewsCategory
 from app.models.Organization import Organization
 from app.models.Video import Video
 from app.services.AjaxResponses import json_success, json_errors
-from app.services import AdminConsole, DashboardContext, Notifications, ReviewQueue
+from app.services import AdminConsole, DashboardContext, Notifications, PostLibrary, ReviewQueue
 
 
 # section -> (context builder, partial template, context key holding the rows)
@@ -18,29 +17,12 @@ FRAGMENTS = {
     "events": (DashboardContext.events_context, "gears/partials/events-list", "events"),
     "archives": (DashboardContext.archives_context, "gears/partials/archives-list", "archives"),
     "videos": (DashboardContext.videos_context, "gears/partials/videos-list", "videos"),
-    "news": (DashboardContext.news_context, "gears/partials/news-slots", "news_items"),
-    # Composer canvas, same partial the kiosk renders. Fetched directly after a
-    # drawer assignment, never by the 20s poll.
-    "news-canvas": (DashboardContext.news_canvas_context, "kiosk/_issue", "news_items"),
-    # Story Library's Published tab. Its own section because news_stamp is per
-    # OPEN issue and never moves when an older issue of this editor's is approved.
-    "story-library": (
-        DashboardContext.story_library_context,
-        "gears/partials/story-library-issues",
-        "library_issues",
-    ),
-    # Fetched directly after a calendar change, never by the 20s poll: no panel
-    # declares it as a live section.
-    "issue-calendar": (
-        DashboardContext.issue_calendar_context,
-        "gears/partials/issue-calendar-fragment",
-        "calendar_events",
-    ),
-    # Own section, not part of "news": a category rename touches zero news rows.
-    "news-categories": (
-        DashboardContext.news_categories_context,
-        "gears/partials/news-categories-list",
-        "news_categories",
+    # The signed-in editor's own photo posts (the News panel's library column).
+    # User-scoped: the context and the stamp both read only the caller's rows.
+    "post-library": (
+        DashboardContext.post_library_context,
+        "gears/partials/post-library",
+        "post_library",
     ),
     # Also re-emits the JSON block the organization <select>s rebuild from.
     "org-board-organizations": (
@@ -78,11 +60,7 @@ STAMP_MODELS = {
     "events": Events,
     "archives": Archives,
     "videos": Video,
-    "news": News,
-    "news-canvas": News,
-    "issue-calendar": News,  # stamp is user-scoped; see _stamp_for
-    "story-library": News,  # stamp is user-scoped; see _stamp_for
-    "news-categories": NewsCategory,  # a rename only bumps news_categories.updated_at
+    "post-library": News,  # stamp is user-scoped; see _stamp_for
     "org-board-organizations": Organization,
     "review": News,  # submissions are News rows
     "admin-stats": News,  # three of four tiles are News figures
@@ -102,8 +80,8 @@ def _user_id(request):
     return getattr(user, "id", None) or None
 
 
-# Sections whose context depends on who is asking (the editor's own issue).
-_USER_SCOPED_SECTIONS = {"news", "news-canvas", "issue-calendar", "story-library"}
+# Sections whose context depends on who is asking (the editor's own posts).
+_USER_SCOPED_SECTIONS = {"post-library"}
 
 
 class DashboardController(Controller):
@@ -156,15 +134,10 @@ class DashboardController(Controller):
 
     @staticmethod
     def _stamp_for(section, user_id):
-        """Change marker for one section. News is per issue, so another editor's
-        newsletter does not read as a change here."""
+        """Change marker for one section. The library is per editor, so another
+        editor's save does not read as a change here."""
         if section in _USER_SCOPED_SECTIONS:
-            from app.services import Issues
-
-            if section == "story-library":
-                return Issues.library_stamp(user_id)
-            issue = Issues.current_for(user_id) if user_id else None
-            return Issues.stamp_for(issue) if issue else "0:"
+            return PostLibrary.library_stamp(user_id)
         return _section_stamp(STAMP_MODELS[section])
 
     def stamps(self, request: Request, response: Response):

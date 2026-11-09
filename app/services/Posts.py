@@ -5,6 +5,7 @@ preview can all share one definition of what a post is allowed to look like.
 """
 
 import json
+import math
 import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -138,12 +139,30 @@ def is_expired(post, now=None):
     return _aware_utc(expires_at) <= current
 
 
+def _two_decimals(value):
+    """At most two decimals, trailing zeros stripped, never exponent notation.
+
+    Mirrored step for step by fmt() in resources/js/post-crop.mjs, whose toStyle()
+    previews what this renders. `:g` gave "1e-05" where JS's String() gives
+    "0.00001", and round()/toFixed() disagree on exact halves (banker's rounding vs
+    half-up), so both sides do the same IEEE multiply-add-floor on non-negative
+    values instead.
+    """
+    hundredths = int(math.floor(value * 100 + 0.5))
+    whole, frac = divmod(hundredths, 100)
+    if frac == 0:
+        return str(whole)
+    if frac % 10 == 0:
+        return f"{whole}.{frac // 10}"
+    return f"{whole}.{frac:02d}"
+
+
 def _pct(value):
-    return f"{value * 100:g}%"
+    return f"{_two_decimals(value * 100)}%"
 
 
 def crop_style(crop):
-    x, y, zoom = _pct(crop["x"]), _pct(crop["y"]), f"{crop['zoom']:g}"
+    x, y, zoom = _pct(crop["x"]), _pct(crop["y"]), _two_decimals(crop["zoom"])
     return f"object-position:{x} {y};transform:scale({zoom});transform-origin:{x} {y}"
 
 

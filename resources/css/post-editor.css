@@ -1,0 +1,420 @@
+/*
+ * GEARS dashboard News panel: the editor's post library and the photo-post
+ * editor (templates/gears/partials/panel-news.html, resources/js/post-editor.js).
+ *
+ * The card itself is styled by post-card.css, unchanged from the kiosk -- this
+ * file only lays out what sits around it and the editor-only overlays. Colours
+ * come from kiosk-tokens.css layer 4. Solid fills only, no gradients.
+ */
+
+.post-workspace {
+    display: grid;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+@media (max-width: 1080px) {
+    .post-workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* ── Library ─────────────────────────────────────────────────────────── */
+
+.post-library {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: calc(100vh - 220px);
+    overflow: hidden;
+}
+
+.post-library__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.post-library__heading {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.post-library__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.post-library__row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--surface-raised);
+}
+
+.post-library__row.is-active {
+    border-color: var(--brand-maroon);
+    box-shadow: inset 0 0 0 1px var(--brand-maroon);
+}
+
+.post-library__load {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.post-library__thumb {
+    flex: 0 0 auto;
+    width: 56px;
+    height: 56px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: var(--surface-sunken);
+}
+
+.post-library__text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.post-library__title {
+    overflow: hidden;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.post-library__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    color: var(--ink-muted);
+    font-size: 0.8rem;
+}
+
+.post-library__reason {
+    margin: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--danger-tint);
+    color: var(--ink);
+    font-size: 0.82rem;
+}
+
+.post-library__actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.post-library__actions .ghost-button {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+}
+
+.post-state {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--surface-sunken);
+    color: var(--ink);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.post-state--review { background: var(--warn-tint); }
+.post-state--live { background: var(--ok-tint); }
+.post-state--rejected { background: var(--danger-tint); }
+.post-state--expired { background: transparent; border: 1px solid var(--rule); }
+
+/* ── Editor ──────────────────────────────────────────────────────────── */
+
+.post-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-width: 560px;
+    min-width: 0;
+}
+
+.post-editor__banner {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.post-editor__banner--rejected { background: var(--danger-tint); color: var(--ink); }
+.post-editor__banner--live { background: var(--warn-tint); color: var(--ink); }
+
+.post-editor__stage {
+    position: relative;
+}
+
+.post-editor__stage .post-card__photo {
+    cursor: grab;
+    touch-action: none;
+}
+
+.post-editor__stage .post-card__photo.is-dragging {
+    cursor: grabbing;
+}
+
+.post-editor__stage.is-drop-target .post-card__photo {
+    outline: 3px solid var(--brand-gold);
+    outline-offset: -3px;
+}
+
+/* Over the empty photo area only; the JS hides it once a photo is set. */
+.post-editor__photo-hint {
+    position: absolute;
+    top: 18%;
+    left: 50%;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 72%;
+    padding: 14px 16px;
+    border: 2px dashed var(--brand-cream);
+    border-radius: 12px;
+    background: rgb(var(--brand-maroon-rgb) / 0.7);
+    color: var(--brand-cream);
+    text-align: center;
+    transform: translateX(-50%);
+    cursor: pointer;
+}
+
+.post-editor__photo-hint[hidden] {
+    display: none;
+}
+
+.post-editor__photo-hint-title {
+    font-weight: 700;
+}
+
+.post-editor__photo-hint-sub {
+    font-size: 0.8rem;
+}
+
+.post-editor__logo-tools {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 4;
+    display: flex;
+    gap: 6px;
+}
+
+.post-editor__chip {
+    padding: 4px 10px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-raised);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.post-editor__chip:hover,
+.post-editor__chip:focus-visible {
+    background: var(--brand-gold);
+}
+
+.post-editor__chip[hidden] {
+    display: none;
+}
+
+/* Visually hidden but still a real, label-activated file input. */
+.post-editor__file {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.post-editor__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.post-editor__zoom {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+}
+
+.post-editor__zoom input {
+    accent-color: var(--brand-maroon);
+}
+
+.post-editor__counters {
+    display: inline-flex;
+    gap: 12px;
+    margin-left: auto;
+    color: var(--ink-muted);
+    font-size: 0.8rem;
+}
+
+.post-editor__counters .is-full {
+    color: var(--ink);
+    font-weight: 700;
+}
+
+.post-editor__hint {
+    margin: -6px 0 0;
+    color: var(--ink-muted);
+    font-size: 0.8rem;
+}
+
+.post-sources-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+}
+
+.post-sources-editor legend {
+    padding: 0 4px;
+    font-weight: 700;
+}
+
+.post-sources-editor__cap {
+    color: var(--ink-muted);
+    font-weight: 400;
+}
+
+.post-sources-editor__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.post-sources-editor__row {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr) auto;
+    gap: 6px;
+}
+
+.post-sources-editor__row select,
+.post-sources-editor__row input {
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 6px;
+    background: var(--surface-raised);
+    color: var(--ink);
+    font: inherit;
+}
+
+.post-sources-editor [data-post-source-add] {
+    align-self: flex-start;
+}
+
+.post-editor__expiry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.post-editor__expiry-label {
+    color: var(--ink-muted);
+    font-size: 0.9rem;
+}
+
+.post-editor__errors {
+    margin: 0;
+    padding: 10px 12px 10px 28px;
+    border-radius: 8px;
+    background: var(--danger-tint);
+    color: var(--ink);
+    font-size: 0.9rem;
+}
+
+.post-editor__errors[hidden] {
+    display: none;
+}
+
+.post-editor__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.post-editor__save-state {
+    margin-right: auto;
+    color: var(--ink-muted);
+    font-size: 0.85rem;
+}
+
+.post-editor__actions button:disabled {
+    opacity: 0.55;
+    cursor: progress;
+}
+
+/* ── Expiry dialog (shell is confirm-modal.css) ──────────────────────── */
+
+.post-expiry-modal__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 12px;
+    font-weight: 700;
+}
+
+.post-expiry-modal__field input {
+    padding: 8px 10px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 6px;
+    background: var(--surface-raised);
+    color: var(--ink);
+    font: inherit;
+    font-weight: 400;
+}
+
+.post-expiry-modal__error {
+    margin: 0 0 12px;
+    color: var(--ink);
+    font-size: 0.85rem;
+}
+
+.post-expiry-modal__error[hidden] {
+    display: none;
+}

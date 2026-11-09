@@ -20,24 +20,14 @@
     <span class="post-card__shape post-card__shape--b" aria-hidden="true"></span>
     <span class="post-card__shape post-card__shape--c" aria-hidden="true"></span>
     {% if card.kicker or editing %}
-    <p class="post-card__kicker"{% if editing %} data-field="kicker" contenteditable="plaintext-only" data-placeholder="Kicker"{% endif %}>{{ card.kicker }}</p>
+    <p class="post-card__kicker"{% if editing %} data-field="kicker" contenteditable="plaintext-only" data-placeholder="Event title (optional)"{% endif %}>{{ card.kicker }}</p>
     {% endif %}
     <h2 class="post-card__headline"{% if editing %} data-field="headline" contenteditable="plaintext-only" data-placeholder="Headline"{% endif %}>{{ card.headline }}</h2>
-    <p class="post-card__body"{% if editing %} data-field="body" contenteditable="plaintext-only" data-placeholder="Body"{% endif %}>{{ card.body }}</p>
+    <p class="post-card__body"{% if editing %} data-field="body" contenteditable="plaintext-only" data-placeholder="Write the story…"{% endif %}>{{ card.body }}</p>
     <ul class="post-card__sources">
       {% for line in card.source_lines %}
       <li data-icon="{{ line.icon }}">
-        {% if line.icon == 'facebook' %}
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11"/><path d="M13.2 20v-7h2.4l.4-2.8h-2.8V8.5c0-.8.3-1.3 1.4-1.3H16V4.7c-.3 0-1.1-.1-2.1-.1-2.1 0-3.5 1.3-3.5 3.600v2H8v2.8h2.400V20z" fill="#fff"/></svg>
-        {% elif line.icon == 'email' %}
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11"/><path d="M6.5 8h11v8h-11z M6.5 8l5.5 4.500L17.5 8" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
-        {% elif line.icon == 'instagram' %}
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11"/><rect x="6.5" y="6.5" width="11" height="11" rx="3.2" fill="none" stroke="#fff" stroke-width="1.6"/><circle cx="12" cy="12" r="2.5" fill="none" stroke="#fff" stroke-width="1.6"/></svg>
-        {% elif line.icon == 'website' %}
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11"/><g fill="none" stroke="#fff" stroke-width="1.4"><circle cx="12" cy="12" r="6"/><path d="M6 12h12M12 6c-2.5 3-2.5 9 0 12M12 6c2.5 3 2.5 9 0 12"/></g></svg>
-        {% else %}
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11"/><path d="M10 14l4-4M9 12l-1.5 1.500a2.1 2.1 0 003 3L12 15M15 12l1.5-1.500a2.1 2.1 0 00-3-3L12 9" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
-        {% endif %}
+        {% set icon = line.icon %}{% include 'kiosk/_post_source_icon.html' %}
         <span>{{ line.text }}</span>
       </li>
       {% endfor %}

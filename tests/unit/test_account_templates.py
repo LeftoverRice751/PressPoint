@@ -144,69 +144,12 @@ class AccountChromeTestCase(TestCase):
         html = self._render_dashboard()
         self.assertIn("data-dashboard-shell", html)
 
-    def test_the_news_panel_emits_its_composer_controls(self):
-        """The server half of the dead-button bug.
-
-        A composer control that stops being RENDERED produces exactly the same
-        report from an editor as one whose listener never attached: "the button
-        does nothing". tests/js/news-toolbar-scope.test.mjs pins the scoping
-        half (every composer-scoped lookup resolves inside the composer); this
-        pins that the markup is there to find at all.
-
-        It used to assert `data-news-prev` / `data-news-next` / `data-news-bench`
-        as well. Those are kiosk carousel hooks and a bench that this panel has
-        never rendered, so the assertions could only ever fail -- and did. They
-        are replaced here by the controls the composer genuinely depends on.
-        """
+    def test_the_news_panel_is_the_photo_post_editor(self):
+        """The newsletter composer's hooks are gone; the editor's own markup
+        contract lives in tests/unit/test_post_editor_panel.py."""
         html = self._render_dashboard()
-
-        for hook in (
-            # The publish path. A missing one of these is an editor who cannot
-            # file a story at all.
-            "data-news-canvas-save",
-            "data-news-save-draft",
-            "data-news-form",
-            # The editing surface the JS hard-returns without.
-            "data-news-composer",
-            "data-news-editor",
-            # Adding and placing stories.
-            "data-news-add-main",
-            "data-news-add-secondary",
-            "data-news-add-widget",
-            "data-news-library-open",
-        ):
-            self.assertIn(hook, html, f"the news panel must render {hook}")
-
-    def test_the_composer_canvas_renders_the_real_kiosk_issue(self):
-        """The composer edits kiosk/_issue.html -- the SAME partial the kiosk
-        page renders -- so an editor cannot arrange a layout the terminal does
-        not print. That drift is what this rebuild existed to end, and a
-        fallback to some other markup here would reintroduce it silently."""
-        html = self._render_dashboard()
-
-        # Chrome unique to the issue partial.
-        self.assertIn("issue-masthead", html)
-        self.assertIn("issue-colophon", html)
-        # Editor hooks the canvas is inert without.
-        for block in ("lead", "brief", "photo_essay", "editorial", "quote", "notice"):
-            self.assertIn(f'data-news-slot-list="{block}"', html)
-        # Every block renders its unfilled positions as typeable cards, so an
-        # editor can write a newsletter with no stories in the library at all.
-        self.assertNotIn("data-news-assign-slot", html)
-
-    def test_the_category_modal_renders_with_its_category_list(self):
-        """The modal is included in the full page render, not fetched — so a
-        missing context key here is a 500 on the whole dashboard, not a
-        degraded modal. `news_categories_json` in particular is produced by
-        news_categories_context() and has to reach the partial through
-        news_context()."""
-        html = self._render_dashboard()
-
-        self.assertIn("data-news-category-modal", html)
-        self.assertIn("data-news-categories-json", html)
-        # The confirm action starts disabled: a category is required, and the
-        # button must not be pressable before one is chosen.
-        self.assertIn("data-news-category-confirm", html)
+        self.assertIn("data-post-workspace", html)
+        self.assertNotIn("data-news-composer", html)
 
     def test_profile_border_shows_the_display_name(self):
         html = self._render_dashboard()
@@ -275,8 +218,3 @@ class AccountChromeTestCase(TestCase):
         """The composer button reads "Submit for review" off this flag."""
         self.assertIn('data-can-publish="true"', self._render_dashboard(role="admin"))
         self.assertIn('data-can-publish="false"', self._render_dashboard(role="editor"))
-
-    def test_composer_status_field_defaults_to_draft(self):
-        """An unset status must not be a publicly visible one."""
-        html = self._render_dashboard()
-        self.assertIn('name="status"       value="draft"', html)

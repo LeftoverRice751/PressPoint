@@ -5,6 +5,8 @@ NewsController._news_is_public, imported lazily because NewsController imports
 this module.
 """
 
+from datetime import datetime
+
 from masonite.facades import Storage as StorageFacade
 
 from app.models.News import News
@@ -38,8 +40,49 @@ def post_state(post):
     return "draft"
 
 
+def _expires_input(value):
+    """Campus-local "YYYY-MM-DDTHH:MM" for the editor's datetime-local input."""
+    if not isinstance(value, datetime):
+        return ""
+    return Posts._aware_utc(value).astimezone(Posts.CAMPUS_TZ).strftime("%Y-%m-%dT%H:%M")
+
+
+def editor_fields(post):
+    """What the editor needs to reload a post that card_context() does not carry.
+
+    card_context() is the RENDER projection shared with the kiosk (crop as a CSS
+    string, logo as a URL, expiry as a label); the editor needs the raw values
+    back to keep editing them. Kept out of card_context so the kiosk payload does
+    not grow fields nobody there reads.
+    """
+    return {
+        "crop": Posts.parse_crop(getattr(post, "image_crop", None)),
+        "expires_input": _expires_input(getattr(post, "expires_at", None)),
+        "custom_logo": bool((getattr(post, "logo_path", None) or "").strip()),
+        "rejection_reason": (getattr(post, "rejection_reason", None) or "").strip(),
+    }
+
+
+def library_stamp(user_id):
+    """`count:max(updated_at)` over the caller's own posts only.
+
+    DashboardContext.section_stamp(News) is table-wide, so another editor's save
+    would refresh this editor's library for nothing.
+    """
+    if not user_id:
+        return "0:"
+    try:
+        count = News.where("author_id", user_id).count()
+        latest_row = News.where("author_id", user_id).max("updated_at").first()
+        latest = getattr(latest_row, "updated_at", None) if latest_row else None
+    except Exception:
+        # Same posture as section_stamp: a failed poll is "no change", not a 500.
+        return "0:"
+    return f"{count or 0}:{latest if latest is not None else ''}"
+
+
 def library_rows(user_id):
-    """The caller's posts, newest edit first, each a card_context plus `state`."""
+    """The caller's posts, newest edit first: card_context + `state` + editor_fields."""
     if not user_id:
         return []
     # Ordered by the database, not News.all() + sorted(): see "Dashboard liveness".
@@ -51,7 +94,8 @@ def library_rows(user_id):
     )
     disk = _disk()
     return [
-        {**Posts.card_context(post, disk), "state": post_state(post)} for post in (posts or [])
+        {**Posts.card_context(post, disk), "state": post_state(post), **editor_fields(post)}
+        for post in (posts or [])
     ]
 
 

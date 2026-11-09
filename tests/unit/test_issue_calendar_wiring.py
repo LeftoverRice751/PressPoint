@@ -2,7 +2,7 @@
 
 test_issue_calendar.py covers the rules. These cover the joins that used to read
 the global list: the endpoints, the event save, the kiosk's slides, the review
-preview, the print view, the composer's refresh, and the backfill's selection.
+preview, the manager partials, and the backfill's selection.
 No test writes to `.env`'s production database.
 """
 
@@ -12,14 +12,11 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from tests import TestCase
-from tests.unit.test_issue_composer import _render, _Story
 from tests.unit.news_doubles import _mock_request, _mock_response
 
-from app.controllers.gears import DashboardController as Dash
 from app.controllers.gears.EventController import EventController
 from app.controllers.gears.IssueCalendarController import IssueCalendarController
 from app.services import IssueCalendar as IC
-from app.services import IssueLibrary as L
 from app.services import SessionTokens
 
 REPO = Path(__file__).resolve().parents[2]
@@ -146,39 +143,10 @@ class EventSaveOfferTestCase(TestCase):
         self.assertIsNone(payload["calendar_offer"])
 
 
-class ReadSurfacesTestCase(TestCase):
-    def test_print_shows_what_the_issue_chose(self):
-        issue = Mock(
-            id=3,
-            number=12,
-            title="T",
-            published_at=datetime(2026, 7, 1),
-            created_at=datetime(2026, 7, 1),
-        )
-        with patch.object(L.Issues, "stories_of", return_value=[]), patch.object(
-            IC, "events_for", return_value=[ROW]
-        ) as events_for:
-            context = L.print_context(issue)
-        events_for.assert_called_once_with(issue)
-        self.assertEqual(context["calendar_events"], [ROW])
-
-    def test_the_kiosk_never_shows_editor_controls(self):
-        html = _render(lead=_Story(1, layout_type="lead"), calendar_events=[ROW], editor=False)
-        self.assertIn("Parade", html)
-        self.assertNotIn("data-issue-calendar-manage", html)
-
-    def test_the_canvas_button_opens_the_manager_not_the_events_panel(self):
-        html = _render(lead=_Story(1, layout_type="lead"), calendar_events=[ROW], editor=True)
-        self.assertIn("data-issue-calendar-manage", html)
-        self.assertNotIn('data-page-link="events"', html)
-
-
 class FragmentTestCase(TestCase):
-    def test_the_fragment_is_registered_and_user_scoped(self):
-        self.assertIn("issue-calendar", Dash.FRAGMENTS)
-        self.assertIn("issue-calendar", Dash.STAMP_MODELS)
-        self.assertIn("issue-calendar", Dash._USER_SCOPED_SECTIONS)
-
+    # The issue-calendar fragment is no longer registered (the News panel is the
+    # photo-post editor now); its partials stay on disk until the newsletter
+    # code is deleted, so their rendering contracts are still pinned here.
     def test_the_fragment_renders_the_dates_and_the_manager(self):
         view = self.application.make("view")
         html = view.render(

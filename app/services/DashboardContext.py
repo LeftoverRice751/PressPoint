@@ -9,6 +9,7 @@ always received.
 
 import random
 from datetime import datetime
+from types import SimpleNamespace
 
 from app.models.Archives import Archives
 from app.models.Organization import Organization
@@ -135,104 +136,6 @@ def _event_sort_key(item):
     return 0
 
 
-#: The blocks an issue is made of, in the order they print. This is the
-#: editor's own vocabulary -- a lead, a brief, an editorial, a notice -- and it
-#: is what `news.layout_type` stores. It replaced `main`/`secondary`/`widget`,
-#: which were words no newsroom uses and which forced a translation into every
-#: surface between the column and the screen.
-#:
-#: `unassigned` is deliberately NOT here: it is a destination (the story
-#: library), not a place on the page, so it has no capacity and no section.
-BLOCK_TYPES = ("lead", "brief", "photo_essay", "editorial", "quote", "notice")
-
-#: How many rows each block holds. Mirrored by NewsController._NEWS_SLOT_CAPACITY,
-#: which is what layout() enforces inside its transaction, and derived again from
-#: the rendered containers by news-dashboard.js -- so all three can only drift if
-#: the markup drifts first.
-#:
-#: Truncating here is not cosmetic. A bucket over capacity leaves a story that
-#: reads as placed in the composer and renders nowhere on the kiosk, which is
-#: the worst kind of bug: silent, and invisible to the person who caused it.
-BLOCK_CAPACITY = {
-    "lead": 1,
-    "brief": 4,
-    "photo_essay": 3,
-    "editorial": 1,
-    "quote": 2,
-    "notice": 1,
-}
-
-#: What a row lands in when its `layout_type` is blank. A model built in memory
-#: can still carry None even though the column is NOT NULL with a default. A
-#: brief is the safe landing -- the ordinary body of the page, never the lead.
-DEFAULT_BLOCK = "brief"
-
-
-def normalize_block(raw_type):
-    """Resolve a stored `layout_type` to a block, or None if it is not one.
-
-    Case- and padding-insensitive for the same reason `status` is: these values
-    arrive from forms, fixtures and migrations, and a stray space should not
-    decide whether a story prints.
-
-    Returns None for `unassigned` AND for anything unrecognised -- a stale row,
-    a hand-posted form, a half-run migration. Failing closed means such a story
-    stays reachable in the library and simply does not print; guessing it into a
-    block would put unreviewed placement on a public screen.
-    """
-    block = (raw_type or "").strip().lower()
-    if not block:
-        return DEFAULT_BLOCK
-    return block if block in BLOCK_CAPACITY else None
-
-
-def group_news_slots(news_items):
-    """Split stories into the blocks the issue renders.
-
-    Returns a dict keyed by block type, every key present (templates index
-    these directly, so a missing one is a 500 rather than a blank section) and
-    every list already truncated to capacity.
-
-    Sort is ascending on `(priority, id)`: lower renders first, so the
-    "Position #1" badge an editor reads is literally the render order. `id`
-    breaks the tie because `priority` defaults to 0, so a run of new stories all
-    carry it and the order would otherwise be whatever the driver returned.
-
-    The lead falls back to the first assignable story when nothing is marked
-    `lead`, or section 01 would be missing from a page that has stories. The
-    fallback looks only at ASSIGNABLE rows -- sending a story to the library
-    must remove it from the page, not promote it to the front of it.
-    """
-    sorted_items = sorted(
-        list(news_items or []),
-        key=lambda item: (
-            int(getattr(item, "priority", 0) or 0),
-            int(getattr(item, "id", 0) or 0),
-        ),
-    )
-
-    placed = [
-        (normalize_block(getattr(item, "layout_type", None)), item)
-        for item in sorted_items
-    ]
-    assignable = [(block, item) for block, item in placed if block]
-
-    slots = {block: [] for block in BLOCK_TYPES}
-    for block, item in assignable:
-        slots[block].append(item)
-
-    # No explicit lead: borrow the first assignable story from wherever it sits,
-    # and take it out of that bucket so it cannot render twice.
-    if not slots["lead"] and assignable:
-        fallback_block, fallback = assignable[0]
-        slots["lead"] = [fallback]
-        slots[fallback_block] = [
-            item for item in slots[fallback_block] if item is not fallback
-        ]
-
-    return {block: slots[block][: BLOCK_CAPACITY[block]] for block in BLOCK_TYPES}
-
-
 # ===== per-section builders =====
 
 
@@ -275,152 +178,37 @@ def videos_context():
     }
 
 
-def news_context(user_id=None):
-    """The composer's context, scoped to the signed-in editor's OPEN issue.
+def post_editor_context(user_id=None):
+    """The News panel's editor: an EMPTY post, i.e. what "New post" resets to.
 
-    `user_id` is the seam this whole feature turns on. Before it, every editor
-    saw and edited the same canvas -- there was one implicit issue and this
-    read the whole table. With it, the canvas is the editor's own newsletter:
-    their newest unpublished issue, created on demand (Issues.current_for).
-
-    None -- a caller with no user, which is the fragment poll from a surface
-    that has none -- gets an empty issue rather than everyone's stories.
+    A blank namespace through the same card_context() the kiosk uses, so the empty
+    template carries the site logo, the default crop and DEFAULT_SOURCE_LINES with
+    no second definition of any of them. Loading an existing post is the browser's
+    job, from the library row's JSON. `user_id` is unused today and accepted so the
+    builder has the same shape as post_library_context().
     """
-    # Imported here rather than at module top: Issues imports
-    # normalize_news_status from this module, and the reverse would be a cycle.
-    from app.services import IssueCalendar, Issues
-
-    issue = Issues.current_for(user_id) if user_id else None
-    news_items = Issues.stories_of(issue) if issue else []
-    slots = group_news_slots(news_items)
-
-    news_status_counts = {
-        "draft": 0,
-        "review": 0,
-        "approved": 0,
-        "scheduled": 0,
-        "published": 0,
-        "archived": 0,
-    }
-    for news_item in news_items:
-        status = normalize_news_status(getattr(news_item, "status", None))
-        news_status_counts[status] = news_status_counts.get(status, 0) + 1
+    from app.services import Posts
 
     return {
-        "news_items": news_items,
-        # ONE key, not one per block. The issue partial indexes it by block
-        # name, so adding a block type later costs nothing here -- which is the
-        # point of the vocabulary living in BLOCK_TYPES rather than in the
-        # shape of this dict.
-        "blocks": slots,
-        # The issue's non-slot sections. They live here rather than only in
-        # news_canvas_context() so the FULL page render and the canvas fragment
-        # hand kiosk/_issue.html the same context -- otherwise the calendar
-        # would be missing on load and appear on the first live refresh, which
-        # reads as a bug.
-        #
-        # NOT `events`: full_context() merges every section into one dict, and
-        # this ran after events_context(), so the Events panel rendered these
-        # three calendar dicts instead of its own rows until the first live
-        # refresh of that panel put the real list back.
-        **IssueCalendar.manager_context(issue),
-        **issue_identity_of(issue),
-        # The issue the composer is editing, for the top bar and the outline.
-        "news_issue": issue_summary(issue),
-        "news_status_counts": news_status_counts,
-        "news_count": len(news_items),
-        # Seeds the composer's optimistic-concurrency token so the FIRST
-        # layout write from a freshly loaded page is already versioned. Without
-        # it the opening drag of a session is unguarded — exactly the window a
-        # long-open tab is most likely to be stale in.
-        #
-        # Per ISSUE, not table-wide: another editor saving their own newsletter
-        # must not read as a conflict on this one.
-        "news_stamp": Issues.stamp_for(issue) if issue else "0:",
-        # users.id -> display name, for the Story Library's Author column.
-        # Built once here rather than per row: the alternative is an N+1 across
-        # a table the composer renders in full.
-        "news_authors": author_names(news_items),
-        # news_categories.id -> display name, for the Story Library's Category
-        # column. Same one-query shape as news_authors above, and for the same
-        # reason.
-        "news_category_lookup": NewsCategories.names_by_id(),
-        # The category modal is rendered as part of the news panel on the FULL
-        # page, so its two context keys have to be here too — not only in
-        # news_categories_context(). Without them the full-page render hits an
-        # undefined `news_categories_json` in the partial's JSON block.
-        **news_categories_context(),
+        "post_editor_card": Posts.card_context(SimpleNamespace()),
+        "post_source_icons": Posts.SOURCE_ICONS,
+        "post_limits": {
+            "kicker": Posts.KICKER_MAX,
+            "headline": Posts.HEADLINE_MAX,
+            "body": Posts.BODY_MAX,
+            "source_text": Posts.SOURCE_TEXT_MAX,
+            "source_lines": Posts.SOURCE_LINES_MAX,
+        },
     }
 
 
-def issue_calendar_context(user_id=None):
-    """Just the calendar, for swapping it in without touching the rest of the
-    canvas. `news_editor` because the dates partial is shared with the kiosk."""
-    from app.services import IssueCalendar, Issues
+def post_library_context(user_id=None):
+    """The signed-in editor's own posts. None (no user) is an empty list, never
+    everyone's posts. Imported lazily: PostLibrary reaches NewsController, which
+    imports this module."""
+    from app.services import PostLibrary
 
-    issue = Issues.current_for(user_id) if user_id else None
-    return {"news_editor": True, **IssueCalendar.manager_context(issue)}
-
-
-def story_library_context(user_id=None):
-    """The Story Library's Published tab: the signed-in editor's own past
-    newsletters. Imported lazily -- IssueLibrary imports this module."""
-    from app.services import IssueLibrary
-
-    return {"library_issues": IssueLibrary.library_rows(user_id) if user_id else []}
-
-
-def news_categories_context():
-    """Context for the categories fragment.
-
-    This section exists so a category rename propagates to another editor's
-    open composer. A rename touches zero `news` rows, so section_stamp(News)
-    does not move and the news fragment never refreshes for it — the category
-    list needs a stamp of its own.
-
-    Both keys hold the SAME list of dicts. `news_categories` is what the
-    partial iterates (it reads `category.story_count`, which is not a column,
-    so model rows would render an empty count with no error); the JSON block
-    is what news-dashboard.js re-reads after a live refresh.
-    """
-    categories = NewsCategories.describe_all()
-    return {
-        "news_categories": categories,
-        "news_categories_json": categories,
-    }
-
-
-def news_canvas_context(user_id=None):
-    """Context for re-rendering `kiosk/_issue.html` from the dashboard
-    fragment endpoint (Task 4's stale-canvas fix).
-
-    `news_context()` returns the slot buckets under the `main_news` /
-    `secondary_news` / `widget_news` keys (matching the story-library
-    fragment's naming). The canvas include expects the composer's own
-    variable names instead — `templates/gears/dashboard.html` sets these via
-    `{% set %}` before including the shared partial:
-        main_story = main_news
-        secondary_stories = secondary_news
-        widget_news = widget_news   (already matches)
-        news_editor = true
-    Rebuilding those here keeps the fragment's `view.render()` call a plain
-    template + context pair, with no `{% set %}` needed on the fragment path.
-    """
-    news = news_context(user_id)
-    return {
-        "blocks": news["blocks"],
-        "news_editor": True,
-        # The issue's non-slot sections, already built by news_context(). The
-        # composer renders the whole page, not just the slots, so without these
-        # the editor would lay out an issue with its photo essay and calendar
-        # missing -- the drift kiosk/_issue.html was extracted to end.
-        "calendar_events": news["calendar_events"],
-        "issue_vol": news["issue_vol"],
-        "issue_no": news["issue_no"],
-        # Kept so DashboardController.fragment() can still report a row
-        # count for this section the same way every other fragment does.
-        "news_items": news["news_items"],
-    }
+    return {"post_library": PostLibrary.library_rows(user_id) if user_id else []}
 
 
 #: How many events the composer's "add an event" picker lists.
@@ -450,7 +238,7 @@ def upcoming_events(limit=CALENDAR_CHOICES_LIMIT):
 
     What a newsletter actually shows is its own choice; see IssueCalendar.
     """
-    # Imported here for the same cycle news_context() avoids.
+    # Imported here: Issues imports normalize_news_status from this module.
     from app.services import Issues
 
     today = Issues.campus_now().strftime("%Y-%m-%d")
@@ -468,53 +256,6 @@ def upcoming_events(limit=CALENDAR_CHOICES_LIMIT):
         return []
 
     return [calendar_row(row) for row in rows]
-
-
-def issue_summary(issue):
-    """What the composer's top bar and outline say about the issue being
-    edited. None when there is no issue (no signed-in editor)."""
-    if not issue:
-        return None
-    from app.services import Issues
-
-    return {
-        "id": getattr(issue, "id", None),
-        "number": int(getattr(issue, "number", 0) or 0),
-        "title": getattr(issue, "title", None) or "",
-        "status": Issues.status_of(issue),
-        "published_at": getattr(issue, "published_at", None),
-    }
-
-
-def issue_identity_of(issue):
-    """Folio numbering from the ISSUE row. Vol. still counts years since
-    founding, off the issue's publish date (or today's, for an open draft);
-    No. is the issue's own number now rather than a day-of-year stand-in."""
-    if not issue:
-        return {"issue_vol": None, "issue_no": None}
-    at = getattr(issue, "published_at", None) or getattr(issue, "created_at", None)
-    year = at.year if hasattr(at, "year") else datetime.now().year
-    return {
-        "issue_vol": max(1, year - 2025),
-        "issue_no": int(getattr(issue, "number", 0) or 0) or None,
-    }
-
-
-def issue_identity(lead):
-    """Folio numbering, derived from the lead story's date -- no schema.
-
-    Vol. counts publication years since founding (2026 -> 1); No. is the
-    day-of-year, a plausible edition number that changes with each date. Shared
-    so the composer's masthead cannot print a different issue line from the
-    kiosk's.
-    """
-    lead_at = getattr(lead, "published_at", None) or getattr(lead, "created_at", None)
-    if not hasattr(lead_at, "timetuple"):
-        return {"issue_vol": None, "issue_no": None}
-    return {
-        "issue_vol": max(1, lead_at.year - 2025),
-        "issue_no": lead_at.timetuple().tm_yday,
-    }
 
 
 def locations_context():
@@ -800,8 +541,7 @@ FRAGMENT_SECTIONS = {
     "events": events_context,
     "archives": archives_context,
     "videos": videos_context,
-    "news": news_context,
-    "news-categories": news_categories_context,
+    "post-library": post_library_context,
 }
 
 
@@ -891,15 +631,15 @@ def super_admin_stats():
 
 
 def full_context(default_page="dashboard", user_id=None):
-    """The complete dashboard context. `user_id` scopes the News panel to
-    that editor's own issue; everything else is shared."""
+    """The complete dashboard context. `user_id` scopes the News panel's
+    library to that editor's own posts; everything else is shared."""
     locations_data = locations_context()
 
     context = {}
     context.update(overview_context())
     context.update(events_context())
-    context.update(news_context(user_id))
-    context.update(story_library_context(user_id))
+    context.update(post_editor_context(user_id))
+    context.update(post_library_context(user_id))
     context.update(archives_context())
     context.update(videos_context())
     context.update(locations_data)
