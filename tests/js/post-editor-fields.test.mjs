@@ -13,7 +13,7 @@ import {
 
 test('caps mirror Posts.KICKER_MAX / HEADLINE_MAX / BODY_MAX and the 8 MB photo cap', () => {
   assert.deepEqual(FIELD_MAX, { kicker: 40, headline: 110, body: 420 });
-  assert.equal(PHOTO_MAX_BYTES, 8 * 1024 * 1024);
+  assert.equal(PHOTO_MAX_BYTES, 6 * 1024 * 1024);
 });
 
 test('fitInsert keeps what fits and drops the rest', () => {

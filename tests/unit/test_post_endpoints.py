@@ -154,10 +154,10 @@ class StoreStatusTestCase(_StoreCase):
 
     def test_oversize_photo_refused_before_any_write(self):
         big = _upload()
-        big.get_content = lambda: b"x" * (8 * 1024 * 1024 + 1)
+        big.get_content = lambda: b"x" * (6 * 1024 * 1024 + 1)
         response = self.store(_request(headline="H", image=big))
         self.assertEqual(self.code(response), 422)
-        self.assertEqual(self.body(response)["errors"], ["Photo is too large (max 8 MB)"])
+        self.assertEqual(self.body(response)["errors"], ["Photo is too large (max 6 MB)"])
         self.storage.disk.return_value.put_file.assert_not_called()
 
     def test_a_non_string_id_does_not_crash(self):
@@ -415,7 +415,7 @@ class ExpiryVisibilityTestCase(TestCase):
         with patch("app.controllers.kiosk.WelcomeController.News") as news, patch(
             "app.controllers.kiosk.WelcomeController.Events"
         ) as events:
-            news.where_raw.return_value.get.return_value = [expired, live]
+            news.where_not_null.return_value.where_raw.return_value.get.return_value = [expired, live]
             events.where_raw.return_value.get.return_value = []
             articles = WelcomeController()._build_flash_articles()
         headlines = json.dumps(articles)

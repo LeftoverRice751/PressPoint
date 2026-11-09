@@ -30,6 +30,9 @@
   // stamp sent back, so an approval is tied to the text the admin read.
   var previewStamps = {};
   // post id -> the expiry input's value; kept beside the stamp for the same reason.
+  // post id -> the value the server prefilled; the expiry is sent only when the
+  // admin changed it, so an untouched one is never resent over the stored value.
+  var previewPrefill = {};
   var previewExpiries = {};
   var currentPreviewId = null;
 
@@ -69,7 +72,7 @@
       body: JSON.stringify({
         reason: reason || '',
         review_stamp: approve ? (previewStamps[id] || '') : '',
-        expires_at: approve ? (previewExpiries[id] || '') : ''
+        expires_at: approve && previewExpiries[id] !== previewPrefill[id] ? (previewExpiries[id] || '') : ''
       })
     })
       .then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
@@ -171,7 +174,8 @@
         // Server-rendered markup from our own template, not user input.
         previewTarget.innerHTML = json.html;
         previewStamps[id] = json.review_stamp || '';
-        previewExpiries[id] = json.expires_input || '';
+        previewPrefill[id] = json.expires_input || '';
+        previewExpiries[id] = previewPrefill[id];
         if (expiryInput) expiryInput.value = previewExpiries[id];
         // Images in the partial change its height as they land; fit now for
         // the text, then again once the frame has painted.

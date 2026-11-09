@@ -45,7 +45,7 @@ class FlashTickerStatusFilterTestCase(TestCase):
         ) as news_mock, patch(
             "app.controllers.kiosk.WelcomeController.Events"
         ) as events_mock:
-            news_mock.where_raw.return_value.get.return_value = stories
+            news_mock.where_not_null.return_value.where_raw.return_value.get.return_value = stories
             events_mock.where_raw.return_value.get.return_value = []
             return [item["headline"] for item in controller._build_flash_articles()]
 
@@ -102,7 +102,7 @@ class FlashTickerQueryWindowTestCase(TestCase):
         ) as news_mock, patch(
             "app.controllers.kiosk.WelcomeController.Events"
         ) as events_mock:
-            news_mock.where_raw.return_value.get.return_value = []
+            news_mock.where_not_null.return_value.where_raw.return_value.get.return_value = []
             events_mock.where_raw.return_value.get.return_value = []
             controller._build_flash_articles()
 
@@ -141,8 +141,9 @@ class FlashTickerQueryWindowTestCase(TestCase):
         ) as news_mock, patch(
             "app.controllers.kiosk.WelcomeController.Events"
         ) as events_mock:
-            news_mock.where_raw.side_effect = Exception("unsupported predicate")
-            news_mock.all.return_value = [story]
+            base = news_mock.where_not_null.return_value
+            base.where_raw.side_effect = Exception("unsupported predicate")
+            base.get.return_value = [story]
             events_mock.where_raw.return_value.get.return_value = []
 
             headlines = [
@@ -150,3 +151,17 @@ class FlashTickerQueryWindowTestCase(TestCase):
             ]
 
         self.assertEqual(headlines, ["Real headline"])
+
+
+class FlashTickerLegacyExclusionTestCase(TestCase):
+    def test_ticker_query_requires_an_expiry(self):
+        """Legacy newsletter rows carry no expires_at; the kiosk query drops them in
+        SQL and the ticker must too, or they broadcast during the transition."""
+        controller = WelcomeController()
+        with patch("app.controllers.kiosk.WelcomeController.News") as news_mock, patch(
+            "app.controllers.kiosk.WelcomeController.Events"
+        ) as events_mock:
+            news_mock.where_not_null.return_value.where_raw.return_value.get.return_value = []
+            events_mock.where_raw.return_value.get.return_value = []
+            controller._build_flash_articles()
+        news_mock.where_not_null.assert_called_once_with("expires_at")

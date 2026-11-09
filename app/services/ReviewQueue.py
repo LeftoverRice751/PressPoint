@@ -43,6 +43,9 @@ def pending_stories():
         row
         for row in rows
         if normalize_news_status(getattr(row, "status", None)) == REVIEW_STATUS
+        # Every photo post carries image_crop; a NULL one is a legacy newsletter
+        # story, which approving would put on the kiosk as a malformed card.
+        and getattr(row, "image_crop", None) is not None
     ]
     pending.sort(key=lambda row: (getattr(row, "id", 0) or 0))
     return pending
@@ -82,6 +85,10 @@ def expiry_input(post):
     """The post's expiry as a campus-local `datetime-local` value, or "" if unset."""
     expires_at = getattr(post, "expires_at", None)
     if not isinstance(expires_at, datetime):
+        return ""
+    # A lapsed expiry prefills empty: approve then answers "This post's expiry has
+    # passed. Set a new expiry to approve it." instead of silently resending it.
+    if Posts.is_expired(post):
         return ""
     return Posts._aware_utc(expires_at).astimezone(Posts.CAMPUS_TZ).strftime("%Y-%m-%dT%H:%M")
 

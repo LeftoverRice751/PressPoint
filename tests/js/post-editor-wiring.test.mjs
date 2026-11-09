@@ -20,8 +20,8 @@ const read = (name) => readFileSync(join(here, '../../resources/js', name), 'utf
 const MB = 1024 * 1024;
 
 test('a photo over 8 MB is refused with the server\'s own message', () => {
-  assert.equal(photoProblem({ type: 'image/jpeg', size: 8 * MB + 1 }), 'Photo is too large (max 8 MB)');
-  assert.equal(photoProblem({ type: 'image/jpeg', size: 8 * MB }), '');
+  assert.equal(photoProblem({ type: 'image/jpeg', size: 6 * MB + 1 }), 'Photo is too large (max 6 MB)');
+  assert.equal(photoProblem({ type: 'image/jpeg', size: 6 * MB }), '');
 });
 
 test('only the image types the server accepts preview', () => {

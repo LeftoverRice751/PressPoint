@@ -267,7 +267,7 @@ import { createSourcesEditor } from './post-editor-sources.mjs';
           // nginx answers an over-size body with an HTML 413, not our JSON.
           payload = {
             ok: false,
-            errors: [response.status === 413 ? 'Photo is too large (max 8 MB)' : 'Could not reach the server. Please try again.'],
+            errors: [response.status === 413 ? 'Upload too large — try a smaller photo or logo.' : 'Could not reach the server. Please try again.'],
           };
         }
         return payload;

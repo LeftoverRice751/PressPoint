@@ -153,7 +153,7 @@ def _build_flash_payload(news_item):
 # Logos land beside the other site branding on the NAS. Deletion is confined to this
 # folder so a tampered logo_path can never point the cleanup at another branding file.
 LOGO_FOLDER = "Branding/posts"
-MAX_PHOTO_BYTES = 8 * 1024 * 1024
+MAX_PHOTO_BYTES = 6 * 1024 * 1024
 
 
 def _delete_logo_file(logo_path):
@@ -291,7 +291,7 @@ class NewsController(Controller):
                 return _err(["Please upload a valid image file."])
             # Under nginx's 10M body cap, so this JSON 422 wins over its HTML 413.
             if len(photo_bytes) > MAX_PHOTO_BYTES:
-                return _err(["Photo is too large (max 8 MB)"])
+                return _err(["Photo is too large (max 6 MB)"])
 
         # Drafts may be half-written (an empty title satisfies NOT NULL); anything
         # headed for review or the kiosk, by an admin too, needs its headline and photo.

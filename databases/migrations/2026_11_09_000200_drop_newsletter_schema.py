@@ -44,10 +44,36 @@ class DropNewsletterSchema(Migration):
         )
         return bool(rows) and int(rows[0]["n"]) > 0
 
+    def _count(self, sql):
+        rows = self._query().statement(sql)
+        return int(rows[0]["n"]) if rows else 0
+
+    def _refuse_while_newsletter_data_remains(self):
+        """A bare `craft migrate --force` runs this right after the additive 000100,
+        which would drop the tables before the backup and the purge. Refuse until
+        scripts/purge_newsletters.py has emptied them. Each check is guarded so a
+        rerun after the drop (tables and column gone) passes."""
+        remaining = []
+        if self.schema.has_table("issues"):
+            issues = self._count("SELECT COUNT(*) AS n FROM issues")
+            if issues:
+                remaining.append(f"{issues} row(s) in issues")
+        if self.schema.has_table("news") and self.schema.has_column("news", "issue_id"):
+            stories = self._count("SELECT COUNT(*) AS n FROM news WHERE issue_id IS NOT NULL")
+            if stories:
+                remaining.append(f"{stories} news row(s) with an issue_id")
+        if remaining:
+            raise RuntimeError(
+                "Refusing to drop the newsletter schema: " + " and ".join(remaining)
+                + " remain. Back up with mysqldump, then run "
+                "scripts/purge_newsletters.py --confirm --backup <path> first."
+            )
+
     def up(self):
         """
         Run the migrations.
         """
+        self._refuse_while_newsletter_data_remains()
         if self.schema.has_table("news"):
             for _column, foreign, _index in NEWS_COLUMNS:
                 if foreign and self._has_foreign_key("news", foreign):

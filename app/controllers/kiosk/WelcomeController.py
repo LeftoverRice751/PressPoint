@@ -63,22 +63,26 @@ class WelcomeController(Controller):
             (now + self._FLASH_WINDOW_MARGIN).strftime("%Y-%m-%d %H:%M:%S"),
         )
 
-    def _recent_rows(self, model, date_column):
+    def _recent_rows(self, model, date_column, require_expiry=False):
         """Rows whose ticker date plausibly falls in the last 24 hours.
 
         Falls back to an unfiltered read if the driver rejects the predicate,
         since an empty ticker looks identical to a quiet news day.
         """
         start, end = self._recent_window()
+        # require_expiry: same legacy-newsletter exclusion as the kiosk's news query
+        # (every photo post stores expires_at), so the ticker cannot broadcast a
+        # legacy story that the card stack hides.
+        base = model.where_not_null("expires_at") if require_expiry else model
         try:
             return list(
-                model.where_raw(
+                base.where_raw(
                     f"COALESCE({date_column}, created_at) BETWEEN '{start}' AND '{end}'"
                 ).get()
                 or []
             )
         except Exception:
-            return list(model.all() or [])
+            return list((base.get() if require_expiry else model.all()) or [])
 
     def _build_flash_articles(self):
         # Local import: a module-level one closes an import cycle through DashboardContext.
@@ -86,7 +90,7 @@ class WelcomeController(Controller):
 
         flash_articles = []
 
-        for news_item in self._recent_rows(News, "published_at"):
+        for news_item in self._recent_rows(News, "published_at", require_expiry=True):
             try:
                 # This endpoint is public and emits the full body, so drafts and
                 # pending stories must not reach it. Same gate as the front page.

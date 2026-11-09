@@ -9,8 +9,8 @@ export const FIELD_MAX = Object.freeze({ kicker: 40, headline: 110, body: 420 })
 
 // NewsController's MAX_PHOTO_BYTES: refused before upload with the server's own
 // message, rather than after an 8 MB round trip.
-export const PHOTO_MAX_BYTES = 8 * 1024 * 1024;
-export const PHOTO_TOO_LARGE = 'Photo is too large (max 8 MB)';
+export const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
+export const PHOTO_TOO_LARGE = 'Photo is too large (max 6 MB)';
 
 export const CAMPUS_TZ = 'Asia/Manila';
 

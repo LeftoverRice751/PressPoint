@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 PressPoint is a Masonite 5 (Python) web app for LSPU's student publication, *The Gears*. It serves two very different audiences from one codebase:
 
 - **Kiosk** — a public, unauthenticated touchscreen UI at `/kiosk/*`, designed for a 768x1024 portrait terminal on campus. News, PDF archives, campus wayfinding map, 360° virtual tour, org board, About LSPU.
-- **GEARS CMS** — the authenticated editor dashboard at `/gears/*` plus the auth/admin surfaces, where staff upload archives, compose the news layout, push videos to the kiosk, and manage users.
+- **GEARS CMS** — the authenticated editor dashboard at `/gears/*` plus the auth/admin surfaces, where staff upload archives, write photo posts, push videos to the kiosk, and manage users.
 
 Production runs at `presspoint-gears.me` behind Cloudflare → nginx → gunicorn (unix socket).
 
@@ -106,7 +106,7 @@ Broadcasts are best-effort and never fatal: every call site checks `_pusher_conf
 
 ### Photo posts
 
-The kiosk's Latest News is a stack of single **photo posts**, one square card each, not a newsletter. A post is a `news` row: `title` = headline, `description` = body (plain text, so the flash ticker's `copy` keeps working), `kicker`, `logo_path` (its own logo under `Branding/posts/`, else the site logo), `image_crop` JSON `{x, y, zoom}`, `source_lines` JSON, and `expires_at` (aware UTC; the editor types campus-local time). The old `layout_type`/`issue_id`/`category_id`/`dek`/`excerpt` columns may still exist in the live schema (check `databases/schema.sql`) but nothing reads or writes them, and `News.__fillable__` no longer lists them.
+The kiosk's Latest News is a stack of single **photo posts**, one square card each, not a newsletter. A post is a `news` row: `title` = headline, `description` = body (plain text, so the flash ticker's `copy` keeps working), `kicker`, `logo_path` (its own logo under `Branding/posts/`, else the site logo), `image_crop` JSON `{x, y, zoom}`, `source_lines` JSON, and `expires_at` (aware UTC; the editor types campus-local time). The old `layout_type`/`issue_id`/`category_id`/`dek`/`excerpt` columns may still exist in the live schema but nothing reads or writes them (`databases/schema.sql` shows the post-drop schema; the live DB keeps `issues` and those columns until the drop migration runs), and `News.__fillable__` no longer lists them.
 
 `app/services/Posts.py` owns the rules: the caps (`HEADLINE_MAX`, `BODY_MAX`, `KICKER_MAX`, `SOURCE_LINES_MAX`), `clean_text`, expiry maths (`CAMPUS_TZ`, `parse_local_expiry`, `default_expiry`, `is_expired`) and `card_context()`, the one projection the kiosk, editor and review preview share. `crop_style()` must match `resources/js/post-crop.mjs` digit for digit (both round to 2 decimals), or the editor shows a crop the kiosk does not draw. There is **one renderer**, `templates/kiosk/_post_card.html`, used by the kiosk, the editor panel (editor mode) and the review preview; don't build a second.
 
@@ -119,6 +119,13 @@ Two ORM traps around `expires_at` (it is in `News.__dates__`): (1) masonite-orm 
 `app/services/PostLibrary.py` is the editor's library (`library_rows`, user-scoped `library_stamp`) and `duplicate()`, which copies a post of the caller's into a new draft: it omits the dated keys (the `None`-to-now trap above) and copies the photo and logo to fresh names. The library is the live section `post-library` (`FRAGMENTS` + `STAMP_MODELS`). Editor image URLs written into `img.src` go through the allowlist in `resources/js/safe-image-url.mjs` (same-origin `/storage/...` or a `blob:` preview). The panel is `panel-news.html`, wired by `resources/js/post-editor.js`.
 
 Note `AppProvider.register()` vs `boot()`: view filters and shared values must be registered in `register()` — `boot()` runs per request *after* the template has rendered.
+
+**Shipping photo posts.** Order matters, and every step that touches the live DB or restarts something is a stop-and-ask:
+
+1. `venv/bin/python craft migrate --force --migration 2026_11_09_000100_add_post_fields_to_news`, then check with `SHOW CREATE TABLE news`. Do **not** run a bare `craft migrate` yet.
+2. Deploy, `npm run prod` (Node 18), restart gunicorn.
+3. `mysqldump` backup, then `venv/bin/python scripts/purge_newsletters.py` (dry run), then `--confirm --backup <path>`.
+4. `venv/bin/python craft migrate --force` (now runs `2026_11_09_000200_drop_newsletter_schema`, which refuses while `issues` or `news.issue_id` still hold data), regenerate `databases/schema.sql`, then delete `scripts/purge_newsletters.py`.
 
 ### Editorial review
 

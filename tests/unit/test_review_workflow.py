@@ -166,6 +166,12 @@ class ReviewQueueTestCase(TestCase):
             news_mock.all.return_value = rows
             self.assertEqual([s.id for s in pending_stories()], [2, 4])
 
+    def test_queue_excludes_legacy_rows_without_a_crop(self):
+        rows = [Mock(id=1, status="review", image_crop=None), Mock(id=2, status="review")]
+        with patch("app.services.ReviewQueue.News") as news_mock:
+            news_mock.all.return_value = rows
+            self.assertEqual([s.id for s in pending_stories()], [2])
+
     def test_queue_is_oldest_first(self):
         """A work queue, not a feed: the story waiting longest comes first."""
         rows = [Mock(id=9, status="review"), Mock(id=2, status="review")]
@@ -385,6 +391,12 @@ class PostReviewPreviewTestCase(TestCase):
         self.assertEqual(expiry_input(Mock(expires_at=None)), "")
         utc = datetime(2026, 12, 1, 4, 30, tzinfo=timezone.utc)
         self.assertEqual(expiry_input(Mock(expires_at=utc)), "2026-12-01T12:30")
+
+    def test_expiry_input_is_empty_when_the_expiry_has_passed(self):
+        from app.services.ReviewQueue import expiry_input
+
+        past = datetime(2020, 1, 1, 4, 30, tzinfo=timezone.utc)
+        self.assertEqual(expiry_input(Mock(expires_at=past)), "")
 
     def test_queue_context_lists_one_row_per_pending_post(self):
         from app.services.ReviewQueue import review_context

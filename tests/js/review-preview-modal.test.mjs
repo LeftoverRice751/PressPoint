@@ -204,3 +204,24 @@ test('the preview prefills the expiry and approve sends it with the stamp', asyn
     expires_at: '2026-12-05T09:00',
   });
 });
+
+test('an untouched prefilled expiry is not resent on approve', async () => {
+  const { host, previewButton, approveButton, bodies } = boot();
+
+  host.dispatch('click', { target: previewButton, preventDefault() {} });
+  await settle();
+  host.dispatch('click', { target: approveButton, preventDefault() {} });
+  await settle();
+  assert.equal(bodies[0].expires_at, '');
+});
+
+test('a lapsed expiry prefills empty and stays unsent', async () => {
+  const { host, previewButton, approveButton, expiry, bodies } = boot({ expires: '' });
+
+  host.dispatch('click', { target: previewButton, preventDefault() {} });
+  await settle();
+  assert.equal(expiry.value, '');
+  host.dispatch('click', { target: approveButton, preventDefault() {} });
+  await settle();
+  assert.equal(bodies[0].expires_at, '');
+});
