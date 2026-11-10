@@ -147,6 +147,10 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--brand-maroon);
+    /* On top of the panel's gap: the label read as part of the headline, and in
+       the editor the two dashed field outlines nearly touched. Only costs space
+       when there is a kicker; the kiosk omits an empty one. */
+    margin-bottom: 1.4cqw;
 }
 
 .post-card__headline {
