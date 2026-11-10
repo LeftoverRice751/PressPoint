@@ -12,7 +12,7 @@ anyone signed in can post `status=published` to the same endpoint.
 
 import pytest
 from unittest import TestCase
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 
 from app.controllers.gears.NewsController import (
@@ -22,6 +22,7 @@ from app.controllers.gears.NewsController import (
     _resolve_status_for_actor,
 )
 from app.controllers.gears.ReviewController import ReviewController
+from app.services.Posts import CAMPUS_TZ
 from app.services.ReviewQueue import pending_stories
 
 
@@ -74,19 +75,6 @@ class FailClosedStatusTestCase(TestCase):
 
 
 class PrivilegeTestCase(TestCase):
-    def setUp(self):
-        super().setUp()
-        # store() now requires a category and validates it against a LIVE row.
-        # Patched rather than seeded because these tests never touch the
-        # database — the real find_live swallows the connection error and
-        # returns None, which would fail the request before store() runs.
-        patcher = patch(
-            "app.controllers.gears.NewsController.NewsCategories.find_live",
-            return_value=Mock(id=1, name="Campus News"),
-        )
-        self.addCleanup(patcher.stop)
-        patcher.start()
-
     def test_editor_publish_intent_is_downgraded_to_review(self):
         """The gate, stated directly."""
         request = _request(role="editor")
@@ -123,44 +111,34 @@ class PrivilegeTestCase(TestCase):
         the UI does not bypass it."""
         controller = NewsController()
         inputs = {
-            "title": "Sneaky",
-            "description": "<p>Body</p>",
-            "layout_type": "brief",
+            "headline": "Sneaky",
+            "body": "Body",
             "status": "published",
-            "priority": "3",
-            "article_id": "",
-            "category_id": "1",
-            "image": None,
-            "published_at": "",
+            "id": "",
+            # A submission needs a photo, or it is refused before the gate matters.
+            "image": Mock(extension=lambda: ".jpg", get_content=lambda: b"x"),
         }
         request = Mock()
         request.input.side_effect = lambda key, default="": inputs.get(key, default)
         request.header.return_value = None
         request.user.return_value = Mock(id=9, role="editor")
+        storage = Mock()
+        storage.disk.return_value.put_file.return_value = "news/x.jpg"
 
         with patch(
             "app.controllers.gears.NewsController.News.create",
             return_value=Mock(id=1, image=None),
-        ) as create_mock, patch(
-            "app.controllers.gears.NewsController.NewNews"
-        ), patch("app.controllers.gears.NewsController.Cache"):
-            controller.store(request, Mock(), _response())
+        ) as create_mock, patch("app.controllers.gears.NewsController.Cache"), patch(
+            "app.controllers.gears.NewsController.FileVerificationService.verify_buffer",
+            return_value=True,
+        ), patch("app.controllers.gears.NewsController.generate_variants"):
+            controller.store(request, storage, _response())
 
         self.assertEqual(create_mock.call_args.kwargs["status"], "review")
 
     def test_store_records_the_author(self):
         controller = NewsController()
-        inputs = {
-            "title": "Attributed",
-            "description": "<p>Body</p>",
-            "layout_type": "brief",
-            "status": "draft",
-            "priority": "1",
-            "article_id": "",
-            "category_id": "1",
-            "image": None,
-            "published_at": "",
-        }
+        inputs = {"headline": "Attributed", "body": "Body", "status": "draft", "id": "", "image": None}
         request = Mock()
         request.input.side_effect = lambda key, default="": inputs.get(key, default)
         request.header.return_value = None
@@ -169,9 +147,7 @@ class PrivilegeTestCase(TestCase):
         with patch(
             "app.controllers.gears.NewsController.News.create",
             return_value=Mock(id=1, image=None),
-        ) as create_mock, patch(
-            "app.controllers.gears.NewsController.NewNews"
-        ), patch("app.controllers.gears.NewsController.Cache"):
+        ) as create_mock, patch("app.controllers.gears.NewsController.Cache"):
             controller.store(request, Mock(), _response())
 
         self.assertEqual(create_mock.call_args.kwargs["author_id"], 33)
@@ -189,6 +165,12 @@ class ReviewQueueTestCase(TestCase):
         with patch("app.services.ReviewQueue.News") as news_mock:
             news_mock.all.return_value = rows
             self.assertEqual([s.id for s in pending_stories()], [2, 4])
+
+    def test_queue_excludes_legacy_rows_without_a_crop(self):
+        rows = [Mock(id=1, status="review", image_crop=None), Mock(id=2, status="review")]
+        with patch("app.services.ReviewQueue.News") as news_mock:
+            news_mock.all.return_value = rows
+            self.assertEqual([s.id for s in pending_stories()], [2])
 
     def test_queue_is_oldest_first(self):
         """A work queue, not a feed: the story waiting longest comes first."""
@@ -288,172 +270,169 @@ class ApproveRejectTestCase(TestCase):
         self.assertEqual(_status(response), 404)
 
 
-class IssueLevelReviewTestCase(TestCase):
-    """The admin reviews an ISSUE, not twelve stories.
+class ApproveExpiryTestCase(TestCase):
+    """Approval is the moment a post gets its kiosk lifetime."""
 
-    An editor composes an issue as one unit and submits it in one click. It
-    used to arrive at the admin as N unrelated submissions -- one queue row and
-    one Approve per block, with each preview shoving the story into the lead
-    slot regardless of what it was. A fully-filled issue is twelve blocks, so
-    that was twelve clicks and twelve misleading previews.
+    def _story(self, expires_at=None):
+        record = Mock(id=11, status="review", title="Campus story", author_id=5)
+        record.rejection_reason = None
+        record.expires_at = expires_at
+        record.published_at = None
+        record.save = Mock()
+        return record
 
-    All-or-nothing by decision: one Approve publishes every pending block, one
-    Reject sends every pending block back with one reason.
-    """
-
-    def _pending(self, n=3):
-        rows = []
-        for i in range(n):
-            r = Mock(id=100 + i, status="review", title=f"Block {i}", author_id=5,
-                     layout_type=["lead", "brief", "quote"][i % 3])
-            r.rejection_reason = "old"
-            r.save = Mock()
-            rows.append(r)
-        return rows
-
-    def _run(self, method, rows, request):
+    def _approve(self, record, inputs=None):
+        request = _request(role="admin", params={"id": "11"}, inputs=inputs or {})
         response = _response()
-        with patch(
-            "app.controllers.gears.ReviewController.pending_stories", return_value=rows
-        ), patch(
-            "app.controllers.gears.ReviewController.Cache"
-        ) as cache_mock, patch(
-            "app.controllers.gears.ReviewController.Notifications"
-        ) as notify_mock:
-            getattr(ReviewController(), method)(request, response)
-        return response, cache_mock, notify_mock
-
-    def test_approve_issue_publishes_every_pending_block(self):
-        rows = self._pending(3)
-        request = _request(role="admin")
-        response, cache_mock, _ = self._run("approve_issue", rows, request)
-
-        for r in rows:
-            self.assertEqual(r.status, "published")
-            self.assertIsNone(r.rejection_reason)
-            r.save.assert_called_once()
-        self.assertTrue(_body(response)["ok"])
-        # Once, not once per block: the kiosk cache is one thing.
-        cache_mock.forget.assert_called_once()
-
-    def test_approve_stamps_the_issue_published_now_in_utc(self):
-        """Approval IS publication for a daily paper, so the stamp is taken
-        on every approve -- a resubmitted issue is today's paper, not the
-        paper of the day it was first approved. UTC-aware, because the ORM
-        tags a naive datetime as UTC without shifting it (created_at is true
-        UTC from pendulum) and Issues.expires_at() converts from UTC."""
-        rows = self._pending(2)
-        for r in rows:
-            r.issue_id = 5
-        issue = Mock(id=5, published_at=datetime(2026, 9, 1, 0, 0))
-        issue.save = Mock()
-        request = _request(role="admin", params={"id": "5"})
-        response = _response()
-        before = datetime.now(timezone.utc)
-        with patch(
-            "app.controllers.gears.ReviewController.review_stories_of", return_value=rows
-        ), patch("app.models.Issue.Issue.where") as where, patch(
+        with patch("app.controllers.gears.ReviewController.News.where") as where_mock, patch(
             "app.controllers.gears.ReviewController.Cache"
         ), patch("app.controllers.gears.ReviewController.Notifications"):
-            where.return_value.first.return_value = issue
-            ReviewController().approve_issue(request, response)
+            where_mock.return_value.first.return_value = record
+            ReviewController().approve(request, response)
+        return response
+
+    def test_no_expiry_anywhere_stores_published_at_plus_seven_days(self):
+        record = self._story()
+        response = self._approve(record)
+
         self.assertTrue(_body(response)["ok"])
-        stamped = issue.published_at
-        self.assertIsNotNone(stamped.tzinfo, "must be timezone-aware")
-        self.assertEqual(stamped.utcoffset().total_seconds(), 0)
-        self.assertGreaterEqual(stamped, before)
-        issue.save.assert_called_once()
+        self.assertIsNotNone(record.published_at.tzinfo, "published_at must be aware-UTC")
+        self.assertEqual(record.expires_at, record.published_at + timedelta(days=7))
 
-    def test_approve_issue_notifies_each_author_once(self):
-        """Three blocks by the same editor is one issue and one notification,
-        not three bell entries saying the same thing."""
-        rows = self._pending(3)
-        request = _request(role="admin")
-        _, _, notify_mock = self._run("approve_issue", rows, request)
+    def test_a_future_stored_expiry_is_kept(self):
+        kept = datetime.now(timezone.utc) + timedelta(days=2)
+        record = self._story(expires_at=kept)
+        self._approve(record)
 
-        self.assertEqual(notify_mock.notify.call_count, 1)
-        self.assertEqual(notify_mock.notify.call_args[0][0], 5)
-        self.assertEqual(notify_mock.notify.call_args[0][1], "news.approved")
+        self.assertEqual(record.status, "published")
+        self.assertEqual(record.expires_at, kept)
 
-    def test_reject_issue_requires_a_reason(self):
-        rows = self._pending(2)
-        request = _request(role="admin", inputs={"reason": "  "})
-        response, cache_mock, _ = self._run("reject_issue", rows, request)
+    def test_a_past_stored_expiry_without_an_override_is_refused(self):
+        record = self._story(expires_at=datetime.now(timezone.utc) - timedelta(hours=1))
+        response = self._approve(record)
 
-        for r in rows:
-            r.save.assert_not_called()
-        cache_mock.forget.assert_not_called()
-        self.assertFalse(_body(response)["ok"])
+        self.assertEqual(_status(response), 422)
+        self.assertIn(
+            "This post's expiry has passed. Set a new expiry to approve it.",
+            _body(response)["errors"],
+        )
+        record.save.assert_not_called()
+        self.assertEqual(record.status, "review")
 
-    def test_reject_issue_sends_every_block_back_with_the_one_reason(self):
-        rows = self._pending(2)
-        request = _request(role="admin", inputs={"reason": "Headlines need work."})
-        response, _, notify_mock = self._run("reject_issue", rows, request)
+    def test_an_override_replaces_a_past_stored_expiry(self):
+        record = self._story(expires_at=datetime.now(timezone.utc) - timedelta(hours=1))
+        future = datetime.now(CAMPUS_TZ) + timedelta(days=3)
+        response = self._approve(record, {"expires_at": future.strftime("%Y-%m-%dT%H:%M")})
 
-        for r in rows:
-            self.assertEqual(r.status, "draft")
-            self.assertEqual(r.rejection_reason, "Headlines need work.")
         self.assertTrue(_body(response)["ok"])
-        self.assertEqual(notify_mock.notify.call_args[0][3], "Headlines need work.")
+        self.assertEqual(record.status, "published")
+        self.assertEqual(record.expires_at.strftime("%Y-%m-%dT%H:%M"),
+                         future.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M"))
 
-    def test_editor_cannot_approve_an_issue(self):
-        rows = self._pending(1)
-        request = _request(role="editor")
-        response, cache_mock, _ = self._run("approve_issue", rows, request)
+    def test_an_unparseable_override_is_a_422_with_the_reason(self):
+        record = self._story()
+        response = self._approve(record, {"expires_at": "tomorrow"})
 
-        rows[0].save.assert_not_called()
-        cache_mock.forget.assert_not_called()
-        self.assertFalse(_body(response)["ok"])
+        self.assertEqual(_status(response), 422)
+        self.assertIn("Pick a valid expiry date and time", _body(response)["errors"])
+        record.save.assert_not_called()
 
-    def test_nothing_pending_is_refused_not_a_silent_success(self):
-        request = _request(role="admin")
-        response, cache_mock, _ = self._run("approve_issue", [], request)
+    def test_a_past_override_is_a_422(self):
+        record = self._story()
+        response = self._approve(record, {"expires_at": "2020-01-01T00:00"})
 
-        self.assertFalse(_body(response)["ok"])
-        cache_mock.forget.assert_not_called()
+        self.assertEqual(_status(response), 422)
+        self.assertIn("Pick an expiry in the future", _body(response)["errors"])
+
+    def test_the_stored_expiry_is_never_assigned_none(self):
+        """masonite-orm turns None on a __dates__ column into now(), which would
+        expire the post the instant it is approved."""
+        writes = []
+
+        class Record:
+            id = 11
+            status = "review"
+            title = "Campus story"
+            author_id = 5
+            rejection_reason = None
+            published_at = None
+
+            def __setattr__(self, name, value):
+                if name == "expires_at":
+                    writes.append(value)
+                object.__setattr__(self, name, value)
+
+            def save(self):
+                pass
+
+        record = Record()
+        self._approve(record)
+        self.assertEqual(len(writes), 1)
+        self.assertIsInstance(writes[0], datetime)
 
 
-class IssuePreviewTestCase(TestCase):
-    """The preview shows the issue as the kiosk will print it, every block in
-    its own place -- not one story forced into the lead slot."""
+class PostReviewPreviewTestCase(TestCase):
+    def test_preview_context_is_the_post_card_projection(self):
+        from app.services.ReviewQueue import preview_context
 
-    def test_preview_puts_each_pending_block_where_it_belongs(self):
-        from app.services.ReviewQueue import issue_preview_context
+        story = Mock(id=3, title="Headline", description="Body", image=None, kicker="K",
+                     image_crop=None, source_lines=None, status="review",
+                     expires_at=None, published_at=None, created_at=None)
+        with patch("app.services.ReviewQueue.Posts.card_context",
+                   return_value={"headline": "Headline"}) as card:
+            context = preview_context(story)
+        card.assert_called_once()
+        self.assertEqual(context["card"], {"headline": "Headline"})
+        self.assertFalse(context["post_editor"])
 
-        lead = Mock(id=1, layout_type="lead", status="review", priority=0)
-        brief = Mock(id=2, layout_type="brief", status="review", priority=1)
-        quote = Mock(id=3, layout_type="quote", status="review", priority=2)
+    def test_expiry_input_is_campus_local_and_empty_when_unset(self):
+        from app.services.ReviewQueue import expiry_input
 
-        ctx = issue_preview_context([lead, brief, quote])
+        self.assertEqual(expiry_input(Mock(expires_at=None)), "")
+        utc = datetime(2026, 12, 1, 4, 30, tzinfo=timezone.utc)
+        self.assertEqual(expiry_input(Mock(expires_at=utc)), "2026-12-01T12:30")
 
-        self.assertIs(ctx["blocks"]["lead"][0], lead)
-        self.assertIs(ctx["blocks"]["brief"][0], brief)
-        self.assertIs(ctx["blocks"]["quote"][0], quote)
-        self.assertFalse(ctx["news_editor"])
+    def test_expiry_input_is_empty_when_the_expiry_has_passed(self):
+        from app.services.ReviewQueue import expiry_input
 
-    def test_queue_context_describes_the_issue_not_the_rows(self):
+        past = datetime(2020, 1, 1, 4, 30, tzinfo=timezone.utc)
+        self.assertEqual(expiry_input(Mock(expires_at=past)), "")
+
+    def test_queue_context_lists_one_row_per_pending_post(self):
         from app.services.ReviewQueue import review_context
 
         rows = [
-            Mock(id=1, status="review", layout_type="lead", author_id=5),
-            Mock(id=2, status="review", layout_type="brief", author_id=5),
-            Mock(id=3, status="review", layout_type="brief", author_id=5),
+            Mock(id=1, status="review", title="One", author_id=5, kicker="", expires_at=None),
+            Mock(id=2, status="review", title="Two", author_id=6, kicker="", expires_at=None),
+            Mock(id=3, status="draft", title="Three", author_id=6),
         ]
-        pending = Mock(id=1, number=3, title="")
-        pending.stories = rows
         with patch("app.services.ReviewQueue.News") as news_mock, patch(
-            "app.services.ReviewQueue.author_names", return_value={5: "John"}
-        ), patch("app.services.ReviewQueue.Issues.pending_issues", return_value=[pending]):
+            "app.services.ReviewQueue.author_names", return_value={5: "John", 6: "Ana"}
+        ):
             news_mock.all.return_value = rows
             ctx = review_context()
 
-        self.assertEqual(len(ctx["review_issues"]), 1)
-        issue = ctx["review_issues"][0]
-        self.assertEqual(issue["number"], 3)
-        self.assertEqual(issue["block_count"], 3)
-        self.assertEqual(issue["blocks"]["brief"], 2)
-        self.assertEqual(issue["blocks"]["lead"], 1)
-        self.assertEqual(issue["authors"], ["John"])
+        self.assertEqual([p["id"] for p in ctx["review_posts"]], [1, 2])
+        self.assertEqual(ctx["review_posts"][0]["author"], "John")
+        self.assertEqual(ctx["review_count"], 2)
+        self.assertNotIn("review_issues", ctx)
+
+
+class PublicGateFailsClosedTestCase(TestCase):
+    def test_a_row_with_no_status_is_not_public(self):
+        from app.controllers.gears.NewsController import _news_is_public
+
+        self.assertFalse(_news_is_public(Mock(status=None, expires_at=None)))
+
+    def test_a_row_with_an_unknown_status_is_not_public(self):
+        from app.controllers.gears.NewsController import _news_is_public
+
+        self.assertFalse(_news_is_public(Mock(status="weird", expires_at=None)))
+
+    def test_a_published_row_still_is(self):
+        from app.controllers.gears.NewsController import _news_is_public
+
+        self.assertTrue(_news_is_public(Mock(status="published", expires_at=None)))
 
 
 from tests import TestCase as _AppTestCase  # noqa: E402  (needs the container; the rest of this file does not)
@@ -461,26 +440,21 @@ from tests import TestCase as _AppTestCase  # noqa: E402  (needs the container; 
 pytestmark = pytest.mark.usefixtures("actor_may_change_any_story", "preview_already_read")
 
 
-class IssueRoutesResolveTestCase(_AppTestCase):
-    """`@id` matches any segment, so the issue routes have to be declared
-    BEFORE the per-story ones or "/gears/review/issue/approve" resolves to
-    approve(id="issue"). This resolves through the real router, which is the
-    only place that ordering is visible -- calling the controller directly, as
-    the tests above do, can never catch it."""
+class ReviewRoutesResolveTestCase(_AppTestCase):
+    """The newsletter's issue-level review is gone; only per-post routes remain.
+    Resolved through the real router, which is the only place route order and
+    existence are visible."""
 
-    def test_issue_urls_reach_the_issue_actions_not_the_story_ones(self):
+    def test_issue_urls_no_longer_resolve(self):
         router = self.application.make("router")
-        for url, method, expected in (
-            ("/gears/review/issue/5/preview", "GET", "preview_issue"),
-            ("/gears/review/issue/5/approve", "POST", "approve_issue"),
-            ("/gears/review/issue/5/reject", "POST", "reject_issue"),
+        for url, method in (
+            ("/gears/review/issue/5/preview", "GET"),
+            ("/gears/review/issue/5/approve", "POST"),
+            ("/gears/review/issue/5/reject", "POST"),
         ):
-            route = router.find(url, method)
-            self.assertIsNotNone(route, url)
-            self.assertIn(expected, str(route.controller), f"{url} resolved to {route.controller}")
+            self.assertIsNone(router.find(url, method), url)
 
-    def test_story_urls_still_reach_the_story_actions(self):
+    def test_post_urls_reach_the_post_actions(self):
         router = self.application.make("router")
         route = router.find("/gears/review/42/approve", "POST")
         self.assertIn("ReviewController@approve", str(route.controller))
-        self.assertNotIn("approve_issue", str(route.controller))

@@ -17,19 +17,8 @@ ROUTES = [
     # Editorial review. These are the first role-gated routes in this file —
     # everything else here is "auth" only, so any signed-in account reaches it.
     # Approving puts a story on a public campus screen, so it takes "admin".
-    # The issue as a unit. An editor submits an issue in one click; these are
-    # the admin's matching single actions.
-    #
-    # The per-story routes below constrain `@id:int` so that the literal
-    # segment "issue" can never match them. Ordering was tried first and is
-    # NOT enough: Masonite's Route.routes is a class-level list, and on a
-    # re-boot (every app TestCase) the registration order is not preserved --
-    # "/gears/review/issue/approve" resolved to approve(id="issue") on the
-    # second boot and 404'd on News.where("id", "issue"). Verified through the
-    # real router in tests/unit/test_review_workflow.py.
-    Route.get("/gears/review/issue/@id:int/preview", "gears.ReviewController@preview_issue").name("review.issue.preview").middleware("auth", "admin"),
-    Route.post("/gears/review/issue/@id:int/approve", "gears.ReviewController@approve_issue").name("review.issue.approve").middleware("auth", "admin"),
-    Route.post("/gears/review/issue/@id:int/reject", "gears.ReviewController@reject_issue").name("review.issue.reject").middleware("auth", "admin"),
+    # `@id:int` so a literal segment can never match: the old newsletter's
+    # /gears/review/issue/* routes are gone and must 404, not reach approve(id="issue").
     Route.get("/gears/review/@id:int/preview", "gears.ReviewController@preview").name("review.preview").middleware("auth", "admin"),
     Route.post("/gears/review/@id:int/approve", "gears.ReviewController@approve").name("review.approve").middleware("auth", "admin"),
     Route.post("/gears/review/@id:int/reject", "gears.ReviewController@reject").name("review.reject").middleware("auth", "admin"),
@@ -52,38 +41,10 @@ ROUTES = [
     # wildcard would swallow it.
     Route.post("/gears/notifications/@id/read", "gears.NotificationController@read").name("notifications.read").middleware("auth"),
     Route.post("/news/dashboard", "gears.NewsController@store").name("news.store").middleware("auth"),
-    Route.post("/news/dashboard/layout", "gears.NewsController@layout").name("news.layout").middleware("auth"),
-    Route.post("/news/dashboard/@id/body", "gears.NewsController@body").name("news.body").middleware("auth"),
-    # The composer's debounced draft save. Separate from news.store on purpose:
-    # it writes text only, never `status`, and refuses outright on a story that
-    # is already public -- see NewsController.autosave for why it declines
-    # rather than re-gating like news.body does.
-    Route.post("/news/dashboard/@id/autosave", "gears.NewsController@autosave").name("news.autosave").middleware("auth"),
-    Route.post("/news/dashboard/@id/unassign", "gears.NewsController@unassign").name("news.unassign").middleware("auth"),
     Route.delete("/news/dashboard/@id", "gears.NewsController@destroy").name("news.destroy").middleware("auth"),
-    # Story Library, Published tab. "auth" only: the controller scopes every
-    # lookup to issues.owner_id == the caller, so another editor's issue is a 404.
-    Route.get("/gears/issues/@id:int/print", "gears.IssueLibraryController@print_view").name("issues.print").middleware("auth"),
-    Route.post("/gears/issues/@id:int/duplicate", "gears.IssueLibraryController@duplicate").name("issues.duplicate").middleware("auth"),
-    # The open newsletter's calendar. "auth" only: the issue is always the
-    # caller's own, resolved from the session rather than named in the URL.
-    Route.post("/gears/issues/current/events/@event_id:int", "gears.IssueCalendarController@attach").name("issues.calendar.attach").middleware("auth"),
-    Route.post("/gears/issues/current/events/@event_id:int/remove", "gears.IssueCalendarController@remove").name("issues.calendar.remove").middleware("auth"),
-    # News categories. "auth" only, DELIBERATELY: unlike the /gears/review/*
-    # routes above, any signed-in editor may create, rename and delete a
-    # category — and a delete cascades a soft-delete to every story in it,
-    # published ones included, pulling them off the campus kiosk. That was a
-    # product decision, not an oversight. The guard is the confirmation
-    # dialog's story count, not a role, and both halves are recoverable
-    # through news.categories.restore. Check before adding "admin" here.
-    Route.get("/gears/news/categories", "gears.NewsCategoryController@index").name("news.categories.index").middleware("auth"),
-    Route.post("/gears/news/categories", "gears.NewsCategoryController@store").name("news.categories.store").middleware("auth"),
-    # Declared before the bare @id route below, so the literal "restore"
-    # segment is matched before the wildcard would swallow it — same reason
-    # the notifications block above orders "read-all" first.
-    Route.post("/gears/news/categories/@id/restore", "gears.NewsCategoryController@restore").name("news.categories.restore").middleware("auth"),
-    Route.post("/gears/news/categories/@id", "gears.NewsCategoryController@update").name("news.categories.update").middleware("auth"),
-    Route.delete("/gears/news/categories/@id", "gears.NewsCategoryController@destroy").name("news.categories.destroy").middleware("auth"),
+    # Copies one of the caller's own posts into a new draft. "auth" only: PostLibrary
+    # answers 404 for a post that is not theirs.
+    Route.post("/news/dashboard/@id:int/duplicate", "gears.NewsController@duplicate").name("news.duplicate").middleware("auth"),
     Route.get("/org-board/dashboard", "gears.OrgBoardController@show").name("org-board.show").middleware("auth"),
     Route.post("/org-board/dashboard", "gears.OrgBoardController@store").name("org-board.store").middleware("auth"),
     Route.get("/org-board/dashboard/data", "gears.OrgBoardController@data").name("org-board.data").middleware("auth"),

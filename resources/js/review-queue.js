@@ -1,18 +1,13 @@
-// Admin review queue — the ISSUE an editor submitted, as one thing.
+// Admin review queue -- one row per submitted post.
 //
-// The queue used to be one card per story, each POSTing /gears/review/<id>/…
-// An editor composes an issue as a unit and submits it in one click; this is
-// the admin's matching single action. There is now one card and it addresses
-// the issue endpoints (/gears/review/issue/…), which act on every pending
-// block together. All or nothing, by decision.
-//
-// The preview is deliberately fetched rather than rendered inline: it goes
-// through the kiosk's own _issue partial with every pending block in its real
-// place, and there is no point paying for that until the admin asks.
+// Preview fetches /gears/review/<id>/preview (the kiosk's own post card) into a
+// centred dialog and keeps the content stamp it returned; Approve sends that
+// stamp back as `review_stamp`, together with the expiry the admin left in the
+// dialog's datetime-local input (`expires_at`, campus-local, empty = default).
 //
 // Handlers are delegated from the queue host, not bound to the card, because
 // the queue is re-rendered wholesale by the 20s live poll
-// (data-live-section="review") — anything bound to the card would be lost on
+// (data-live-section="review") -- anything bound to the card would be lost on
 // the first refresh.
 (function () {
   var root = document.querySelector('[data-dashboard-shell]');
@@ -30,21 +25,23 @@
     }
   }
 
-  // issue id -> stamp of the content its preview rendered. Kept here because the
+  // post id -> stamp of the content its preview rendered. Kept here because the
   // live poll replaces the cards. The server only publishes content matching the
   // stamp sent back, so an approval is tied to the text the admin read.
   var previewStamps = {};
+  // post id -> the expiry input's value; kept beside the stamp for the same reason.
+  // post id -> the value the server prefilled; the expiry is sent only when the
+  // admin changed it, so an untouched one is never resent over the stored value.
+  var previewPrefill = {};
+  var previewExpiries = {};
+  var currentPreviewId = null;
 
-  function cardOf(el) { return el.closest('[data-review-issue]'); }
-  function issueIdOf(card) { return card && card.getAttribute('data-review-issue-id'); }
+  function cardOf(el) { return el.closest('[data-review-post]'); }
+  function postIdOf(card) { return card && card.getAttribute('data-review-post-id'); }
 
   function refreshQueue() {
     if (window.DashboardLive && window.DashboardLive.refresh) {
       window.DashboardLive.refresh('review');
-    }
-    // The composer's Story Library shows status, so it is stale now too.
-    if (window.DashboardLive && window.DashboardLive.refresh) {
-      window.DashboardLive.refresh('news');
     }
   }
 
@@ -53,24 +50,18 @@
   function syncBadge() {
     var badge = root.querySelector('[data-review-count]');
     if (!badge) return;
-    // Depth is counted in blocks (review_count), and once the issue is
-    // decided there is nothing pending at all.
-    var remaining = 0;
-    host.querySelectorAll('[data-review-issue]').forEach(function (c) {
-      var n = c.querySelector('.review-card__count');
-      remaining += n ? (parseInt(n.textContent, 10) || 0) : 0;
-    });
+    var remaining = host.querySelectorAll('[data-review-post]').length;
     badge.textContent = String(remaining);
     badge.hidden = remaining === 0;
   }
 
   function decide(card, approve, reason) {
-    var id = issueIdOf(card);
+    var id = postIdOf(card);
     if (!id) return;
     var buttons = card.querySelectorAll('button');
     buttons.forEach(function (b) { b.disabled = true; });
 
-    fetch('/gears/review/issue/' + id + '/' + (approve ? 'approve' : 'reject'), {
+    fetch('/gears/review/' + id + '/' + (approve ? 'approve' : 'reject'), {
       method: 'POST',
       headers: {
         'X-CSRF-TOKEN': csrf,
@@ -80,7 +71,8 @@
       credentials: 'same-origin',
       body: JSON.stringify({
         reason: reason || '',
-        review_stamp: approve ? (previewStamps[id] || '') : ''
+        review_stamp: approve ? (previewStamps[id] || '') : '',
+        expires_at: approve && previewExpiries[id] !== previewPrefill[id] ? (previewExpiries[id] || '') : ''
       })
     })
       .then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
@@ -88,7 +80,7 @@
         if (json && json.ok) {
           toast((json.messages && json.messages[0]) || 'Decision recorded.', false);
           // Drop the card immediately so a second admin looking at the same
-          // queue does not act on an issue that is already decided; the live
+          // queue does not act on a post that is already decided; the live
           // refresh behind it reconciles with the server.
           card.remove();
           syncBadge();
@@ -112,11 +104,12 @@
   //
   // Found from `document`, not from the card: the dialog is rendered once,
   // outside the live-refreshed host (review-preview-modal.html), so the 20s
-  // poll cannot tear it down while the admin is reading the issue. It used to
+  // poll cannot tear it down while the admin is reading the post. It used to
   // be an inline frame under the card, which the poll did exactly that to.
   var modal = document.querySelector('[data-review-preview-modal]');
   var previewTarget = modal ? modal.querySelector('[data-review-preview-target]') : null;
   var previewWell = modal ? modal.querySelector('[data-review-preview-well]') : null;
+  var expiryInput = modal ? modal.querySelector('[data-review-expiry]') : null;
   var previewTitle = modal ? modal.querySelector('[data-review-preview-title]') : null;
 
   // The kiosk is a 768px-wide portrait terminal and the fetched partial is
@@ -133,7 +126,7 @@
     // Measure with the previous fit's height cleared: an explicit height
     // caps what scrollHeight reports, so a re-fit (resize, a late image)
     // would otherwise shrink the well from an already-scaled number and
-    // clip the bottom of the issue.
+    // clip the bottom of the post.
     previewTarget.style.height = '';
     previewTarget.style.transform = 'scale(' + scale + ')';
     previewTarget.style.height = Math.ceil(previewTarget.scrollHeight * scale) + 'px';
@@ -150,23 +143,23 @@
   }
 
   function loadPreview(card, trigger) {
-    var id = issueIdOf(card);
+    var id = postIdOf(card);
     if (!id || !modal || !previewTarget) return;
 
+    currentPreviewId = id;
     if (previewTitle) {
       var titleNode = card.querySelector('.review-card__title');
-      // The card's title carries the block-count chip; only the first text
-      // node is the "Issue 01 — Title" line.
-      var heading = titleNode && titleNode.firstChild ? String(titleNode.firstChild.textContent || '').trim() : '';
-      previewTitle.textContent = heading || 'Issue as it will appear';
+      var heading = titleNode ? String(titleNode.textContent || '').trim() : '';
+      previewTitle.textContent = heading || 'Post as it will appear';
     }
+    if (expiryInput) expiryInput.value = '';
 
     previewTarget.style.transform = '';
     previewTarget.style.height = '';
     previewTarget.innerHTML = '<p class="review-preview__loading">Loading preview…</p>';
     openPreview(trigger);
 
-    fetch('/gears/review/issue/' + id + '/preview', {
+    fetch('/gears/review/' + id + '/preview', {
       headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
       credentials: 'same-origin'
     })
@@ -181,6 +174,9 @@
         // Server-rendered markup from our own template, not user input.
         previewTarget.innerHTML = json.html;
         previewStamps[id] = json.review_stamp || '';
+        previewPrefill[id] = json.expires_input || '';
+        previewExpiries[id] = previewPrefill[id];
+        if (expiryInput) expiryInput.value = previewExpiries[id];
         // Images in the partial change its height as they land; fit now for
         // the text, then again once the frame has painted.
         fitPreview();
@@ -193,6 +189,11 @@
   }
 
   if (modal) {
+    if (expiryInput) {
+      expiryInput.addEventListener('change', function () {
+        if (currentPreviewId) previewExpiries[currentPreviewId] = expiryInput.value || '';
+      });
+    }
     modal.addEventListener('click', function (event) {
       if (event.target.closest('[data-review-preview-close]')) {
         event.preventDefault();

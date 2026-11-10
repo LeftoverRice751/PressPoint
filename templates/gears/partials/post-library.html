@@ -1,0 +1,48 @@
+{#- The signed-in editor's own photo posts (PostLibrary.library_rows). Rendered in
+    the full page AND as the `post-library` fragment, so a refreshed row cannot
+    differ from one that arrived with the page.
+
+    Each row carries its whole row dict as JSON (`data-post-row`); post-editor.js
+    loads a post into the editor from that, with no second request. `tojson`
+    escapes < > & ' as \uXXXX, which is what makes the single-quoted attribute
+    safe for any headline an editor can type. -#}
+{% set state_labels = {'draft': 'Draft', 'review': 'In review', 'live': 'Live', 'expired': 'Expired', 'rejected': 'Returned'} %}
+{% for row in post_library %}
+<li class="post-library__row" data-post-library-row data-post-id="{{ row.id }}" data-post-state="{{ row.state }}" data-post-row='{{ row | tojson }}'>
+  <button type="button" class="post-library__load" data-post-load aria-label="Edit {{ row.headline or 'Untitled post' }}">
+    {% if row.image_thumb %}
+    <img class="post-library__thumb" src="/storage/{{ row.image_thumb }}" alt="" loading="lazy">
+    {% else %}
+    <span class="post-library__thumb post-library__thumb--empty" aria-hidden="true"></span>
+    {% endif %}
+    <span class="post-library__text">
+      <span class="post-library__title">{{ row.headline or 'Untitled post' }}</span>
+      <span class="post-library__meta">
+        <span class="post-state post-state--{{ row.state }}">{{ state_labels.get(row.state, 'Draft') }}</span>
+        {% if row.state in ('live', 'expired') and row.expires_label %}
+        <span>{{ 'Until' if row.state == 'live' else 'Ended' }} {{ row.expires_label }}</span>
+        {% elif row.published_label %}
+        <span>{{ row.published_label }}</span>
+        {% endif %}
+      </span>
+    </span>
+  </button>
+  {% if row.state == 'rejected' and row.rejection_reason %}
+  <p class="post-library__reason">{{ row.rejection_reason }}</p>
+  {% endif %}
+  <div class="post-library__actions">
+    <button type="button" class="ghost-button" data-post-duplicate="{{ route('news.duplicate', {'id': row.id}, False) }}">Duplicate</button>
+    <form action="{{ route('news.destroy', {'id': row.id}, False) }}" method="post" class="inline-form" data-live-delete="post-library">
+      {{ csrf_field | safe }}
+      <input type="hidden" name="__method" value="DELETE">
+      <button type="submit" class="ghost-button"
+              data-confirm="Permanently delete &quot;{{ row.headline or 'Untitled post' }}&quot;? If it is on the kiosk it comes off now. This cannot be undone."
+              data-confirm-title="Delete post?"
+              data-confirm-label="Delete post"
+              data-confirm-danger>Delete</button>
+    </form>
+  </div>
+</li>
+{% else %}
+<li class="post-library__empty empty-state empty-state--embedded">No posts yet. Your drafts and published posts will appear here.</li>
+{% endfor %}

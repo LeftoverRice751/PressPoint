@@ -1,7 +1,7 @@
 // Run with: node --test tests/js/
 //
-// The review queue's "Preview the issue" opens a centred <dialog> and fills it
-// with the kiosk's own render of the issue. It used to expand an inline frame
+// The review queue's "Preview the post" opens a centred <dialog> and fills it
+// with the kiosk's own render of the post. It used to expand an inline frame
 // under the card, scaled to 62%, where the admin squinted at a shrunken kiosk
 // page that the 20s live poll could wipe mid-read. Three contracts here:
 //
@@ -92,23 +92,28 @@ class FakeDialog extends FakeElement {
 }
 
 /**
- * Boots review-queue.js against a stub DOM holding one pending issue.
+ * Boots review-queue.js against a stub DOM holding one pending post.
  *
  * `fetches` records every URL asked for; `respond` decides what comes back
  * (a JSON body, or a rejection when `fail` is set).
  */
-function boot({ fail = false, html = '<section class="issue">Issue 01</section>' } = {}) {
+function boot({ fail = false, expires = '2026-12-01T12:30', html = '<article class="post-card">Post 01</article>' } = {}) {
   const root = new FakeElement('div', ['[data-dashboard-shell]']);
   const host = new FakeElement('div', ['[data-review-queue-host]']);
   root.appendChild(host);
 
-  const card = new FakeElement('article', ['[data-review-issue]']);
-  card.setAttribute('data-review-issue-id', '7');
+  const card = new FakeElement('article', ['[data-review-post]']);
+  card.setAttribute('data-review-post-id', '7');
   host.appendChild(card);
   const previewButton = new FakeElement('button', ['[data-review-preview]']);
   card.appendChild(previewButton);
 
+  const approveButton = new FakeElement('button', ['[data-review-approve]']);
+  card.appendChild(approveButton);
+
   const modal = new FakeDialog(['[data-review-preview-modal]']);
+  const expiry = new FakeElement('input', ['[data-review-expiry]']);
+  modal.appendChild(expiry);
   const target = new FakeElement('div', ['[data-review-preview-target]']);
   const closeButton = new FakeElement('button', ['[data-review-preview-close]']);
   modal.appendChild(target);
@@ -127,16 +132,22 @@ function boot({ fail = false, html = '<section class="issue">Issue 01</section>'
       return null;
     },
   };
-  const fakeFetch = (url) => {
+  const bodies = [];
+  const fakeFetch = (url, init) => {
     fetches.push(url);
+    if (init && init.body) bodies.push(JSON.parse(init.body));
     if (fail) return Promise.reject(new Error('offline'));
-    return Promise.resolve({ json: () => Promise.resolve({ ok: true, html }) });
+    return Promise.resolve({
+      json: () => Promise.resolve({
+        ok: true, html, review_stamp: 'stamp-1', expires_input: expires, messages: ['Done'],
+      }),
+    });
   };
 
   new Function('window', MODAL_BEHAVIOR)(fakeWindow);
   new Function('window', 'document', 'fetch', SOURCE)(fakeWindow, fakeDocument, fakeFetch);
 
-  return { host, card, previewButton, modal, target, closeButton, fetches };
+  return { host, card, previewButton, approveButton, expiry, bodies, modal, target, closeButton, fetches };
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -146,10 +157,10 @@ test('preview opens the centred dialog and fills it with the kiosk render', asyn
 
   host.dispatch('click', { target: previewButton, preventDefault() {} });
   assert.equal(modal.open, true, 'the dialog opens on click, before the fetch lands');
-  assert.deepEqual(fetches, ['/gears/review/issue/7/preview']);
+  assert.deepEqual(fetches, ['/gears/review/7/preview']);
 
   await settle();
-  assert.match(target.innerHTML, /Issue 01/);
+  assert.match(target.innerHTML, /Post 01/);
 });
 
 test('closing the dialog empties the render so its images are released', async () => {
@@ -157,7 +168,7 @@ test('closing the dialog empties the render so its images are released', async (
 
   host.dispatch('click', { target: previewButton, preventDefault() {} });
   await settle();
-  assert.match(target.innerHTML, /Issue 01/);
+  assert.match(target.innerHTML, /Post 01/);
 
   modal.dispatch('click', { target: closeButton, preventDefault() {} });
   assert.equal(modal.open, false);
@@ -171,4 +182,46 @@ test('a failed fetch says so inside the dialog instead of loading forever', asyn
   await settle();
   assert.equal(modal.open, true);
   assert.match(target.innerHTML, /Could not load the preview/);
+});
+
+test('the preview prefills the expiry and approve sends it with the stamp', async () => {
+  const { host, previewButton, approveButton, expiry, fetches, bodies } = boot();
+
+  host.dispatch('click', { target: previewButton, preventDefault() {} });
+  await settle();
+  assert.equal(expiry.value, '2026-12-01T12:30');
+
+  // The admin moves the expiry before approving.
+  expiry.value = '2026-12-05T09:00';
+  expiry.dispatch('change', {});
+
+  host.dispatch('click', { target: approveButton, preventDefault() {} });
+  await settle();
+  assert.equal(fetches[1], '/gears/review/7/approve');
+  assert.deepEqual(bodies[0], {
+    reason: '',
+    review_stamp: 'stamp-1',
+    expires_at: '2026-12-05T09:00',
+  });
+});
+
+test('an untouched prefilled expiry is not resent on approve', async () => {
+  const { host, previewButton, approveButton, bodies } = boot();
+
+  host.dispatch('click', { target: previewButton, preventDefault() {} });
+  await settle();
+  host.dispatch('click', { target: approveButton, preventDefault() {} });
+  await settle();
+  assert.equal(bodies[0].expires_at, '');
+});
+
+test('a lapsed expiry prefills empty and stays unsent', async () => {
+  const { host, previewButton, approveButton, expiry, bodies } = boot({ expires: '' });
+
+  host.dispatch('click', { target: previewButton, preventDefault() {} });
+  await settle();
+  assert.equal(expiry.value, '');
+  host.dispatch('click', { target: approveButton, preventDefault() {} });
+  await settle();
+  assert.equal(bodies[0].expires_at, '');
 });

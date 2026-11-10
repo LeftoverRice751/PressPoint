@@ -6,6 +6,7 @@ middleware cannot let an editor publish.
 
 import hmac
 import traceback
+from datetime import datetime, timezone
 
 from masonite.controllers import Controller
 from masonite.facades import Cache
@@ -15,17 +16,14 @@ from masonite.views import View
 
 from app.controllers.gears.NewsController import _NEWS_CACHE_KEY
 from app.models.News import News
-from app.services import AuditLog, KioskBroadcast, Notifications
+from app.services import AuditLog, KioskBroadcast, Notifications, Posts
 from app.services.AjaxResponses import wants_json, json_success, json_errors
-from config.database import DB
 
 from app.services.ReviewQueue import (
     REVIEW_STATUS,
     content_stamp,
-    issue_preview_context,
-    pending_stories,
+    expiry_input,
     preview_context,
-    review_stories_of,
 )
 
 
@@ -88,9 +86,34 @@ class ReviewController(Controller):
 
         title = getattr(record, "title", None) or "Your story"
 
+        expires_at = None
+        now = datetime.now(timezone.utc)
+        if approve:
+            # The admin's override is part of what is being approved, so it is
+            # resolved only after the stamp check above has passed.
+            try:
+                expires_at = Posts.parse_local_expiry(request.input("expires_at"), now)
+            except ValueError as error:
+                return _err([str(error)])
+            if expires_at is None:
+                stored = getattr(record, "expires_at", None)
+                if not isinstance(stored, datetime):
+                    expires_at = Posts.default_expiry(now)
+                elif Posts.is_expired(record, now):
+                    return _err(
+                        ["This post's expiry has passed. Set a new expiry to approve it."]
+                    )
+                else:
+                    expires_at = stored
+
         try:
             if approve:
                 record.status = "published"
+                # Approval is publication: UTC-aware, because the ORM tags a naive
+                # datetime as UTC without shifting it. expires_at is only ever
+                # assigned a real datetime: None on a __dates__ column becomes now().
+                record.published_at = now
+                record.expires_at = expires_at
                 record.rejection_reason = None
             else:
                 # Back to draft so the editor can fix and resubmit; store() clears the reason.
@@ -122,9 +145,9 @@ class ReviewController(Controller):
             )
 
             message = (
-                "Story approved and published."
+                "Post approved and published."
                 if approve
-                else "Story sent back to the editor."
+                else "Post sent back to the editor."
             )
 
             if is_ajax:
@@ -141,151 +164,6 @@ class ReviewController(Controller):
             traceback.print_exception(type(exception), exception, exception.__traceback__)
             return _err(["Could not record that decision. Please try again."])
 
-    def _decide_issue(self, request, response, approve, issue_id=None):
-        """Approve or reject one pending issue, all blocks at once. The queue's buttons call this."""
-        is_ajax = wants_json(request)
-
-        def _err(messages, status=422):
-            if is_ajax:
-                return json_errors(response, messages, status=status)
-            return response.back().with_errors(messages)
-
-        actor = self._actor(request)
-        if not _is_admin(actor):
-            return _err(["Only an admin can review stories."], status=403)
-
-        # Re-read at decision time and scoped to this issue, so two admins with the
-        # queue open cannot act on a stale list or each other's newsletter.
-        stories = list(review_stories_of(issue_id) if issue_id else pending_stories() or [])
-        if not stories:
-            # Refuse rather than report success on nothing (double-click after a colleague).
-            return _err(["Nothing is awaiting review."], status=409)
-
-        if approve and not _matches_preview(request, stories):
-            return _err([_STALE_PREVIEW], status=409)
-
-        reason = (request.input("reason") or "").strip()
-        if not approve and not reason:
-            return _err(["Please say why you are sending this issue back."])
-
-        try:
-            # One transaction: an issue is published whole or not at all.
-            with DB.transaction():
-                for record in stories:
-                    if approve:
-                        record.status = "published"
-                        record.rejection_reason = None
-                    else:
-                        record.status = "draft"
-                        record.rejection_reason = reason
-                    record.save()
-                # Stamp published_at on every approve (approval is publication for a
-                # daily). UTC-aware: the ORM tags a naive datetime as UTC without shifting.
-                if approve and issue_id:
-                    try:
-                        from datetime import datetime, timezone
-
-                        from app.models.Issue import Issue
-
-                        issue = Issue.where("id", issue_id).first()
-                        if issue is not None:
-                            issue.published_at = datetime.now(timezone.utc)
-                            issue.save()
-                    except Exception:
-                        pass
-
-            AuditLog.record(
-                "issue.approved" if approve else "issue.rejected",
-                target_type="issue",
-                target_id=issue_id,
-                details={
-                    "stories": [getattr(r, "id", None) for r in stories],
-                    **({} if approve else {"reason": reason}),
-                },
-                actor=actor,
-                request=request,
-            )
-
-            Cache.forget(_NEWS_CACHE_KEY)
-            KioskBroadcast.section_changed("latest-news")
-
-            # One notification per author, not one per block.
-            notified = set()
-            for record in stories:
-                author_id = getattr(record, "author_id", None)
-                if not author_id or author_id in notified:
-                    continue
-                notified.add(author_id)
-                Notifications.notify(
-                    author_id,
-                    "news.approved" if approve else "news.rejected",
-                    (
-                        "Your issue was published"
-                        if approve
-                        else "Your issue was sent back for changes"
-                    ),
-                    None if approve else reason,
-                    _EDITOR_LINK,
-                )
-
-            count = len(stories)
-            message = (
-                f"Issue approved and published ({count} blocks)."
-                if approve
-                else f"Issue sent back to the editor ({count} blocks)."
-            )
-
-            if is_ajax:
-                return json_success(
-                    response,
-                    payload={
-                        "ids": [getattr(r, "id", None) for r in stories],
-                        "status": "published" if approve else "draft",
-                        "count": count,
-                    },
-                    messages=[message],
-                )
-            return response.redirect(
-                name="users.view", query_params={"page": "review"}
-            ).with_success([message])
-        except Exception as exception:
-            traceback.print_exception(type(exception), exception, exception.__traceback__)
-            return _err(["Could not record that decision. Please try again."])
-
-    def approve_issue(self, request: Request, response: Response):
-        return self._decide_issue(request, response, approve=True, issue_id=self._issue_id(request))
-
-    def reject_issue(self, request: Request, response: Response):
-        return self._decide_issue(request, response, approve=False, issue_id=self._issue_id(request))
-
-    @staticmethod
-    def _issue_id(request):
-        try:
-            return int(request.param("id")) or None
-        except (TypeError, ValueError):
-            return None
-
-    def preview_issue(self, request: Request, response: Response, view: View):
-        """One pending issue, as the kiosk will print it."""
-        actor = self._actor(request)
-        if not _is_admin(actor):
-            return json_errors(response, ["Only an admin can review stories."], status=403)
-
-        issue_id = self._issue_id(request)
-        stories = list(review_stories_of(issue_id) if issue_id else pending_stories() or [])
-        if not stories:
-            return json_errors(response, ["Nothing is awaiting review."], status=404)
-
-        html = view.render("kiosk/_issue", issue_preview_context(stories, issue_id)).rendered_template
-        return json_success(
-            response,
-            payload={
-                "count": len(stories),
-                "html": html,
-                "review_stamp": content_stamp(stories),
-            },
-        )
-
     def approve(self, request: Request, response: Response):
         return self._decide(request, response, request.param("id"), approve=True)
 
@@ -298,12 +176,14 @@ class ReviewController(Controller):
         if not record:
             return json_errors(response, ["Story not found."], status=404)
 
-        html = view.render("kiosk/_issue", preview_context(record)).rendered_template
+        html = view.render("kiosk/_post_card", preview_context(record)).rendered_template
         return json_success(
             response,
             payload={
                 "id": getattr(record, "id", None),
                 "html": html,
+                "title": getattr(record, "title", None) or "",
+                "expires_input": expiry_input(record),
                 "review_stamp": content_stamp([record]),
             },
         )

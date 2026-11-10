@@ -165,10 +165,11 @@
       position: fixed;
       inset: 0;
       z-index: 9999;
-      /* Cream, not espresso: the framed page (kiosk/news.html) renders on a
-         cream newspaper-bg, so a dark ground here shows through as a flash
-         while the iframe loads. */
-      background: var(--kiosk-cream);
+      /* Espresso, like the idle video's frame: the framed page switches to an
+         espresso ground in attract mode (kiosk-news.css, .news-attract), so
+         the frame, the page and the strip under it are one solid colour and
+         nothing flashes while the iframe loads. */
+      background: var(--kiosk-espresso);
       overflow: hidden;
     }
 
@@ -178,11 +179,14 @@
 
     /* iframe is created by JS on first attract, not written here — see the
        comment on the markup below for why the host stays empty at render. */
+    /* Ends where the CTA band begins, exactly like #kiosk-video-wrap in the
+       video attract (welcome-screen.css), so the band never sits on a post. */
     #kiosk-attract-frame {
       position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: var(--kiosk-idle-band-h, 0px);
     }
 
     #kiosk-attract-frame iframe {
@@ -439,9 +443,10 @@
        covers attract (z-index 9999) the same way it covers #kiosk-stage. -->
   <div id="kiosk-attract" hidden aria-hidden="true">
     <div id="kiosk-attract-frame"></div>
+    {# Same band, same words, same steady look as the idle video's CTA, so
+       the two attract screens read as one thing (welcome-screen.css). #}
     <button type="button" class="kiosk-idle-cta" id="kiosk-attract-cta" aria-hidden="true" tabindex="-1">
-      <span class="kiosk-idle-cta__pulse" aria-hidden="true"></span>
-      <span class="kiosk-idle-cta__label">Touch to begin</span>
+      <span class="kiosk-idle-cta__label">CLICK TO START KIOSK</span>
     </button>
   </div>
 

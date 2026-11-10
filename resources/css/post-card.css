@@ -1,0 +1,284 @@
+/*
+ * Square photo post card -- shared by the kiosk (templates/kiosk/news.html), the
+ * composer canvas and the review preview, via templates/kiosk/_post_card.html.
+ *
+ * Layout: full-bleed photo, then a rounded panel that
+ * overlaps the photo's bottom edge (kicker, headline, body, source lines) with
+ * flat decorative shapes in its corners. Solid fills only.
+ *
+ * Scaling: the card is a size container and every length below is in `cqw`
+ * (1% of the card's width), so it renders identically at the kiosk's ~720px and
+ * in a narrower dashboard column. A fixed px or rem size would not scale.
+ *
+ * Overflow: the card is a fixed square, the panel sizes to its text and the
+ * photo takes whatever is left (flex: 1 1 0 + min-height: 0). A worst-case post
+ * (KICKER_MAX / HEADLINE_MAX / BODY_MAX characters and three source lines)
+ * therefore shrinks the photo instead of overflowing the card. The type sizes
+ * are chosen so that worst case still leaves roughly a third of the card for the
+ * photo.
+ */
+
+.post-card {
+    container-type: inline-size;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(100%, 720px);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    overflow: hidden;
+    background: var(--brand-maroon-deep);
+    color: var(--brand-maroon-deep);
+    font-family: var(--font-body);
+}
+
+.post-card__photo {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--brand-maroon);
+}
+
+.post-card__photo img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* crop_style from Posts.crop_style() sets object-position and the zoom. */
+}
+
+.post-card__panel {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    min-height: 40cqw;
+    margin-top: -5cqw;
+    padding: 4.5cqw 6cqw 3cqw;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.4cqw;
+    overflow: hidden;
+    border-radius: 5cqw 5cqw 0 0;
+    background: var(--brand-cream-light);
+    text-align: center;
+}
+
+/* Decorative corners. Behind the text (z-index 0), pointer-inert. */
+.post-card__shape {
+    position: absolute;
+    z-index: 0;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.post-card__shape--a {
+    top: -16cqw;
+    left: -14cqw;
+    width: 34cqw;
+    height: 34cqw;
+    background: var(--brand-cream-dark);
+    opacity: 0.55;
+}
+
+.post-card__shape--b {
+    top: 6cqw;
+    right: -10cqw;
+    width: 22cqw;
+    height: 22cqw;
+    border: 2.4cqw solid var(--brand-cream-dark);
+    opacity: 0.55;
+}
+
+.post-card__shape--c {
+    right: -9cqw;
+    bottom: -9cqw;
+    width: 24cqw;
+    height: 24cqw;
+    background: var(--brand-gold);
+}
+
+/* A small solid maroon quarter-disc in the opposite corner. */
+.post-card__panel::after {
+    content: "";
+    position: absolute;
+    left: -6cqw;
+    bottom: -6cqw;
+    z-index: 0;
+    width: 14cqw;
+    height: 14cqw;
+    border-radius: 50%;
+    background: var(--brand-maroon);
+    pointer-events: none;
+}
+
+.post-card__kicker,
+.post-card__headline,
+.post-card__body,
+.post-card__sources {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+/* One brand colour, one weight: no multi-colour lettering. 40 chars at this
+   size stays on one line in the display face. */
+.post-card__kicker {
+    font-family: var(--font-display);
+    font-size: 2.8cqw;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--brand-maroon);
+    /* On top of the panel's gap: the label read as part of the headline, and in
+       the editor the two dashed field outlines nearly touched. Only costs space
+       when there is a kicker; the kiosk omits an empty one. */
+    margin-bottom: 1.4cqw;
+}
+
+.post-card__headline {
+    font-family: var(--font-heading);
+    font-size: 4.2cqw;
+    font-weight: 800;
+    line-height: 1.15;
+    color: var(--brand-maroon-deep);
+}
+
+.post-card__body {
+    font-size: 2.4cqw;
+    font-weight: 400;
+    line-height: 1.3;
+    color: var(--ink-muted);
+    white-space: pre-line;
+}
+
+.post-card__sources {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6cqw 3.4cqw;
+    margin-top: 0.8cqw;
+    padding: 0 6cqw;
+    list-style: none;
+    font-size: 2.1cqw;
+    line-height: 1.2;
+    color: var(--brand-maroon);
+}
+
+.post-card__sources li {
+    display: inline-flex;
+    align-items: center;
+    gap: 1cqw;
+}
+
+.post-card__sources svg {
+    flex: 0 0 auto;
+    width: 2.8cqw;
+    height: 2.8cqw;
+    fill: var(--brand-maroon);
+}
+
+/* Empty state: same square, no photo, the panel fills the card. */
+.post-card--empty {
+    background: var(--brand-cream-light);
+}
+
+.post-card--empty .post-card__panel {
+    flex: 1 1 auto;
+    margin-top: 0;
+    border-radius: 0;
+}
+
+.post-card--empty .post-card__headline {
+    font-size: 5cqw;
+}
+
+.post-card--empty .post-card__body {
+    font-size: 3cqw;
+}
+
+/* Editor mode (Task 7 binds the JS). Placeholders show on empty fields so the
+   always-present kicker is findable. */
+.post-card[data-post-editor] [contenteditable] {
+    min-width: 12cqw;
+    outline: 0.3cqw dashed rgb(var(--brand-maroon-rgb) / 0.35);
+    outline-offset: 0.6cqw;
+    cursor: text;
+}
+
+.post-card[data-post-editor] [contenteditable]:focus {
+    outline-style: solid;
+    outline-color: var(--brand-maroon);
+}
+
+.post-card[data-post-editor] [contenteditable]:empty::before {
+    content: attr(data-placeholder);
+    color: rgb(var(--brand-maroon-rgb) / 0.4);
+}
+
+/*
+ * Positioned mode (card.layout set): every piece sits at editor-chosen cqw
+ * coordinates from inline styles built by Posts.layout_styles(). The photo fills
+ * the card behind; the panel (inline `height`) is pinned to the bottom and covers
+ * the photo's lower part, which is what the flow layout's 5cqw tuck does. Text
+ * boxes are clipped to their box, font sizes scale by the per-piece --s.
+ */
+.post-card--positioned .post-card__photo {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    flex: none;
+}
+
+.post-card--positioned .post-card__panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    padding: 0;
+    display: block;
+    min-height: 0;
+}
+
+.post-card--positioned .post-card__kicker,
+.post-card--positioned .post-card__headline,
+.post-card--positioned .post-card__body {
+    position: absolute;
+    margin: 0;
+    max-width: none;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.post-card--positioned .post-card__kicker {
+    font-size: calc(2.8cqw * var(--s, 1));
+}
+
+.post-card--positioned .post-card__headline {
+    font-size: calc(4.2cqw * var(--s, 1));
+}
+
+.post-card--positioned .post-card__body {
+    font-size: calc(2.4cqw * var(--s, 1));
+}
+
+.post-card--positioned .post-card__sources {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 3cqw;
+    margin: 0;
+    padding: 0 6cqw;
+}
+
+/* The editor's 12cqw floor must not widen a box past its stored width. */
+.post-card--positioned[data-post-editor] [contenteditable] {
+    min-width: 0;
+}

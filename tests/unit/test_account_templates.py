@@ -43,7 +43,6 @@ def _story(story_id=1, title="Campus story", author_id=5, **overrides):
         "id": story_id,
         "title": title,
         "author_id": author_id,
-        "layout_type": "brief",
         "status": "review",
         "description": "<p>The body of the story.</p>",
         "excerpt": "",
@@ -54,45 +53,28 @@ def _story(story_id=1, title="Campus story", author_id=5, **overrides):
 
 
 class ReviewQueueTemplateTestCase(TestCase):
-    """The queue shows the ISSUE an editor submitted, as one card.
-
-    It used to render one card per story. An editor composes an issue as a
-    unit and submits it in one click; twelve cards for a full issue meant
-    twelve Approve clicks, each previewing its story as if it were the lead.
-    Now: one card, one preview of the whole issue, one Approve, one Send back.
-    """
+    """The queue lists one row per submitted post, each with its own Preview,
+    Approve and Send back."""
 
     def _render(self, stories=(), authors=None):
-        from app.services.ReviewQueue import pending_issue
+        from app.services.ReviewQueue import review_context
 
-        stories = list(stories)
         names = authors if authors is not None else {}
-        with patch("app.services.ReviewQueue.author_names", return_value=names):
-            issue = pending_issue(stories)
-        return View.render(
-            "gears/partials/review-queue",
-            {
-                "review_stories": stories,
-                "review_authors": names,
-                "review_count": len(stories),
-                "review_issue": issue,
-                # One entry per pending issue; a bare story list is one issue.
-                "review_issues": [dict(issue, id=1, number=1, title="")] if issue else [],
-            },
-        ).rendered_template
+        with patch("app.services.ReviewQueue.pending_stories", return_value=list(stories)), patch(
+            "app.services.ReviewQueue.author_names", return_value=names
+        ):
+            context = review_context()
+        return View.render("gears/partials/review-queue", context).rendered_template
 
-    def test_renders_one_card_for_the_whole_issue(self):
-        """Two submitted stories are two blocks of ONE issue, not two cards."""
+    def test_renders_one_row_per_post(self):
         html = self._render([_story(1), _story(2)])
-        # The card class, not the hook: `data-review-issue-id` contains
-        # `data-review-issue` as a substring and would count twice.
-        self.assertEqual(html.count("review-card--issue"), 1)
-        self.assertNotIn("data-review-item", html)
+        self.assertEqual(html.count("review-card--post"), 2)
+        self.assertNotIn("review-card--issue", html)
 
     def test_card_carries_the_hooks_the_queue_js_reads(self):
         html = self._render([_story(7)])
         for hook in (
-            "data-review-issue",
+            'data-review-post-id="7"',
             "data-review-preview",
             "data-review-approve",
             "data-review-reject",
@@ -100,35 +82,9 @@ class ReviewQueueTemplateTestCase(TestCase):
         ):
             self.assertIn(hook, html)
 
-    def test_card_says_how_many_blocks_the_issue_holds(self):
-        html = self._render([_story(1), _story(2), _story(3)])
-        self.assertIn("3 blocks", html)
-
-    def test_manifest_lists_each_filled_block_by_name(self):
-        """An admin should see that the lead is there and the notice is not
-        before opening the full preview."""
-        html = self._render([
-            _story(1, layout_type="lead"),
-            _story(2, layout_type="brief"),
-            _story(3, layout_type="brief"),
-        ])
-        self.assertIn("Lead story", html)
-        self.assertIn("Side stories", html)
-        self.assertNotIn("Notice</span>", html)
-
-    def test_shows_who_submitted_the_issue(self):
-        """The byline is the whole point of the attribution work — an admin
-        approving an issue has to know whose it is."""
+    def test_shows_who_submitted_the_post(self):
         html = self._render([_story(1, author_id=5)], authors={5: "Maria Santos"})
         self.assertIn("Maria Santos", html)
-
-    def test_names_each_author_once_when_several_wrote_the_issue(self):
-        html = self._render(
-            [_story(1, author_id=5), _story(2, author_id=5), _story(3, author_id=6)],
-            authors={5: "Maria Santos", 6: "Jose Cruz"},
-        )
-        self.assertEqual(html.count("Maria Santos"), 1)
-        self.assertIn("Jose Cruz", html)
 
     def test_survives_an_author_whose_account_was_deleted(self):
         """author_id is ON DELETE SET NULL, so this row genuinely occurs."""
@@ -138,7 +94,7 @@ class ReviewQueueTemplateTestCase(TestCase):
     def test_empty_queue_says_so(self):
         html = self._render([])
         self.assertIn("Nothing is waiting for review", html)
-        self.assertNotIn("data-review-issue", html)
+        self.assertNotIn("data-review-post-id", html)
 
     def test_reject_reason_box_exists(self):
         """A reason is required server-side; the UI has to be able to collect
@@ -146,6 +102,11 @@ class ReviewQueueTemplateTestCase(TestCase):
         html = self._render([_story(1)])
         self.assertIn("data-review-reject-form", html)
         self.assertIn("data-review-reject-confirm", html)
+
+    def test_the_preview_dialog_has_an_expiry_input(self):
+        html = View.render("gears/partials/review-preview-modal", {}).rendered_template
+        self.assertIn("data-review-expiry", html)
+        self.assertIn('type="datetime-local"', html)
 
 
 class AccountChromeTestCase(TestCase):
@@ -182,69 +143,12 @@ class AccountChromeTestCase(TestCase):
         html = self._render_dashboard()
         self.assertIn("data-dashboard-shell", html)
 
-    def test_the_news_panel_emits_its_composer_controls(self):
-        """The server half of the dead-button bug.
-
-        A composer control that stops being RENDERED produces exactly the same
-        report from an editor as one whose listener never attached: "the button
-        does nothing". tests/js/news-toolbar-scope.test.mjs pins the scoping
-        half (every composer-scoped lookup resolves inside the composer); this
-        pins that the markup is there to find at all.
-
-        It used to assert `data-news-prev` / `data-news-next` / `data-news-bench`
-        as well. Those are kiosk carousel hooks and a bench that this panel has
-        never rendered, so the assertions could only ever fail -- and did. They
-        are replaced here by the controls the composer genuinely depends on.
-        """
+    def test_the_news_panel_is_the_photo_post_editor(self):
+        """The newsletter composer's hooks are gone; the editor's own markup
+        contract lives in tests/unit/test_post_editor_panel.py."""
         html = self._render_dashboard()
-
-        for hook in (
-            # The publish path. A missing one of these is an editor who cannot
-            # file a story at all.
-            "data-news-canvas-save",
-            "data-news-save-draft",
-            "data-news-form",
-            # The editing surface the JS hard-returns without.
-            "data-news-composer",
-            "data-news-editor",
-            # Adding and placing stories.
-            "data-news-add-main",
-            "data-news-add-secondary",
-            "data-news-add-widget",
-            "data-news-library-open",
-        ):
-            self.assertIn(hook, html, f"the news panel must render {hook}")
-
-    def test_the_composer_canvas_renders_the_real_kiosk_issue(self):
-        """The composer edits kiosk/_issue.html -- the SAME partial the kiosk
-        page renders -- so an editor cannot arrange a layout the terminal does
-        not print. That drift is what this rebuild existed to end, and a
-        fallback to some other markup here would reintroduce it silently."""
-        html = self._render_dashboard()
-
-        # Chrome unique to the issue partial.
-        self.assertIn("issue-masthead", html)
-        self.assertIn("issue-colophon", html)
-        # Editor hooks the canvas is inert without.
-        for block in ("lead", "brief", "photo_essay", "editorial", "quote", "notice"):
-            self.assertIn(f'data-news-slot-list="{block}"', html)
-        # Every block renders its unfilled positions as typeable cards, so an
-        # editor can write a newsletter with no stories in the library at all.
-        self.assertNotIn("data-news-assign-slot", html)
-
-    def test_the_category_modal_renders_with_its_category_list(self):
-        """The modal is included in the full page render, not fetched — so a
-        missing context key here is a 500 on the whole dashboard, not a
-        degraded modal. `news_categories_json` in particular is produced by
-        news_categories_context() and has to reach the partial through
-        news_context()."""
-        html = self._render_dashboard()
-
-        self.assertIn("data-news-category-modal", html)
-        self.assertIn("data-news-categories-json", html)
-        # The confirm action starts disabled: a category is required, and the
-        # button must not be pressable before one is chosen.
-        self.assertIn("data-news-category-confirm", html)
+        self.assertIn("data-post-workspace", html)
+        self.assertNotIn("data-news-composer", html)
 
     def test_profile_border_shows_the_display_name(self):
         html = self._render_dashboard()
@@ -313,8 +217,3 @@ class AccountChromeTestCase(TestCase):
         """The composer button reads "Submit for review" off this flag."""
         self.assertIn('data-can-publish="true"', self._render_dashboard(role="admin"))
         self.assertIn('data-can-publish="false"', self._render_dashboard(role="editor"))
-
-    def test_composer_status_field_defaults_to_draft(self):
-        """An unset status must not be a publicly visible one."""
-        html = self._render_dashboard()
-        self.assertIn('name="status"       value="draft"', html)

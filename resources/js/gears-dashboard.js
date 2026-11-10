@@ -1,4 +1,3 @@
-import { offerDialog } from './issue-calendar-offer.mjs';
 
 (function () {
   var dashboardRoot = document.querySelector('[data-dashboard-shell]');
@@ -12,7 +11,6 @@ import { offerDialog } from './issue-calendar-offer.mjs';
   var videoPushUrl = dashboardRoot.getAttribute('data-video-push-url') || '/trigger-video';
   var pageLinks = Array.prototype.slice.call(dashboardRoot.querySelectorAll('[data-page-link][role="tab"]'));
   var pagePanels = Array.prototype.slice.call(dashboardRoot.querySelectorAll('[data-page-panel]'));
-  var progressBars = Array.prototype.slice.call(dashboardRoot.querySelectorAll('[data-progress-bar]'));
   var previewPlayer = dashboardRoot.querySelector('[data-video-preview-player]');
   var previewPlaceholder = dashboardRoot.querySelector('[data-video-preview-placeholder]');
   var eventsModal = dashboardRoot.querySelector('[data-events-modal]');
@@ -148,13 +146,6 @@ import { offerDialog } from './issue-calendar-offer.mjs';
         content.hidden = count === 0;
         content.setAttribute('aria-hidden', String(count === 0));
       }
-    });
-  }
-
-  function syncProgressBars() {
-    progressBars.forEach(function (bar) {
-      var progress = parseInt(bar.getAttribute('data-progress') || '0', 10) || 0;
-      bar.style.setProperty('--progress', String(progress));
     });
   }
 
@@ -508,7 +499,6 @@ import { offerDialog } from './issue-calendar-offer.mjs';
     }
   });
 
-  syncProgressBars();
   syncEmptyStates();
   switchPage(defaultPage);
 
@@ -667,50 +657,6 @@ import { offerDialog } from './issue-calendar-offer.mjs';
     });
   }
 
-  // A saved event is not on any newsletter yet. Ask, then tell the composer:
-  // this script doesn't own the canvas, and the two load independently.
-  function offerSavedEvent(payload) {
-    var dialog = offerDialog(payload.calendar_offer, payload.event && payload.event.title);
-    if (!dialog || !window.ConfirmModal) {
-      return;
-    }
-
-    window.ConfirmModal.ask(dialog).then(function (confirmed) {
-      if (!confirmed) {
-        return null;
-      }
-      if (dialog.kind === 'full') {
-        document.dispatchEvent(new CustomEvent('issue-calendar:manage'));
-        return null;
-      }
-
-      return fetch('/gears/issues/current/events/' + encodeURIComponent(payload.event.id), {
-        method: 'POST',
-        headers: {
-          'X-CSRF-TOKEN': token,
-          'X-Requested-With': 'XMLHttpRequest',
-          Accept: 'application/json'
-        },
-        credentials: 'same-origin'
-      })
-        .then(function (response) {
-          return response.json().catch(function () { return null; });
-        })
-        .then(function (result) {
-          // Refreshed either way: a refusal means this tab's picture was stale.
-          document.dispatchEvent(new CustomEvent('issue-calendar:changed'));
-          if (!result || !result.ok) {
-            var errors = (result && result.errors) || ['Could not add the event.'];
-            throw new Error(errors.join(' '));
-          }
-          notify('Added to your newsletter.');
-          switchPage('news');
-        });
-    }).catch(function (error) {
-      notify(error.message || 'Could not add the event.', { error: true });
-    });
-  }
-
   // Events save posts JSON and refreshes the table in place. The form keeps its
   // real action, so it still submits normally if this script never runs.
   var eventsForm = dashboardRoot.querySelector('[data-events-form]');
@@ -759,8 +705,6 @@ import { offerDialog } from './issue-calendar-offer.mjs';
           if (window.DashboardLive) {
             window.DashboardLive.refresh('events');
           }
-
-          offerSavedEvent(payload);
         })
         .catch(function (error) {
           // Keep the modal open and show why, instead of flashing on a reload.
@@ -915,28 +859,6 @@ import { offerDialog } from './issue-calendar-offer.mjs';
         grid.prepend(card);
       }
       form.reset();
-      return;
-    }
-
-    // News save: reset form and update library card status badge if editing existing
-    if (json.article) {
-      form.reset();
-      var idField = form.querySelector('[data-news-field="article_id"]');
-      if (idField) idField.value = '';
-      form.querySelectorAll('.js-body-editor').forEach(function (el) {
-        if (el._quill) el._quill.setContents([]);
-      });
-      if (!json.article.is_new && json.article.id) {
-        var libCard = document.querySelector('[data-news-library-id="' + json.article.id + '"]');
-        if (libCard) {
-          var badge = libCard.querySelector('.news-story-card__status');
-          if (badge) {
-            var s = json.article.status || 'published';
-            badge.className = 'news-story-card__status news-story-card__status--' + s;
-            badge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
-          }
-        }
-      }
       return;
     }
 

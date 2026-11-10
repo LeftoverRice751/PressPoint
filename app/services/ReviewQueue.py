@@ -2,39 +2,24 @@
 
 Editors cannot publish. Their "Submit for review" writes `status = "review"`,
 which `_news_is_public()` already excludes from every public surface, so a
-submitted story is invisible on the kiosk until an admin acts on it. This module
+submitted post is invisible on the kiosk until an admin acts on it. This module
 is what the admin sees in the meantime.
 
-The preview the queue renders is the real kiosk partial (kiosk/_issue.html
-with `news_editor` off), not a dashboard-styled approximation — so what an admin
-approves is what the campus terminal shows. A second renderer here would drift
-from the first one the moment either changed.
-
-── The unit of review is the ISSUE ──────────────────────────────────────────
-An editor composes an issue as one thing and submits it in one click. This
-module used to hand the admin N unrelated submissions instead — one queue row
-and one Approve per block, with every preview forcing the story into the lead
-slot regardless of what it was. A fully-filled issue is twelve blocks: twelve
-clicks, twelve misleading previews.
-
-"The issue" here is every story currently in review. There is no `issues`
-table yet, and the single-issue model means exactly one issue is ever in
-flight, so the two are the same set by construction. When multi-issue lands,
-this becomes "every review story in issue X" and nothing else about the shape
-has to change.
+The unit of review is one post. The preview is the real kiosk card partial
+(kiosk/_post_card.html with `post_editor` off), not a dashboard-styled
+approximation, so what an admin approves is what the campus terminal shows. A
+second renderer here would drift from the first one the moment either changed.
 """
 
 import hashlib
 import json
+from datetime import datetime
 
 from app.models.News import News
-from app.services import IssueCalendar, Issues
-from app.services.DashboardContext import (
-    BLOCK_TYPES,
-    author_names,
-    group_news_slots,
-    normalize_news_status,
-)
+from masonite.facades import Storage as StorageFacade
+
+from app.services import Posts
+from app.services.DashboardContext import author_names, normalize_news_status
 
 
 #: The one status this queue acts on.
@@ -58,58 +43,24 @@ def pending_stories():
         row
         for row in rows
         if normalize_news_status(getattr(row, "status", None)) == REVIEW_STATUS
+        # Every photo post carries image_crop; a NULL one is a legacy newsletter
+        # story, which approving would put on the kiosk as a malformed card.
+        and getattr(row, "image_crop", None) is not None
     ]
     pending.sort(key=lambda row: (getattr(row, "id", 0) or 0))
     return pending
 
 
-def describe_issue(issue, stories):
-    """One pending issue, described as a unit for the queue card: its id and
-    number, which blocks are filled, and who wrote it."""
-    if not stories:
-        return None
-
-    names = author_names(stories)
-    counts = {block: 0 for block in BLOCK_TYPES}
-    for row in stories:
-        block = (getattr(row, "layout_type", "") or "").strip().lower()
-        if block in counts:
-            counts[block] += 1
-
-    # Distinct, in first-seen order: an issue written by two editors names both,
-    # once each, rather than listing an author per block.
-    authors = []
-    for row in stories:
-        name = names.get(getattr(row, "author_id", None))
-        if name and name not in authors:
-            authors.append(name)
-
-    return {
-        "id": getattr(issue, "id", None),
-        "number": int(getattr(issue, "number", 0) or 0),
-        "title": getattr(issue, "title", None) or "",
-        "stories": stories,
-        "block_count": len(stories),
-        "blocks": counts,
-        "authors": authors,
-    }
-
-
-# Everything the kiosk draws from a story, including where it sits.
+# Everything the kiosk card draws from a post, plus when it leaves the screen.
 _STAMPED_FIELDS = (
     "title",
     "description",
     "image",
-    "layout_type",
-    "priority",
-    "category_id",
-    "source",
-    "location",
-    "dek",
-    "excerpt",
-    "headline_font",
-    "image_caption",
-    "image_credit",
+    "kicker",
+    "image_crop",
+    "source_lines",
+    "element_layout",
+    "expires_at",
 )
 
 
@@ -130,93 +81,48 @@ def content_stamp(stories):
     return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
 
 
-def pending_issue(stories=None):
-    """Kept for the transitional callers and tests that describe a bare list
-    of stories with no issue behind it."""
-    stories = pending_stories() if stories is None else stories
-    return describe_issue(None, stories)
-
-
-def review_stories_of(issue):
-    """The stories of ONE issue that are awaiting a decision."""
-    return [
-        s for s in Issues.stories_of(issue)
-        if normalize_news_status(getattr(s, "status", None)) == REVIEW_STATUS
-    ]
-
-
-def pending_issues_described():
-    """Every issue with something awaiting review, oldest first, each
-    described for its queue card."""
-    out = []
-    for issue in Issues.pending_issues():
-        described = describe_issue(issue, getattr(issue, "stories", []) or [])
-        if described:
-            out.append(described)
-    return out
+def expiry_input(post):
+    """The post's expiry as a campus-local `datetime-local` value, or "" if unset."""
+    expires_at = getattr(post, "expires_at", None)
+    if not isinstance(expires_at, datetime):
+        return ""
+    # A lapsed expiry prefills empty: approve then answers "This post's expiry has
+    # passed. Set a new expiry to approve it." instead of silently resending it.
+    if Posts.is_expired(post):
+        return ""
+    return Posts._aware_utc(expires_at).astimezone(Posts.CAMPUS_TZ).strftime("%Y-%m-%dT%H:%M")
 
 
 def review_context():
     """Context for the review panel and its live fragment.
 
     `review_stories` / `review_count` / `review_authors` are kept: the admin
-    console's count tile and the live-refresh row count read them, and the
-    count of pending BLOCKS is still the right depth for a work queue.
+    console's count tile and the live-refresh row count read them.
     """
     stories = pending_stories()
-
-    issues = pending_issues_described()
+    names = author_names(stories)
     return {
         "review_stories": stories,
         "review_count": len(stories),
-        "review_authors": author_names(stories),
-        # One entry per pending ISSUE. Each editor's newsletter is its own
-        # card with its own Approve.
-        "review_issues": issues,
-        # The first, for anything still reading the singular key.
-        "review_issue": issues[0] if issues else None,
-    }
-
-
-def issue_preview_context(stories, issue=None):
-    """Render the whole pending issue through the kiosk's own partial, every
-    block in its real place.
-
-    group_news_slots() is the same bucketing the kiosk uses, so a quote
-    previews as a quote and an essay photograph as an essay photograph — not,
-    as before, every one of them forced into the lead slot.
-    """
-    return {
-        "blocks": group_news_slots(list(stories or [])),
-        "news_editor": False,
-        # The real dates, so an admin is not approving a calendar they never saw.
-        # content_stamp() leaves it out because IssueCalendar locks it in review.
-        "calendar_events": IssueCalendar.events_for(issue),
-        "issue_vol": None,
-        "issue_no": None,
+        "review_authors": names,
+        # One row per pending post, oldest first.
+        "review_posts": [
+            {
+                "id": getattr(story, "id", None),
+                "headline": getattr(story, "title", None) or "Untitled post",
+                "kicker": getattr(story, "kicker", None) or "",
+                "author": names.get(getattr(story, "author_id", None)),
+                "expires_input": expiry_input(story),
+            }
+            for story in stories
+        ],
     }
 
 
 def preview_context(story):
-    """Render one story through the kiosk's own front-page partial.
-
-    The partial expects the slot buckets, so the story under review is handed
-    in as the lead with both other buckets empty: it fills the whole preview
-    frame, at the size and typography the kiosk uses. `news_editor` stays False
-    so none of the composer's editing chrome (context menus, contenteditable
-    regions, assign placeholders) leaks into a read-only preview.
-    """
-    return {
-        # The story under review fills the frame as the lead, with every other
-        # block empty -- each one then omits its own section and the band
-        # numbering closes the gap, leaving it alone on the page.
-        "blocks": {block: ([story] if block == "lead" else []) for block in BLOCK_TYPES},
-        "news_editor": False,
-        # kiosk/_issue.html renders the whole issue, so the sections this
-        # preview has no data for have to be explicitly empty rather than
-        # undefined -- each one skips itself and the band numbering closes the
-        # gap, leaving the story under review alone in the frame.
-        "calendar_events": [],
-        "issue_vol": None,
-        "issue_no": None,
-    }
+    """Render one post through the kiosk's own card partial, read-only."""
+    try:
+        disk = StorageFacade.disk("public")
+    except Exception:
+        disk = None
+    return {"card": Posts.card_context(story, disk), "post_editor": False}

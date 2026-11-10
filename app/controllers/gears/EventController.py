@@ -5,7 +5,6 @@ from masonite.request import Request
 from masonite.response import Response
 
 from app.events.NewEvent import NewEvent
-from app.services import IssueCalendar, KioskBroadcast
 from app.services.AjaxResponses import wants_json, json_success, json_errors
 from app.services.ArchiveServices import ArchiveServices
 from app.services.FileVerificationService import FileVerificationService
@@ -22,16 +21,6 @@ def _uploaded_image(value):
     if not value or not getattr(value, "filename", ""):
         return None
     return value
-
-
-def _calendar_offer(request, event_date):
-    """What to ask about the newsletter after a save, or None to not ask. The
-    event is already written by now, so losing the question must not turn a
-    successful save into an error."""
-    try:
-        return IssueCalendar.offer_for(request.user().id, event_date)
-    except Exception:
-        return None
 
 
 class EventController(Controller):
@@ -89,12 +78,6 @@ class EventController(Controller):
         except Exception:
             pass
 
-        # A new event reaches the kiosk only once a newsletter chooses it, so
-        # this no longer changes what the terminal shows by itself. Kept because
-        # the embed is what carries the calendar, and it is held by the
-        # terminal's service worker stale-while-revalidate.
-        KioskBroadcast.section_changed("latest-news")
-
         if is_ajax:
             return json_success(response, payload={
                 "event": {
@@ -102,7 +85,6 @@ class EventController(Controller):
                     "title": title,
                     "location_id": location_id,
                 },
-                "calendar_offer": _calendar_offer(request, event_date),
             }, messages=["Event saved successfully."])
 
         return response.redirect(name="gears.dashboard").with_success([

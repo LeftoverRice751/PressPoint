@@ -14,32 +14,28 @@ Reads go to the configured database; only the tables are needed, not rows.
 
 from unittest.mock import patch
 
-from app.services import DashboardContext, IssueCalendar
+from app.services import DashboardContext
 from tests import TestCase
 
 
 class DashboardContextKeysTestCase(TestCase):
     def _full_context(self):
         rows = [object(), object()]
-        calendar = [{"id": 1, "title": "Parade", "chip": "SEP 15", "iso": "2026-09-15"}]
         with patch.object(
             DashboardContext,
             "events_context",
             return_value={"events": rows, "location_lookup": {}},
-        ), patch.object(IssueCalendar, "events_for", return_value=calendar):
-            return DashboardContext.full_context(), rows, calendar
+        ):
+            return DashboardContext.full_context(), rows
 
     def test_events_panel_rows_survive_the_merge(self):
-        context, rows, _ = self._full_context()
+        context, rows = self._full_context()
         self.assertIs(context["events"], rows)
 
-    def test_issue_calendar_has_its_own_key(self):
-        context, _, calendar = self._full_context()
-        self.assertIs(context["calendar_events"], calendar)
-
-    def test_canvas_fragment_carries_the_calendar(self):
-        calendar = [{"id": 1, "title": "Parade", "chip": "SEP 15", "iso": "2026-09-15"}]
-        with patch.object(IssueCalendar, "events_for", return_value=calendar):
-            context = DashboardContext.news_canvas_context()
-        self.assertIs(context["calendar_events"], calendar)
-        self.assertNotIn("events", context)
+    def test_the_news_panel_keys_do_not_collide(self):
+        context, _ = self._full_context()
+        self.assertEqual(context["post_library"], [])
+        self.assertIn("post_editor_card", context)
+        # The newsletter composer's keys are gone with it.
+        for gone in ("calendar_events", "blocks", "news_stamp", "news_issue"):
+            self.assertNotIn(gone, context)

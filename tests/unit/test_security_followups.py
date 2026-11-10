@@ -14,9 +14,8 @@ from app.controllers.gears.OrgBoardController import OrgBoardController
 from app.controllers.gears.VideoController import VideoController
 from app.exceptions.Handler import Handler
 from app.models.News import News
-from app.models.NewsCategory import NewsCategory
 from app.models.User import User
-from app.services import NewsCategories, SessionTokens
+from app.services import SessionTokens
 from app.services.FileVerificationService import FileVerificationService
 from masoniteorm.query.QueryBuilder import QueryBuilder
 from wsgi import application
@@ -194,70 +193,6 @@ class EveryRouteHasAHandlerTestCase(TestCase):
                 self.assertTrue(hasattr(controller, method), f"{path.name}: {target}@{method}")
 
 
-class CategoryRestoreTestCase(TestCase):
-    """The ORM's mass-assignment filter silently dropped deleted_at, so the
-    restore ran no SQL at all while reporting success."""
-
-    def _restore(self, story_status):
-        executed = []
-
-        def connection():
-            conn = Mock()
-            conn.query.side_effect = (
-                lambda sql, bindings=(), results="*": executed.append((sql, list(bindings))) or {}
-            )
-            return conn
-
-        story = Mock(id=9, status=story_status)
-        with patch.object(
-            QueryBuilder, "new_connection", side_effect=lambda: connection()
-        ), patch.object(NewsCategories, "story_count", return_value=1), patch.object(
-            NewsCategories, "_trashed_stories", return_value=[story]
-        ), patch.object(
-            NewsCategory, "only_trashed"
-        ) as only_trashed, patch.object(
-            NewsCategory, "where"
-        ) as live, patch.object(
-            NewsCategories.NewsCache, "forget"
-        ), patch.object(
-            NewsCategories.KioskBroadcast, "section_changed"
-        ):
-            only_trashed.return_value.where.return_value.first.return_value = Mock(id=3)
-            live.return_value.first.return_value = Mock(id=3, name="Sports")
-            outcome, _ = NewsCategories.restore_cascade(3)
-        self.assertEqual(outcome, "restored")
-        return executed
-
-    def _updates_to(self, executed, table):
-        return [
-            (sql, bindings)
-            for sql, bindings in executed
-            if sql.upper().startswith("UPDATE") and table in sql
-        ]
-
-    def test_the_category_and_its_stories_are_undeleted(self):
-        executed = self._restore("draft")
-        for table in ("news_categories", "news"):
-            updates = self._updates_to(executed, f"`{table}`")
-            self.assertTrue(any("deleted_at" in sql for sql, _ in updates), table)
-
-    def test_a_published_story_comes_back_for_review(self):
-        executed = self._restore("published")
-        updates = self._updates_to(executed, "`news`")
-        self.assertTrue(
-            any("status" in sql and "review" in bindings for sql, bindings in updates), updates
-        )
-
-    def test_a_draft_stays_a_draft(self):
-        executed = self._restore("draft")
-        updates = self._updates_to(executed, "`news`")
-        self.assertFalse(any("review" in bindings for _, bindings in updates), updates)
-
-    def test_the_trashed_story_query_includes_deleted_rows(self):
-        sql = News.with_trashed().where("category_id", 3).to_sql()
-        self.assertNotIn("deleted_at", sql)
-
-
 class AdminOnlySurfacesTestCase(TestCase):
     def test_branding_routes_are_admin_only(self):
         routes = {
@@ -327,19 +262,9 @@ class NewsAndHymnUploadsTestCase(TestCase):
 
         storage = Mock()
         request = _request(
-            {
-                "title": "Story",
-                "description": "<p>Body</p>",
-                "category_id": "2",
-                "layout_type": "brief",
-                "image": upload,
-            }
+            {"headline": "Story", "body": "Body", "image": upload}
         )
-        with patch(f"{module}.NewsCategories.find_live", return_value=Mock()), patch(
-            f"{module}.News"
-        ), patch(f"{module}.Cache"), patch(f"{module}.KioskBroadcast"), patch(
-            f"{module}.NewNews"
-        ), patch(
+        with patch(f"{module}.News"), patch(f"{module}.Cache"), patch(f"{module}.KioskBroadcast"), patch(
             f"{module}.generate_variants"
         ):
             NewsController().store(request, storage, Mock())

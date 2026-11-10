@@ -1,19 +1,16 @@
 {#
-    Overview panel: article groups and the recent-stories list.
+    Overview panel: the stat cards and the recent-posts list.
 
     Extracted from gears/dashboard.html, which had grown to 1,628 lines with
     every panel of the CMS in one file. Rendered by dashboard.html in the same
     order it always was; DashboardController.fragment() still re-renders the
-    smaller data partials (events-list, news-slots, archives-list, videos-list).
+    smaller data partials (events-list, post-library, archives-list, videos-list).
 #}
     <section class="gears-page is-visible" data-page-panel="dashboard" id="panel-dashboard" role="tabpanel" aria-labelledby="nav-dashboard" data-hero-eyebrow="Dashboard" data-hero-title="Real-time overview of your kiosk content" data-hero-subtitle="Manage events, news, campus locations, kiosk videos, and screen control from one place.">
       <div class="stats-grid">
         {# total_news / published_news from overview_context(): table-wide
            counts of `news`. Not total_articles / published_articles (the
-           legacy `Posts` table, which nothing writes any more), and not
-           news_count / news_status_counts either -- those are scoped to the
-           signed-in editor's own open issue now that the composer is
-           per-editor, so they showed 0 here for anyone without a draft. #}
+           legacy `Posts` table, which nothing writes any more). #}
         <article class="stat-card stat-card--blue">
           <div class="stat-card__label">Total News</div>
           <div class="stat-card__value">{{ total_news or 0 }}</div>
@@ -31,62 +28,17 @@
       </div>
 
       <div class="dashboard-grid">
-        <article class="dashboard-panel" data-section-count="{{ article_groups|length }}">
-          <div class="panel-header">
-            <div>
-              <p class="panel-header__eyebrow">Content Snapshot</p>
-              <h2 class="panel-header__title">Newsletters by Category</h2>
-            </div>
-          </div>
-
-          <div class="empty-state" data-empty-state>
-            <div class="empty-state__title">No data available</div>
-            <p class="empty-state__text">Publish newsletters and assign categories to populate this overview.</p>
-          </div>
-
-          <div class="category-list" data-section-content>
-            {% for group in article_groups %}
-            <div class="category-row">
-              <div class="category-row__header">
-                <div>
-                  <div class="category-row__name">{{ group['name'] }}</div>
-                  <div class="category-row__meta">{{ group['count'] }} {{ 'story' if group['count'] == 1 else 'stories' }}</div>
-                </div>
-                <div class="category-row__badge">{{ group['count'] }}</div>
-              </div>
-
-              <div class="progress-track" aria-hidden="true">
-                <span class="progress-fill" data-progress-bar data-progress="{{ group['percent'] }}"></span>
-              </div>
-
-              <div class="mini-list">
-                {% for article in group['items'] %}
-                <div class="mini-list__item">
-                  <span class="mini-list__title">{{ article.title }}</span>
-                  <span class="mini-list__detail">{{ article.status if article.status else 'draft' }}</span>
-                </div>
-                {% else %}
-                <div class="mini-list__item mini-list__item--muted">No stories in this category.</div>
-                {% endfor %}
-              </div>
-            </div>
-            {% else %}
-            <div class="category-row category-row--empty">No data available.</div>
-            {% endfor %}
-          </div>
-        </article>
-
         <article class="dashboard-panel" data-section-count="{{ recent_articles|length }}">
           <div class="panel-header">
             <div>
               <p class="panel-header__eyebrow">Latest Publishing</p>
-              <h2 class="panel-header__title">Recent Newsletters</h2>
+              <h2 class="panel-header__title">Recent Posts</h2>
             </div>
           </div>
 
           <div class="empty-state" data-empty-state>
             <div class="empty-state__title">No data available</div>
-            <p class="empty-state__text">Recent newsletters will appear here as soon as you publish content.</p>
+            <p class="empty-state__text">Recent posts will appear here as soon as you publish content.</p>
           </div>
 
           <div class="recent-list" data-section-content>
@@ -100,7 +52,6 @@
               </div>
 
               <div class="recent-item__meta">
-                <span>Category: {{ category_lookup.get(article.category_id, 'Uncategorized') if category_lookup else 'Uncategorized' }}</span>
                 <span>Published: {{ article.published_at if article.published_at else 'Not set' }}</span>
               </div>
 

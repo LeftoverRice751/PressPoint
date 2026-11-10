@@ -1,0 +1,39 @@
+{#- One square photo post. Vars: `card` (Posts.card_context), `post_editor` (bool).
+    Shared by the kiosk, the composer and the review preview, so what an editor
+    types into is the same markup a visitor reads.
+
+    Every text field is plain text and autoescaped; nothing here uses |safe. Only
+    the SVG icon markup below is trusted, and it is keyed by icon NAME, never built
+    from the text. In editor mode the three text regions are contenteditable and
+    the kicker stays in the DOM even when empty (the kiosk drops it), so an editor
+    has somewhere to type.
+
+    With card.layout set the card is `post-card--positioned`: the photo, panel and
+    three text regions carry the server-built inline styles (Posts.layout_styles,
+    autoescaped). Without one the markup is the flow layout, byte for byte. -#}
+{% set editing = post_editor is defined and post_editor %}
+<article class="post-card{% if card.layout %} post-card--positioned{% endif %}" data-post-id="{{ card.id }}"{% if editing %} data-post-editor{% endif %}>
+  <div class="post-card__photo"{% if card.layout %} style="{{ card.layout_styles.photo }}"{% endif %}>
+    {% if card.image_large %}
+    <img src="/storage/{{ card.image_large }}" alt="" style="{{ card.crop_style }}" draggable="false">
+    {% endif %}
+  </div>
+  <div class="post-card__panel"{% if card.layout %} style="{{ card.layout_styles.panel }}"{% endif %}>
+    <span class="post-card__shape post-card__shape--a" aria-hidden="true"></span>
+    <span class="post-card__shape post-card__shape--b" aria-hidden="true"></span>
+    <span class="post-card__shape post-card__shape--c" aria-hidden="true"></span>
+    {% if card.kicker or editing %}
+    <p class="post-card__kicker"{% if card.layout %} style="{{ card.layout_styles.kicker }}"{% endif %}{% if editing %} data-field="kicker" contenteditable="plaintext-only" data-placeholder="Event title (optional)"{% endif %}>{{ card.kicker }}</p>
+    {% endif %}
+    <h2 class="post-card__headline"{% if card.layout %} style="{{ card.layout_styles.headline }}"{% endif %}{% if editing %} data-field="headline" contenteditable="plaintext-only" data-placeholder="Headline"{% endif %}>{{ card.headline }}</h2>
+    <p class="post-card__body"{% if card.layout %} style="{{ card.layout_styles.body }}"{% endif %}{% if editing %} data-field="body" contenteditable="plaintext-only" data-placeholder="Write the story…"{% endif %}>{{ card.body }}</p>
+    <ul class="post-card__sources">
+      {% for line in card.source_lines %}
+      <li data-icon="{{ line.icon }}">
+        {% set icon = line.icon %}{% include 'kiosk/_post_source_icon.html' %}
+        <span>{{ line.text }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</article>

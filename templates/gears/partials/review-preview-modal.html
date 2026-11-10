@@ -1,6 +1,6 @@
 {#
-    Centred preview of ONE pending issue, opened from the review card's
-    "Preview the issue as it will appear" button -- see review-queue.js.
+    Centred preview of ONE pending post, opened from the review card's
+    "Preview the post as it will appear" button -- see review-queue.js.
 
     This replaced an inline frame under the card that showed the kiosk page at
     62% and got wiped by the 20s live refresh while the admin was reading it.
@@ -8,8 +8,8 @@
     reason: the host is re-rendered wholesale by the poll, and a dialog inside
     it would vanish mid-read. tests/unit/test_admin_console.py pins that.
 
-    The stage is empty until asked for: the kiosk's own _issue partial is
-    fetched from /gears/review/issue/<id>/preview and dropped into
+    The stage is empty until asked for: the kiosk's own post card is
+    fetched from /gears/review/<id>/preview and dropped into
     [data-review-preview-target], then scaled to fit the dialog's width. It is
     emptied again on close so the render's images are released.
 #}
@@ -24,10 +24,18 @@
         <div class="review-preview-modal__head">
           <p class="review-preview-modal__eyebrow">Kiosk preview</p>
           <h3 class="review-preview-modal__title" id="review-preview-title"
-              data-review-preview-title>Issue as it will appear</h3>
+              data-review-preview-title>Post as it will appear</h3>
           <p class="review-preview-modal__hint">
             This is the kiosk's own render, scaled to fit. Nothing here is public until you approve it.
           </p>
+        </div>
+
+        {# When the post leaves the kiosk. Prefilled with the editor's expiry
+           (campus-local); review-queue.js sends it as `expires_at` on approve.
+           Empty means "approve with the default of seven days". #}
+        <div class="review-preview-modal__expiry">
+          <label for="review-expiry" class="review-reject__label">Expires on the kiosk</label>
+          <input type="datetime-local" id="review-expiry" data-review-expiry>
         </div>
 
         {# The well is the 768px kiosk viewport, shrunk by review-queue.js to

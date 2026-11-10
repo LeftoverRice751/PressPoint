@@ -1,17 +1,15 @@
-"""A new event tells the kiosk, because the calendar lives in the news embed.
+"""Saving an event no longer tells the kiosk to reload Latest News.
 
-`NewsController.show` -- the kiosk's /kiosk/embed/latest-news document --
-renders `calendar_events` from `DashboardContext.upcoming_events()`. That
-list is deliberately kept out of NewsCache, so there was nothing server-side
-to invalidate; but the *terminal* still held the embed in sw-kiosk.js's
-stale-while-revalidate cache. With no broadcast, nothing evicted it, and an
-editor's new event first appeared on the visit after next.
+The calendar used to ride in the news embed (a newsletter chose its dates), so a
+new event had to evict the terminal's stale-while-revalidate copy of it. Posts
+carry no calendar, so the broadcast would only reload a page that cannot have
+changed.
 """
 
 from unittest.mock import Mock, patch
 
 from tests import TestCase
-from tests.unit.test_news_endpoints import _mock_request, _mock_response
+from tests.unit.news_doubles import _mock_request, _mock_response
 
 from app.controllers.gears.EventController import EventController
 
@@ -23,21 +21,22 @@ _VALID = {
 }
 
 
-class EventLiveBroadcastTestCase(TestCase):
+class EventNoBroadcastTestCase(TestCase):
     def _store(self, inputs):
         with patch(
             "app.controllers.gears.EventController.Events.create",
             return_value=Mock(id=7),
-        ), patch("app.controllers.gears.EventController.NewEvent"), patch(
+        ) as create, patch("app.controllers.gears.EventController.NewEvent"), patch(
             "app.services.KioskBroadcast.section_changed"
         ) as changed:
             EventController().store(_mock_request(inputs=inputs), _mock_response())
-        return changed
+        return create, changed
 
-    def test_store_broadcasts_latest_news(self):
-        self._store(_VALID).assert_called_once_with("latest-news")
+    def test_store_saves_without_reloading_latest_news(self):
+        create, changed = self._store(_VALID)
+        create.assert_called_once()
+        changed.assert_not_called()
 
-    def test_a_rejected_event_broadcasts_nothing(self):
-        # Validation failed, nothing was written, so the kiosk has nothing to
-        # re-fetch.
-        self._store({**_VALID, "event_date": "not a date"}).assert_not_called()
+    def test_the_json_response_carries_no_calendar_offer(self):
+        source = open("app/controllers/gears/EventController.py").read()
+        self.assertNotIn("calendar_offer", source)

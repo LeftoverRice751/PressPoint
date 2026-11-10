@@ -139,15 +139,13 @@ class StatsPartialTestCase(TestCase):
         self.assertNotIn('data-page-link="review"', html)
 
 
-def _issue_from(stories):
-    """review_context() derives this from the pending rows; mirror it here so
+def _posts_from(stories):
+    """review_context() derives these from the pending rows; mirror it here so
     the template test does not need a database behind author_names()."""
-    from unittest.mock import patch
-
-    from app.services.ReviewQueue import pending_issue
-
-    with patch("app.services.ReviewQueue.author_names", return_value={}):
-        return pending_issue(stories)
+    return [
+        {"id": s.id, "headline": s.title, "kicker": "", "author": None, "expires_input": ""}
+        for s in stories
+    ]
 
 
 class ConsoleTemplateTestCase(TestCase):
@@ -168,13 +166,7 @@ class ConsoleTemplateTestCase(TestCase):
             "review_stories": list(stories),
             "review_authors": {},
             "review_count": len(list(stories)),
-            # The queue renders the ISSUE the pending stories make up, so the
-            # console needs the same key review_context() supplies.
-            "review_issue": _issue_from(list(stories)),
-            "review_issues": (
-                [dict(_issue_from(list(stories)), id=1, number=1, title="")]
-                if _issue_from(list(stories)) else []
-            ),
+            "review_posts": _posts_from(list(stories)),
         }
         context.update(overrides)
         return View.render("gears/admin-console", context).rendered_template
@@ -233,8 +225,8 @@ class ConsoleTemplateTestCase(TestCase):
 
     def test_shows_the_queue_and_its_badge(self):
         html = self._render(stories=[_story(1, author_id=None)])
-        # One card for the submitted issue, not one per story.
-        self.assertIn("data-review-issue", html)
+        # One row per submitted post.
+        self.assertIn("data-review-post", html)
         self.assertIn("data-review-count", html)
         self.assertIn("data-review-approve", html)
         self.assertIn("data-review-reject", html)

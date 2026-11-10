@@ -40,7 +40,7 @@ class FlashTickerPlainTextTestCase(TestCase):
         ) as news_mock, patch(
             "app.controllers.kiosk.WelcomeController.Events"
         ) as events_mock:
-            news_mock.where_raw.return_value.get.return_value = [_story()]
+            news_mock.where_not_null.return_value.where_raw.return_value.get.return_value = [_story()]
             events_mock.where_raw.return_value.get.return_value = []
             return controller._build_flash_articles()
 
@@ -61,7 +61,7 @@ class FlashTickerPlainTextTestCase(TestCase):
         ) as news_mock, patch(
             "app.controllers.kiosk.WelcomeController.Events"
         ) as events_mock:
-            news_mock.where_raw.return_value.get.return_value = []
+            news_mock.where_not_null.return_value.where_raw.return_value.get.return_value = []
             events_mock.where_raw.return_value.get.return_value = [
                 Mock(
                     title="Foundation Day",
