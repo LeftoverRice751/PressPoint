@@ -460,7 +460,9 @@
     color: var(--brand-cream);
     font-size: 13px;
     line-height: 1;
-    transform: translate(-50%, -50%);
+    /* Sits just above the box's top-left corner. Centred on the corner it
+       covered the first letter of the text, and the text is what editors read. */
+    transform: translate(-4px, calc(-100% - 3px));
     cursor: move;
 }
 
