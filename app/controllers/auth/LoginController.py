@@ -34,7 +34,6 @@ class LoginController(Controller):
             AuditLog.record("auth.login.succeeded", actor=login, request=request)
             request.set_user(login)
 
-            
             slot = allocate_slot(request, SessionTokens.find_user)
             request.tab_slot = slot
             response.cookie(slot_cookie("token", slot), session_token)
