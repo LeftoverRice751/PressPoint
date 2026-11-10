@@ -124,7 +124,7 @@ Note `AppProvider.register()` vs `boot()`: view filters and shared values must b
 
 **Shipping photo posts.** Order matters, and every step that touches the live DB or restarts something is a stop-and-ask:
 
-1. `venv/bin/python craft migrate --force --migration 2026_11_09_000100_add_post_fields_to_news`, then check with `SHOW CREATE TABLE news`. Do **not** run a bare `craft migrate` yet.
+1. `venv/bin/python craft migrate --force --migration 2026_11_09_000100_add_post_fields_to_news`, then `--migration 2026_11_09_000150_add_missing_post_columns`, then check with `SHOW CREATE TABLE news`. Do **not** run a bare `craft migrate` yet. (000150 exists because 000100 originally decided with masonite's `Schema.has_column`, which is **not scoped to the current database**: on production it saw a preview copy's `news` and added nothing. Use `app/services/SchemaChecks.column_exists` in migrations, never `schema.has_column`; a test enforces it for `2026_11_*` migrations.)
 2. Deploy, `npm run prod` (Node 18), restart gunicorn.
 3. `mysqldump` backup, then `venv/bin/python scripts/purge_newsletters.py` (dry run), then `--confirm --backup <path>`.
 4. `venv/bin/python craft migrate --force` (now runs `2026_11_09_000200_drop_newsletter_schema`, which refuses while `issues` or `news.issue_id` still hold data), regenerate `databases/schema.sql`, then delete `scripts/purge_newsletters.py`.

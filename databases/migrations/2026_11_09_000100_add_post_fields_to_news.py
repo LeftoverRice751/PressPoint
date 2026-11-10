@@ -16,25 +16,34 @@ raw ALTER is the fallback.
 from masoniteorm.migrations import Migration
 from masoniteorm.query import QueryBuilder
 
+from app.services.SchemaChecks import column_exists
+
 POST_COLUMNS = ("kicker", "image_crop", "source_lines", "element_layout", "expires_at")
 
 
 class AddPostFieldsToNews(Migration):
+    def _has(self, table, column):
+        return column_exists(self.schema.connection, table, column)
+
     def up(self):
         """
         Run the migrations.
         """
-        with self.schema.table("news") as table:
-            if not self.schema.has_column("news", "kicker"):
-                table.string("kicker", 80).nullable()
-            if not self.schema.has_column("news", "image_crop"):
-                table.text("image_crop").nullable()
-            if not self.schema.has_column("news", "source_lines"):
-                table.text("source_lines").nullable()
-            if not self.schema.has_column("news", "element_layout"):
-                table.text("element_layout").nullable()
-            if not self.schema.has_column("news", "expires_at"):
-                table.datetime("expires_at").nullable()
+        # Decided before the ALTER, against THIS database only: masonite's own
+        # column check is not scoped to it (see app/services/SchemaChecks.py).
+        missing = [name for name in POST_COLUMNS if not self._has("news", name)]
+        if missing:
+            with self.schema.table("news") as table:
+                if "kicker" in missing:
+                    table.string("kicker", 80).nullable()
+                if "image_crop" in missing:
+                    table.text("image_crop").nullable()
+                if "source_lines" in missing:
+                    table.text("source_lines").nullable()
+                if "element_layout" in missing:
+                    table.text("element_layout").nullable()
+                if "expires_at" in missing:
+                    table.datetime("expires_at").nullable()
 
         try:
             with self.schema.table("news") as table:
@@ -51,6 +60,6 @@ class AddPostFieldsToNews(Migration):
         # Rows posted without a category would make NOT NULL fail; leaving
         # category_id nullable on rollback is the safe direction.
         for name in POST_COLUMNS:
-            if self.schema.has_column("news", name):
+            if self._has("news", name):
                 with self.schema.table("news") as table:
                     table.drop_column(name)

@@ -21,7 +21,9 @@ def _migration(tables, columns, counts):
     migration = module.DropNewsletterSchema.__new__(module.DropNewsletterSchema)
     migration.schema = Mock()
     migration.schema.has_table.side_effect = lambda t: t in tables
-    migration.schema.has_column.side_effect = lambda t, c: (t, c) in columns
+    # The migration's own scoped check (app/services/SchemaChecks.py), never
+    # masonite's schema.has_column, which is not scoped to this database.
+    migration._has_column = lambda t, c: (t, c) in columns
     statements = []
 
     def statement(sql, *args):

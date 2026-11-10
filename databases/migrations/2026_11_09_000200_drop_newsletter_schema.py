@@ -22,6 +22,8 @@ back; category_id is nullable (it was relaxed in 000100).
 from masoniteorm.migrations import Migration
 from masoniteorm.query import QueryBuilder
 
+from app.services.SchemaChecks import column_exists
+
 NEWS_COLUMNS = (
     # (column, foreign key name, index name) -- None when the column has none.
     ("issue_id", "news_issue_id_foreign", "news_issue_id_index"),
@@ -44,6 +46,11 @@ class DropNewsletterSchema(Migration):
         )
         return bool(rows) and int(rows[0]["n"]) > 0
 
+    def _has_column(self, table, column):
+        # Not masonite's own column check: it is not scoped to this database
+        # (app/services/SchemaChecks.py).
+        return column_exists(self.schema.connection, table, column)
+
     def _count(self, sql):
         rows = self._query().statement(sql)
         return int(rows[0]["n"]) if rows else 0
@@ -58,7 +65,7 @@ class DropNewsletterSchema(Migration):
             issues = self._count("SELECT COUNT(*) AS n FROM issues")
             if issues:
                 remaining.append(f"{issues} row(s) in issues")
-        if self.schema.has_table("news") and self.schema.has_column("news", "issue_id"):
+        if self.schema.has_table("news") and self._has_column("news", "issue_id"):
             stories = self._count("SELECT COUNT(*) AS n FROM news WHERE issue_id IS NOT NULL")
             if stories:
                 remaining.append(f"{stories} news row(s) with an issue_id")
@@ -79,7 +86,7 @@ class DropNewsletterSchema(Migration):
                 if foreign and self._has_foreign_key("news", foreign):
                     self._query().statement(f"ALTER TABLE news DROP FOREIGN KEY {foreign}")
             for column, _foreign, _index in NEWS_COLUMNS:
-                if self.schema.has_column("news", column):
+                if self._has_column("news", column):
                     # Dropping the column takes a single-column index with it.
                     self._query().statement(f"ALTER TABLE news DROP COLUMN {column}")
 
@@ -140,7 +147,7 @@ class DropNewsletterSchema(Migration):
             "issue_id": "ADD COLUMN issue_id INT UNSIGNED NULL",
         }
         for column, clause in adds.items():
-            if not self.schema.has_column("news", column):
+            if not self._has_column("news", column):
                 self._query().statement(f"ALTER TABLE news {clause}")
         if not self._has_foreign_key("news", "news_category_id_foreign"):
             self._query().statement(
