@@ -16,7 +16,7 @@ raw ALTER is the fallback.
 from masoniteorm.migrations import Migration
 from masoniteorm.query import QueryBuilder
 
-POST_COLUMNS = ("kicker", "logo_path", "image_crop", "source_lines", "element_layout", "expires_at")
+POST_COLUMNS = ("kicker", "image_crop", "source_lines", "element_layout", "expires_at")
 
 
 class AddPostFieldsToNews(Migration):
@@ -27,8 +27,6 @@ class AddPostFieldsToNews(Migration):
         with self.schema.table("news") as table:
             if not self.schema.has_column("news", "kicker"):
                 table.string("kicker", 80).nullable()
-            if not self.schema.has_column("news", "logo_path"):
-                table.string("logo_path", 255).nullable()
             if not self.schema.has_column("news", "image_crop"):
                 table.text("image_crop").nullable()
             if not self.schema.has_column("news", "source_lines"):

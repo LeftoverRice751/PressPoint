@@ -10,7 +10,6 @@ import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from app.services import Branding
 from app.services.ImageDerivatives import variant_path
 
 CAMPUS_TZ = ZoneInfo("Asia/Manila")
@@ -165,8 +164,6 @@ def crop_style(crop):
 
 
 LAYOUT_PIECES = ("kicker", "headline", "body")
-LOGO_BASE_H = 11
-LOGO_BASE_MAX_W = 34
 _LAYOUT_RANGES = {
     "x": (0, 100),
     "y": (0, 100),
@@ -214,15 +211,15 @@ def parse_layout(raw):
     if not isinstance(data, dict):
         raise ValueError("layout must be an object")
     out = {"panel_h": _layout_number(data.get("panel_h"), *_PANEL_H_RANGE, "panel_h")}
-    shapes = {"logo": ("x", "y", "s")}
-    shapes.update({piece: ("x", "y", "w", "h", "s") for piece in LAYOUT_PIECES})
-    for name, keys in shapes.items():
+    # Any other key is dropped, not refused: layouts saved while posts still had
+    # their own logo carry a "logo" box, and re-saving normalises it away.
+    for name in LAYOUT_PIECES:
         box = data.get(name)
         if not isinstance(box, dict):
             raise ValueError(f"{name} is missing")
         out[name] = {
             key: _layout_number(box.get(key), *_LAYOUT_RANGES[key], f"{name}.{key}")
-            for key in keys
+            for key in ("x", "y", "w", "h", "s")
         }
     return out
 
@@ -238,8 +235,8 @@ def layout_problems(layout):
     Checks text against the whole panel, not the panel minus the source footer:
     the footer's height depends on wrapped text the server cannot measure. The
     editor (post-layout.mjs problems) is stricter and also keeps text off the
-    footer and the logo within its rendered width, so it never sends what this
-    refuses; only a hand-made request could put text over the footer.
+    footer, so it never sends what this refuses; only a hand-made request could
+    put text over the footer.
     """
     problems = []
     panel_h = layout["panel_h"]
@@ -257,9 +254,6 @@ def layout_problems(layout):
             # Strict: boxes that merely touch are fine.
             if ax < bx + bw - eps and bx < ax + aw - eps and ay < by + bh - eps and by < ay + ah - eps:
                 problems.append(f"{a} overlaps {b}")
-    logo = layout["logo"]
-    if logo["x"] > 100 or logo["y"] + LOGO_BASE_H * logo["s"] > 100 - panel_h + eps:
-        problems.append("logo is outside the photo")
     return problems
 
 
@@ -273,10 +267,6 @@ def layout_styles(layout):
         # Same box as the flow layout's photo (above the panel plus its 5cqw tuck),
         # so object-fit crops the same region and the photo does not jump.
         "photo": f"height:{t(100 - layout['panel_h'] + 5)}cqw",
-        "logo": (
-            f"left:{t(layout['logo']['x'])}cqw;top:{t(layout['logo']['y'])}cqw;"
-            f"--s:{t(layout['logo']['s'])}"
-        ),
     }
     for piece in LAYOUT_PIECES:
         x, y, w, h = _text_box(layout[piece])
@@ -296,11 +286,6 @@ def local_label(value, fmt):
 def card_context(post, disk=None):
     """JSON-safe projection shared by the kiosk, composer and review preview."""
     image = getattr(post, "image", None)
-    logo_path = (getattr(post, "logo_path", None) or "").strip()
-    if logo_path:
-        logo = "/storage/" + logo_path.replace("\\", "/").lstrip("/")
-    else:
-        logo = Branding.logo_url()
     published = getattr(post, "published_at", None) or getattr(post, "created_at", None)
     try:
         layout = parse_layout(getattr(post, "element_layout", None))
@@ -316,7 +301,6 @@ def card_context(post, disk=None):
         "crop_style": crop_style(parse_crop(getattr(post, "image_crop", None))),
         "layout": layout,
         "layout_styles": layout_styles(layout),
-        "logo_url": logo,
         "source_lines": parse_source_lines(getattr(post, "source_lines", None)),
         "status": getattr(post, "status", None),
         "expires_label": local_label(getattr(post, "expires_at", None), "%b %d, %Y %I:%M %p"),

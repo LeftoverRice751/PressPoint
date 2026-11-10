@@ -5,7 +5,7 @@
 
 What goes: every legacy `news` row (drafts and soft-deleted rows included), all
 `issues` and `issue_events` rows, the legacy stories' photos (+ .large/.thumb
-derivatives) and logo files, and the editorial-decision notifications that
+derivatives), and the editorial-decision notifications that
 belong to them. audit_logs is left alone: it is append-only history.
 
 Legacy rule (printed by the dry run). The script runs after the new code is
@@ -99,15 +99,14 @@ def _notification_filter(builder):
 
 def plan(builder):
     legacy = builder.statement(
-        f"SELECT image, logo_path FROM news WHERE {LEGACY_WHERE}"  # nosec B608
+        f"SELECT image FROM news WHERE {LEGACY_WHERE}"  # nosec B608
     )
     survivors = builder.statement(
-        f"SELECT image, logo_path FROM news WHERE NOT ({LEGACY_WHERE})"  # nosec B608
+        f"SELECT image FROM news WHERE NOT ({LEGACY_WHERE})"  # nosec B608
     )
     # Never delete a file a surviving post still points at.
-    kept = _paths(survivors, "image") | _paths(survivors, "logo_path")
+    kept = _paths(survivors, "image")
     images = _paths(legacy, "image") - kept
-    logos = _paths(legacy, "logo_path") - kept
     where, bindings = _notification_filter(builder)
     return {
         "news": _count(
@@ -128,9 +127,7 @@ def plan(builder):
         ),
         "notification_where": (where, bindings),
         "images": sorted(images),
-        "logos": sorted(logos),
         "image_files": sum(len(existing_files(p)) for p in images),
-        "logo_files": sum(len(existing_files(p)) for p in logos),
     }
 
 
@@ -143,7 +140,6 @@ def report(counts):
     print(f"issue_events: {counts['issue_events']}")
     print(f"notifications: {counts['notifications']}")
     print(f"image files: {counts['image_files']} (photos plus derivatives on disk)")
-    print(f"logo files: {counts['logo_files']}")
 
 
 def purge(builder, counts):
@@ -167,7 +163,7 @@ def remove_files(counts, delete_file):
     delete_image_and_variants swallows OSError itself, so a clean return proves
     nothing: re-check the disk and count whatever is still there as failed."""
     removed = failed = 0
-    for path in counts["images"] + counts["logos"]:
+    for path in counts["images"]:
         try:
             delete_file(path)
         except Exception as exc:

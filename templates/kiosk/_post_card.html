@@ -8,7 +8,7 @@
     the kicker stays in the DOM even when empty (the kiosk drops it), so an editor
     has somewhere to type.
 
-    With card.layout set the card is `post-card--positioned`: the logo, panel and
+    With card.layout set the card is `post-card--positioned`: the photo, panel and
     three text regions carry the server-built inline styles (Posts.layout_styles,
     autoescaped). Without one the markup is the flow layout, byte for byte. -#}
 {% set editing = post_editor is defined and post_editor %}
@@ -18,7 +18,6 @@
     <img src="/storage/{{ card.image_large }}" alt="" style="{{ card.crop_style }}" draggable="false">
     {% endif %}
   </div>
-  <img class="post-card__logo"{% if card.layout %} style="{{ card.layout_styles.logo }}"{% endif %} src="{{ card.logo_url }}" alt="">
   <div class="post-card__panel"{% if card.layout %} style="{{ card.layout_styles.panel }}"{% endif %}>
     <span class="post-card__shape post-card__shape--a" aria-hidden="true"></span>
     <span class="post-card__shape post-card__shape--b" aria-hidden="true"></span>

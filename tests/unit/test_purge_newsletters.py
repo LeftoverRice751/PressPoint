@@ -45,12 +45,13 @@ class FakeBuilder:
         if self.fail_on and self.fail_on in sql:
             raise RuntimeError("boom")
         text = " ".join(sql.split())
-        if text.startswith("SELECT image, logo_path FROM news WHERE NOT"):
+        if text.startswith("SELECT image FROM news WHERE NOT"):
             return []
-        if text.startswith("SELECT image, logo_path FROM news WHERE"):
+        if text.startswith("SELECT image FROM news WHERE"):
             return [
-                {"image": "news/a.jpg", "logo_path": "news/logo-a.png"},
-                {"image": "news/b.jpg", "logo_path": None},
+                {"image": "news/a.jpg"},
+                {"image": "news/b.jpg"},
+                {"image": "news/c.jpg"},
             ]
         if text.startswith("SELECT MIN(created_at)"):
             return [{"c": None}]
@@ -73,7 +74,7 @@ class PurgeCase(unittest.TestCase):
         self.events = []
         self.builder = FakeBuilder(self.events)
         self.deleted_files = []
-        self.on_disk = {"news/a.jpg", "news/b.jpg", "news/logo-a.png"}
+        self.on_disk = {"news/a.jpg", "news/b.jpg", "news/c.jpg"}
         self.real_files = patch.object(
             purge, "existing_files", lambda p: [p] if p in self.on_disk else []
         )
@@ -111,8 +112,8 @@ class DryRunTests(PurgeCase):
         self.assertIn("(reworked): 2", out)
         for needle in ("news rows: 2", "issues: 1", "issue_events: 3", "notifications: 4"):
             self.assertIn(needle, out)
-        self.assertIn("image files: 2", out)
-        self.assertIn("logo files: 1", out)
+        self.assertIn("image files: 3", out)
+        self.assertNotIn("logo", out)
 
 
 class ConfirmGuardTests(PurgeCase):
@@ -182,7 +183,7 @@ class ConfirmTests(PurgeCase):
                 delete_file=flaky,
             )
         self.assertEqual(code, 0)
-        self.assertEqual(sorted(self.deleted_files), ["news/b.jpg", "news/logo-a.png"])
+        self.assertEqual(sorted(self.deleted_files), ["news/b.jpg", "news/c.jpg"])
         out = "\n".join(str(c.args[0]) for c in printed.call_args_list if c.args)
         self.assertIn("2 file path(s) removed, 1 file delete(s) failed", out)
 

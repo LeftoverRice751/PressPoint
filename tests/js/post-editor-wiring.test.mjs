@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import {
-  photoProblem, INVALID_IMAGE, storagePhotoUrl, resolveLogoUrl,
+  photoProblem, INVALID_IMAGE, storagePhotoUrl,
 } from '../../resources/js/post-editor-photo.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -35,10 +35,12 @@ test('only the image types the server accepts preview', () => {
 
 test('a save posts every field NewsController.store reads, under its name', () => {
   const source = read('post-editor.js');
-  for (const name of ['id', 'kicker', 'headline', 'body', 'image', 'logo', 'remove_logo',
+  for (const name of ['id', 'kicker', 'headline', 'body', 'image',
     'image_crop', 'source_lines', 'expires_at', 'status']) {
     assert.match(source, new RegExp(`form\\.append\\('${name}'`), name);
   }
+  // Posts carry no logo of their own any more.
+  assert.doesNotMatch(source, /form\.append\('(logo|remove_logo)'/);
   assert.match(source, /save\('draft'\)/);
   assert.match(source, /save\('review'\)/);
   assert.match(source, /'X-CSRF-TOKEN': token/);
@@ -83,39 +85,21 @@ test('a hostile photo path from a row is refused, not prefixed into a path', () 
   }
 });
 
-test('a hostile logo URL falls back to the site logo', () => {
-  for (const value of HOSTILE) {
-    assert.equal(resolveLogoUrl(value, '/storage/Branding/logo.png'), '/storage/Branding/logo.png', value);
-  }
-  assert.equal(resolveLogoUrl('/storage/Branding/posts/l.png', '/x.png'), '/storage/Branding/posts/l.png');
-});
-
-test('a hostile site logo is refused too, leaving no src at all', () => {
-  for (const value of HOSTILE) {
-    assert.equal(resolveLogoUrl('', value), '', value);
-    assert.equal(resolveLogoUrl(value, value), '', value);
-  }
-});
-
 test('every img.src assignment in the editor goes through the allowlist', () => {
   const photo = read('post-editor-photo.mjs');
   assert.match(photo, /import \{ safeImageUrl \} from '\.\/safe-image-url\.mjs'/);
   // show() sanitises whatever it is handed before assigning it.
   const show = photo.slice(photo.indexOf('function show('), photo.indexOf('function accept('));
   assert.match(show, /const src = safeImageUrl\(rawSrc\)/);
-  // The logo only ever takes a blob: preview or a resolveLogoUrl() result.
-  for (const [, rhs] of photo.matchAll(/logo\.src = ([^;]+);/g)) {
-    assert.equal(rhs, 'objectUrl', rhs);
-  }
   const editor = read('post-editor.js');
   assert.doesNotMatch(editor, /'\/storage\/' \+/);
   assert.match(editor, /photo\.load\(storagePhotoUrl\(row\.image_large\)/);
   assert.match(editor, /photo\.saved\(storagePhotoUrl\(savedCard\.image_large\)\)/);
 });
 
-test('the pickers are opened by real buttons, so the keyboard reaches them', () => {
+test('the photo picker is opened by a real button, so the keyboard reaches it', () => {
   const photo = read('post-editor-photo.mjs');
-  assert.equal((photo.match(/pickButton\.addEventListener\('click', \(\) => input\.click\(\)\)/g) || []).length, 2);
+  assert.equal((photo.match(/pickButton\.addEventListener\('click', \(\) => input\.click\(\)\)/g) || []).length, 1);
 });
 
 test('a duplicate opens even when the library refresh was skipped', () => {

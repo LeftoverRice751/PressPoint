@@ -2,7 +2,7 @@
  * Square photo post card -- shared by the kiosk (templates/kiosk/news.html), the
  * composer canvas and the review preview, via templates/kiosk/_post_card.html.
  *
- * Layout: full-bleed photo, logo centred over its top edge, a rounded panel that
+ * Layout: full-bleed photo, then a rounded panel that
  * overlaps the photo's bottom edge (kicker, headline, body, source lines) with
  * flat decorative shapes in its corners. Solid fills only.
  *
@@ -46,18 +46,6 @@
     height: 100%;
     object-fit: cover;
     /* crop_style from Posts.crop_style() sets object-position and the zoom. */
-}
-
-.post-card__logo {
-    position: absolute;
-    top: 4cqw;
-    left: 50%;
-    z-index: 3;
-    width: auto;
-    max-width: 34cqw;
-    height: 11cqw;
-    transform: translateX(-50%);
-    object-fit: contain;
 }
 
 .post-card__panel {
@@ -257,13 +245,6 @@
     padding: 0;
     display: block;
     min-height: 0;
-}
-
-.post-card--positioned .post-card__logo {
-    transform: none;
-    width: auto;
-    height: calc(11cqw * var(--s, 1));
-    max-width: calc(34cqw * var(--s, 1));
 }
 
 .post-card--positioned .post-card__kicker,

@@ -1,5 +1,5 @@
 /*
- * Element layout maths for the square photo post (logo, event title, headline,
+ * Element layout maths for the square photo post (event title, headline,
  * summary), DOM-free so it is unit-tested (tests/js/post-layout.test.mjs).
  *
  * Mirrors Posts.layout_problems / Posts.layout_styles step for step: toStyles()
@@ -10,8 +10,6 @@
 import { formatNumber } from './post-crop.mjs';
 
 export const PIECES = Object.freeze(['kicker', 'headline', 'body']);
-export const LOGO_BASE_H = 11;
-export const LOGO_BASE_MAX_W = 34;
 export const RANGES = Object.freeze({
   x: [0, 100],
   y: [0, 100],
@@ -36,7 +34,6 @@ export function toStyles(layout) {
   const styles = {
     panel: `height:${t(layout.panel_h)}cqw`,
     photo: `height:${t(100 - layout.panel_h + 5)}cqw`,
-    logo: `left:${t(layout.logo.x)}cqw;top:${t(layout.logo.y)}cqw;--s:${t(layout.logo.s)}`,
   };
   for (const piece of PIECES) {
     const b = scaled(layout[piece]);
@@ -64,10 +61,9 @@ export function overlaps(a, b) {
 
 /**
  * Same messages as Posts.layout_problems. footerH shrinks the text area (the
- * source lines sit at the panel's bottom); logoW is the logo's measured width in
- * cqw, so a wide logo cannot run off the right edge.
+ * source lines sit at the panel's bottom).
  */
-export function problems(layout, { footerH = 0, logoW = 0 } = {}) {
+export function problems(layout, { footerH = 0 } = {}) {
   const out = [];
   const panelH = layout.panel_h;
   const boxes = {};
@@ -83,14 +79,6 @@ export function problems(layout, { footerH = 0, logoW = 0 } = {}) {
       if (overlaps(layout[a], layout[b])) out.push(`${a} overlaps ${b}`);
     }
   });
-  const logo = layout.logo;
-  if (
-    logo.x > 100 ||
-    logo.x + logoW > 100 + EPS ||
-    logo.y + LOGO_BASE_H * logo.s > 100 - panelH + EPS
-  ) {
-    out.push('logo is outside the photo');
-  }
   return out;
 }
 

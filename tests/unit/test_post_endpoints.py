@@ -45,7 +45,6 @@ def _existing(**fields):
         status="draft",
         author_id=7,
         image="news/old.jpg",
-        logo_path=None,
         rejection_reason=None,
         published_at=None,
     )
@@ -60,7 +59,7 @@ def _future(days=3):
 
 
 class _StoreCase(TestCase):
-    def store(self, request, existing=None, storage=None, logo_result=None):
+    def store(self, request, existing=None, storage=None):
         response = Mock()
         storage = storage or Mock()
         storage.disk.return_value.put_file.return_value = "news/new.jpg"
@@ -71,22 +70,15 @@ class _StoreCase(TestCase):
         ), patch(
             f"{NEWS}.generate_variants"
         ), patch(
-            f"{NEWS}.ImageUploads.save_uploaded_image",
-            return_value=logo_result or ("Branding/posts/logo-abc.png", None),
-        ) as save_logo, patch(
             f"{NEWS}._delete_image_files"
         ) as delete_image, patch(
             f"{NEWS}.delete_image_and_variants"
         ) as delete_variants:
             where.return_value.first.return_value = existing
-            create.return_value = Mock(id=99, image=None, logo_path=None)
+            create.return_value = Mock(id=99, image=None)
             NewsController().store(request, storage, response)
         self.create, self.cache, self.changed, self.where = create, cache, changed, where
-        self.save_logo, self.delete_image, self.delete_variants = (
-            save_logo,
-            delete_image,
-            delete_variants,
-        )
+        self.delete_image, self.delete_variants = delete_image, delete_variants
         self.storage = storage
         return response
 
@@ -313,7 +305,6 @@ class StoreCropAndSourcesTestCase(_StoreCase):
 def _fitting():
     return {
         "panel_h": 44,
-        "logo": {"x": 40, "y": 4, "s": 1},
         "kicker": {"x": 10, "y": 5, "w": 30, "h": 3.5, "s": 1.2},
         "headline": {"x": 10, "y": 10, "w": 80, "h": 10, "s": 1},
         "body": {"x": 10, "y": 20, "w": 80, "h": 15, "s": 1},
@@ -390,44 +381,18 @@ class StoreLayoutTestCase(_StoreCase):
         self.assertIsNotNone(self.create.call_args.kwargs["element_layout"])
 
 
-class StoreLogoTestCase(_StoreCase):
-    def test_logo_upload_goes_through_the_verified_helper_into_branding_posts(self):
-        logo = _upload("mark.png")
-        self.store(_request(headline="H", logo=logo))
-        args = self.save_logo.call_args.args
-        self.assertIs(args[0], logo)
-        self.assertEqual(args[1], "Branding/posts")
-        self.assertEqual(self.create.call_args.kwargs["logo_path"], "Branding/posts/logo-abc.png")
-
-    def test_a_refused_logo_saves_nothing(self):
-        response = self.store(
-            _request(headline="H", logo=_upload("mark.png")),
-            logo_result=(None, "Upload must be a JPEG, PNG, or WEBP image."),
-        )
-        self.assertEqual(self.code(response), 422)
-        self.create.assert_not_called()
-
-    def test_remove_logo_deletes_the_file_and_nulls_the_path(self):
-        record = _existing(logo_path="Branding/posts/logo-old.png")
-        self.store(_request(id="11", headline="H", remove_logo="1"), existing=record)
-        self.assertIsNone(record.logo_path)
-        self.delete_variants.assert_called_once_with("Branding/posts/logo-old.png")
-
-    def test_replacing_a_logo_deletes_the_old_file(self):
-        record = _existing(logo_path="Branding/posts/logo-old.png")
-        self.store(_request(id="11", headline="H", logo=_upload("n.png")), existing=record)
-        self.assertEqual(record.logo_path, "Branding/posts/logo-abc.png")
-        self.delete_variants.assert_called_once_with("Branding/posts/logo-old.png")
-
-    def test_a_tampered_logo_path_outside_the_folder_is_never_deleted(self):
-        record = _existing(logo_path="Branding/site-logo.png")
-        self.store(_request(id="11", headline="H", remove_logo="1"), existing=record)
+class StoreLogoRemovedTestCase(_StoreCase):
+    def test_a_posted_logo_is_ignored(self):
+        # Posts no longer carry their own logo: a stale client's logo upload or
+        # remove_logo flag must not reach the row or the disk.
+        self.store(_request(headline="H", logo=_upload("mark.png"), remove_logo="1"))
+        self.assertNotIn("logo_path", self.create.call_args.kwargs)
         self.delete_variants.assert_not_called()
 
 
 class DestroyTestCase(TestCase):
-    def test_destroy_removes_photo_derivatives_and_logo(self):
-        record = Mock(id=42, image="news/p.jpg", logo_path="Branding/posts/logo-1.png")
+    def test_destroy_removes_photo_and_derivatives(self):
+        record = Mock(id=42, image="news/p.jpg")
         response = Mock()
         with patch(f"{NEWS}.News.where") as where, patch(f"{NEWS}.Cache") as cache, patch(
             f"{NEWS}.KioskBroadcast.section_changed"
@@ -438,13 +403,13 @@ class DestroyTestCase(TestCase):
         where.return_value.force_delete.assert_called_once_with()
         self.assertEqual(
             [c.args[0] for c in delete_files.call_args_list],
-            ["news/p.jpg", "Branding/posts/logo-1.png"],
+            ["news/p.jpg"],
         )
         cache.forget.assert_called_once()
         changed.assert_called_once_with("latest-news")
 
     def test_a_failed_row_delete_keeps_the_files(self):
-        record = Mock(id=42, image="news/p.jpg", logo_path=None)
+        record = Mock(id=42, image="news/p.jpg")
         with patch(f"{NEWS}.News.where") as where, patch(f"{NEWS}.Cache"), patch(
             f"{NEWS}.KioskBroadcast.section_changed"
         ) as changed, patch(f"{NEWS}.delete_image_and_variants") as delete_files:

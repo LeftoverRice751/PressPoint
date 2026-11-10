@@ -52,7 +52,6 @@ class News(Model, SoftDeletesMixin):
         # Photo-post fields. `expires_at` is aware-UTC (editor input is campus
         # local); the rest are plain text, `image_crop`/`source_lines` JSON.
         "kicker",
-        "logo_path",
         "image_crop",
         "source_lines",
         "element_layout",

@@ -21,7 +21,6 @@ class PostSchemaTestCase(unittest.TestCase):
         block = _news_block()
         for fragment in (
             "`kicker` varchar(80)",
-            "`logo_path` varchar(255)",
             "`image_crop` text",
             "`source_lines` text",
             "`element_layout` text",
@@ -39,8 +38,11 @@ class PostSchemaTestCase(unittest.TestCase):
             self.assertNotIn(f"CREATE TABLE `{table}`", text)
 
     def test_news_model_fillable_has_post_fields(self):
-        for name in ("kicker", "logo_path", "image_crop", "source_lines", "element_layout", "expires_at"):
+        for name in ("kicker", "image_crop", "source_lines", "element_layout", "expires_at"):
             self.assertIn(name, News.__fillable__)
+        # Posts carry no logo of their own: never a column, never fillable.
+        self.assertNotIn("logo_path", News.__fillable__)
+        self.assertNotIn("`logo_path`", _news_block())
         self.assertIn("expires_at", News.__dates__)
 
     def test_migration_adds_element_layout(self):

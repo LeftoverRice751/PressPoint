@@ -194,7 +194,6 @@ CREATE TABLE `news` (
   `updated_by_id` int unsigned DEFAULT NULL,
   `deleted_at` datetime DEFAULT NULL,
   `kicker` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `logo_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `image_crop` text COLLATE utf8mb4_unicode_ci,
   `source_lines` text COLLATE utf8mb4_unicode_ci,
   `element_layout` text COLLATE utf8mb4_unicode_ci,

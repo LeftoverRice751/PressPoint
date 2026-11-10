@@ -57,7 +57,6 @@ _STAMPED_FIELDS = (
     "description",
     "image",
     "kicker",
-    "logo_path",
     "image_crop",
     "source_lines",
     "element_layout",

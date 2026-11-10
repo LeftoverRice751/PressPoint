@@ -1,7 +1,6 @@
 import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
 
@@ -89,7 +88,6 @@ def _post(**kw):
         title="Head",
         description="Body",
         image=None,
-        logo_path=None,
         image_crop=None,
         source_lines=None,
         status="published",
@@ -101,25 +99,23 @@ def _post(**kw):
     return SimpleNamespace(**base)
 
 
-def test_card_context_falls_back_to_site_logo():
-    with patch.object(Posts.Branding, "logo_url", return_value="/gears.png"):
-        ctx = Posts.card_context(_post())
-    assert ctx["logo_url"] == "/gears.png"
+def test_card_context_text_and_defaults():
+    ctx = Posts.card_context(_post())
+    # Posts carry no logo of their own any more.
+    assert "logo_url" not in ctx
     assert ctx["headline"] == "Head" and ctx["body"] == "Body"
     assert ctx["source_lines"] == Posts.DEFAULT_SOURCE_LINES
     json.dumps(ctx)
 
 
-def test_card_context_own_logo_images_and_labels():
+def test_card_context_images_and_labels():
     disk = SimpleNamespace(exists=lambda p: True)
     post = _post(
-        logo_path="Branding/x.png",
         image="News/a.jpg",
         expires_at=datetime(2026, 11, 10, 0, 0, tzinfo=UTC),
         published_at=datetime(2026, 11, 9, 0, 0, tzinfo=UTC),
     )
     ctx = Posts.card_context(post, disk)
-    assert ctx["logo_url"] == "/storage/Branding/x.png"
     assert ctx["image_large"] != "News/a.jpg" and ctx["image_thumb"] != ctx["image_large"]
     assert ctx["expires_label"] == "Nov 10, 2026 08:00 AM"
     assert ctx["published_label"] == "Nov 09, 2026"

@@ -9,7 +9,6 @@ from app.services import Posts
 def fitting(**over):
     layout = {
         "panel_h": 44,
-        "logo": {"x": 40, "y": 4, "s": 1},
         "kicker": {"x": 10, "y": 5, "w": 30, "h": 3.5, "s": 1.2},
         "headline": {"x": 10, "y": 10, "w": 80, "h": 10, "s": 1},
         "body": {"x": 10, "y": 20, "w": 80, "h": 15, "s": 1},
@@ -30,7 +29,7 @@ def test_parse_layout_valid_round_trip():
     out = Posts.parse_layout(json.dumps(layout))
     assert out["kicker"]["x"] == 10.0
     assert out["panel_h"] == 44
-    assert out["logo"] == {"x": 40, "y": 4, "s": 1}
+    assert set(out) == {"panel_h", "kicker", "headline", "body"}
 
 
 def test_parse_layout_rejects_missing_piece():
@@ -91,10 +90,13 @@ def test_layout_problems_outside_panel():
     assert "body is outside the panel" in Posts.layout_problems(layout)
 
 
-def test_layout_problems_logo_on_panel():
-    layout = fitting()
-    layout["logo"] = dict(layout["logo"], y=50)
-    assert "logo is outside the photo" in Posts.layout_problems(layout)
+def test_parse_layout_drops_an_old_logo_box():
+    # Layouts saved while posts had their own logo carry one; it is dropped,
+    # not refused, so those posts keep rendering and re-save cleanly.
+    layout = fitting(logo={"x": 40, "y": 4, "s": 1})
+    out = Posts.parse_layout(json.dumps(layout))
+    assert "logo" not in out
+    assert "logo" not in Posts.layout_styles(out)
 
 
 def test_layout_styles_none():
@@ -105,7 +107,6 @@ def test_layout_styles_strings():
     styles = Posts.layout_styles(fitting())
     assert styles["photo"] == "height:61cqw"
     assert styles["panel"] == "height:44cqw"
-    assert styles["logo"] == "left:40cqw;top:4cqw;--s:1"
     assert styles["kicker"] == "left:10cqw;top:5cqw;width:36cqw;height:4.2cqw;--s:1.2"
     assert styles["headline"] == "left:10cqw;top:10cqw;width:80cqw;height:10cqw;--s:1"
 
@@ -146,6 +147,6 @@ def test_parse_layout_rejects_numeric_strings_and_bools():
     with pytest.raises(ValueError):
         Posts.parse_layout(layout)
     layout = fitting()
-    layout["logo"] = dict(layout["logo"], s=True)
+    layout["kicker"] = dict(layout["kicker"], s=True)
     with pytest.raises(ValueError):
         Posts.parse_layout(layout)

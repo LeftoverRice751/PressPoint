@@ -221,36 +221,6 @@
     font-size: 0.8rem;
 }
 
-.post-editor__logo-tools {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 4;
-    display: flex;
-    gap: 6px;
-}
-
-.post-editor__chip {
-    padding: 4px 10px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--surface-raised);
-    color: var(--ink);
-    font: inherit;
-    font-size: 0.75rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.post-editor__chip:hover,
-.post-editor__chip:focus-visible {
-    background: var(--brand-gold);
-}
-
-.post-editor__chip[hidden] {
-    display: none;
-}
-
 /* Visually hidden but still a real, label-activated file input. */
 .post-editor__file {
     position: absolute;
@@ -502,15 +472,8 @@
     }
 }
 
-/* The logo is dragged by the image itself (it never pans the photo). */
-.post-card[data-post-editor] .post-card__logo {
-    cursor: grab;
-    touch-action: none;
-}
-
 /* A piece outside its area or on top of another: Submit for review waits. */
-.post-card[data-post-editor] [contenteditable].is-misplaced,
-.post-card[data-post-editor] .post-card__logo.is-misplaced {
+.post-card[data-post-editor] [contenteditable].is-misplaced {
     outline: 0.4cqw solid var(--danger, #b3261e);
     outline-offset: 0.6cqw;
 }

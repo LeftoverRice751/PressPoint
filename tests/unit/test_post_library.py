@@ -22,7 +22,7 @@ pytestmark = pytest.mark.usefixtures("actor_may_change_any_story")
 def _post(id, status="draft", **over):
     fields = dict(
         id=id, title=f"Post {id}", description="body", kicker="K", image=f"news/{id}.jpg",
-        logo_path=None, image_crop=None, source_lines=None, element_layout=None, status=status, author_id=7,
+        image_crop=None, source_lines=None, element_layout=None, status=status, author_id=7,
         rejection_reason=None, expires_at=None, published_at=None, created_at=None,
     )
     fields.update(over)
@@ -102,14 +102,14 @@ class DuplicateTestCase(TestCase):
 
     def test_copies_to_fresh_files_and_makes_a_draft_without_dates(self):
         source = _post(
-            5, "published", logo_path="Branding/posts/l.png", expires_at=_future(),
+            5, "published", expires_at=_future(),
             published_at=_past(), rejection_reason="x", image_crop='{"x":0.1}',
             source_lines='[{"icon":"link","text":"a"}]',
         )
         self._run(source)
         fields = self.news.create.call_args.kwargs
         self.assertEqual(fields["image"], "news/5.jpg.copy")
-        self.assertEqual(fields["logo_path"], "Branding/posts/l.png.copy")
+        self.assertNotIn("logo_path", fields)
         self.assertEqual(fields["status"], "draft")
         self.assertEqual(fields["author_id"], 7)
         self.assertEqual(fields["title"], "Post 5")
@@ -157,34 +157,11 @@ class DuplicateTestCase(TestCase):
         with self.assertRaises(LookupError):
             self._run(None)
 
-    def test_missing_logo_file_still_duplicates_without_a_logo(self):
-        def copy(path):
-            return None if path.startswith("Branding") else path + ".copy"
-
-        self._run(_post(5, logo_path="Branding/posts/gone.png"), copy=copy)
-        self.assertIsNone(self.news.create.call_args.kwargs["logo_path"])
-
-    def test_no_logo_means_none(self):
-        self._run(_post(5, logo_path=None))
-        self.assertIsNone(self.news.create.call_args.kwargs["logo_path"])
-
     def test_database_failure_removes_the_copies(self):
-        source = _post(5, logo_path="Branding/posts/l.png")
         with self.assertRaises(RuntimeError):
-            self._run(source, create=RuntimeError("db down"))
+            self._run(_post(5), create=RuntimeError("db down"))
         removed = sorted(c.args[0] for c in self.deleter.call_args_list)
-        self.assertEqual(removed, ["Branding/posts/l.png.copy", "news/5.jpg.copy"])
-
-    def test_failed_logo_copy_removes_the_photo_copy(self):
-        def copy(path):
-            if path.startswith("Branding"):
-                raise OSError("disk full")
-            return path + ".copy"
-
-        with self.assertRaises(OSError):
-            self._run(_post(5, logo_path="Branding/posts/l.png"), copy=copy)
-        self.deleter.assert_called_once_with("news/5.jpg.copy")
-        self.news.create.assert_not_called()
+        self.assertEqual(removed, ["news/5.jpg.copy"])
 
 
 def _request(user_id=7, **inputs):
@@ -210,7 +187,7 @@ class DuplicateEndpointTestCase(TestCase):
         self.assertEqual(payload["id"], 99)
         self.assertEqual(payload["card"]["headline"], "Post 99")
         # Enough for the editor to open the copy without its library row.
-        for key in ("crop", "expires_input", "custom_logo", "rejection_reason"):
+        for key in ("crop", "expires_input", "rejection_reason"):
             self.assertIn(key, payload["card"])
         self.assertEqual(payload["card"]["state"], "draft")
 

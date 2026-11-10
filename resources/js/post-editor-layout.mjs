@@ -1,6 +1,6 @@
 /*
- * The post editor's element layout: drag and resize the logo (over the photo)
- * and the event title / headline / summary (inside the panel) of the square card.
+ * The post editor's element layout: drag and resize the event title / headline /
+ * summary inside the panel of the square card.
  *
  * Editor-only: imported by post-editor.js, never by the kiosk or the review
  * preview, which render the stored boxes with post-card.css alone.
@@ -17,7 +17,7 @@
  */
 
 import {
-  PIECES, LOGO_BASE_H, RANGES, round2, toStyles, clampBox, overlaps, problems, nudge,
+  PIECES, RANGES, round2, toStyles, clampBox, overlaps, problems, nudge,
 } from './post-layout.mjs';
 
 export const LAYOUT_PROBLEM = 'A piece doesn\'t fit — move or shrink it.';
@@ -26,8 +26,7 @@ export const LAYOUT_PROBLEM = 'A piece doesn\'t fit — move or shrink it.';
 // panel's rounded edge reads as clipped.
 const INSET = 2;
 const WIDTH_SLACK = 0.5;
-const ALL = ['logo', ...PIECES];
-const LABELS = { logo: 'logo', kicker: 'event title', headline: 'headline', body: 'summary' };
+const LABELS = { kicker: 'event title', headline: 'headline', body: 'summary' };
 const KEYS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
 const clamp = (value, [lo, hi]) => Math.min(hi, Math.max(lo, value));
@@ -41,8 +40,8 @@ export function pxToCqw(px, cardPx) {
 
 /**
  * Measured px rects -> a complete layout in cqw at s=1. `m` is
- * {panel_h, logo: {x, y}, kicker|headline|body: {x, y, w, h}}: the logo relative
- * to the card, text relative to the panel. Every number lands inside RANGES.
+ * {panel_h, kicker|headline|body: {x, y, w, h}}, each relative to the panel.
+ * Every number lands inside RANGES.
  */
 export function snapshot(m, cardPx) {
   const cq = (px) => (cardPx > 0 ? (px * 100) / cardPx : 0);
@@ -53,10 +52,7 @@ export function snapshot(m, cardPx) {
   // the bottom), so text measured from the old top would slide down into the
   // footer. Shift it up by the difference to keep it where the editor sees it.
   const shift = Math.max(0, rawPanel - panelH);
-  const layout = {
-    panel_h: panelH,
-    logo: { x: pos(m.logo.x), y: pos(m.logo.y), s: 1 },
-  };
+  const layout = { panel_h: panelH };
   for (const piece of PIECES) {
     const b = m[piece];
     const x = pos(b.x);
@@ -109,7 +105,7 @@ export function resizeBox(box, dx, dy, area) {
 export function misplacedPieces(messages) {
   const names = new Set();
   for (const message of messages) {
-    for (const piece of ALL) {
+    for (const piece of PIECES) {
       if (new RegExp(`\\b${piece}\\b`).test(message)) names.add(piece);
     }
   }
@@ -120,8 +116,7 @@ export function createLayoutEditor({ card, onChange = () => {}, onProblems = () 
   const photo = card.querySelector('.post-card__photo');
   const panel = card.querySelector('.post-card__panel');
   const footer = card.querySelector('.post-card__sources');
-  const logo = card.querySelector('.post-card__logo');
-  const els = { logo };
+  const els = {};
   PIECES.forEach((piece) => { els[piece] = card.querySelector(`.post-card__${piece}`); });
 
   let layout = null;
@@ -134,32 +129,23 @@ export function createLayoutEditor({ card, onChange = () => {}, onProblems = () 
   // Footer height plus its bottom offset: the text area ends where it starts.
   const footerH = () => (footer
     ? cq(panel.getBoundingClientRect().bottom - footer.getBoundingClientRect().top) : 0);
-  const logoW = () => cq(logo.getBoundingClientRect().width);
 
-  function areaFor(piece) {
-    if (piece === 'logo') return { x0: 0, y0: 0, x1: 100, y1: 100 - layout.panel_h };
+  function areaFor() {
     return { x0: INSET, y0: INSET, x1: 100 - INSET, y1: layout.panel_h - footerH() };
   }
 
-  // The logo's box for clamping: its width at s=1 follows the image.
-  function boxOf(piece) {
-    if (piece !== 'logo') return layout[piece];
-    return { ...layout.logo, w: logoW() / layout.logo.s, h: LOGO_BASE_H };
-  }
-
   function setBox(piece, box) {
-    const value = piece === 'logo' ? { x: box.x, y: box.y, s: box.s } : box;
-    layout = { ...layout, [piece]: value };
+    layout = { ...layout, [piece]: box };
   }
 
-  const collides = (piece) => piece !== 'logo'
-    && PIECES.some((other) => other !== piece && overlaps(layout[piece], layout[other]));
+  const collides = (piece) => PIECES.some(
+    (other) => other !== piece && overlaps(layout[piece], layout[other]));
 
   // ── Overlay ─────────────────────────────────────────────────────────
   const overlay = document.createElement('div');
   overlay.className = 'post-layout-overlay';
   const frames = {};
-  ALL.forEach((piece) => {
+  PIECES.forEach((piece) => {
     const frame = document.createElement('div');
     frame.className = 'post-layout-frame';
     frame.setAttribute('data-piece', piece);
@@ -182,7 +168,7 @@ export function createLayoutEditor({ card, onChange = () => {}, onProblems = () 
   function sync() {
     const base = card.getBoundingClientRect();
     if (!base.width) return;
-    ALL.forEach((piece) => {
+    PIECES.forEach((piece) => {
       const r = els[piece].getBoundingClientRect();
       const style = frames[piece].style;
       style.left = `${r.left - base.left}px`;
@@ -194,7 +180,7 @@ export function createLayoutEditor({ card, onChange = () => {}, onProblems = () 
 
   function report(list) {
     const marked = misplacedPieces(list);
-    ALL.forEach((piece) => {
+    PIECES.forEach((piece) => {
       els[piece].classList.toggle('is-misplaced', marked.has(piece));
       frames[piece].classList.toggle('is-misplaced', marked.has(piece));
     });
@@ -206,7 +192,7 @@ export function createLayoutEditor({ card, onChange = () => {}, onProblems = () 
   // Judged only while the card is visible: a hidden card measures 0 everywhere.
   function check() {
     if (!layout) report([]);
-    else if (cardPx()) report(problems(layout, { footerH: footerH(), logoW: logoW() }));
+    else if (cardPx()) report(problems(layout, { footerH: footerH() }));
   }
 
   function apply() {
@@ -247,8 +233,7 @@ export function createLayoutEditor({ card, onChange = () => {}, onProblems = () 
     const p = panel.getBoundingClientRect();
     const cs = getComputedStyle(panel);
     const inner = panel.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    const l = logo.getBoundingClientRect();
-    const m = { panel_h: p.height, logo: { x: l.left - base.left, y: l.top - base.top } };
+    const m = { panel_h: p.height };
     PIECES.forEach((piece) => {
       const el = els[piece];
       const saved = el.getAttribute('style');
@@ -264,11 +249,12 @@ export function createLayoutEditor({ card, onChange = () => {}, onProblems = () 
     remeasure();
   }
 
-  // ── Pointer: move by the grip (or the logo itself), resize by the corner ──
+  // ── Pointer: move by the grip, resize by the corner ──
   function draggable(target, piece, mode) {
     target.addEventListener('pointerdown', (event) => {
       if (event.button > 0) return;
-      // The logo sits over the photo frame, which pans on pointerdown.
+      // Keep the press from reaching the photo frame (it pans on pointerdown) or
+      // starting a text selection in the editable region underneath.
       event.preventDefault();
       event.stopPropagation();
       target.setPointerCapture(event.pointerId);
@@ -282,10 +268,10 @@ export function createLayoutEditor({ card, onChange = () => {}, onProblems = () 
         // A click on a grip is not a move: don't leave flow mode for it.
         if (Math.hypot(dx, dy) < 0.3) return;
         ensurePositioned();
-        drag.from = boxOf(piece);
+        drag.from = layout[piece];
       }
       const from = drag.from;
-      const area = areaFor(piece);
+      const area = areaFor();
       setBox(piece, mode === 'move'
         ? clampBox({ ...from, x: from.x + dx, y: from.y + dy }, area)
         : resizeBox(from, dx, dy, area));
@@ -305,24 +291,20 @@ export function createLayoutEditor({ card, onChange = () => {}, onProblems = () 
     target.addEventListener('pointercancel', end);
   }
 
-  draggable(logo, 'logo', 'move');
-  logo.draggable = false;
-
   function onKey(event, piece) {
     const dir = KEYS[event.key];
     if (!dir) return;
     event.preventDefault();
     ensurePositioned();
     const step = event.shiftKey ? 5 : 1;
-    const from = boxOf(piece);
-    setBox(piece, nudge(from, dir[0] * step, dir[1] * step, areaFor(piece)));
+    const from = layout[piece];
+    setBox(piece, nudge(from, dir[0] * step, dir[1] * step, areaFor()));
     if (collides(piece)) setBox(piece, from);
     apply();
     onChange();
   }
 
-  // A late logo image, late web fonts and a resized column all move the pieces.
-  logo.addEventListener('load', remeasure);
+  // Late web fonts and a resized column both move the pieces.
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(remeasure);
   if (typeof ResizeObserver === 'function') new ResizeObserver(() => remeasure()).observe(card);
 

@@ -1,5 +1,5 @@
 /*
- * The post editor's photo and logo: picking/dropping a file, previewing it, and
+ * The post editor's photo: picking/dropping a file, previewing it, and
  * framing the photo by dragging (pan) and wheel / pinch / slider (zoom).
  *
  * Split out of post-editor.js by responsibility; that file owns the text
@@ -39,16 +39,6 @@ export function storagePhotoUrl(path) {
     return '';
   }
   return safeImageUrl('/storage/' + path);
-}
-
-/** The logo to show: the post's own if it passes, else the site logo if THAT passes, else ''. */
-export function resolveLogoUrl(src, siteLogo) {
-  return safeImageUrl(src) || safeImageUrl(siteLogo) || '';
-}
-
-function setSrc(img, src) {
-  if (src) img.src = src;
-  else img.removeAttribute('src');
 }
 
 function firstFile(list) {
@@ -216,75 +206,5 @@ export function createPhotoController({ stage, input, pickButton, zoomInput, hin
     },
     file: () => file,
     crop: () => ({ ...crop }),
-  };
-}
-
-/**
- * The card's logo. Three states: the site logo, a custom logo already stored on
- * the post, or a newly picked file. "Use site logo" on a stored custom logo has
- * to tell the server (remove_logo=1); on a just-picked one it only drops the file.
- */
-export function createLogoController({ card, input, pickButton, resetButton, siteLogo, onChange, onError }) {
-  const logo = card.querySelector('.post-card__logo');
-  if (pickButton) pickButton.addEventListener('click', () => input.click());
-  let file = null;
-  let objectUrl = null;
-  let storedCustom = false;
-  let removeStored = false;
-
-  function revoke() {
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-    objectUrl = null;
-  }
-
-  function sync() {
-    resetButton.hidden = !(file || (storedCustom && !removeStored));
-  }
-
-  input.addEventListener('change', () => {
-    const picked = firstFile(input.files);
-    input.value = '';
-    if (!picked) return;
-    if (!IMAGE_TYPES.includes(picked.type)) {
-      onError(INVALID_IMAGE);
-      return;
-    }
-    revoke();
-    file = picked;
-    objectUrl = URL.createObjectURL(picked);
-    logo.src = objectUrl;
-    sync();
-    onChange();
-  });
-
-  resetButton.addEventListener('click', () => {
-    revoke();
-    file = null;
-    removeStored = storedCustom;
-    setSrc(logo, resolveLogoUrl('', siteLogo));
-    sync();
-    onChange();
-  });
-
-  return {
-    load(src, custom) {
-      revoke();
-      file = null;
-      storedCustom = Boolean(custom);
-      removeStored = false;
-      setSrc(logo, resolveLogoUrl(src, siteLogo));
-      sync();
-    },
-    saved(src) {
-      const safe = safeImageUrl(src);
-      storedCustom = Boolean(safe) && safe !== siteLogo;
-      removeStored = false;
-      if (file) setSrc(logo, resolveLogoUrl(safe, siteLogo));
-      file = null;
-      revoke();
-      sync();
-    },
-    file: () => file,
-    removeLogo: () => removeStored && !file,
   };
 }

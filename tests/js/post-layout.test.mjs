@@ -10,7 +10,6 @@ import { toStyles, clampBox, overlaps, problems, nudge, round2 } from '../../res
 function fitting() {
   return {
     panel_h: 44,
-    logo: { x: 40, y: 4, s: 1 },
     kicker: { x: 10, y: 5, w: 30, h: 3.5, s: 1.2 },
     headline: { x: 10, y: 10, w: 80, h: 10, s: 1 },
     body: { x: 10, y: 20, w: 80, h: 15, s: 1 },
@@ -21,7 +20,7 @@ test('toStyles matches the Python literals', () => {
   const s = toStyles(fitting());
   assert.equal(s.panel, 'height:44cqw');
   assert.equal(s.photo, 'height:61cqw');
-  assert.equal(s.logo, 'left:40cqw;top:4cqw;--s:1');
+  assert.ok(!('logo' in s));
   assert.equal(s.kicker, 'left:10cqw;top:5cqw;width:36cqw;height:4.2cqw;--s:1.2');
   assert.equal(s.headline, 'left:10cqw;top:10cqw;width:80cqw;height:10cqw;--s:1');
 });
@@ -50,10 +49,10 @@ test('overlaps: touching is not overlap', () => {
 });
 
 test('problems: fitting layout is clean', () => {
-  assert.deepEqual(problems(fitting(), { footerH: 0, logoW: 0 }), []);
+  assert.deepEqual(problems(fitting(), { footerH: 0 }), []);
 });
 
-test('problems: overlap, outside panel, logo outside photo', () => {
+test('problems: overlap, outside panel', () => {
   const l = fitting();
   l.headline.y = 8;
   assert.ok(problems(l, {}).includes('headline overlaps body') === false);
@@ -62,17 +61,13 @@ test('problems: overlap, outside panel, logo outside photo', () => {
   const m = fitting();
   m.body.y = 40;
   assert.ok(problems(m, {}).includes('body is outside the panel'));
-  const n = fitting();
-  n.logo.y = 50;
-  assert.ok(problems(n, {}).includes('logo is outside the photo'));
 });
 
-test('problems: footer region and logo width count', () => {
+test('problems: the footer region counts', () => {
   const l = fitting();
   l.body.y = 28; // ends at 43, panel 44
-  assert.deepEqual(problems(l, { footerH: 0, logoW: 0 }), []);
-  assert.ok(problems(l, { footerH: 3, logoW: 0 }).includes('body is outside the panel'));
-  assert.ok(problems(fitting(), { footerH: 0, logoW: 70 }).includes('logo is outside the photo'));
+  assert.deepEqual(problems(l, { footerH: 0 }), []);
+  assert.ok(problems(l, { footerH: 3 }).includes('body is outside the panel'));
 });
 
 test('nudge moves and stops at the edge', () => {

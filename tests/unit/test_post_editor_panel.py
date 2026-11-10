@@ -45,7 +45,6 @@ def _row(**kw):
         "image_large": "news/a.large.webp",
         "image_thumb": "news/a.thumb.webp",
         "crop_style": "object-position:50% 50%;transform:scale(1);transform-origin:50% 50%",
-        "logo_url": "/storage/Branding/logo.png",
         "source_lines": [],
         "status": "draft",
         "expires_label": None,
@@ -53,7 +52,6 @@ def _row(**kw):
         "state": "draft",
         "crop": {"x": 0.5, "y": 0.5, "zoom": 1.0},
         "expires_input": "",
-        "custom_logo": False,
         "rejection_reason": "",
     }
     base.update(kw)
@@ -75,17 +73,19 @@ class EditorRenderTestCase(TestCase):
             "data-post-submit",
             "data-post-new",
             "data-post-photo-input",
-            "data-post-logo-input",
             "data-post-sources",
             "data-post-zoom",
             'data-post-counter="kicker"',
             'data-post-counter="headline"',
             'data-post-counter="body"',
             "data-post-photo-pick",
-            "data-post-logo-pick",
             'data-live-section="post-library"',
         ):
             self.assertIn(hook, html, hook)
+        # Posts carry no logo of their own: no picker, no reset, no card logo.
+        for gone in ("data-post-logo-input", "data-post-logo-pick", "data-post-logo-reset",
+                     "post-card__logo", "data-site-logo"):
+            self.assertNotIn(gone, html, gone)
 
     def test_placeholders_are_the_editor_copy(self):
         html = _render_dashboard()
@@ -113,7 +113,6 @@ class EditorRenderTestCase(TestCase):
     def test_the_editor_carries_its_defaults_and_endpoints(self):
         html = _render_dashboard()
         self.assertIn('data-store-url="/news/dashboard"', html)
-        self.assertIn("data-site-logo=", html)
         # The empty template starts with the Gears' two default source lines.
         self.assertIn("/TheGearsOfficial", html)
         self.assertIn("/thegearspublication@gmail.com", html)
@@ -239,7 +238,6 @@ class LibraryRowsEditorFieldsTestCase(TestCase):
             description="Body",
             kicker=None,
             image="news/a.jpg",
-            logo_path="Branding/posts/logo.png",
             status="draft",
             rejection_reason=None,
             image_crop='{"x": 0.2, "y": 0.4, "zoom": 2}',
@@ -257,7 +255,7 @@ class LibraryRowsEditorFieldsTestCase(TestCase):
         self.assertEqual(row["crop"], {"x": 0.2, "y": 0.4, "zoom": 2.0})
         # 09:30 UTC is 17:30 in Manila: the value a datetime-local input takes.
         self.assertEqual(row["expires_input"], "2026-11-20T17:30")
-        self.assertTrue(row["custom_logo"])
+        self.assertNotIn("custom_logo", row)
         self.assertEqual(row["rejection_reason"], "")
 
     def test_a_rejected_row_carries_its_reason(self):
@@ -265,10 +263,9 @@ class LibraryRowsEditorFieldsTestCase(TestCase):
         self.assertEqual(row["state"], "rejected")
         self.assertEqual(row["rejection_reason"], "Blurry photo")
 
-    def test_no_expiry_and_no_logo(self):
-        [row] = self._rows(self._post(expires_at=None, logo_path=None))
+    def test_no_expiry(self):
+        [row] = self._rows(self._post(expires_at=None))
         self.assertEqual(row["expires_input"], "")
-        self.assertFalse(row["custom_logo"])
 
     def test_rows_are_json_safe(self):
         json.dumps(self._rows(self._post()))
@@ -278,5 +275,4 @@ class PickerKeyboardTestCase(TestCase):
     def test_the_pickers_are_buttons_not_labels(self):
         html = _render_dashboard()
         self.assertRegex(html, r'<button type="button"[^>]*data-post-photo-pick')
-        self.assertRegex(html, r'<button type="button"[^>]*data-post-logo-pick')
         self.assertNotIn('<label class="post-editor__chip"', html)

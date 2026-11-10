@@ -376,7 +376,7 @@ class PostReviewPreviewTestCase(TestCase):
         from app.services.ReviewQueue import preview_context
 
         story = Mock(id=3, title="Headline", description="Body", image=None, kicker="K",
-                     logo_path=None, image_crop=None, source_lines=None, status="review",
+                     image_crop=None, source_lines=None, status="review",
                      expires_at=None, published_at=None, created_at=None)
         with patch("app.services.ReviewQueue.Posts.card_context",
                    return_value={"headline": "Headline"}) as card:

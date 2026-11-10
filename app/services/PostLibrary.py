@@ -59,7 +59,7 @@ def editor_fields(post):
     """What the editor needs to reload a post that card_context() does not carry.
 
     card_context() is the RENDER projection shared with the kiosk (crop as a CSS
-    string, logo as a URL, expiry as a label); the editor needs the raw values
+    string, expiry as a label); the editor needs the raw values
     back to keep editing them. Kept out of card_context so the kiosk payload does
     not grow fields nobody there reads.
     """
@@ -67,7 +67,6 @@ def editor_fields(post):
         "crop": Posts.parse_crop(getattr(post, "image_crop", None)),
         "layout": _layout_or_none(getattr(post, "element_layout", None)),
         "expires_input": _expires_input(getattr(post, "expires_at", None)),
-        "custom_logo": bool((getattr(post, "logo_path", None) or "").strip()),
         "rejection_reason": (getattr(post, "rejection_reason", None) or "").strip(),
     }
 
@@ -132,10 +131,6 @@ def duplicate(user_id, post_id):
         image = copy_image_and_variants(getattr(source, "image", None))
         if image:
             copies.append(image)
-        # A missing source logo file yields None: the copy simply uses the default logo.
-        logo = copy_image_and_variants(getattr(source, "logo_path", None))
-        if logo:
-            copies.append(logo)
 
         # No expires_at / published_at / rejection_reason keys at all: masonite-orm
         # turns a None handed to a __dates__ column into now(), which would expire
@@ -145,7 +140,6 @@ def duplicate(user_id, post_id):
             description=getattr(source, "description", None) or "",
             kicker=getattr(source, "kicker", None),
             image=image,
-            logo_path=logo,
             # Normalised like NewsController.store, never copied as NULL: a
             # duplicate of a legacy newsletter story would otherwise have no crop,
             # sources or expiry and match scripts/purge_newsletters.py's legacy rule.

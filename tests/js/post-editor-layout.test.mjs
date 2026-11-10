@@ -19,7 +19,6 @@ const read = (name) => readFileSync(join(here, '../../resources/js', name), 'utf
 
 const LAYOUT = {
   panel_h: 40,
-  logo: { x: 40, y: 4, s: 1 },
   kicker: { x: 10, y: 4, w: 80, h: 4, s: 1 },
   headline: { x: 10, y: 10, w: 80, h: 6, s: 1 },
   body: { x: 10, y: 18, w: 80, h: 8, s: 1 },
@@ -34,14 +33,12 @@ test('pxToCqw divides by the card width, two decimals', () => {
 test('snapshot converts px to cqw and sets s=1', () => {
   const layout = snapshot({
     panel_h: 160,
-    logo: { x: 133, y: 16 },
     kicker: { x: 24, y: 18, w: 352, h: 13.2 },
     headline: { x: 40, y: 40, w: 320, h: 20 },
     body: { x: 40, y: 66, w: 320, h: 30 },
   }, 400);
   assert.deepEqual(layout, {
     panel_h: 40,
-    logo: { x: 33.25, y: 4, s: 1 },
     kicker: { x: 6, y: 4.5, w: 88.5, h: 3.3, s: 1 },
     headline: { x: 10, y: 10, w: 80.5, h: 5, s: 1 },
     body: { x: 10, y: 16.5, w: 80.5, h: 7.5, s: 1 },
@@ -49,24 +46,24 @@ test('snapshot converts px to cqw and sets s=1', () => {
 });
 
 test('snapshot rounds sizes up and adds width slack so a line never rewraps', () => {
-  const layout = snapshot({ ...{ panel_h: 160, logo: { x: 0, y: 0 } },
+  const layout = snapshot({ panel_h: 160,
     kicker: { x: 0, y: 0, w: 100.01, h: 10 },
     headline: { x: 0, y: 0, w: 100, h: 10 }, body: { x: 0, y: 0, w: 100, h: 10 } }, 400);
   assert.equal(layout.kicker.w, 25.51);
 });
 
 test('snapshot keeps every number inside the server ranges', () => {
-  const layout = snapshot({ panel_h: 400, logo: { x: -3, y: 0 },
+  const layout = snapshot({ panel_h: 400,
     kicker: { x: 0, y: 0, w: 2, h: 0 },
     headline: { x: 0, y: 0, w: 100, h: 10 }, body: { x: 0, y: 0, w: 100, h: 10 } }, 400);
   assert.equal(layout.panel_h, 70);
   assert.equal(layout.kicker.w, 5);
   assert.equal(layout.kicker.h, 1);
-  assert.equal(layout.logo.x, 0);
+  assert.ok(!('logo' in layout));
 });
 
 test('snapshot width slack never pushes a box past the right edge', () => {
-  const layout = snapshot({ panel_h: 160, logo: { x: 0, y: 0 },
+  const layout = snapshot({ panel_h: 160,
     kicker: { x: 200, y: 0, w: 200, h: 10 },
     headline: { x: 0, y: 40, w: 100, h: 10 }, body: { x: 0, y: 80, w: 100, h: 10 } }, 400);
   assert.equal(layout.kicker.x + layout.kicker.w, 100);
@@ -74,7 +71,7 @@ test('snapshot width slack never pushes a box past the right edge', () => {
 
 test('a flow panel taller than the cap shifts text up by the difference', () => {
   // 320px of 400 = 80cqw, capped to 70: the panel top moves down 10cqw.
-  const layout = snapshot({ panel_h: 320, logo: { x: 0, y: 0 },
+  const layout = snapshot({ panel_h: 320,
     kicker: { x: 0, y: 60, w: 100, h: 10 },
     headline: { x: 0, y: 100, w: 100, h: 10 }, body: { x: 0, y: 20, w: 100, h: 10 } }, 400);
   assert.equal(layout.panel_h, 70);
@@ -118,8 +115,8 @@ test('resize stops growing at the edge of the area and stays in range', () => {
 });
 
 test('a problem message marks the pieces it names', () => {
-  assert.deepEqual([...misplacedPieces(['kicker overlaps headline', 'logo is outside the photo'])].sort(),
-    ['headline', 'kicker', 'logo']);
+  assert.deepEqual([...misplacedPieces(['kicker overlaps headline', 'body is outside the panel'])].sort(),
+    ['body', 'headline', 'kicker']);
   assert.equal(misplacedPieces([]).size, 0);
   assert.equal(LAYOUT_PROBLEM, 'A piece doesn\'t fit — move or shrink it.');
 });
@@ -133,9 +130,10 @@ test('post-editor.js appends element_layout from the layout editor', () => {
   assert.match(source, /layoutEditor\.load\(row\.layout/);
 });
 
-test('logo pointerdown stops propagation so it never pans the photo', () => {
+test('a grip pointerdown stops propagation so it never pans the photo', () => {
   const source = read('post-editor-layout.mjs');
-  assert.match(source, /draggable\(logo, 'logo', 'move'\)/);
+  // Posts have no logo of their own: nothing to drag but the three text pieces.
+  assert.doesNotMatch(source, /post-card__logo/);
   const start = source.indexOf("target.addEventListener('pointerdown'");
   assert.ok(start > -1, 'pointerdown listener in draggable()');
   const body = source.slice(start, source.indexOf('});', start));

@@ -15,7 +15,6 @@ from masonite.views import View
 
 from app.models.News import News
 from app.services import (
-    ImageUploads,
     KioskBroadcast,
     NewsCache,
     PostLibrary,
@@ -150,17 +149,7 @@ def _build_flash_payload(news_item):
     }
 
 
-# Logos land beside the other site branding on the NAS. Deletion is confined to this
-# folder so a tampered logo_path can never point the cleanup at another branding file.
-LOGO_FOLDER = "Branding/posts"
 MAX_PHOTO_BYTES = 6 * 1024 * 1024
-
-
-def _delete_logo_file(logo_path):
-    """Remove a post's own logo, only if it sits in the posts logo folder."""
-    path = (logo_path or "").replace("\\", "/").strip().lstrip("/")
-    if path.startswith(LOGO_FOLDER + "/"):
-        delete_image_and_variants(path)
 
 
 def _first_upload(value):
@@ -190,10 +179,6 @@ class _UploadedImageAdapter:
             stream = self._file_obj.stream()
             return stream.read() if hasattr(stream, "read") else stream
         return getattr(self._file_obj, "content", b"")
-
-
-def _truthy(value):
-    return str(value or "").strip().lower() in ("1", "true", "yes", "on")
 
 
 class NewsController(Controller):
@@ -309,8 +294,6 @@ class NewsController(Controller):
             if layout is not None and Posts.layout_problems(layout):
                 return _err(["The layout doesn't fit — move or shrink a piece."])
 
-        logo_file = _first_upload(request.input("logo"))
-        remove_logo = _truthy(request.input("remove_logo"))
         actor_id = _current_user_id(request)
         crop = json.dumps(Posts.parse_crop(request.input("image_crop")))
         source_lines = json.dumps(Posts.parse_source_lines(request.input("source_lines")))
@@ -320,19 +303,9 @@ class NewsController(Controller):
         element_layout = json.dumps(layout) if layout is not None else None
 
         old_image = getattr(existing, "image", None) if existing else None
-        old_logo = getattr(existing, "logo_path", None) if existing else None
         new_image = None
-        new_logo = None
 
         try:
-            if logo_file:
-                # Magic-byte verified and named server-side; never the browser's filename.
-                new_logo, logo_error = ImageUploads.save_uploaded_image(
-                    logo_file, LOGO_FOLDER, "logo"
-                )
-                if logo_error:
-                    return _err([logo_error])
-
             if image_file:
                 public_disk = storage.disk("public")
                 new_image = public_disk.put_file("news", image_file)
@@ -342,7 +315,6 @@ class NewsController(Controller):
                 except Exception:
                     pass
 
-            logo_path = new_logo or (None if remove_logo else old_logo)
             now = datetime.now(timezone.utc)
             publishing = status in _PUBLISH_INTENT_STATUSES
             clear_expiry = False
@@ -375,7 +347,6 @@ class NewsController(Controller):
                 # never assigned; a real clear is a separate NULL write below.
                 if expires_at is not None:
                     existing.expires_at = expires_at
-                existing.logo_path = logo_path
                 # Whatever the editor asked for applies, so saving a live post as a
                 # draft or resubmission takes it off the kiosk until re-approved.
                 existing.status = status
@@ -399,7 +370,6 @@ class NewsController(Controller):
                     description=body,
                     kicker=kicker or None,
                     image=new_image,
-                    logo_path=logo_path,
                     image_crop=crop,
                     source_lines=source_lines,
                     element_layout=element_layout,
@@ -418,14 +388,11 @@ class NewsController(Controller):
             # The row never changed, so the files written for it are orphans.
             if new_image:
                 _delete_image_files(new_image)
-            _delete_logo_file(new_logo)
             return _err(["Could not save the post. Please try again."])
 
         # Only now that the row points at the new files may the replaced ones go.
         if new_image and old_image and old_image != new_image:
             _delete_image_files(old_image)
-        if old_logo and old_logo != logo_path:
-            _delete_logo_file(old_logo)
 
         Cache.forget(_NEWS_CACHE_KEY)
         # Forgetting the cache and telling the kiosk are the same fact; always do both.
@@ -506,9 +473,9 @@ class NewsController(Controller):
         if not record or not _may_change_story(request, record):
             return _err(["Article not found."])
 
-        image, logo = getattr(record, "image", None), getattr(record, "logo_path", None)
+        image = getattr(record, "image", None)
         # A hard delete: posts have no restore UI, so a soft-deleted row would keep its
-        # photo and logo on the NAS forever. Row first, files after, so a failed delete
+        # photo on the NAS forever. Row first, files after, so a failed delete
         # never leaves a live post pointing at files that are gone.
         try:
             News.where("id", record.id).force_delete()
@@ -517,7 +484,6 @@ class NewsController(Controller):
             return _err(["Could not delete the post. Please try again."])
 
         _delete_image_files(image)
-        _delete_logo_file(logo)
 
         Cache.forget(_NEWS_CACHE_KEY)
         KioskBroadcast.section_changed("latest-news")

@@ -90,7 +90,7 @@ class NewsWriteOrderTestCase(TestCase):
         self.assertEqual(_timeline(parent), FORGET_THEN_BROADCAST)
 
     def test_destroy(self):
-        record = self._record(id=42, image=None, logo_path=None)
+        record = self._record(id=42, image=None)
         with _ordered(self.MODULE) as parent, patch(
             f"{self.MODULE}.News.where", side_effect=_where_side_effect({42: record})
         ):

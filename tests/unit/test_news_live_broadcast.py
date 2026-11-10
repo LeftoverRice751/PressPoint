@@ -66,7 +66,7 @@ class ReviewBroadcastTestCase(TestCase):
 
 class NewsControllerBroadcastTestCase(TestCase):
     def test_destroy_broadcasts_latest_news(self):
-        record = Mock(id=42, image=None, logo_path=None)
+        record = Mock(id=42, image=None)
         request = _mock_request(params={"id": "42"})
         response = _mock_response()
         queries = []

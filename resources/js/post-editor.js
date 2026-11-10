@@ -3,7 +3,7 @@
  *
  * The editor IS kiosk/_post_card.html in editor mode, so the card typed into is
  * the card the kiosk shows. This file wires the text regions, source lines,
- * expiry dialog, library rows and saving; the photo and logo live in
+ * expiry dialog, library rows and saving; the photo lives in
  * post-editor-photo.mjs. Every rule that can be pure is in a tested module
  * (post-crop / post-sources / post-editor-fields).
  *
@@ -13,7 +13,7 @@
 
 import { serialize, defaults } from './post-sources.mjs';
 import { expiryLabel, campusInputNow, usableExpiry } from './post-editor-fields.mjs';
-import { createPhotoController, createLogoController, storagePhotoUrl } from './post-editor-photo.mjs';
+import { createPhotoController, storagePhotoUrl } from './post-editor-photo.mjs';
 import { wireTextFields } from './post-editor-text.mjs';
 import { createSourcesEditor } from './post-editor-sources.mjs';
 import { createLayoutEditor, LAYOUT_PROBLEM } from './post-editor-layout.mjs';
@@ -29,7 +29,6 @@ import { createLayoutEditor, LAYOUT_PROBLEM } from './post-editor-layout.mjs';
   var stage = root.querySelector('[data-post-stage]');
   var library = root.querySelector('[data-live-section="post-library"]');
   var storeUrl = root.getAttribute('data-store-url');
-  var siteLogo = root.getAttribute('data-site-logo') || '';
   var emptyCard = parseJson(root.getAttribute('data-empty-card')) || {};
 
   var tokenMeta = document.querySelector('meta[name="csrf-token"]');
@@ -102,16 +101,6 @@ import { createLayoutEditor, LAYOUT_PROBLEM } from './post-editor-layout.mjs';
     pickButton: root.querySelector('[data-post-photo-pick]'),
     zoomInput: root.querySelector('[data-post-zoom]'),
     hint: root.querySelector('[data-post-photo-hint]'),
-    onChange: markDirty,
-    onError: function (message) { showErrors([message]); },
-  });
-
-  var logo = createLogoController({
-    card: card,
-    input: root.querySelector('[data-post-logo-input]'),
-    pickButton: root.querySelector('[data-post-logo-pick]'),
-    resetButton: root.querySelector('[data-post-logo-reset]'),
-    siteLogo: siteLogo,
     onChange: markDirty,
     onError: function (message) { showErrors([message]); },
   });
@@ -202,7 +191,6 @@ import { createLayoutEditor, LAYOUT_PROBLEM } from './post-editor-layout.mjs';
       text.set(name, row[name]);
     });
     photo.load(storagePhotoUrl(row.image_large), row.crop);
-    logo.load(row.logo_url, row.custom_logo);
     sources.set(row.source_lines);
     layoutEditor.load(row.layout || null);
     state.expires = usableExpiry(row.expires_input || '', campusInputNow());
@@ -223,7 +211,6 @@ import { createLayoutEditor, LAYOUT_PROBLEM } from './post-editor-layout.mjs';
       id: '',
       state: 'new',
       crop: null,
-      custom_logo: false,
       expires_input: '',
       rejection_reason: '',
       source_lines: emptyCard.source_lines || defaults(),
@@ -295,7 +282,7 @@ import { createLayoutEditor, LAYOUT_PROBLEM } from './post-editor-layout.mjs';
           // nginx answers an over-size body with an HTML 413, not our JSON.
           payload = {
             ok: false,
-            errors: [response.status === 413 ? 'Upload too large — try a smaller photo or logo.' : 'Could not reach the server. Please try again.'],
+            errors: [response.status === 413 ? 'Upload too large — try a smaller photo.' : 'Could not reach the server. Please try again.'],
           };
         }
         return payload;
@@ -333,8 +320,6 @@ import { createLayoutEditor, LAYOUT_PROBLEM } from './post-editor-layout.mjs';
     form.append('status', status);
     form.append('element_layout', layoutEditor.serialize());
     if (photo.file()) form.append('image', photo.file());
-    if (logo.file()) form.append('logo', logo.file());
-    if (logo.removeLogo()) form.append('remove_logo', '1');
 
     post(storeUrl, form).then(function (payload) {
       setSaving(false);
@@ -347,7 +332,6 @@ import { createLayoutEditor, LAYOUT_PROBLEM } from './post-editor-layout.mjs';
       state.id = String(payload.id || state.id);
       state.status = payload.status === 'review' ? 'review' : 'draft';
       photo.saved(storagePhotoUrl(savedCard.image_large));
-      logo.saved(savedCard.logo_url);
       // The server took a live post off the kiosk (it is draft or review now),
       // and a resubmission cleared the rejection.
       ui.liveNotice.hidden = true;

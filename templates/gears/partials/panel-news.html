@@ -25,10 +25,9 @@
       {% endif %}
 
       {# data-empty-card is what "New post" resets to (DashboardContext.post_editor_context):
-         the site logo, the default crop and DEFAULT_SOURCE_LINES, from the server. #}
+         the default crop and DEFAULT_SOURCE_LINES, from the server. #}
       <div class="post-workspace" data-post-workspace
            data-store-url="{{ route('news.store', {}, False) }}"
-           data-site-logo="{{ post_editor_card.logo_url }}"
            data-empty-card='{{ post_editor_card | tojson }}'>
 
         <aside class="post-library page-card" data-live-section="post-library" aria-label="Your posts">
@@ -55,19 +54,14 @@
             {# Overlays, not part of the card markup: the kiosk must never render them. #}
             <label class="post-editor__photo-hint" data-post-photo-hint for="post-photo-input">
               <span class="post-editor__photo-hint-title">Drop a photo here</span>
-              <span class="post-editor__photo-hint-sub">or click to choose one &middot; JPG, PNG, GIF or WebP up to 8 MB</span>
+              <span class="post-editor__photo-hint-sub">or click to choose one &middot; JPG, PNG, GIF or WebP up to 6 MB</span>
             </label>
-            <div class="post-editor__logo-tools">
-              <button type="button" class="post-editor__chip" data-post-logo-pick>Change logo</button>
-              <button type="button" class="post-editor__chip" data-post-logo-reset hidden>Use site logo</button>
-            </div>
           </div>
 
-          {# Out of the tab order on purpose: the "Choose photo" / "Change logo"
-             buttons open them with input.click(), so keyboard users reach the
-             pickers through a real, focusable control. #}
+          {# Out of the tab order on purpose: the "Choose photo" button opens it
+             with input.click(), so keyboard users reach the picker through a
+             real, focusable control. #}
           <input type="file" id="post-photo-input" class="post-editor__file" accept="image/jpeg,image/png,image/gif,image/webp" data-post-photo-input tabindex="-1">
-          <input type="file" id="post-logo-input" class="post-editor__file" accept="image/jpeg,image/png,image/webp" data-post-logo-input tabindex="-1">
 
           <div class="post-editor__toolbar">
             <label class="post-editor__zoom">

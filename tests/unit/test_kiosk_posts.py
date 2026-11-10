@@ -28,7 +28,6 @@ def _post(pid, title="A headline", **over):
         description="Body copy.",
         image=None,
         image_crop=None,
-        logo_path=None,
         source_lines=None,
         status="published",
         expires_at=NOW + timedelta(days=3),
@@ -114,7 +113,6 @@ class KioskPostsTestCase(TestCase):
         for marker in (
             'data-post-id="1"',
             "post-card__photo",
-            "post-card__logo",
             "post-card__panel",
             "post-card__headline",
             "post-card__body",
@@ -123,6 +121,8 @@ class KioskPostsTestCase(TestCase):
         ):
             self.assertIn(marker, html)
         self.assertNotIn("contenteditable", html)
+        # Posts carry no logo of their own any more.
+        self.assertNotIn("post-card__logo", html)
 
     def test_editor_mode_exposes_fields(self):
         card = Posts.card_context(_post(1, kicker=""))
@@ -140,14 +140,13 @@ class KioskPostsTestCase(TestCase):
         html = View.render("kiosk/_post_card", {"card": card}).get_content()
         self.assertNotIn("post-card--positioned", html)
         self.assertNotIn("style=\"height", html)
-        for cls in ("panel", "kicker", "headline", "body", "logo"):
+        for cls in ("panel", "kicker", "headline", "body"):
             self.assertRegex(html, rf'class="post-card__{cls}"[^>]*>')
             self.assertNotRegex(html, rf'class="post-card__{cls}"[^>]*style=')
 
     def test_positioned_card_renders_styles(self):
         layout = {
             "panel_h": 44,
-            "logo": {"x": 40, "y": 4, "s": 1},
             "kicker": {"x": 10, "y": 5, "w": 30, "h": 3.5, "s": 1.2},
             "headline": {"x": 10, "y": 10, "w": 80, "h": 10, "s": 1},
             "body": {"x": 10, "y": 20, "w": 80, "h": 15, "s": 1},
@@ -158,7 +157,6 @@ class KioskPostsTestCase(TestCase):
         for piece, style in (
             ("photo", "height:61cqw"),
             ("panel", "height:44cqw"),
-            ("logo", "left:40cqw;top:4cqw;--s:1"),
             ("kicker", "left:10cqw;top:5cqw;width:36cqw;height:4.2cqw;--s:1.2"),
             ("headline", "left:10cqw;top:10cqw;width:80cqw;height:10cqw;--s:1"),
         ):
