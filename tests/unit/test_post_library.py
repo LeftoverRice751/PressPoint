@@ -136,6 +136,10 @@ class DuplicateTestCase(TestCase):
             self._run(_post(5, element_layout=raw))
             self.assertIsNone(self.news.create.call_args.kwargs["element_layout"])
 
+    def test_duplicate_of_corrupt_layout_does_not_raise(self):
+        self._run(_post(5, element_layout="{bad"))
+        self.assertIsNone(self.news.create.call_args.kwargs["element_layout"])
+
     def test_editor_fields_layout(self):
         from tests.unit.test_post_endpoints import _fitting
 

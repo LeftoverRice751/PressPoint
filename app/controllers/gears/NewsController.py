@@ -314,6 +314,8 @@ class NewsController(Controller):
         actor_id = _current_user_id(request)
         crop = json.dumps(Posts.parse_crop(request.input("image_crop")))
         source_lines = json.dumps(Posts.parse_source_lines(request.input("source_lines")))
+        # Absent/empty clears the layout (flow mode), like image_crop/source_lines being
+        # rewritten on every save: deliberate, the editor always sends it.
         # NULL is flow mode. A TEXT column has no __dates__ trap, so None is assignable.
         element_layout = json.dumps(layout) if layout is not None else None
 

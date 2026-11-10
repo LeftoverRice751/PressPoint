@@ -370,6 +370,17 @@ class StoreLayoutTestCase(_StoreCase):
         self.create.assert_not_called()
         self.storage.disk.return_value.put_file.assert_not_called()
 
+    def test_admin_publish_layout_that_does_not_fit_422(self):
+        response = self.store(
+            _request(
+                role="admin", headline="H", image=_upload(), status="published",
+                element_layout=json.dumps(_overlapping()),
+            )
+        )
+        self.assertEqual(self.code(response), 422)
+        self.assertIn(GEOMETRY_COPY, str(self.body(response)))
+        self.create.assert_not_called()
+
     def test_draft_saves_layout_that_does_not_fit(self):
         self.store(
             _request(
