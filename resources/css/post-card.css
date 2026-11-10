@@ -242,7 +242,9 @@
  */
 .post-card--positioned .post-card__photo {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
     flex: none;
 }
 
@@ -293,4 +295,9 @@
     bottom: 3cqw;
     margin: 0;
     padding: 0 6cqw;
+}
+
+/* The editor's 12cqw floor must not widen a box past its stored width. */
+.post-card--positioned[data-post-editor] [contenteditable] {
+    min-width: 0;
 }

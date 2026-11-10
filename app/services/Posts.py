@@ -263,6 +263,9 @@ def layout_styles(layout):
     t = _two_decimals
     styles = {
         "panel": f"height:{t(layout['panel_h'])}cqw",
+        # Same box as the flow layout's photo (above the panel plus its 5cqw tuck),
+        # so object-fit crops the same region and the photo does not jump.
+        "photo": f"height:{t(100 - layout['panel_h'] + 5)}cqw",
         "logo": (
             f"left:{t(layout['logo']['x'])}cqw;top:{t(layout['logo']['y'])}cqw;"
             f"--s:{t(layout['logo']['s'])}"

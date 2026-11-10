@@ -35,6 +35,7 @@ export function toStyles(layout) {
   const t = formatNumber;
   const styles = {
     panel: `height:${t(layout.panel_h)}cqw`,
+    photo: `height:${t(100 - layout.panel_h + 5)}cqw`,
     logo: `left:${t(layout.logo.x)}cqw;top:${t(layout.logo.y)}cqw;--s:${t(layout.logo.s)}`,
   };
   for (const piece of PIECES) {

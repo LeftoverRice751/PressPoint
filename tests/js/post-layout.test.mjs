@@ -20,6 +20,7 @@ function fitting() {
 test('toStyles matches the Python literals', () => {
   const s = toStyles(fitting());
   assert.equal(s.panel, 'height:44cqw');
+  assert.equal(s.photo, 'height:61cqw');
   assert.equal(s.logo, 'left:40cqw;top:4cqw;--s:1');
   assert.equal(s.kicker, 'left:10cqw;top:5cqw;width:36cqw;height:4.2cqw;--s:1.2');
   assert.equal(s.headline, 'left:10cqw;top:10cqw;width:80cqw;height:10cqw;--s:1');

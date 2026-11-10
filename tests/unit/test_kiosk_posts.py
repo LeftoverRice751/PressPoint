@@ -156,6 +156,7 @@ class KioskPostsTestCase(TestCase):
         html = View.render("kiosk/_post_card", {"card": card}).get_content()
         self.assertIn("post-card post-card--positioned", html)
         for piece, style in (
+            ("photo", "height:61cqw"),
             ("panel", "height:44cqw"),
             ("logo", "left:40cqw;top:4cqw;--s:1"),
             ("kicker", "left:10cqw;top:5cqw;width:36cqw;height:4.2cqw;--s:1.2"),

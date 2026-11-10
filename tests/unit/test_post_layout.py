@@ -103,6 +103,7 @@ def test_layout_styles_none():
 
 def test_layout_styles_strings():
     styles = Posts.layout_styles(fitting())
+    assert styles["photo"] == "height:61cqw"
     assert styles["panel"] == "height:44cqw"
     assert styles["logo"] == "left:40cqw;top:4cqw;--s:1"
     assert styles["kicker"] == "left:10cqw;top:5cqw;width:36cqw;height:4.2cqw;--s:1.2"

@@ -13,7 +13,7 @@
     autoescaped). Without one the markup is the flow layout, byte for byte. -#}
 {% set editing = post_editor is defined and post_editor %}
 <article class="post-card{% if card.layout %} post-card--positioned{% endif %}" data-post-id="{{ card.id }}"{% if editing %} data-post-editor{% endif %}>
-  <div class="post-card__photo">
+  <div class="post-card__photo"{% if card.layout %} style="{{ card.layout_styles.photo }}"{% endif %}>
     {% if card.image_large %}
     <img src="/storage/{{ card.image_large }}" alt="" style="{{ card.crop_style }}" draggable="false">
     {% endif %}
