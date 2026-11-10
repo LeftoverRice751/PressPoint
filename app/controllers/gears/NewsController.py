@@ -275,6 +275,12 @@ class NewsController(Controller):
         except ValueError as problem:
             return _err([str(problem)])
 
+        # Before any file is saved, so a 422 never leaves orphan uploads.
+        try:
+            layout = Posts.parse_layout(request.input("element_layout"))
+        except ValueError:
+            return _err(["Could not read the layout. Reload the post and try again."])
+
         image_file = _first_upload(request.input("image"))
         if image_file and not hasattr(image_file, "name") and hasattr(image_file, "filename"):
             image_file = _UploadedImageAdapter(image_file)
@@ -300,12 +306,16 @@ class NewsController(Controller):
                 return _err(["Add a headline."])
             if not (image_file or (existing and getattr(existing, "image", None))):
                 return _err(["Add a photo before submitting"])
+            if layout is not None and Posts.layout_problems(layout):
+                return _err(["The layout doesn't fit — move or shrink a piece."])
 
         logo_file = _first_upload(request.input("logo"))
         remove_logo = _truthy(request.input("remove_logo"))
         actor_id = _current_user_id(request)
         crop = json.dumps(Posts.parse_crop(request.input("image_crop")))
         source_lines = json.dumps(Posts.parse_source_lines(request.input("source_lines")))
+        # NULL is flow mode. A TEXT column has no __dates__ trap, so None is assignable.
+        element_layout = json.dumps(layout) if layout is not None else None
 
         old_image = getattr(existing, "image", None) if existing else None
         old_logo = getattr(existing, "logo_path", None) if existing else None
@@ -356,6 +366,7 @@ class NewsController(Controller):
                 existing.kicker = kicker or None
                 existing.image_crop = crop
                 existing.source_lines = source_lines
+                existing.element_layout = element_layout
                 # masonite-orm turns None into *now* for a __dates__ column (the
                 # setter and cast_values both call get_new_datetime_string), which
                 # would store the save time and expire the post at birth. So None is
@@ -389,6 +400,7 @@ class NewsController(Controller):
                     logo_path=logo_path,
                     image_crop=crop,
                     source_lines=source_lines,
+                    element_layout=element_layout,
                     status=status,
                     author_id=actor_id,  # set once; updated_by_id moves on later edits
                     updated_by_id=actor_id,

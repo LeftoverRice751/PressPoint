@@ -22,7 +22,7 @@ pytestmark = pytest.mark.usefixtures("actor_may_change_any_story")
 def _post(id, status="draft", **over):
     fields = dict(
         id=id, title=f"Post {id}", description="body", kicker="K", image=f"news/{id}.jpg",
-        logo_path=None, image_crop=None, source_lines=None, status=status, author_id=7,
+        logo_path=None, image_crop=None, source_lines=None, element_layout=None, status=status, author_id=7,
         rejection_reason=None, expires_at=None, published_at=None, created_at=None,
     )
     fields.update(over)
@@ -123,6 +123,26 @@ class DuplicateTestCase(TestCase):
         # masonite-orm turns None into now() for a dates column: keys must be absent.
         for key in ("expires_at", "published_at", "rejection_reason"):
             self.assertNotIn(key, fields)
+
+    def test_duplicate_copies_layout(self):
+        from tests.unit.test_post_endpoints import _fitting
+
+        self._run(_post(5, element_layout=json.dumps(_fitting())))
+        fields = self.news.create.call_args.kwargs
+        self.assertEqual(json.loads(fields["element_layout"]), _fitting())
+
+    def test_duplicate_without_or_with_bad_layout_stores_null(self):
+        for raw in (None, "{broken"):
+            self._run(_post(5, element_layout=raw))
+            self.assertIsNone(self.news.create.call_args.kwargs["element_layout"])
+
+    def test_editor_fields_layout(self):
+        from tests.unit.test_post_endpoints import _fitting
+
+        good = PostLibrary.editor_fields(_post(5, element_layout=json.dumps(_fitting())))
+        self.assertEqual(good["layout"], _fitting())
+        self.assertIsNone(PostLibrary.editor_fields(_post(5))["layout"])
+        self.assertIsNone(PostLibrary.editor_fields(_post(5, element_layout="{x"))["layout"])
 
     def test_another_editors_post_is_a_lookup_error_and_copies_nothing(self):
         with self.assertRaises(LookupError):

@@ -48,6 +48,13 @@ def _expires_input(value):
     return Posts._aware_utc(value).astimezone(Posts.CAMPUS_TZ).strftime("%Y-%m-%dT%H:%M")
 
 
+def _layout_or_none(raw):
+    try:
+        return Posts.parse_layout(raw)
+    except ValueError:
+        return None
+
+
 def editor_fields(post):
     """What the editor needs to reload a post that card_context() does not carry.
 
@@ -58,6 +65,7 @@ def editor_fields(post):
     """
     return {
         "crop": Posts.parse_crop(getattr(post, "image_crop", None)),
+        "layout": _layout_or_none(getattr(post, "element_layout", None)),
         "expires_input": _expires_input(getattr(post, "expires_at", None)),
         "custom_logo": bool((getattr(post, "logo_path", None) or "").strip()),
         "rejection_reason": (getattr(post, "rejection_reason", None) or "").strip(),
@@ -144,6 +152,11 @@ def duplicate(user_id, post_id):
             image_crop=json.dumps(Posts.parse_crop(getattr(source, "image_crop", None))),
             source_lines=json.dumps(
                 Posts.parse_source_lines(getattr(source, "source_lines", None))
+            ),
+            element_layout=(
+                json.dumps(layout)
+                if (layout := _layout_or_none(getattr(source, "element_layout", None)))
+                else None
             ),
             status="draft",
             author_id=user_id,

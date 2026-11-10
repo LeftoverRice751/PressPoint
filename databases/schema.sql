@@ -197,6 +197,7 @@ CREATE TABLE `news` (
   `logo_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `image_crop` text COLLATE utf8mb4_unicode_ci,
   `source_lines` text COLLATE utf8mb4_unicode_ci,
+  `element_layout` text COLLATE utf8mb4_unicode_ci,
   `expires_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `news_author_id_foreign` (`author_id`),

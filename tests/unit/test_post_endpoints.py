@@ -310,6 +310,75 @@ class StoreCropAndSourcesTestCase(_StoreCase):
         self.assertEqual(len(fields["description"]), Posts.BODY_MAX)
 
 
+def _fitting():
+    return {
+        "panel_h": 44,
+        "logo": {"x": 40, "y": 4, "s": 1},
+        "kicker": {"x": 10, "y": 5, "w": 30, "h": 3.5, "s": 1.2},
+        "headline": {"x": 10, "y": 10, "w": 80, "h": 10, "s": 1},
+        "body": {"x": 10, "y": 20, "w": 80, "h": 15, "s": 1},
+    }
+
+
+def _overlapping():
+    layout = _fitting()
+    layout["body"] = dict(layout["headline"])
+    return layout
+
+
+MALFORMED_COPY = "Could not read the layout. Reload the post and try again."
+GEOMETRY_COPY = "The layout doesn't fit \u2014 move or shrink a piece."
+
+
+class StoreLayoutTestCase(_StoreCase):
+    def test_store_saves_layout(self):
+        layout = _fitting()
+        layout["kicker"]["x"] = 10.004
+        self.store(_request(headline="H", image=_upload(), element_layout=json.dumps(layout)))
+        saved = json.loads(self.create.call_args.kwargs["element_layout"])
+        self.assertEqual(saved["kicker"]["x"], 10.0)
+        self.assertEqual(saved["panel_h"], 44)
+
+    def test_store_empty_layout_is_null(self):
+        self.store(_request(headline="H", element_layout=""))
+        self.assertIsNone(self.create.call_args.kwargs["element_layout"])
+
+    def test_editing_back_to_flow_mode_clears_it(self):
+        record = _existing(element_layout='{"x": 1}')
+        self.store(_request(id="11", headline="H", element_layout=""), existing=record)
+        self.assertIsNone(record.element_layout)
+
+    def test_store_malformed_layout_422(self):
+        response = self.store(
+            _request(headline="H", image=_upload(), element_layout="{nope"),
+        )
+        self.assertEqual(self.code(response), 422)
+        self.assertIn(MALFORMED_COPY, json.dumps(self.body(response)))
+        self.create.assert_not_called()
+        self.storage.disk.return_value.put_file.assert_not_called()
+
+    def test_submit_layout_that_does_not_fit_422(self):
+        response = self.store(
+            _request(
+                headline="H", image=_upload(), status="review",
+                element_layout=json.dumps(_overlapping()),
+            )
+        )
+        self.assertEqual(self.code(response), 422)
+        self.assertIn("fit", json.dumps(self.body(response)))
+        self.assertIn(GEOMETRY_COPY, str(self.body(response)))
+        self.create.assert_not_called()
+        self.storage.disk.return_value.put_file.assert_not_called()
+
+    def test_draft_saves_layout_that_does_not_fit(self):
+        self.store(
+            _request(
+                headline="H", status="draft", element_layout=json.dumps(_overlapping())
+            )
+        )
+        self.assertIsNotNone(self.create.call_args.kwargs["element_layout"])
+
+
 class StoreLogoTestCase(_StoreCase):
     def test_logo_upload_goes_through_the_verified_helper_into_branding_posts(self):
         logo = _upload("mark.png")

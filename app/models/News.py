@@ -55,6 +55,7 @@ class News(Model, SoftDeletesMixin):
         "logo_path",
         "image_crop",
         "source_lines",
+        "element_layout",
         "expires_at",
     ]
     pass

@@ -24,6 +24,7 @@ class PostSchemaTestCase(unittest.TestCase):
             "`logo_path` varchar(255)",
             "`image_crop` text",
             "`source_lines` text",
+            "`element_layout` text",
             "`expires_at` datetime",
         ):
             self.assertIn(fragment, block)
@@ -38,6 +39,14 @@ class PostSchemaTestCase(unittest.TestCase):
             self.assertNotIn(f"CREATE TABLE `{table}`", text)
 
     def test_news_model_fillable_has_post_fields(self):
-        for name in ("kicker", "logo_path", "image_crop", "source_lines", "expires_at"):
+        for name in ("kicker", "logo_path", "image_crop", "source_lines", "element_layout", "expires_at"):
             self.assertIn(name, News.__fillable__)
         self.assertIn("expires_at", News.__dates__)
+
+    def test_migration_adds_element_layout(self):
+        import importlib
+
+        migration = importlib.import_module(
+            "databases.migrations.2026_11_09_000100_add_post_fields_to_news"
+        )
+        self.assertIn("element_layout", migration.POST_COLUMNS)

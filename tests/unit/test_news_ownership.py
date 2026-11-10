@@ -54,6 +54,7 @@ def _story(status="draft", author_id=AUTHOR, **fields):
         kicker=None,
         image_crop=None,
         source_lines=None,
+        element_layout=None,
         expires_at=None,
     )
     for name, value in fields.items():
@@ -160,6 +161,7 @@ class ContentStampTestCase(TestCase):
             ("logo_path", "news/logo.png"),
             ("image_crop", '{"x": 0.1, "y": 0.2, "zoom": 2}'),
             ("source_lines", '[{"icon": "link", "text": "x"}]'),
+            ("element_layout", '{"panel_h": 44}'),
             ("expires_at", "2026-12-01 00:00:00"),
         ):
             self.assertNotEqual(content_stamp([_story(**{field: value})]), base, field)
