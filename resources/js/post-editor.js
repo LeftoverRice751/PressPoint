@@ -16,6 +16,7 @@ import { expiryLabel, campusInputNow, usableExpiry } from './post-editor-fields.
 import { createPhotoController, createLogoController, storagePhotoUrl } from './post-editor-photo.mjs';
 import { wireTextFields } from './post-editor-text.mjs';
 import { createSourcesEditor } from './post-editor-sources.mjs';
+import { createLayoutEditor, LAYOUT_PROBLEM } from './post-editor-layout.mjs';
 
 (function () {
   'use strict';
@@ -77,14 +78,22 @@ import { createSourcesEditor } from './post-editor-sources.mjs';
   }
 
   // ── Errors ──────────────────────────────────────────────────────────
+  // `errorMessages`: what the last save/load reported. The layout's own
+  // message rides along while a piece doesn't fit, and leaves when it does,
+  // without wiping a server error that is still true.
+  var errorMessages = [];
+  var layoutProblems = [];
+
   function showErrors(messages) {
+    errorMessages = (messages || []).filter(function (m) { return m !== LAYOUT_PROBLEM; });
+    var shown = errorMessages.concat(layoutProblems.length ? [LAYOUT_PROBLEM] : []);
     ui.errors.innerHTML = '';
-    (messages || []).forEach(function (message) {
+    shown.forEach(function (message) {
       var li = document.createElement('li');
       li.textContent = message;
       ui.errors.appendChild(li);
     });
-    ui.errors.hidden = !(messages && messages.length);
+    ui.errors.hidden = !shown.length;
   }
 
   var photo = createPhotoController({
@@ -107,14 +116,32 @@ import { createSourcesEditor } from './post-editor-sources.mjs';
     onError: function (message) { showErrors([message]); },
   });
 
-  var text = wireTextFields({ card: card, counters: root, onInput: markDirty });
+  var text = wireTextFields({
+    card: card,
+    counters: root,
+    // Typing grows a positioned box; its new height is judged right away.
+    onInput: function () { markDirty(); layoutEditor.remeasure(); },
+  });
+
+  // Submit for review is held while a piece doesn't fit (the server would 422
+  // it); Save draft stays available so the work is never trapped.
+  var layoutEditor = createLayoutEditor({
+    card: card,
+    onChange: markDirty,
+    onProblems: function (list) {
+      layoutProblems = list;
+      ui.submit.disabled = state.saving || layoutProblems.length > 0;
+      showErrors(errorMessages);
+    },
+  });
 
   var sources = createSourcesEditor({
     panel: panel,
     card: card,
     container: root.querySelector('[data-post-sources]'),
     addButton: root.querySelector('[data-post-source-add]'),
-    onChange: markDirty,
+    // More or fewer source lines move the footer, which bounds the text area.
+    onChange: function () { markDirty(); layoutEditor.remeasure(); },
   });
 
   // ── Expiry dialog ───────────────────────────────────────────────────
@@ -177,6 +204,7 @@ import { createSourcesEditor } from './post-editor-sources.mjs';
     photo.load(storagePhotoUrl(row.image_large), row.crop);
     logo.load(row.logo_url, row.custom_logo);
     sources.set(row.source_lines);
+    layoutEditor.load(row.layout || null);
     state.expires = usableExpiry(row.expires_input || '', campusInputNow());
     renderExpiry();
 
@@ -284,7 +312,7 @@ import { createSourcesEditor } from './post-editor-sources.mjs';
   function setSaving(saving) {
     state.saving = saving;
     ui.saveDraft.disabled = saving;
-    ui.submit.disabled = saving;
+    ui.submit.disabled = saving || layoutProblems.length > 0;
     if (saving) ui.saveState.textContent = 'Saving…';
   }
 
@@ -303,6 +331,7 @@ import { createSourcesEditor } from './post-editor-sources.mjs';
     form.append('source_lines', serialize(sources.rows()));
     form.append('expires_at', state.expires || '');
     form.append('status', status);
+    form.append('element_layout', layoutEditor.serialize());
     if (photo.file()) form.append('image', photo.file());
     if (logo.file()) form.append('logo', logo.file());
     if (logo.removeLogo()) form.append('remove_logo', '1');

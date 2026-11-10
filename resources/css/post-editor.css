@@ -418,3 +418,97 @@
 .post-expiry-modal__error[hidden] {
     display: none;
 }
+
+/*
+ * Element layout (post-editor-layout.mjs). One frame per piece in an overlay
+ * that covers the card: siblings of the pieces, never children of the
+ * contenteditable regions. The overlay and frames let every pointer through to
+ * the text underneath; only the grip and the corner handle catch it. Both show
+ * on hover or keyboard focus, and always on touch screens (no hover there).
+ */
+.post-layout-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.post-layout-frame {
+    position: absolute;
+}
+
+.post-layout-frame__grip,
+.post-layout-frame__handle {
+    position: absolute;
+    pointer-events: auto;
+    touch-action: none;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+
+.post-layout-frame__grip {
+    top: 0;
+    left: 0;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 2px solid var(--brand-gold);
+    border-radius: 50%;
+    background: var(--brand-maroon);
+    color: var(--brand-cream);
+    font-size: 13px;
+    line-height: 1;
+    transform: translate(-50%, -50%);
+    cursor: move;
+}
+
+.post-layout-frame__grip::before {
+    content: "\2725";
+}
+
+.post-layout-frame__grip:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--brand-maroon);
+    outline-offset: 2px;
+}
+
+.post-layout-frame__handle {
+    right: 0;
+    bottom: 0;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--brand-maroon);
+    border-radius: 3px;
+    background: var(--brand-gold);
+    transform: translate(50%, 50%);
+    cursor: nwse-resize;
+}
+
+.post-card[data-post-editor]:hover .post-layout-frame__grip,
+.post-card[data-post-editor]:hover .post-layout-frame__handle,
+.post-card[data-post-editor]:focus-within .post-layout-frame__grip,
+.post-card[data-post-editor]:focus-within .post-layout-frame__handle {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    .post-layout-frame__grip,
+    .post-layout-frame__handle {
+        opacity: 1;
+    }
+}
+
+/* The logo is dragged by the image itself (it never pans the photo). */
+.post-card[data-post-editor] .post-card__logo {
+    cursor: grab;
+    touch-action: none;
+}
+
+/* A piece outside its area or on top of another: Submit for review waits. */
+.post-card[data-post-editor] [contenteditable].is-misplaced,
+.post-card[data-post-editor] .post-card__logo.is-misplaced {
+    outline: 0.4cqw solid var(--danger, #b3261e);
+    outline-offset: 0.6cqw;
+}
