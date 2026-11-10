@@ -51,7 +51,7 @@ export function zoomBy(crop, factor) {
 }
 
 /** Posts._two_decimals, step for step: same multiply-add-floor, same formatting. */
-function fmt(value) {
+export function formatNumber(value) {
   const hundredths = Math.floor(value * 100 + 0.5);
   const whole = Math.floor(hundredths / 100);
   const frac = hundredths % 100;
@@ -61,8 +61,8 @@ function fmt(value) {
 }
 
 export function toStyle(crop) {
-  const x = `${fmt(crop.x * 100)}%`;
-  const y = `${fmt(crop.y * 100)}%`;
-  const zoom = fmt(crop.zoom);
+  const x = `${formatNumber(crop.x * 100)}%`;
+  const y = `${formatNumber(crop.y * 100)}%`;
+  const zoom = formatNumber(crop.zoom);
   return `object-position:${x} ${y};transform:scale(${zoom});transform-origin:${x} ${y}`;
 }

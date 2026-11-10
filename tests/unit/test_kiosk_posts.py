@@ -135,6 +135,35 @@ class KioskPostsTestCase(TestCase):
             self.assertIn(f'data-field="{field}"', html)
         self.assertIn("post-card__kicker", html)
 
+    def test_flow_card_markup_unchanged_without_layout(self):
+        card = Posts.card_context(_post(1))
+        html = View.render("kiosk/_post_card", {"card": card}).get_content()
+        self.assertNotIn("post-card--positioned", html)
+        self.assertNotIn("style=\"height", html)
+        for cls in ("panel", "kicker", "headline", "body", "logo"):
+            self.assertRegex(html, rf'class="post-card__{cls}"[^>]*>')
+            self.assertNotRegex(html, rf'class="post-card__{cls}"[^>]*style=')
+
+    def test_positioned_card_renders_styles(self):
+        layout = {
+            "panel_h": 44,
+            "logo": {"x": 40, "y": 4, "s": 1},
+            "kicker": {"x": 10, "y": 5, "w": 30, "h": 3.5, "s": 1.2},
+            "headline": {"x": 10, "y": 10, "w": 80, "h": 10, "s": 1},
+            "body": {"x": 10, "y": 20, "w": 80, "h": 15, "s": 1},
+        }
+        card = Posts.card_context(_post(1, element_layout=layout))
+        html = View.render("kiosk/_post_card", {"card": card}).get_content()
+        self.assertIn("post-card post-card--positioned", html)
+        for piece, style in (
+            ("panel", "height:44cqw"),
+            ("logo", "left:40cqw;top:4cqw;--s:1"),
+            ("kicker", "left:10cqw;top:5cqw;width:36cqw;height:4.2cqw;--s:1.2"),
+            ("headline", "left:10cqw;top:10cqw;width:80cqw;height:10cqw;--s:1"),
+        ):
+            self.assertRegex(html, rf'class="post-card__{piece}" style="{style}"')
+        self.assertRegex(html, r'class="post-card__body" style="left:10cqw')
+
     def test_page_keeps_the_live_and_swiper_markers(self):
         html = _render([_post(1)])
         for marker in ("data-news-swiper", "data-news-pagination", "data-news-prev"):

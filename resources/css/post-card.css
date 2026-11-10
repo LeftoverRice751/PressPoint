@@ -232,3 +232,65 @@
     content: attr(data-placeholder);
     color: rgb(var(--brand-maroon-rgb) / 0.4);
 }
+
+/*
+ * Positioned mode (card.layout set): every piece sits at editor-chosen cqw
+ * coordinates from inline styles built by Posts.layout_styles(). The photo fills
+ * the card behind; the panel (inline `height`) is pinned to the bottom and covers
+ * the photo's lower part, which is what the flow layout's 5cqw tuck does. Text
+ * boxes are clipped to their box, font sizes scale by the per-piece --s.
+ */
+.post-card--positioned .post-card__photo {
+    position: absolute;
+    inset: 0;
+    flex: none;
+}
+
+.post-card--positioned .post-card__panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    padding: 0;
+    display: block;
+    min-height: 0;
+}
+
+.post-card--positioned .post-card__logo {
+    transform: none;
+    width: auto;
+    height: calc(11cqw * var(--s, 1));
+    max-width: calc(34cqw * var(--s, 1));
+}
+
+.post-card--positioned .post-card__kicker,
+.post-card--positioned .post-card__headline,
+.post-card--positioned .post-card__body {
+    position: absolute;
+    margin: 0;
+    max-width: none;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.post-card--positioned .post-card__kicker {
+    font-size: calc(2.8cqw * var(--s, 1));
+}
+
+.post-card--positioned .post-card__headline {
+    font-size: calc(4.2cqw * var(--s, 1));
+}
+
+.post-card--positioned .post-card__body {
+    font-size: calc(2.4cqw * var(--s, 1));
+}
+
+.post-card--positioned .post-card__sources {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 3cqw;
+    margin: 0;
+    padding: 0 6cqw;
+}
