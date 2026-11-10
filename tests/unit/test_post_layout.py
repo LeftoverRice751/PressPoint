@@ -121,3 +121,30 @@ def test_card_context_layout_valid():
     ctx = Posts.card_context(post)
     assert ctx["layout"]["panel_h"] == 44
     assert ctx["layout_styles"]["panel"] == "height:44cqw"
+
+
+HUGE = '{"panel_h":1' + "0" * 400 + "}"
+DEEP = "[" * 100000
+
+
+@pytest.mark.parametrize("raw", [HUGE, DEEP])
+def test_parse_layout_hostile_input_is_value_error(raw):
+    with pytest.raises(ValueError):
+        Posts.parse_layout(raw)
+
+
+@pytest.mark.parametrize("raw", [HUGE, DEEP])
+def test_card_context_hostile_layout_is_none(raw):
+    ctx = Posts.card_context(SimpleNamespace(id=1, element_layout=raw))
+    assert ctx["layout"] is None
+
+
+def test_parse_layout_rejects_numeric_strings_and_bools():
+    layout = fitting()
+    layout["panel_h"] = "44"
+    with pytest.raises(ValueError):
+        Posts.parse_layout(layout)
+    layout = fitting()
+    layout["logo"] = dict(layout["logo"], s=True)
+    with pytest.raises(ValueError):
+        Posts.parse_layout(layout)

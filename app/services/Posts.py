@@ -183,14 +183,16 @@ def _round2(value):
 
 
 def _layout_number(value, low, high, label):
-    if isinstance(value, bool):
+    # Real JSON numbers only: no bools, no numeric strings.
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{label} is not a number")
     try:
         number = float(value)
-    except (TypeError, ValueError):
-        raise ValueError(f"{label} is not a number")
+    except OverflowError:
+        raise ValueError(f"{label} is out of range")
     if not math.isfinite(number):
         raise ValueError(f"{label} is not finite")
+    # Range is checked on the raw value, before rounding (the JS twin mirrors this).
     if not low <= number <= high:
         raise ValueError(f"{label} is out of range")
     return _round2(number)
@@ -203,7 +205,7 @@ def parse_layout(raw):
     if isinstance(raw, (str, bytes)):
         try:
             data = json.loads(raw)
-        except ValueError:
+        except (ValueError, OverflowError, RecursionError):
             raise ValueError("layout is not valid JSON")
     else:
         data = raw
@@ -292,7 +294,7 @@ def card_context(post, disk=None):
     published = getattr(post, "published_at", None) or getattr(post, "created_at", None)
     try:
         layout = parse_layout(getattr(post, "element_layout", None))
-    except ValueError:
+    except (ValueError, OverflowError, RecursionError):
         layout = None
     return {
         "id": getattr(post, "id", None),
