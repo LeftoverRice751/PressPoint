@@ -29,15 +29,12 @@ class LoginController(Controller):
         login = User().attempt(username, password)
 
         if login:
-            # Read before the re-fetch below: the plaintext exists only on the
-            # instance attempt() minted it on; the database holds its hash.
             session_token = SessionTokens.plain_token(login)
             login = self._fresh_login_record(login, username)
             AuditLog.record("auth.login.succeeded", actor=login, request=request)
             request.set_user(login)
 
-            # Sign in on a free tab slot so a second tab's login doesn't take over
-            # this one's session (app/tab_slots.py).
+            
             slot = allocate_slot(request, SessionTokens.find_user)
             request.tab_slot = slot
             response.cookie(slot_cookie("token", slot), session_token)

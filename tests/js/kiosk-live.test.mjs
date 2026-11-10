@@ -255,3 +255,113 @@ test('budget: DEBOUNCE_MS in the source is still the budget these tests assume',
   const declared = Number(/var DEBOUNCE_MS = (\d+);/.exec(SOURCE)?.[1]);
   assert.equal(declared, BUDGET_MS, 'changing the debounce changes kiosk latency; update BUDGET_MS knowingly');
 });
+
+// ---------------------------------------------------------------------------
+// Reconnect catch-up.
+//
+// A Pusher broadcast is fire-and-forget: one sent while this terminal's socket
+// was down is gone for good, and nothing else told the kiosk. Without a
+// catch-up the terminal kept showing the old issue until a visitor happened to
+// open that section and stale-while-revalidate refreshed it behind them. So a
+// socket that comes BACK has to assume it missed everything.
+// ---------------------------------------------------------------------------
+
+const ALL = ['latest-news', 'about-lspu', 'gears-archive'];
+
+test('reconnect: the first connect is a boot, not a recovery', () => {
+  const { live, calls, timers } = boot({ attract: true });
+  live.onConnectionState('connecting');
+  assert.equal(live.onConnectionState('connected'), false);
+  assert.deepEqual(calls.evict, []);
+  assert.equal(timers.size, 0);
+});
+
+test('reconnect: a drop and return evicts every section at once', () => {
+  const { live, calls } = boot({ attract: true });
+  live.onConnectionState('connected');
+  live.onConnectionState('unavailable');
+  assert.equal(live.onConnectionState('connected'), true);
+  assert.deepEqual(calls.evict.slice().sort(), ALL.slice().sort());
+});
+
+test('reconnect: unattended terminal reloads every section after the debounce', () => {
+  const { live, calls, flushTimers } = boot({ attract: true, mode: 'video' });
+  live.onConnectionState('connected');
+  live.onConnectionState('connecting');
+  live.onConnectionState('connected');
+  flushTimers();
+  assert.deepEqual(calls.reloadContent.slice().sort(), ALL.slice().sort());
+});
+
+test('reconnect: a visitor mid-read is not interrupted; it waits for attract', () => {
+  const { live, calls, state, flushTimers } = boot({ attract: false });
+  live.onConnectionState('connected');
+  live.onConnectionState('disconnected');
+  live.onConnectionState('connected');
+  flushTimers();
+  assert.deepEqual(calls.reloadContent, []);
+  assert.deepEqual(live.dirty().sort(), ALL.slice().sort());
+  state.attract = true;
+  live.onAttract({ contentJustNavigated: false });
+  assert.deepEqual(calls.reloadContent.slice().sort(), ALL.slice().sort());
+});
+
+test('reconnect: staying connected never triggers a catch-up', () => {
+  const { live, calls } = boot({ attract: true });
+  live.onConnectionState('connected');
+  assert.equal(live.onConnectionState('connected'), false);
+  assert.deepEqual(calls.evict, []);
+});
+
+test('reconnect: a flapping link catches up once per cooldown, then once more after it', () => {
+  // Campus Wi-Fi can drop for seconds at a time, repeatedly. Each catch-up
+  // throws away the three sections' cached media (~35 MB between them) to be
+  // fetched again, so a flap must not turn into a refetch every few seconds.
+  // A drop during the cooldown still can't be ignored -- a broadcast may have
+  // been lost in it -- so it is owed one trailing catch-up when the cooldown ends.
+  const { live, calls, timers } = boot({ attract: true });
+  live.onConnectionState('connected');
+  live.onConnectionState('unavailable');
+  live.onConnectionState('connected');
+  assert.equal(calls.evict.length, 3);
+
+  live.onConnectionState('unavailable');
+  assert.equal(live.onConnectionState('connected'), false, 'within cooldown: deferred');
+  live.onConnectionState('unavailable');
+  live.onConnectionState('connected');
+  assert.equal(calls.evict.length, 3, 'no second eviction inside the cooldown');
+
+  const trailing = [...timers.values()].filter((t) => t.ms === COOLDOWN_MS);
+  assert.equal(trailing.length, 1, 'exactly one trailing catch-up is owed');
+  trailing[0].fn();
+  assert.equal(calls.evict.length, 6, 'the trailing catch-up evicts all three again');
+});
+
+const COOLDOWN_MS = Number(/var CATCHUP_COOLDOWN_MS = (\d+);/.exec(SOURCE)?.[1]);
+
+test('reconnect: the cooldown is declared and is a minute', () => {
+  assert.equal(COOLDOWN_MS, 60 * 1000);
+});
+
+test('reconnect: every catch-up, trailing one included, calls onCatchUp', () => {
+  const window = {};
+  new Function('window', SOURCE)(window);
+  const timers = [];
+  let catchUps = 0;
+  const live = window.__kioskLiveCreate({
+    evict() {}, reloadContent() {}, reloadAttract() {},
+    isAttract: () => true, attractMode: () => null,
+    onCatchUp: () => { catchUps += 1; },
+    setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
+    clearTimeout() {},
+  });
+  live.onConnectionState('connected');
+  live.onConnectionState('unavailable');
+  live.onConnectionState('connected');
+  assert.equal(catchUps, 1);
+  live.onConnectionState('unavailable');
+  live.onConnectionState('connected');
+  assert.equal(catchUps, 1, 'deferred inside the cooldown');
+  timers.find((t) => t.ms === COOLDOWN_MS).fn();
+  assert.equal(catchUps, 2, 'the trailing catch-up refreshes the ticker too');
+});

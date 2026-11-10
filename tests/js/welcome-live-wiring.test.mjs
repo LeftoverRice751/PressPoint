@@ -39,7 +39,7 @@ const STRIPPED_SOURCE = stripLeadingImports(SOURCE);
 
 function SwiperStub() { return { slides: [], activeIndex: 0, on() {} }; }
 
-async function boot({ video = true, currentSection = 'latest-news' } = {}) {
+async function boot({ video = true, currentSection = 'latest-news', pusher = false } = {}) {
   const timers = new Map();
   let nextId = 1;
   let clock = 0;
@@ -53,6 +53,7 @@ async function boot({ video = true, currentSection = 'latest-news' } = {}) {
     getElementById: (id) => {
       if (id === 'kiosk-attract') return attractEl;
       if (id === 'kiosk-attract-frame') return attractHost;
+      if (id === 'kiosk-config' && pusher) return configEl;
       return null;
     },
     querySelector: () => null,
@@ -60,6 +61,23 @@ async function boot({ video = true, currentSection = 'latest-news' } = {}) {
     createElement: () => ({ attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } }),
     body: { classList: { add() {}, remove() {}, contains: () => false } },
   };
+
+  // Only with `pusher`: a key and a flash URL make initRealtime() and
+  // loadFlashArticles() run, against the fake socket below.
+  const configEl = {
+    getAttribute: (name) => ({
+      'data-pusher-key': 'test-key',
+      'data-flash-updates-url': '/kiosk/flash-updates',
+    })[name] || '',
+  };
+  const socket = { connectionBinds: {}, subscribed: [] };
+  function FakePusher() {
+    return {
+      connection: { bind: (type, fn) => { (socket.connectionBinds[type] ||= []).push(fn); } },
+      subscribe: (name) => { socket.subscribed.push(name); return { bind() {} }; },
+    };
+  }
+  const fetched = [];
 
   const posted = [];
   // One ordered log across the three things attract does, so a test can
@@ -91,12 +109,16 @@ async function boot({ video = true, currentSection = 'latest-news' } = {}) {
       return {
         onEvent: (p) => created.onEvent.push(p),
         onAttract: (o) => { created.onAttract.push(o); order.push('FLUSH'); },
+        onConnectionState: (st) => { (created.states ||= []).push(st); },
         dirty: () => [],
       };
     },
   };
 
-  const fetch = async () => ({
+  if (pusher) window.Pusher = FakePusher;
+
+  const fetch = async (url) => ({
+    _: fetched.push(url),
     ok: true,
     json: async () => (video ? { src: '/storage/Videos/attract.mp4', title: 'Reel' } : {}),
   });
@@ -118,7 +140,7 @@ async function boot({ video = true, currentSection = 'latest-news' } = {}) {
     }
   }
 
-  return { created, posted, contentCalls, attractEl, attractHost, advance, order };
+  return { created, posted, contentCalls, attractEl, attractHost, advance, order, socket, fetched };
 }
 
 test('the shell builds the live gate with its five effects', async () => {
@@ -184,4 +206,28 @@ test('attract flushes the live update BEFORE starting the video and the route wa
   assert.ok(flush !== -1, 'the flush ran');
   assert.ok(play !== -1 && flush < play, `flush (${flush}) must precede the video (${play})`);
   assert.ok(warm === -1 || flush < warm, `flush (${flush}) must precede the route warm-up (${warm})`);
+});
+
+// ---------------------------------------------------------------------------
+// Reconnect catch-up wiring. kiosk-live.js decides whether a reconnect is a
+// recovery (tests/js/kiosk-live.test.mjs); the shell only has to forward every
+// Pusher connection state to it and hand it a way to refetch the ticker.
+// ---------------------------------------------------------------------------
+
+test('forwards every Pusher connection state to the live gate', async () => {
+  const { created, socket } = await boot({ pusher: true });
+  const binds = socket.connectionBinds.state_change || [];
+  assert.equal(binds.length, 1, 'bound once, on the one shared socket');
+  binds[0]({ previous: 'connecting', current: 'connected' });
+  binds[0]({ previous: 'connected', current: 'unavailable' });
+  assert.deepEqual(created.states, ['connected', 'unavailable']);
+});
+
+test('onCatchUp refetches the flash ticker, which lost the same broadcasts', async () => {
+  const { created, fetched } = await boot({ pusher: true });
+  const before = fetched.filter((u) => u === '/kiosk/flash-updates').length;
+  created.deps.onCatchUp();
+  await new Promise((r) => setImmediate(r));
+  const after = fetched.filter((u) => u === '/kiosk/flash-updates').length;
+  assert.equal(after, before + 1);
 });

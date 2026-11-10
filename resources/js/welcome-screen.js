@@ -225,6 +225,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const pusher = new Pusher(pusherKey, pusherOptions());
 
+        // Bound before the socket's first connect (Pusher connects
+        // asynchronously), so kiosk-live.js sees the boot 'connected' and can
+        // tell it apart from a recovery. Broadcasts sent while the socket was
+        // down are lost; kiosk-live.js answers a recovery with a catch-up.
+        if (kioskLive && pusher.connection) {
+          pusher.connection.bind("state_change", (change) => {
+            kioskLive.onConnectionState(change && change.current);
+          });
+        }
+
         const flash = pusher.subscribe(flashUpdatesChannel);
         flash.bind(flashUpdatesEvent, (payload) => {
           prependFlashArticle(payload || {});
@@ -597,6 +607,7 @@ document.addEventListener("DOMContentLoaded", () => {
           reloadAttract: reloadAttractFrame,
           isAttract: () => attractShowing,
           attractMode: () => attractMode,
+          onCatchUp: loadFlashArticles,
         })
       : null;
 

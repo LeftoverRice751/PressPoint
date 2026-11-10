@@ -37,10 +37,12 @@
 
   var SECTIONS = ['latest-news', 'about-lspu', 'gears-archive'];
   var DEBOUNCE_MS = 750;
+  var CATCHUP_COOLDOWN_MS = 60000;
 
   function create(deps) {
     var setTimer = deps.setTimeout || window.setTimeout.bind(window);
     var clearTimer = deps.clearTimeout || window.clearTimeout.bind(window);
+    var now = deps.now || Date.now;
 
     var lastStamp = {};   // section -> last stamp applied
     var pending = {};     // section -> debounce timer id
@@ -93,9 +95,64 @@
       });
     }
 
+    /*
+     * Reconnect catch-up. A Pusher broadcast is fire-and-forget: one sent
+     * while this socket was down is simply lost, and before this the terminal
+     * kept the old issue on screen until a visitor happened to open that
+     * section. So a socket that comes back assumes it missed everything and
+     * treats every section as changed, through the same evict-now /
+     * reload-when-idle path a real event takes.
+     *
+     * The very first 'connected' is the boot, not a recovery: the page has
+     * just loaded fresh, so there is nothing to catch up on.
+     *
+     * Rate-limited because campus Wi-Fi can flap for seconds at a time and
+     * each catch-up throws away all three sections' cached media. A drop
+     * inside the cooldown may still have lost a broadcast, though, so it is
+     * owed one trailing catch-up when the cooldown ends rather than dropped.
+     */
+    var everConnected = false;
+    var dropped = false;
+    var lastCatchUp = -Infinity;
+    var trailing;
+
+    function catchUp() {
+      trailing = undefined;
+      lastCatchUp = now();
+      SECTIONS.forEach(function (section) {
+        safe(function () { deps.evict(section); });
+        if (pending[section] !== undefined) clearTimer(pending[section]);
+        pending[section] = setTimer(function () { apply(section); }, DEBOUNCE_MS);
+      });
+      // The flash ticker rides the same socket and lost the same broadcasts.
+      if (deps.onCatchUp) safe(function () { deps.onCatchUp(); });
+    }
+
+    function onConnectionState(state) {
+      if (state !== 'connected') {
+        if (everConnected) dropped = true;
+        return false;
+      }
+      if (!everConnected) {
+        everConnected = true;
+        return false;
+      }
+      if (!dropped) return false;
+      dropped = false;
+
+      var wait = lastCatchUp + CATCHUP_COOLDOWN_MS - now();
+      if (wait > 0) {
+        if (trailing === undefined) trailing = setTimer(catchUp, CATCHUP_COOLDOWN_MS);
+        return false;
+      }
+      catchUp();
+      return true;
+    }
+
     return {
       onEvent: onEvent,
       onAttract: onAttract,
+      onConnectionState: onConnectionState,
       dirty: function () { return Object.keys(dirty); },
     };
   }
