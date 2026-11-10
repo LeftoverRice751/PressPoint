@@ -42,17 +42,17 @@ test('snapshot converts px to cqw and sets s=1', () => {
   assert.deepEqual(layout, {
     panel_h: 40,
     logo: { x: 33.25, y: 4, s: 1 },
-    kicker: { x: 6, y: 4.5, w: 88, h: 3.3, s: 1 },
-    headline: { x: 10, y: 10, w: 80, h: 5, s: 1 },
-    body: { x: 10, y: 16.5, w: 80, h: 7.5, s: 1 },
+    kicker: { x: 6, y: 4.5, w: 88.5, h: 3.3, s: 1 },
+    headline: { x: 10, y: 10, w: 80.5, h: 5, s: 1 },
+    body: { x: 10, y: 16.5, w: 80.5, h: 7.5, s: 1 },
   });
 });
 
-test('snapshot rounds sizes up so a measured line never rewraps', () => {
+test('snapshot rounds sizes up and adds width slack so a line never rewraps', () => {
   const layout = snapshot({ ...{ panel_h: 160, logo: { x: 0, y: 0 } },
     kicker: { x: 0, y: 0, w: 100.01, h: 10 },
     headline: { x: 0, y: 0, w: 100, h: 10 }, body: { x: 0, y: 0, w: 100, h: 10 } }, 400);
-  assert.equal(layout.kicker.w, 25.01);
+  assert.equal(layout.kicker.w, 25.51);
 });
 
 test('snapshot keeps every number inside the server ranges', () => {
@@ -63,6 +63,24 @@ test('snapshot keeps every number inside the server ranges', () => {
   assert.equal(layout.kicker.w, 5);
   assert.equal(layout.kicker.h, 1);
   assert.equal(layout.logo.x, 0);
+});
+
+test('snapshot width slack never pushes a box past the right edge', () => {
+  const layout = snapshot({ panel_h: 160, logo: { x: 0, y: 0 },
+    kicker: { x: 200, y: 0, w: 200, h: 10 },
+    headline: { x: 0, y: 40, w: 100, h: 10 }, body: { x: 0, y: 80, w: 100, h: 10 } }, 400);
+  assert.equal(layout.kicker.x + layout.kicker.w, 100);
+});
+
+test('a flow panel taller than the cap shifts text up by the difference', () => {
+  // 320px of 400 = 80cqw, capped to 70: the panel top moves down 10cqw.
+  const layout = snapshot({ panel_h: 320, logo: { x: 0, y: 0 },
+    kicker: { x: 0, y: 60, w: 100, h: 10 },
+    headline: { x: 0, y: 100, w: 100, h: 10 }, body: { x: 0, y: 20, w: 100, h: 10 } }, 400);
+  assert.equal(layout.panel_h, 70);
+  assert.equal(layout.kicker.y, 5);
+  assert.equal(layout.headline.y, 15);
+  assert.equal(layout.body.y, 0);
 });
 
 test('serialize is empty in flow mode', () => {

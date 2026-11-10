@@ -233,7 +233,14 @@ def _text_box(box):
 
 
 def layout_problems(layout):
-    """Geometry violations of a parsed layout; empty when it fits."""
+    """Geometry violations of a parsed layout; empty when it fits.
+
+    Checks text against the whole panel, not the panel minus the source footer:
+    the footer's height depends on wrapped text the server cannot measure. The
+    editor (post-layout.mjs problems) is stricter and also keeps text off the
+    footer and the logo within its rendered width, so it never sends what this
+    refuses; only a hand-made request could put text over the footer.
+    """
     problems = []
     panel_h = layout["panel_h"]
     eps = 1e-9

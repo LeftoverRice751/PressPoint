@@ -25,6 +25,7 @@ export const LAYOUT_PROBLEM = 'A piece doesn\'t fit — move or shrink it.';
 // Stricter than the server (which allows 0..100): a piece flush with the
 // panel's rounded edge reads as clipped.
 const INSET = 2;
+const WIDTH_SLACK = 0.5;
 const ALL = ['logo', ...PIECES];
 const LABELS = { logo: 'logo', kicker: 'event title', headline: 'headline', body: 'summary' };
 const KEYS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
@@ -46,16 +47,26 @@ export function pxToCqw(px, cardPx) {
 export function snapshot(m, cardPx) {
   const cq = (px) => (cardPx > 0 ? (px * 100) / cardPx : 0);
   const pos = (px) => round2(clamp(cq(px), RANGES.x));
+  const rawPanel = cq(m.panel_h);
+  const panelH = round2(clamp(rawPanel, RANGES.panel_h));
+  // A flow panel taller than the cap gets shorter from the top (it is pinned to
+  // the bottom), so text measured from the old top would slide down into the
+  // footer. Shift it up by the difference to keep it where the editor sees it.
+  const shift = Math.max(0, rawPanel - panelH);
   const layout = {
-    panel_h: round2(clamp(cq(m.panel_h), RANGES.panel_h)),
+    panel_h: panelH,
     logo: { x: pos(m.logo.x), y: pos(m.logo.y), s: 1 },
   };
   for (const piece of PIECES) {
     const b = m[piece];
+    const x = pos(b.x);
     layout[piece] = {
-      x: pos(b.x),
-      y: pos(b.y),
-      w: clamp(ceil2(cq(b.w)), RANGES.w),
+      x,
+      y: round2(clamp(cq(b.y) - shift, RANGES.y)),
+      // fit-content is the longest line to the pixel; half a cqw of slack keeps
+      // a sub-pixel font difference on the kiosk from wrapping a word into the
+      // clipped (overflow: hidden) part of the box.
+      w: round2(clamp(Math.min(ceil2(cq(b.w)) + WIDTH_SLACK, 100 - x), RANGES.w)),
       h: clamp(ceil2(cq(b.h)), RANGES.h),
       s: 1,
     };
