@@ -12,10 +12,15 @@
  *
  *   2. Idle reset. Returns to the kiosk hub after 120s without a
  *      pointer/key/scroll event, but only when this page is the whole document.
+ *
+ *   3. Attract mode. Framed by the kiosk shell's idle screen (an iframe named
+ *      "kiosk-attract", welcome-screen.js), the page drops its arrows and dots
+ *      and the posts advance by themselves: every touch on that screen wakes
+ *      the kiosk instead of reaching the page, so a swipe can never happen.
  */
 
 import Swiper from 'swiper';
-import { Navigation, Pagination, Keyboard, A11y } from 'swiper/modules';
+import { Navigation, Pagination, Keyboard, A11y, Autoplay } from 'swiper/modules';
 
 (function () {
   'use strict';
@@ -25,6 +30,13 @@ import { Navigation, Pagination, Keyboard, A11y } from 'swiper/modules';
   // Framed at all -- by the kiosk shell's content frame, or by its attract
   // overlay. Same-origin, so no try/catch is needed around window.top.
   var isFramed = window.top !== window.self;
+  // The name, not top/self: the shell's content frame is framed too, and a
+  // visitor there wants the arrows and full control.
+  var isAttract = isFramed && window.name === 'kiosk-attract';
+  // How long each post holds on the idle screen.
+  var ATTRACT_DELAY_MS = 8000;
+
+  if (isAttract) document.body.classList.add('news-attract');
 
   /* ── Carousel ───────────────────────────────────────────────── */
 
@@ -43,7 +55,7 @@ import { Navigation, Pagination, Keyboard, A11y } from 'swiper/modules';
   }
 
   if (swiperEl && slideCount) {
-    newsSwiper = new Swiper(swiperEl, {
+    var options = {
       // No EffectCoverflow, matching welcome-screen.js: coverflow's
       // translateZ pushes the peeking slides behind .swiper-wrapper, so side
       // taps stop hit-testing on a touchscreen.
@@ -65,7 +77,15 @@ import { Navigation, Pagination, Keyboard, A11y } from 'swiper/modules';
         clickable: true,
       },
       watchSlidesProgress: true,
-    });
+    };
+    if (isAttract && slideCount > 1) {
+      options.modules.push(Autoplay);
+      // rewind, not loop: loop clones slides, which 'auto' slidesPerView and
+      // centred slides handle badly; rewind just slides back to the first.
+      options.rewind = true;
+      options.autoplay = { delay: ATTRACT_DELAY_MS, disableOnInteraction: false };
+    }
+    newsSwiper = new Swiper(swiperEl, options);
   }
 
   /* ── Idle reset ─────────────────────────────────────────────── */

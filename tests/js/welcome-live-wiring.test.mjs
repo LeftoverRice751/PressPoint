@@ -165,6 +165,8 @@ test('newsletter attract reports mode newsletter and reloadAttract re-srcs its i
   assert.equal(created.deps.attractMode(), 'newsletter');
   const iframe = attractHost.child;
   assert.ok(iframe, 'the newsletter iframe was injected');
+  // kiosk-news.js switches into attract mode (no arrows/dots, autoplay) on this name.
+  assert.equal(iframe.attrs.name, 'kiosk-attract');
   iframe.attrs.src = 'stale';
   created.deps.reloadAttract();
   assert.equal(iframe.attrs.src, '/kiosk/embed/latest-news');

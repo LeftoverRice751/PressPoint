@@ -656,6 +656,11 @@ document.addEventListener("DOMContentLoaded", () => {
       attractIframe.setAttribute("title", "");
       attractIframe.setAttribute("aria-hidden", "true");
       attractIframe.setAttribute("tabindex", "-1");
+      // The framed page reads its own window.name to switch into attract mode
+      // (kiosk-news.js: no arrows or dots, posts advance by themselves). A
+      // name, not a ?query: the service worker caches and evicts this exact
+      // URL, so a query would miss kiosk-live's refresh after a publish.
+      attractIframe.setAttribute("name", "kiosk-attract");
       attractIframe.setAttribute("src", ATTRACT_SRC);
       attractFrameHost.replaceChildren(attractIframe);
     } else {

@@ -689,9 +689,11 @@ body.kiosk-idle-active .kiosk-idle-cta {
    crop the very text this is trying to keep readable. The cost is a thin
    pillarbox either side, filled by the overlay's own solid background.
 
-   Only the idle attract (#kiosk-idle-cta, under body.kiosk-idle-active) — an
-   editor's push still plays full-bleed with no button, and the newsletter
-   attract's "Touch to begin" shares the class but not this layout. */
+   Only the idle attracts (#kiosk-idle-cta, and #kiosk-attract-cta for the
+   photo-post fallback, under body.kiosk-idle-active) — an editor's push still
+   plays full-bleed with no button. The post attract's frame ends at the same
+   band (#kiosk-attract-frame in welcome.html), so both screens are one layout:
+   espresso frame, content in the middle, the band underneath. */
 body.kiosk-idle-active {
   --kiosk-idle-band-h: clamp(108px, 13vh, 156px);
 }
@@ -711,7 +713,8 @@ body.kiosk-idle-active #kiosk-video-overlay {
   background: var(--kiosk-espresso);
 }
 
-body.kiosk-idle-active #kiosk-idle-cta {
+body.kiosk-idle-active #kiosk-idle-cta,
+body.kiosk-idle-active #kiosk-attract-cta {
   /* Inset inside the strip with room underneath for the drop shadow and the
      breathe's 2.5% swell, so neither creeps up over the video. */
   top: auto;

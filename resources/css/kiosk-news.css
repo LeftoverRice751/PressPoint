@@ -1618,3 +1618,26 @@ body.newspaper-bg .news-slide--post {
     justify-content: center;
     padding: var(--kiosk-s-3) 0;
 }
+
+/* ── Attract mode ──────────────────────────────────────────────────────────
+   The kiosk shell's idle screen frames this page when no idle video is set
+   (kiosk-news.js adds .news-attract when its frame is named "kiosk-attract").
+   It matches the idle video's layout: an espresso frame with the post centred
+   in it, and the shell's "CLICK TO START KIOSK" band underneath. No arrows or
+   dots: touches on that screen wake the kiosk, and the posts advance on their
+   own. Solid colours only. */
+body.newspaper-bg.news-attract {
+    justify-content: center;
+    padding: 0;
+    background: var(--kiosk-espresso);
+}
+
+body.newspaper-bg.news-attract .news-swiper__nav,
+body.newspaper-bg.news-attract .news-swiper__pagination {
+    display: none;
+}
+
+body.newspaper-bg.news-attract .news-slide--post {
+    align-items: center;
+    padding: clamp(16px, 3vw, 32px);
+}

@@ -220,6 +220,21 @@ class WelcomeTemplateTest(TestCase):
         js = (_REPO_ROOT / "resources" / "js" / "welcome-screen.js").read_text()
         self.assertIn('ATTRACT_SRC = "/kiosk/embed/latest-news"', js)
 
+    def test_post_attract_matches_the_video_attract(self):
+        # Same band and words as the idle video's CTA; the frame stops at the
+        # band; and the framed page knows it is the attract (by frame name, so
+        # the service worker's URL stays the one kiosk-live refreshes).
+        html = (_REPO_ROOT / "templates" / "welcome.html").read_text()
+        css = (_REPO_ROOT / "resources" / "css" / "welcome-screen.css").read_text()
+        news_js = (_REPO_ROOT / "resources" / "js" / "kiosk-news.js").read_text()
+        attract = html[html.index('id="kiosk-attract-cta"'):]
+        attract = attract[: attract.index("</button>")]
+        self.assertIn("CLICK TO START KIOSK", attract)
+        self.assertNotIn("kiosk-idle-cta__pulse", attract)
+        self.assertIn("bottom: var(--kiosk-idle-band-h", html)
+        self.assertIn("body.kiosk-idle-active #kiosk-attract-cta", css)
+        self.assertIn("window.name === 'kiosk-attract'", news_js)
+
 
 class BackControlsTest(TestCase):
     #: The six destinations. None carries a back control any more: About kept
