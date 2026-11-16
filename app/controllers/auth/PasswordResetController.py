@@ -7,7 +7,7 @@ from masonite.facades import Mail
 from masonite.facades import Hash
 from app.mailables.ResetPassword import ResetPassword
 from app.models.User import User
-from app.services import AuditLog, OtpAttempts, SessionTokens
+from app.services import AuditLog, OtpAttempts, PasswordChange, SessionTokens
 from masonite.configuration import config
 from wsgi import application
 import re
@@ -213,10 +213,20 @@ class PasswordResetController(Controller):
         raw_password = request.input("password") or ""
         if errors or not raw_password:
             # The token stays put: a typo should not cost the user their verified OTP.
-            return response.back().with_errors([
-                "Password must be at least 8 characters with upper and lower case "
-                "letters, numbers and symbols, and must match the confirmation."
-            ])
+            # Say which rule failed. The old single sentence named no counts, so a
+            # "Password1!" (one uppercase, digit, symbol; `strong` wants two each)
+            # looked like a compliant password being refused. Specific is safe here,
+            # unlike PasswordChange.GENERIC_ERROR: this step follows OTP verification
+            # and takes no current password to confirm.
+            messages = []
+            missing = PasswordChange.policy_errors(raw_password)
+            if missing:
+                messages.append("Password needs " + ", ".join(missing) + ".")
+            if raw_password != (request.input("password_confirmation") or ""):
+                messages.append("The passwords do not match.")
+            return response.back().with_errors(
+                messages or ["Please enter a new password and confirm it."]
+            )
 
         reset_table = config("auth.guards.password_reset_table", "password_resets")
         reset_records = application.make("builder").new().statement(

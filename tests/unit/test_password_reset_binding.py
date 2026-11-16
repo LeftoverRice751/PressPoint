@@ -381,6 +381,46 @@ class PasswordPolicyBranchTestCase(TestCase):
         self.assertFalse(builder.updates(), "an empty password was stored")
 
 
+class PasswordPolicyMessageTestCase(TestCase):
+    """The /change-password meter called "Password1!" strong (it checked one
+    digit and one symbol), the server's `strong` rule wanted two of each class,
+    and the refusal named no counts — so a password that looked compliant was
+    refused with no hint of why."""
+
+    def _errors(self, inputs):
+        from app.controllers.auth.PasswordResetController import PasswordResetController
+
+        builder = FakeBuilder([_row("victim@lspu.edu.ph", "123456")])
+        session = FakeSession(
+            {
+                "reset_token": _stored("victim@lspu.edu.ph", "123456"),
+                "reset_email": "victim@lspu.edu.ph",
+            }
+        )
+        response = _response()
+        with patch(
+            "app.controllers.auth.PasswordResetController.application"
+        ) as app_mock, patch("app.controllers.auth.PasswordResetController.Hash"):
+            app_mock.make.return_value = builder
+            PasswordResetController().store_changed_password(
+                Mock(), _request(inputs, session=session), response
+            )
+        self.assertFalse(builder.updates())
+        return " ".join(response.back.return_value.with_errors.call_args[0][0])
+
+    def test_one_of_each_class_names_the_missing_counts(self):
+        text = self._errors({"password": "Password1!", "password_confirmation": "Password1!"})
+        self.assertIn("2 uppercase", text)
+        self.assertIn("2 numbers", text)
+        self.assertIn("2 symbols", text)
+        self.assertNotIn("do not match", text)
+
+    def test_mismatch_alone_says_so(self):
+        text = self._errors({"password": "AAbb12!!xyz", "password_confirmation": "AAbb12!!xyZ"})
+        self.assertIn("do not match", text)
+        self.assertNotIn("needs", text)
+
+
 class ResetWindowTestCase(TestCase):
     """A 24-hour window kept a large pool of live codes valid at once, which is
     what made guessing across accounts practical."""

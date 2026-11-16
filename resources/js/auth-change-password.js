@@ -1,44 +1,47 @@
+import { missingRules, RULE_COUNT } from './password-policy.mjs';
+
 (function () {
     var passwordInput = document.getElementById('password');
     var confirmInput  = document.getElementById('password_confirmation');
     var bar           = document.getElementById('password-strength-bar');
     var label         = document.getElementById('password-strength-label');
 
-    function evaluatePassword(password) {
-        var requirements = {
-            length:  password.length >= 8,
-            number:  /\d/.test(password),
-            special: /[^A-Za-z0-9]/.test(password),
-        };
-        var score = Object.values(requirements).filter(Boolean).length;
-        return { requirements: requirements, score: score };
-    }
-
     function updateStrength() {
-        var password   = passwordInput.value || '';
-        var evaluation = evaluatePassword(password);
-        var score      = evaluation.score;
+        var password = passwordInput.value || '';
+        var missing  = missingRules(password);
+        var met      = RULE_COUNT - missing.length;
 
-        var width = score === 0 ? 0 : score === 1 ? 33 : score === 2 ? 66 : 100;
+        var width = password ? (met / RULE_COUNT) * 100 : 0;
         // Token names, not hexes: an inline style resolves var() against the element,
         // so the meter follows [data-theme="gears"] like everything else.
-        var color = score < 2 ? 'var(--danger)' : score === 2 ? 'var(--warn)' : 'var(--ok)';
+        var color = met < 3 ? 'var(--danger)' : met < RULE_COUNT ? 'var(--warn)' : 'var(--ok)';
 
         bar.style.width           = width + '%';
         bar.style.backgroundColor = color;
 
-        var missing = [];
-        if (!evaluation.requirements.length)  missing.push('8+ chars');
-        if (!evaluation.requirements.number)  missing.push('number');
-        if (!evaluation.requirements.special) missing.push('special char');
-
-        if (score === 3) {
-            label.textContent  = 'Strong password.';
-            label.style.color  = 'var(--ok)';
+        if (!missing.length) {
+            label.textContent = 'Strong password.';
+            label.style.color = 'var(--ok)';
         } else {
             label.textContent = 'Needs: ' + missing.join(', ');
             label.style.color = '';
         }
+
+        // Block a submit the server would refuse, instead of round-tripping to
+        // an error page.
+        passwordInput.setCustomValidity(
+            password && missing.length ? 'Password needs: ' + missing.join(', ') + '.' : ''
+        );
+    }
+
+    function updateMatch() {
+        if (!passwordInput.value || !confirmInput.value) {
+            confirmInput.setCustomValidity('');
+            return;
+        }
+        confirmInput.setCustomValidity(
+            passwordInput.value === confirmInput.value ? '' : 'Passwords do not match.'
+        );
     }
 
     if (passwordInput) {
@@ -47,14 +50,8 @@
     }
 
     if (confirmInput) {
-        confirmInput.addEventListener('input', function () {
-            if (!passwordInput.value || !confirmInput.value) {
-                confirmInput.setCustomValidity('');
-                return;
-            }
-            confirmInput.setCustomValidity(
-                passwordInput.value === confirmInput.value ? '' : 'Passwords do not match.'
-            );
-        });
+        confirmInput.addEventListener('input', updateMatch);
+        // Editing the first field after the second must re-check the match too.
+        if (passwordInput) passwordInput.addEventListener('input', updateMatch);
     }
 })();
