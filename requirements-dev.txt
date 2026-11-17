@@ -11,7 +11,7 @@ flake8==7.1.1
 black==26.10.1
 
 # Used by the database seeders (databases/seeds/).
-Faker==13.16.0
+Faker==40.54.0
 
 # Security scanning, run by the `security` CI job and `make audit`
 # (SECURITY.md W6). Ignored advisories and the reason for each live in the
