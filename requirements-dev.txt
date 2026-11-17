@@ -7,7 +7,7 @@ mock==5.2.0
 
 # `make lint` / `make format` were previously unrunnable: setup.cfg and
 # pyproject.toml configured both tools but neither was ever installed.
-flake8==7.1.1
+flake8==7.5.0
 black==26.10.1
 
 # Used by the database seeders (databases/seeds/).
