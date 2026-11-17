@@ -41,4 +41,4 @@ pusher==3.3.4
 pendulum==3.2.0
 
 # WSGI server used by lyn.sh in production.
-gunicorn==25.3.0
+gunicorn==27.0.1
