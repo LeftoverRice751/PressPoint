@@ -16,5 +16,5 @@ Faker==13.16.0
 # Security scanning, run by the `security` CI job and `make audit`
 # (SECURITY.md W6). Ignored advisories and the reason for each live in the
 # makefile, next to the command that ignores them.
-pip-audit==2.7.3
+pip-audit==2.10.1
 bandit==1.7.10
