@@ -1142,7 +1142,10 @@ body {
 }
 
 /* TOUR PREVIEW MODAL */
-.tour-preview-modal {
+/* Doubled class on purpose: .article-modal is declared ~700 lines further down
+   with the same single-class specificity, so a bare .tour-preview-modal lost the
+   cascade and the dialog silently stayed at the generic 760px. */
+.article-modal.tour-preview-modal {
     width: min(900px, calc(100vw - 2rem));
 }
 
@@ -1208,12 +1211,24 @@ body {
    max-height is what keeps this dialog off the shared body scroller: at the
    900px width, 16/9 is 506px, and with the title, scene id and hint that is
    ~706px against the 660px a 768px-tall laptop allows. Capping the stage lets
-   the whole preview fit instead of making the editor scroll a panorama. */
+   the whole preview fit instead of making the editor scroll a panorama.
+
+   position: relative is load-bearing. Marzipano's Viewer only sets
+   overflow:hidden on the element it is given; the canvas and the control layer
+   it appends are position:absolute at 100% x 100%. Without a positioned stage
+   they size against the next positioned ancestor -- the panel -- so the
+   panorama came out panel-sized, spilled past the right padding and pushed the
+   hint off the bottom. The stage's own overflow:hidden cannot clip them either,
+   because overflow only clips absolute descendants of a positioned box.
+
+   min-height uses min() so a short landscape phone (86vh panel cap ~ 320px)
+   is not forced past the panel by a fixed 240px floor. */
 .tour-preview-modal__stage {
-    flex: 0 0 auto;
+    position: relative;
+    flex: 0 1 auto;
     width: 100%;
     aspect-ratio: 16 / 9;
-    min-height: 240px;
+    min-height: min(240px, 38vh);
     max-height: 52vh;
     border-radius: var(--radius-sm);
     border: 1px solid var(--ink-rule-strong);
