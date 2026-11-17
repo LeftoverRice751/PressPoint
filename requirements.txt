@@ -16,7 +16,7 @@ masonite-framework==5.4.1
 masonite-framework-orm==3.1.0
 
 # Database driver (config/database.py, DB_CONNECTION=mysql).
-PyMySQL==1.1.2
+PyMySQL==1.2.4
 
 # Archives: PyMuPDF imports as `fitz` (app/services/ArchiveServices.py).
 PyMuPDF==1.27.2.2
