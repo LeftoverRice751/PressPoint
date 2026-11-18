@@ -5,23 +5,22 @@
     "development": "node ./node_modules/laravel-mix/bin/cli.js",
     "watch": "node ./node_modules/laravel-mix/bin/cli.js watch",
     "watch-poll": "node ./node_modules/laravel-mix/bin/cli.js watch -- --watch-options-poll=1000",
-    "hot": "node ./node_modules/laravel-mix/bin/cli.js watch --hot",
     "prod": "npm run production",
     "test:js": "node --test tests/js/*.test.mjs",
     "production": "node ./node_modules/laravel-mix/bin/cli.js --production"
   },
   "devDependencies": {
-    "axios": "^1.15.0",
+    "axios": "^1.21.1",
     "laravel-mix": "^6.0.3",
-    "postcss": "^8.4.5"
+    "postcss": "^8.5.33"
   },
   "engines": {
     "node": "18.x"
   },
   "overrides": {
-    "webpack": "5.60.0",
-    "webpack-cli": "4.10.0",
-    "webpack-dev-server": "4.7.3"
+    "webpack": "~5.105.4",
+    "webpack-dev-server": "^5.2.7",
+    "uuid": "^11.1.1"
   },
   "dependencies": {
     "@google/model-viewer": "^4.3.1",
