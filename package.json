@@ -32,6 +32,6 @@
     "pdfjs-dist": "^6.4.299",
     "quill": "^2.0.2",
     "sortablejs": "^1.15.7",
-    "swiper": "^14.0.5"
+    "swiper": "^14.4.0"
   }
 }
