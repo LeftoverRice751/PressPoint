@@ -27,7 +27,7 @@
     "leaflet": "^1.9.4",
     "loader": "^2.1.1",
     "marzipano": "^0.10.2",
-    "openseadragon": "^4.1.1",
+    "openseadragon": "^6.1.1",
     "page-flip": "^2.0.7",
     "pdfjs-dist": "^6.4.299",
     "quill": "^2.0.2",
